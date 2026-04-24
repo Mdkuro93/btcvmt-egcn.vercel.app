@@ -205,8 +205,8 @@ const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark' 
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay }}
     className={cn(
-      "p-5 rounded-3xl shadow-xl border flex flex-col gap-4 relative overflow-hidden transition-all",
-      theme === 'dark' ? "bg-slate-900/40 backdrop-blur-md border-slate-800/50" : "bg-white border-slate-200"
+      "p-5 rounded-3xl shadow-2xl border flex flex-col gap-4 relative overflow-hidden transition-all",
+      theme === 'dark' ? "bg-slate-900/80 backdrop-blur-xl border-slate-700/50" : "bg-white border-slate-200"
     )}
   >
     <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/5 rounded-full blur-2xl"></div>
@@ -333,9 +333,9 @@ const FestiveBranding = () => (
     ))}
 
     {/* Background Overlay Tints */}
-    <div className="absolute inset-0 bg-festive-dark/40 backdrop-blur-[2px]"></div>
-    <div className="absolute top-0 left-0 right-0 h-[60%] bg-gradient-to-b from-festive-red/40 via-transparent to-transparent"></div>
-    <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-festive-dark to-transparent"></div>
+    <div className="absolute inset-0 bg-festive-dark/20 backdrop-blur-[1px]"></div>
+    <div className="absolute top-0 left-0 right-0 h-[40%] bg-gradient-to-b from-festive-red/20 via-transparent to-transparent"></div>
+    <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-festive-dark/60 to-transparent"></div>
   </div>
 );
 
@@ -1738,16 +1738,17 @@ export default function App() {
           alt="Da Nang Background" 
           className={cn(
             "w-full h-full object-cover transition-all duration-1000",
-            theme === 'light' ? "opacity-10 grayscale-[50%]" : "opacity-30 brightness-50"
+            theme === 'light' ? "opacity-10 grayscale-[50%]" : "opacity-40 brightness-50"
           )}
           referrerPolicy="no-referrer"
         />
         <div className={cn(
           "absolute inset-0 transition-all duration-500",
           theme === 'light' 
-            ? "bg-gradient-to-br from-white/90 via-slate-50/95 to-white/90" 
-            : "bg-gradient-to-br from-slate-950/90 via-slate-900/95 to-slate-950/90"
+            ? "bg-gradient-to-br from-white/95 via-slate-50/98 to-white/95" 
+            : "bg-gradient-to-br from-slate-950/95 via-slate-900/98 to-slate-950/95"
         )}></div>
+        <FestiveBranding />
       </div>
 
       {/* Sidebar */}
@@ -2026,7 +2027,6 @@ export default function App() {
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-8 bg-transparent custom-scrollbar relative">
-          <FestiveBranding />
           <AnimatePresence mode="wait">
             {activeTab === 'dashboard' && (
               <motion.div 
@@ -2112,7 +2112,7 @@ export default function App() {
                         <>
                           <div className={cn(
                             "p-4 rounded-2xl border flex items-center justify-between transition-all",
-                            theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800"
+                            theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/80 border-slate-700 backdrop-blur-xl"
                           )}>
                             <div className="flex items-center gap-4">
                               <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-500 flex items-center justify-center">
@@ -2132,7 +2132,7 @@ export default function App() {
                           </div>
                           <div className={cn(
                             "p-4 rounded-2xl border flex items-center justify-between transition-all",
-                            theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800"
+                            theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/80 border-slate-700 backdrop-blur-xl"
                           )}>
                             <div className="flex items-center gap-4">
                               <div className="w-10 h-10 rounded-xl bg-slate-500/20 text-slate-400 flex items-center justify-center">

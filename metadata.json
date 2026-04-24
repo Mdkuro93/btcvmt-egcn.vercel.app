@@ -1,5 +1,5 @@
 {
-  "name": "GCN-Tracker: Quản lý Cấp sổ BĐS",
+  "name": "GCN-Tracker: Quản lý tình trạng cấp GCN",
   "description": "Hệ thống theo dõi quy trình cấp Giấy chứng nhận quyền sử dụng đất cho các dự án bất động sản quy mô vùng.",
   "requestFramePermissions": [],
   "majorCapabilities": []
