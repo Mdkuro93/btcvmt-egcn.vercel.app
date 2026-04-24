@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, LabelList
+  PieChart, Pie, LabelList, Legend
 } from 'recharts';
 import { 
   Building2, 
@@ -35,7 +35,18 @@ import {
   FileBarChart,
   ClipboardList,
   Home,
-  Check
+  Check,
+  Settings,
+  Users,
+  ShieldCheck,
+  FolderArchive,
+  TrendingUp,
+  Activity,
+  Layers,
+  MapPin,
+  Calendar,
+  FileSpreadsheet,
+  FileJson
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -287,11 +298,405 @@ const FestiveBranding = () => (
   </div>
 );
 
+const SettingsView = ({ slaConfig, setSlaConfig, checklistTemplates, setChecklistTemplates }: { slaConfig: Record<string, number>, setSlaConfig: any, checklistTemplates: string[], setChecklistTemplates: any }) => {
+  const [newChecklistItem, setNewChecklistItem] = useState('');
+
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 text-left">
+      <header className="flex justify-between items-end">
+        <div>
+           <h2 className="text-3xl font-black text-white italic font-serif tracking-tight">Cấu hình hệ thống</h2>
+           <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em] mt-1">Quản lý SLA, Checklist & Quy trình</p>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* SLA Config */}
+        <section className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-[2.5rem] overflow-hidden group">
+          <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
+                <Clock className="text-amber-500" size={20} />
+              </div>
+              <h3 className="text-base font-black text-white uppercase tracking-tight">Cấu hình SLA (Ngày)</h3>
+            </div>
+            <Activity className="text-slate-700" size={20} />
+          </div>
+          <div className="p-8 space-y-4">
+            {Object.entries(slaConfig).map(([step, days]) => (
+              <div key={step} className="flex items-center justify-between p-4 bg-slate-950 rounded-2xl border border-slate-800 group/item hover:border-amber-500/30 transition-all">
+                <span className="text-sm font-bold text-slate-300">{step}</span>
+                <div className="flex items-center gap-3">
+                  <input 
+                    type="number" 
+                    value={days}
+                    onChange={(e) => setSlaConfig({...slaConfig, [step]: parseInt(e.target.value) || 0})}
+                    className="w-16 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-center text-sm font-black text-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
+                  />
+                  <span className="text-[10px] font-black text-slate-500 uppercase">Ngày</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Checklist Config */}
+        <section className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-[2.5rem] overflow-hidden group">
+          <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                <ClipboardList className="text-emerald-500" size={20} />
+              </div>
+              <h3 className="text-base font-black text-white uppercase tracking-tight">Danh mục Hồ sơ</h3>
+            </div>
+            <Layers className="text-slate-700" size={20} />
+          </div>
+          <div className="p-8 space-y-6">
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                placeholder="Thêm hạng mục mới..."
+                className="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-slate-300 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                value={newChecklistItem}
+                onChange={(e) => setNewChecklistItem(e.target.value)}
+              />
+              <button 
+                onClick={() => {
+                  if (newChecklistItem.trim()) {
+                    setChecklistTemplates([...checklistTemplates, newChecklistItem.trim()]);
+                    setNewChecklistItem('');
+                  }
+                }}
+                className="p-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl transition-all shadow-lg shadow-emerald-600/20 active:scale-95"
+              >
+                <Plus size={20} />
+              </button>
+            </div>
+            <div className="space-y-2 max-h-[350px] overflow-y-auto custom-scrollbar pr-2">
+              {checklistTemplates.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between p-4 bg-slate-950 rounded-2xl border border-slate-800 group/list">
+                  <span className="text-xs text-slate-400 font-medium">{item}</span>
+                  <button 
+                    onClick={() => setChecklistTemplates(checklistTemplates.filter((_, i) => i !== idx))}
+                    className="opacity-0 group-hover/list:opacity-100 p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+};
+
+const ReportsView = ({ applications, projects, regions }: { applications: Application[], projects: any[], regions: string[] }) => {
+  const [reportType, setReportType] = useState<'REGION' | 'PROJECT' | 'DEPT'>('PROJECT');
+
+  const stats = useMemo(() => {
+    if (reportType === 'PROJECT') {
+      return projects.map(p => {
+        const apps = applications.filter(a => a.projectName === p.name);
+        return {
+          name: p.name,
+          total: apps.length,
+          completed: apps.filter(a => a.currentStep === 'Hoan_Tat').length,
+          processing: apps.filter(a => a.currentStep !== 'Hoan_Tat').length,
+          overdue: apps.filter(a => a.status === 'Error').length
+        };
+      });
+    } else {
+      return regions.map(r => {
+        const apps = applications.filter(a => a.submissionLocation === (r === 'VPĐK Phường' ? 'PHUONG' : 'TP_DANANG'));
+        return {
+          name: r,
+          total: apps.length,
+          completed: apps.filter(a => a.currentStep === 'Hoan_Tat').length,
+          processing: apps.filter(a => a.currentStep !== 'Hoan_Tat').length,
+          overdue: apps.filter(a => a.status === 'Error').length
+        };
+      });
+    }
+  }, [applications, projects, regions, reportType]);
+
+  const avgProcessingData = [
+    { step: 'KT Hồ sơ', time: 1.5 },
+    { step: 'Trình ký', time: 2.8 },
+    { step: 'Nộp VPĐK', time: 0.5 },
+    { step: 'Đợi Thuế', time: 12.4 },
+    { step: 'Đóng Thuế', time: 2.1 },
+    { step: 'In GCN', time: 4.2 },
+  ];
+
+  const exportPDF = () => {
+    alert("Đang khởi tạo tệp PDF báo cáo...");
+  };
+
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 text-left">
+      <header className="flex justify-between items-end">
+        <div>
+           <h2 className="text-3xl font-black text-white italic font-serif tracking-tight">Báo cáo & Thống kê</h2>
+           <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em] mt-1">Phân tích hiệu suất & Tiến độ khu vực</p>
+        </div>
+        <div className="flex gap-3">
+          <button 
+            onClick={exportPDF}
+            className="flex items-center gap-2 px-6 py-3 bg-slate-900 border border-slate-800 rounded-2xl text-[10px] font-black uppercase text-slate-300 hover:bg-slate-800 transition-all shadow-xl shadow-black/20"
+          >
+            <FileText size={14} className="text-rose-500" /> Xuất PDF
+          </button>
+          <button className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-emerald-600/20 transition-all active:scale-95">
+            <FileSpreadsheet size={14} /> Xuất Excel
+          </button>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="lg:col-span-3 space-y-8">
+          {/* Main Chart */}
+          <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-8 opacity-0 group-hover:opacity-100 transition-opacity">
+               <TrendingUp className="text-amber-500/50" />
+            </div>
+            <div className="flex items-center gap-4 mb-8">
+              <button 
+                onClick={() => setReportType('PROJECT')}
+                className={cn(
+                  "px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all tracking-widest border",
+                  reportType === 'PROJECT' ? "bg-amber-500 border-amber-400 text-slate-950 shadow-lg shadow-amber-500/20" : "bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300"
+                )}
+              >Dự án</button>
+              <button 
+                onClick={() => setReportType('REGION')}
+                className={cn(
+                  "px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all tracking-widest border",
+                  reportType === 'REGION' ? "bg-amber-500 border-amber-400 text-slate-950 shadow-lg shadow-amber-500/20" : "bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300"
+                )}
+              >Vùng (VPĐK)</button>
+            </div>
+            
+            <div className="h-[400px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stats} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                  <XAxis dataKey="name" stroke="#475569" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
+                  <YAxis stroke="#475569" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
+                  <ReTooltip 
+                    cursor={{ fill: 'rgba(255,255,255,0.02)' }}
+                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)' }}
+                    itemStyle={{ fontSize: '12px', fontWeight: 'bold', color: '#fff' }}
+                  />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '30px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em' }} />
+                  <Bar dataKey="processing" name="Đang xử lý" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="completed" name="Hoàn tất" stackId="a" fill="#10b981" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="overdue" name="Chậm trễ" fill="#ef4444" radius={[6, 6, 6, 6]} barSize={12} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Average Time Chart */}
+          <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-[2.5rem] p-8 shadow-2xl">
+            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
+                <Clock size={16} className="text-indigo-500" />
+              </div>
+               Thời gian xử lý trung bình từng bước (Ngày)
+            </h3>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={avgProcessingData} layout="vertical" margin={{ left: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={false} />
+                  <XAxis type="number" stroke="#475569" fontSize={10} axisLine={false} tickLine={false} />
+                  <YAxis dataKey="step" type="category" stroke="#94a3b8" fontSize={10} fontWeight="black" width={80} axisLine={false} tickLine={false} />
+                  <ReTooltip 
+                    cursor={{ fill: 'rgba(255,255,255,0.02)' }}
+                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '16px' }}
+                  />
+                  <Bar dataKey="time" name="Ngày" fill="#6366f1" radius={[0, 6, 6, 0]} barSize={16}>
+                    {avgProcessingData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.time > 10 ? '#f43f5e' : '#6366f1'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-8">
+          <div className="bg-gradient-to-br from-emerald-600 to-emerald-800 rounded-[2.5rem] p-8 text-white shadow-xl shadow-emerald-900/20 relative overflow-hidden group">
+            <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-125 transition-all duration-700"></div>
+            <h4 className="text-[10px] font-black uppercase tracking-[0.3em] opacity-80 mb-4">Tổng hoàn thành</h4>
+            <div className="flex items-end justify-between relative z-10">
+              <p className="text-5xl font-black italic tracking-tighter">{applications.filter(a => a.currentStep === 'Hoan_Tat').length}</p>
+              <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
+                <CheckCircle2 size={32} />
+              </div>
+            </div>
+            <div className="mt-8 pt-6 border-t border-white/20 relative z-10 flex items-center gap-2">
+              <Activity size={14} className="text-emerald-300" />
+              <p className="text-[10px] font-bold tracking-tight">+12% so với tháng trước</p>
+            </div>
+          </div>
+
+          <div className="bg-slate-900/40 border border-slate-800 rounded-[2.5rem] p-8 shadow-2xl">
+            <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-6 flex items-center justify-between">
+              Top Dự án 
+              <Activity size={14} className="text-amber-500/50" />
+            </h4>
+            <div className="space-y-6">
+              {projects.slice(0, 3).map((p, i) => (
+                <div key={p.id} className="flex items-center gap-5">
+                   <div className="w-10 h-10 rounded-2xl bg-slate-950 flex items-center justify-center text-xs font-black text-amber-500 border border-slate-800 italic shadow-inner">#{i+1}</div>
+                   <div className="flex-1">
+                     <p className="text-xs font-black text-slate-200 tracking-tight">{p.name}</p>
+                     <div className="w-full h-1.5 bg-slate-950 rounded-full mt-2 overflow-hidden">
+                       <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: i===0 ? '90%' : i===1 ? '75%' : '60%' }}
+                        className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full" 
+                       />
+                     </div>
+                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-slate-900/40 border border-slate-800 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
+             <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-2">Phân bổ Khu vực</h4>
+             <div className="h-[220px] w-full">
+               <ResponsiveContainer width="100%" height="100%">
+                 <PieChart>
+                    <Pie 
+                      data={[
+                        { name: 'VPĐK Phường', value: 45 },
+                        { name: 'VPĐK Thành phố', value: 35 },
+                        { name: 'Khác', value: 20 },
+                      ]}
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      <Cell fill="#f59e0b" />
+                      <Cell fill="#3b82f6" />
+                      <Cell fill="#334155" />
+                    </Pie>
+                    <ReTooltip 
+                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
+                    />
+                 </PieChart>
+               </ResponsiveContainer>
+               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none mt-4">
+                 <p className="text-xl font-black text-white italic">100%</p>
+                 <p className="text-[8px] font-black text-slate-500 uppercase tracking-tighter">Hồ sơ</p>
+               </div>
+             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+const UserManagementView = ({ users, onEdit, onDelete, onCreate }: { users: UserProfile[], onEdit: (u: UserProfile) => void, onDelete: (id: string) => void, onCreate: () => void }) => (
+  <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <header className="flex justify-between items-end">
+      <div>
+         <h2 className="text-3xl font-black text-white italic font-serif tracking-tight">Quản trị người dùng</h2>
+         <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em] mt-1">Phân quyền & Điều phối dự án</p>
+      </div>
+      <button 
+        onClick={onCreate}
+        className="flex items-center gap-2 px-6 py-3 bg-festive-gold text-slate-900 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-festive-gold/20 hover:scale-105 active:scale-95 transition-all outline-none"
+      >
+        <Plus size={16} /> Thêm tài khoản
+      </button>
+    </header>
+
+    <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
+      <div className="overflow-x-auto overflow-y-auto max-h-[600px] custom-scrollbar">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="bg-slate-950/50 border-b border-slate-800">
+              <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Nhân sự</th>
+              <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Phòng ban</th>
+              <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic text-center">Dự án quản lý</th>
+              <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic text-center">Trạng thái</th>
+              <th className="px-8 py-6 text-right"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800/50">
+            {users.map(user => (
+              <tr key={user.id} className="group hover:bg-slate-800/20 transition-all">
+                <td className="px-8 py-5">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 border border-slate-600 flex items-center justify-center text-sm font-black text-white italic shadow-inner">
+                      {user.name.split(' ').pop()?.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-slate-100">{user.name}</p>
+                      <p className="text-[10px] text-slate-500 font-mono italic">@{user.username}</p>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-8 py-5">
+                  <span className={cn(
+                    "px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border",
+                    user.dept === 'ADMIN' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                    user.dept === 'PTT' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                    user.dept === 'KT' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                    user.dept === 'PTDA' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-slate-700 text-slate-400 border-slate-600'
+                  )}>
+                    {user.dept}
+                  </span>
+                </td>
+                <td className="px-8 py-5 text-center">
+                  <span className="text-xs font-black text-slate-500 italic">{(user.assignedProjectIds || []).length} Dự án</span>
+                </td>
+                <td className="px-8 py-5 text-center">
+                   <div className="flex items-center justify-center gap-2">
+                     <span className={cn("inline-block w-1.5 h-1.5 rounded-full shadow-sm", user.status === 'Active' ? 'bg-emerald-400 shadow-emerald-400/50' : 'bg-slate-600')} />
+                     <span className="text-[10px] font-black uppercase text-slate-400">{user.status}</span>
+                   </div>
+                </td>
+                <td className="px-8 py-5 text-right">
+                  <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                     <button 
+                      onClick={() => onEdit(user)}
+                      className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all shadow-lg"
+                     >
+                       <Settings size={14} />
+                     </button>
+                     <button 
+                      onClick={() => onDelete(user.id)}
+                      className="p-2 rounded-lg bg-slate-800 text-rose-500/70 hover:bg-rose-500 hover:text-white transition-all shadow-lg"
+                     >
+                       <Trash2 size={14} />
+                     </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+);
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [users, setUsers] = useState<UserProfile[]>(MOCK_USERS);
   const [applications, setApplications] = useState<Application[]>(MOCK_APPLICATIONS);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'applications' | 'users' | 'resources'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'applications' | 'users' | 'resources' | 'reports' | 'settings'>('dashboard');
   const [userRole, setUserRole] = useState<Dept>('PTT');
   const [isEditing, setIsEditing] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -307,6 +712,33 @@ export default function App() {
   });
   const [editApp, setEditApp] = useState<Application | null>(null);
   const [search, setSearch] = useState('');
+  
+  // System Configuration States
+  const [slaConfig, setSlaConfig] = useState<Record<string, number>>({
+    'Kiểm tra hồ sơ': 2,
+    'Trình ký Văn bản': 3,
+    'Nộp hồ sơ VPĐK': 1,
+    'Chờ TB Thuế': 15,
+    'Nộp tiền thuế': 3,
+    'Chỉnh lý & In GCN': 5,
+    'Hoàn tất bàn giao': 1
+  });
+
+  const [checklistTemplates, setChecklistTemplates] = useState<string[]>([
+    'Đơn đăng ký biến động đất đai',
+    'Hợp đồng chuyển nhượng',
+    'Sổ đỏ gốc',
+    'Căn cước công dân (sao y)',
+    'Giấy xác nhận tình trạng hôn nhân/ĐKKH',
+    'Tờ khai lệ phí trước bạ',
+    'Tờ khai thuế thu nhập cá nhân'
+  ]);
+
+  const [selectedRegion, setSelectedRegion] = useState<string>('ALL');
+
+  const regions = useMemo(() => {
+    return ["VPĐK Phường", "VPĐK TP Đà Nẵng", "VPĐK Quận Liên Chiểu"];
+  }, []);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
@@ -771,8 +1203,11 @@ export default function App() {
       const nextApp = { ...editApp, [field]: value };
       
       // Auto-update issue type if notes are added
-      if (field === 'issueNotes' && value && (!editApp.issueType || editApp.issueType === 'None')) {
-        nextApp.issueType = 'Other';
+      if (field === 'issueNotes' && value) {
+        if (!editApp.issueType || editApp.issueType === 'None') {
+          nextApp.issueType = 'Other';
+        }
+        nextApp.status = 'Error';
       }
       
       setEditApp(nextApp);
@@ -780,8 +1215,11 @@ export default function App() {
       setApplications(prev => prev.map(app => {
         if (app.id === selectedApp.id) {
           const nextApp = { ...app, [field]: value };
-          if (field === 'issueNotes' && value && (!app.issueType || app.issueType === 'None')) {
-            nextApp.issueType = 'Other';
+          if (field === 'issueNotes' && value) {
+            if (!app.issueType || app.issueType === 'None') {
+              nextApp.issueType = 'Other';
+            }
+            nextApp.status = 'Error';
           }
           return nextApp;
         }
@@ -1102,11 +1540,24 @@ export default function App() {
             Quản lý Hồ sơ
           </button>
 
+          {(userRole === 'ADMIN' || userRole === 'PTDA') && (
+            <button 
+              onClick={() => setActiveTab('reports')}
+              className={cn(
+                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
+                activeTab === 'reports' ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+              )}
+            >
+              <FileBarChart size={18} />
+              Báo cáo & Thống kê
+            </button>
+          )}
+
           <button 
             onClick={() => setActiveTab('resources')}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
-              activeTab === 'resources' ? "bg-amber-600 text-white shadow-lg shadow-amber-600/20" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+              activeTab === 'resources' ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
             )}
           >
             <HelpCircle size={18} />
@@ -1114,16 +1565,28 @@ export default function App() {
           </button>
           
           {userRole === 'ADMIN' && (
-            <button 
-              onClick={() => setActiveTab('users')}
-              className={cn(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
-                activeTab === 'users' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
-              )}
-            >
-              <User size={18} />
-              Quản trị Người dùng
-            </button>
+            <>
+              <button 
+                onClick={() => setActiveTab('users')}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
+                  activeTab === 'users' ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+                )}
+              >
+                <User size={18} />
+                Quản trị Người dùng
+              </button>
+              <button 
+                onClick={() => setActiveTab('settings')}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
+                  activeTab === 'settings' ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+                )}
+              >
+                <Settings size={18} />
+                Cấu hình hệ thống
+              </button>
+            </>
           )}
 
           <div className="pt-4 border-t border-slate-800/50 mt-4 px-4 pb-2">
@@ -1877,117 +2340,46 @@ export default function App() {
             {activeTab === 'users' && (
               <motion.div 
                 key="users"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.05 }}
                 className="max-w-7xl mx-auto"
               >
-                <div className="bg-slate-900/40 backdrop-blur-md rounded-3xl shadow-2xl border border-slate-800/50 overflow-hidden">
-                  <div className="p-6 border-b border-slate-800/50 flex justify-between items-center bg-slate-900/30">
-                    <div>
-                      <h2 className="text-xl font-black text-white font-serif italic tracking-tight">Quản trị Người dùng</h2>
-                      <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Hệ thống phân quyền & Tài khoản</p>
-                    </div>
-                    <button 
-                      onClick={() => {
-                        setEditUser(null);
-                        setNewUser({ username: '', password: '', name: '', dept: 'PTT', email: '', status: 'Active', assignedProjectIds: [] });
-                        setIsUserModalOpen(true);
-                      }}
-                      className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-widest shadow-xl shadow-indigo-600/10 transition-all active:scale-95 flex items-center gap-2"
-                    >
-                      <User size={14} />
-                      + Tạo tài khoản
-                    </button>
-                  </div>
+                <UserManagementView 
+                  users={users} 
+                  onEdit={(u) => { setEditUser(u); setIsUserModalOpen(true); }} 
+                  onDelete={(id) => setUsers(prev => prev.filter(u => u.id !== id))} 
+                  onCreate={() => { setEditUser(null); setIsUserModalOpen(true); }} 
+                />
+              </motion.div>
+            )}
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="bg-slate-950/30 text-slate-500 uppercase">
-                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Họ và tên</th>
-                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Username</th>
-                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Phòng ban</th>
-                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Dự án phụ trách</th>
-                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Trạng thái</th>
-                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Hành động</th>
-                        </tr>
-                      </thead>
-                      <tbody className="text-slate-300 divide-y divide-slate-800/40">
-                        {users.map(u => (
-                          <tr key={u.id} className="hover:bg-slate-800/30 transition-colors">
-                            <td className="px-6 py-5">
-                              <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-sm">
-                                  {u.name[0]}
-                                </div>
-                                <div>
-                                  <p className="text-sm font-bold text-slate-200">{u.name}</p>
-                                  <p className="text-[10px] text-slate-500">{u.email}</p>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-5">
-                              <span className="text-sm font-mono text-indigo-400 font-bold">{u.username}</span>
-                            </td>
-                            <td className="px-6 py-5 text-center">
-                              <span className={cn(
-                                "px-2 py-1 rounded-md text-[10px] font-bold border uppercase tracking-tighter",
-                                u.dept === 'ADMIN' ? "bg-rose-500/10 text-rose-500 border-rose-500/20" :
-                                u.dept === 'MANAGER' ? "bg-festive-gold/10 text-festive-gold border-festive-gold/20" :
-                                "bg-indigo-500/10 text-indigo-400 border-indigo-500/20"
-                              )}>
-                                {u.dept}
-                              </span>
-                            </td>
-                            <td className="px-6 py-5">
-                              <div className="flex flex-wrap gap-1 max-w-[200px]">
-                                {u.dept === 'ADMIN' || u.dept === 'MANAGER' ? (
-                                  <span className="text-[10px] text-slate-500 font-bold italic">Tất cả dự án</span>
-                                ) : (
-                                  (u.assignedProjectIds || []).length > 0 ? (
-                                    u.assignedProjectIds?.map(pid => {
-                                      const p = PROJECTS.find(proj => proj.id === pid);
-                                      return (
-                                        <span key={pid} className="px-1.5 py-0.5 bg-slate-800 rounded text-[9px] text-slate-400 border border-slate-700">
-                                          {p?.name}
-                                        </span>
-                                      );
-                                    })
-                                  ) : (
-                                    <span className="text-[10px] text-rose-500/50 font-bold italic">Chưa phân dự án</span>
-                                  )
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-6 py-5 text-center">
-                              <span className={cn(
-                                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase",
-                                u.status === 'Active' ? "bg-emerald-500/10 text-emerald-500" : "bg-slate-800 text-slate-500"
-                              )}>
-                                <span className={cn("w-1 h-1 rounded-full", u.status === 'Active' ? "bg-emerald-500" : "bg-slate-500")}></span>
-                                {u.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-5 text-center">
-                              <div className="flex items-center justify-center gap-2">
-                                <button 
-                                  onClick={() => {
-                                    setEditUser(u);
-                                    setIsUserModalOpen(true);
-                                  }}
-                                  className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-indigo-400 transition-colors"
-                                >
-                                  <MoreVertical size={16} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+            {activeTab === 'reports' && (
+              <motion.div 
+                key="reports"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="max-w-7xl mx-auto"
+              >
+                <ReportsView applications={applications} projects={PROJECTS} regions={regions} />
+              </motion.div>
+            )}
+
+            {activeTab === 'settings' && (
+              <motion.div 
+                key="settings"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="max-w-7xl mx-auto"
+              >
+                <SettingsView 
+                  slaConfig={slaConfig} 
+                  setSlaConfig={setSlaConfig} 
+                  checklistTemplates={checklistTemplates} 
+                  setChecklistTemplates={setChecklistTemplates} 
+                />
               </motion.div>
             )}
             {activeTab === 'resources' && (
