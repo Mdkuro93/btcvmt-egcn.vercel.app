@@ -35,7 +35,11 @@ export const MOCK_APPLICATIONS: Application[] = [
     status: 'Processing',
     receivedDate: '2026-03-15',
     taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h1', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-03-15' }]
+    history: [{ id: 'h1', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-03-15' }],
+    auditTrail: [
+      { id: 'at1', userId: 'u1', userName: 'Admin', action: 'Khởi tạo hồ sơ', timestamp: '2026-03-15 08:00' },
+      { id: 'at2', userId: 'u2', userName: 'Nguyễn Thu Thủ Tục', action: 'Cập nhật Ngày ký HĐCN', timestamp: '2026-03-15 09:30' }
+    ]
   },
   {
     id: 'app2',
@@ -49,7 +53,11 @@ export const MOCK_APPLICATIONS: Application[] = [
     status: 'TaxPending',
     receivedDate: '2026-02-10',
     taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h2', stepName: 'GĐ3: Chờ Thông báo thuế', dept: 'PTDA', receivedDate: '2026-02-15' }]
+    history: [{ id: 'h2', stepName: 'GĐ3: Chờ Thông báo thuế', dept: 'PTDA', receivedDate: '2026-02-15' }],
+    auditTrail: [
+      { id: 'at3', userId: 'u1', userName: 'Admin', action: 'Khởi tạo hồ sơ', timestamp: '2026-02-10 10:00' },
+      { id: 'at4', userId: 'u3', userName: 'Trần Kế Toán', action: 'Chuyển giai đoạn sang PTDA', timestamp: '2026-02-15 14:00' }
+    ]
   },
   {
     id: 'app3',

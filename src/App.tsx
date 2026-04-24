@@ -30,6 +30,7 @@ import {
   Menu,
   Save,
   Trash2,
+  Key,
   ChevronLeft,
   PlusCircle,
   FileBarChart,
@@ -46,7 +47,11 @@ import {
   MapPin,
   Calendar,
   FileSpreadsheet,
-  FileJson
+  FileJson,
+  Bell,
+  BellOff,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -54,7 +59,14 @@ import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { MOCK_APPLICATIONS, PROJECTS, STEP_CONFIG, MOCK_USERS } from './constants';
-import { Application, UnitStatus, KPI, Dept, UserProfile, PropertyType, StepName } from './types';
+import { Application, UnitStatus, KPI, Dept, UserProfile, PropertyType, StepName, AppNotification as Notification, Project, ApplicationStepHistory } from './types';
+
+type ApplicationHistory = {
+  id: string;
+  timestamp: string;
+  user: string;
+  action: string;
+};
 
 const DOC_CHECKLIST_ITEMS = [
   'Đơn đăng ký biến động đất đai',
@@ -72,7 +84,7 @@ const DOC_CHECKLIST_ITEMS = [
   'Tờ khai sử dụng đất PNN'
 ];
 
-const LoginScreen = ({ onLogin, users }: { onLogin: (user: UserProfile) => void, users: UserProfile[] }) => {
+const LoginScreen = ({ onLogin, users, theme, onThemeToggle }: { onLogin: (user: UserProfile) => void, users: UserProfile[], theme: 'light' | 'dark', onThemeToggle: () => void }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
@@ -89,18 +101,38 @@ const LoginScreen = ({ onLogin, users }: { onLogin: (user: UserProfile) => void,
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-slate-950 px-4 relative overflow-hidden font-sans">
+    <div className={cn(
+      "flex items-center justify-center min-h-screen px-4 relative overflow-hidden font-sans transition-colors duration-500",
+      theme === 'dark' ? "bg-slate-950" : "bg-slate-50"
+    )}>
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-rose-500/5 pointer-events-none"></div>
+      
+      {/* Theme Toggle in Login */}
+      <div className="absolute top-8 right-8">
+        <button 
+          onClick={onThemeToggle}
+          className={cn(
+            "p-3 rounded-2xl transition-all shadow-xl backdrop-blur-md border",
+            theme === 'dark' ? "bg-slate-900/50 border-slate-700 text-festive-gold" : "bg-white/50 border-slate-200 text-amber-500"
+          )}
+        >
+          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+        </button>
+      </div>
+
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md bg-slate-900/60 backdrop-blur-3xl p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl z-10"
+        className={cn(
+          "w-full max-w-md p-8 rounded-[2.5rem] backdrop-blur-2xl border shadow-2xl z-10",
+          theme === 'dark' ? "bg-slate-900/60 border-slate-800" : "bg-white border-slate-200"
+        )}
       >
         <div className="flex flex-col items-center mb-8">
           <div className="w-16 h-16 bg-festive-gold rounded-[1.5rem] flex items-center justify-center shadow-lg shadow-festive-gold/20 mb-4 animate-pulse">
             <Building2 className="text-slate-950" size={32} />
           </div>
-          <h1 className="text-2xl font-black text-white font-serif italic tracking-tight">GCN Tracker Login</h1>
+          <h1 className={cn("text-2xl font-black font-serif italic tracking-tight", theme === 'dark' ? "text-white" : "text-slate-900")}>GCN Tracker Login</h1>
           <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Hệ thống quản lý hồ sơ QSDĐ</p>
         </div>
 
@@ -110,7 +142,10 @@ const LoginScreen = ({ onLogin, users }: { onLogin: (user: UserProfile) => void,
             <input 
               type="text" 
               placeholder="VD: admin"
-              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-white placeholder:text-slate-700 outline-none focus:ring-2 focus:ring-festive-gold/20 transition-all text-sm"
+              className={cn(
+                "w-full rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-festive-gold/20 transition-all text-sm border",
+                theme === 'dark' ? "bg-slate-950 border-slate-800 text-white placeholder:text-slate-700" : "bg-white border-slate-200 text-slate-900 placeholder:text-slate-300"
+              )}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
@@ -121,7 +156,10 @@ const LoginScreen = ({ onLogin, users }: { onLogin: (user: UserProfile) => void,
             <input 
               type="password" 
               placeholder="••••••••"
-              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-white placeholder:text-slate-700 outline-none focus:ring-2 focus:ring-festive-gold/20 transition-all text-sm"
+              className={cn(
+                "w-full rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-festive-gold/20 transition-all text-sm border",
+                theme === 'dark' ? "bg-slate-950 border-slate-800 text-white placeholder:text-slate-700" : "bg-white border-slate-200 text-slate-900 placeholder:text-slate-300"
+              )}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -130,9 +168,9 @@ const LoginScreen = ({ onLogin, users }: { onLogin: (user: UserProfile) => void,
           
           <button 
             type="submit"
-            className="w-full bg-festive-gold hover:bg-amber-400 text-slate-950 font-bold py-4 rounded-2xl transition-all shadow-xl shadow-festive-gold/10 hover:shadow-festive-gold/20 active:scale-[0.98] mt-4"
+            className="w-full bg-festive-gold text-slate-950 py-4 rounded-2xl font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-festive-gold/20 hover:scale-[1.02] active:scale-95 transition-all mt-4"
           >
-            Đăng nhập hệ thống
+            Đăng nhập
           </button>
         </form>
 
@@ -161,12 +199,15 @@ function cn(...inputs: ClassValue[]) {
 }
 
 // Sub-components
-const StatCard = ({ title, value, icon: Icon, colorClass, delay }: { title: string, value: number | string, icon: any, colorClass: string, delay: number }) => (
+const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark' }: { title: string, value: number | string, icon: any, colorClass: string, delay: number, theme?: 'light' | 'dark' }) => (
   <motion.div 
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay }}
-    className="bg-slate-900/40 backdrop-blur-md p-5 rounded-3xl shadow-xl border border-slate-800/50 flex flex-col gap-4 relative overflow-hidden"
+    className={cn(
+      "p-5 rounded-3xl shadow-xl border flex flex-col gap-4 relative overflow-hidden transition-all",
+      theme === 'dark' ? "bg-slate-900/40 backdrop-blur-md border-slate-800/50" : "bg-white border-slate-200"
+    )}
   >
     <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/5 rounded-full blur-2xl"></div>
     <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg", colorClass)}>
@@ -174,7 +215,7 @@ const StatCard = ({ title, value, icon: Icon, colorClass, delay }: { title: stri
     </div>
     <div>
       <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-1">{title}</p>
-      <p className="text-3xl font-black text-white font-serif italic tracking-tighter">{value}</p>
+      <p className={cn("text-3xl font-black font-serif italic tracking-tighter", theme === 'dark' ? "text-white" : "text-slate-900")}>{value}</p>
     </div>
   </motion.div>
 );
@@ -392,8 +433,8 @@ const SettingsView = ({ slaConfig, setSlaConfig, checklistTemplates, setChecklis
   );
 };
 
-const ReportsView = ({ applications, projects, regions }: { applications: Application[], projects: any[], regions: string[] }) => {
-  const [reportType, setReportType] = useState<'REGION' | 'PROJECT' | 'DEPT'>('PROJECT');
+const ReportsView = ({ applications, projects, regions, theme }: { applications: Application[], projects: Project[], regions: string[], theme: 'light' | 'dark' }) => {
+  const [reportType, setReportType] = useState<'PROJECT' | 'REGION' | 'DEPT'>('PROJECT');
 
   const stats = useMemo(() => {
     if (reportType === 'PROJECT') {
@@ -454,10 +495,12 @@ const ReportsView = ({ applications, projects, regions }: { applications: Applic
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 text-left">
         <div className="lg:col-span-3 space-y-8">
-          {/* Main Chart */}
-          <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden group">
+          <div className={cn(
+            "backdrop-blur-xl border rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden group transition-all",
+            theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800"
+          )}>
             <div className="absolute top-0 right-0 p-8 opacity-0 group-hover:opacity-100 transition-opacity">
                <TrendingUp className="text-amber-500/50" />
             </div>
@@ -481,13 +524,18 @@ const ReportsView = ({ applications, projects, regions }: { applications: Applic
             <div className="h-[400px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={stats} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? "#e2e8f0" : "#1e293b"} vertical={false} />
                   <XAxis dataKey="name" stroke="#475569" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
                   <YAxis stroke="#475569" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
                   <ReTooltip 
-                    cursor={{ fill: 'rgba(255,255,255,0.02)' }}
-                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)' }}
-                    itemStyle={{ fontSize: '12px', fontWeight: 'bold', color: '#fff' }}
+                    cursor={{ fill: theme === 'light' ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)' }}
+                    contentStyle={{ 
+                      backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
+                      border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #1e293b', 
+                      borderRadius: '16px', 
+                      boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)' 
+                    }}
+                    itemStyle={{ fontSize: '12px', fontWeight: 'bold', color: theme === 'light' ? '#334155' : '#fff' }}
                   />
                   <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '30px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em' }} />
                   <Bar dataKey="processing" name="Đang xử lý" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
@@ -499,7 +547,10 @@ const ReportsView = ({ applications, projects, regions }: { applications: Applic
           </div>
 
           {/* Average Time Chart */}
-          <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-[2.5rem] p-8 shadow-2xl">
+          <div className={cn(
+            "backdrop-blur-xl border rounded-[2.5rem] p-8 shadow-2xl transition-all",
+            theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800"
+          )}>
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
               <div className="w-8 h-8 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
                 <Clock size={16} className="text-indigo-500" />
@@ -509,12 +560,17 @@ const ReportsView = ({ applications, projects, regions }: { applications: Applic
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={avgProcessingData} layout="vertical" margin={{ left: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? "#e2e8f0" : "#1e293b"} horizontal={false} />
                   <XAxis type="number" stroke="#475569" fontSize={10} axisLine={false} tickLine={false} />
                   <YAxis dataKey="step" type="category" stroke="#94a3b8" fontSize={10} fontWeight="black" width={80} axisLine={false} tickLine={false} />
                   <ReTooltip 
-                    cursor={{ fill: 'rgba(255,255,255,0.02)' }}
-                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '16px' }}
+                    cursor={{ fill: theme === 'light' ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)' }}
+                    contentStyle={{ 
+                      backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
+                      border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #1e293b', 
+                      borderRadius: '16px' 
+                    }}
+                    itemStyle={{ fontSize: '12px', fontWeight: 'bold', color: theme === 'light' ? '#334155' : '#fff' }}
                   />
                   <Bar dataKey="time" name="Ngày" fill="#6366f1" radius={[0, 6, 6, 0]} barSize={16}>
                     {avgProcessingData.map((entry, index) => (
@@ -543,7 +599,10 @@ const ReportsView = ({ applications, projects, regions }: { applications: Applic
             </div>
           </div>
 
-          <div className="bg-slate-900/40 border border-slate-800 rounded-[2.5rem] p-8 shadow-2xl">
+          <div className={cn(
+            "border rounded-[2.5rem] p-8 shadow-2xl transition-all",
+            theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800"
+          )}>
             <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-6 flex items-center justify-between">
               Top Dự án 
               <Activity size={14} className="text-amber-500/50" />
@@ -551,10 +610,10 @@ const ReportsView = ({ applications, projects, regions }: { applications: Applic
             <div className="space-y-6">
               {projects.slice(0, 3).map((p, i) => (
                 <div key={p.id} className="flex items-center gap-5">
-                   <div className="w-10 h-10 rounded-2xl bg-slate-950 flex items-center justify-center text-xs font-black text-amber-500 border border-slate-800 italic shadow-inner">#{i+1}</div>
+                   <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center text-xs font-black text-amber-500 border border-slate-200 italic shadow-inner">#{i+1}</div>
                    <div className="flex-1">
-                     <p className="text-xs font-black text-slate-200 tracking-tight">{p.name}</p>
-                     <div className="w-full h-1.5 bg-slate-950 rounded-full mt-2 overflow-hidden">
+                     <p className={cn("text-xs font-black tracking-tight", theme === 'light' ? "text-slate-800" : "text-slate-200")}>{p.name}</p>
+                     <div className={cn("w-full h-1.5 rounded-full mt-2 overflow-hidden", theme === 'light' ? "bg-slate-100" : "bg-slate-950")}>
                        <motion.div 
                         initial={{ width: 0 }}
                         animate={{ width: i===0 ? '90%' : i===1 ? '75%' : '60%' }}
@@ -567,7 +626,10 @@ const ReportsView = ({ applications, projects, regions }: { applications: Applic
             </div>
           </div>
 
-          <div className="bg-slate-900/40 border border-slate-800 rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
+          <div className={cn(
+            "border rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden transition-all",
+            theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800"
+          )}>
              <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-2">Phân bổ Khu vực</h4>
              <div className="h-[220px] w-full">
                <ResponsiveContainer width="100%" height="100%">
@@ -586,15 +648,20 @@ const ReportsView = ({ applications, projects, regions }: { applications: Applic
                     >
                       <Cell fill="#f59e0b" />
                       <Cell fill="#3b82f6" />
-                      <Cell fill="#334155" />
+                      <Cell fill={theme === 'light' ? '#e2e8f0' : '#334155'} />
                     </Pie>
                     <ReTooltip 
-                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
+                      contentStyle={{ 
+                        backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
+                        border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #1e293b', 
+                        borderRadius: '12px' 
+                      }}
+                      itemStyle={{ color: theme === 'light' ? '#334155' : '#fff', fontWeight: 'bold' }}
                     />
                  </PieChart>
                </ResponsiveContainer>
                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none mt-4">
-                 <p className="text-xl font-black text-white italic">100%</p>
+                 <p className={cn("text-xl font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>100%</p>
                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-tighter">Hồ sơ</p>
                </div>
              </div>
@@ -606,11 +673,142 @@ const ReportsView = ({ applications, projects, regions }: { applications: Applic
 };
 
 
-const UserManagementView = ({ users, onEdit, onDelete, onCreate }: { users: UserProfile[], onEdit: (u: UserProfile) => void, onDelete: (id: string) => void, onCreate: () => void }) => (
+const NotificationPanel = ({ notifications, onClose, onRead, theme }: { notifications: Notification[], onClose: () => void, onRead: (id: string) => void, theme: 'light' | 'dark' }) => (
+  <motion.div 
+    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+    animate={{ opacity: 1, y: 0, scale: 1 }}
+    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+    className={cn(
+      "absolute left-full ml-4 top-0 w-80 border rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.4)] z-[100] overflow-hidden text-left transition-all",
+      theme === 'dark' ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200 shadow-2xl"
+    )}
+  >
+    <div className={cn(
+      "p-5 border-b flex justify-between items-center transition-all",
+      theme === 'dark' ? "border-slate-700 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-900"
+    )}>
+      <h4 className="text-xs font-black uppercase tracking-widest">Thông báo</h4>
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] bg-rose-500 text-white px-2 py-0.5 rounded-full font-bold">{notifications.filter(n => !n.isRead).length} Mới</span>
+        <button onClick={onClose} className="p-1 hover:bg-slate-500/10 rounded-lg transition-all">
+          <X size={14} className="text-slate-400" />
+        </button>
+      </div>
+    </div>
+    <div className="max-h-96 overflow-y-auto custom-scrollbar">
+      {notifications.length > 0 ? (
+        notifications.map(n => (
+          <div 
+            key={n.id} 
+            onClick={() => onRead(n.id)}
+            className={cn(
+              "p-4 border-b cursor-pointer transition-all",
+              theme === 'dark' 
+                ? "border-slate-800 hover:bg-slate-800/80" 
+                : "border-slate-100 hover:bg-slate-50",
+              !n.isRead ? (theme === 'dark' ? "bg-indigo-500/10" : "bg-indigo-50/50") : "opacity-60"
+            )}
+          >
+            <div className="flex gap-3">
+              <div className={cn(
+                "w-2 h-2 rounded-full mt-1.5 shrink-0",
+                n.type === 'Urgent' ? "bg-rose-500" : n.type === 'Success' ? "bg-emerald-500" : "bg-blue-500"
+              )} />
+              <div>
+                <p className={cn("text-xs font-bold", theme === 'dark' ? "text-slate-100" : "text-slate-900")}>{n.title}</p>
+                <p className={cn("text-[10px] mt-0.5 leading-relaxed", theme === 'dark' ? "text-slate-400" : "text-slate-600")}>{n.message}</p>
+                <p className={cn("text-[9px] mt-2 font-black uppercase tracking-tighter", theme === 'dark' ? "text-slate-500" : "text-slate-400")}>{n.time}</p>
+              </div>
+            </div>
+          </div>
+        ))
+      ) : (
+        <div className="p-8 text-center text-slate-500">
+          <BellOff size={32} className="mx-auto mb-2 opacity-20" />
+          <p className="text-xs font-bold italic">Không có thông báo mới</p>
+        </div>
+      )}
+    </div>
+    <button className={cn(
+      "w-full py-3 text-[10px] font-black uppercase tracking-widest transition-colors border-t",
+      theme === 'dark' 
+        ? "text-slate-400 hover:text-white bg-slate-900 border-slate-700" 
+        : "text-slate-500 hover:text-slate-900 bg-slate-50 border-slate-200"
+    )}>
+      Xem tất cả
+    </button>
+  </motion.div>
+);
+
+
+const ProjectManagementView = ({ projects, onCreate, onEdit, onDelete, theme }: { projects: Project[]; onCreate: () => void; onEdit: (p: Project) => void; onDelete: (id: string) => void; theme: 'light' | 'dark' }) => (
   <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-    <header className="flex justify-between items-end">
+    <header className="flex justify-between items-end text-left">
       <div>
-         <h2 className="text-3xl font-black text-white italic font-serif tracking-tight">Quản trị người dùng</h2>
+         <h2 className={cn("text-3xl font-black italic font-serif tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Quản lý Dự án</h2>
+         <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em] mt-1">Thiết lập phạm vi vận hành hệ thống</p>
+      </div>
+      <button 
+        onClick={onCreate}
+        className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all outline-none"
+      >
+        <Plus size={16} /> Thêm dự án mới
+      </button>
+    </header>
+
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {projects.map(project => (
+        <div 
+          key={project.id}
+          className={cn(
+            "p-6 rounded-[2rem] border transition-all group relative overflow-hidden",
+            theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800 shadow-2xl"
+          )}
+        >
+          <div className="flex justify-between items-start mb-6">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center border border-emerald-500/20">
+              <Building2 size={24} />
+            </div>
+            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+              <button 
+                onClick={() => onEdit(project)}
+                className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-all"
+              >
+                <Settings size={14} />
+              </button>
+              <button 
+                onClick={() => onDelete(project.id)}
+                className="p-2 rounded-xl bg-slate-800 text-rose-500 hover:bg-rose-500 hover:text-white transition-all"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          </div>
+          
+          <h3 className={cn("text-xl font-bold mb-2", theme === 'light' ? "text-slate-900" : "text-white")}>{project.name}</h3>
+          <p className="text-xs text-slate-500 font-medium mb-6 uppercase tracking-widest">{project.region}</p>
+          
+          <div className="flex items-center gap-6 pt-6 border-t border-slate-800/50">
+             <div>
+               <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Mã dự án</p>
+               <p className={cn("text-sm font-mono font-bold", theme === 'light' ? "text-slate-700" : "text-slate-300")}>{project.id}</p>
+             </div>
+             <div>
+               <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Loại hình</p>
+               <p className={cn("text-sm font-bold", theme === 'light' ? "text-slate-700" : "text-slate-300")}>Chung cư/Phố</p>
+             </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const UserManagementView = ({ users, onEdit, onDelete, onCreate, onResetPassword, theme }: { users: UserProfile[]; onEdit: (u: UserProfile) => void; onDelete: (id: string) => void; onCreate: () => void; onResetPassword: (u: UserProfile) => void; theme: 'light' | 'dark' }) => (
+  <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <header className="flex justify-between items-end text-left">
+      <div>
+         <h2 className={cn("text-3xl font-black italic font-serif tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Quản trị người dùng</h2>
          <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em] mt-1">Phân quyền & Điều phối dự án</p>
       </div>
       <button 
@@ -621,11 +819,17 @@ const UserManagementView = ({ users, onEdit, onDelete, onCreate }: { users: User
       </button>
     </header>
 
-    <div className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
+    <div className={cn(
+      "backdrop-blur-xl border rounded-[2.5rem] overflow-hidden shadow-2xl transition-all",
+      theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800"
+    )}>
       <div className="overflow-x-auto overflow-y-auto max-h-[600px] custom-scrollbar">
         <table className="w-full text-left">
           <thead>
-            <tr className="bg-slate-950/50 border-b border-slate-800">
+            <tr className={cn(
+              "border-b transition-all",
+              theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950/50 border-slate-800"
+            )}>
               <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Nhân sự</th>
               <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Phòng ban</th>
               <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic text-center">Dự án quản lý</th>
@@ -633,23 +837,29 @@ const UserManagementView = ({ users, onEdit, onDelete, onCreate }: { users: User
               <th className="px-8 py-6 text-right"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/50">
+          <tbody className={cn(
+            "divide-y transition-all",
+            theme === 'light' ? "divide-slate-50" : "divide-slate-800/50"
+          )}>
             {users.map(user => (
-              <tr key={user.id} className="group hover:bg-slate-800/20 transition-all">
-                <td className="px-8 py-5">
+              <tr key={user.id} className={cn(
+                "group transition-all",
+                theme === 'light' ? "hover:bg-slate-50" : "hover:bg-slate-800/20"
+              )}>
+                <td className="px-8 py-5 text-left">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 border border-slate-600 flex items-center justify-center text-sm font-black text-white italic shadow-inner">
                       {user.name.split(' ').pop()?.charAt(0)}
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-slate-100">{user.name}</p>
+                      <p className={cn("text-sm font-bold", theme === 'light' ? "text-slate-800" : "text-slate-100")}>{user.name}</p>
                       <p className="text-[10px] text-slate-500 font-mono italic">@{user.username}</p>
                     </div>
                   </div>
                 </td>
                 <td className="px-8 py-5">
                   <span className={cn(
-                    "px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border",
+                    "px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border transition-all",
                     user.dept === 'ADMIN' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
                     user.dept === 'PTT' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
                     user.dept === 'KT' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
@@ -669,6 +879,13 @@ const UserManagementView = ({ users, onEdit, onDelete, onCreate }: { users: User
                 </td>
                 <td className="px-8 py-5 text-right">
                   <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                     <button 
+                      onClick={() => onResetPassword(user)}
+                      className="p-2 rounded-lg bg-orange-500/10 text-orange-500 hover:bg-orange-500 hover:text-white transition-all shadow-lg border border-orange-500/20"
+                      title="Reset mật khẩu"
+                     >
+                       <Key size={14} />
+                     </button>
                      <button 
                       onClick={() => onEdit(user)}
                       className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all shadow-lg"
@@ -693,8 +910,15 @@ const UserManagementView = ({ users, onEdit, onDelete, onCreate }: { users: User
 );
 
 export default function App() {
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([
+    { id: '1', title: 'Hồ sơ trễ hạn', message: 'Lô A1.1205 đã quá hạn xử lý 2 ngày', time: '5 phút trước', type: 'Urgent', isRead: false },
+    { id: '2', title: 'Cập nhật trạng thái', message: 'Căn hộ B2.0504 đã hoàn tất nộp thuế', time: '1 giờ trước', type: 'Success', isRead: false },
+  ]);
+  const [isNotiOpen, setIsNotiOpen] = useState(false);
   const [users, setUsers] = useState<UserProfile[]>(MOCK_USERS);
+  const [projects, setProjects] = useState<Project[]>(PROJECTS);
   const [applications, setApplications] = useState<Application[]>(MOCK_APPLICATIONS);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'applications' | 'users' | 'resources' | 'reports' | 'settings'>('dashboard');
   const [userRole, setUserRole] = useState<Dept>('PTT');
@@ -740,6 +964,7 @@ export default function App() {
     return ["VPĐK Phường", "VPĐK TP Đà Nẵng", "VPĐK Quận Liên Chiểu"];
   }, []);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+  const [detailTab, setDetailTab] = useState<'Workflow' | 'Audit'>('Workflow');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
   const [filterStep, setFilterStep] = useState<StepName | 'ALL'>('ALL');
@@ -1210,7 +1435,17 @@ export default function App() {
         nextApp.status = 'Error';
       }
       
-      setEditApp(nextApp);
+      if (field === 'currentStep') {
+      const historyItem: ApplicationHistory = {
+        id: Math.random().toString(36).substr(2, 9),
+        timestamp: new Date().toLocaleString('vi-VN'),
+        user: userRole,
+        action: `Chuyển trạng thái sang: ${value}`,
+      };
+      nextApp.history = [historyItem, ...(editApp.history || [])];
+    }
+    
+    setEditApp(nextApp);
     } else if (selectedApp) {
       setApplications(prev => prev.map(app => {
         if (app.id === selectedApp.id) {
@@ -1485,45 +1720,99 @@ export default function App() {
   });
 
   if (!currentUser) {
-    return <LoginScreen users={users} onLogin={(user) => {
+    return <LoginScreen users={users} theme={theme} onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} onLogin={(user) => {
       setCurrentUser(user);
       setUserRole(user.dept);
     }} />;
   }
 
   return (
-    <div className="flex h-screen bg-festive-dark text-slate-200 overflow-hidden font-sans relative">
+    <div className={cn(
+      "flex h-screen overflow-hidden font-sans relative transition-colors duration-500",
+      theme === 'light' ? 'light bg-slate-50 text-slate-900' : 'bg-festive-dark text-slate-200'
+    )}>
       {/* Background Image Container */}
       <div className="absolute inset-0 z-0">
         <img 
           src="https://images.unsplash.com/photo-1559592442-7e18259f6966?q=80&w=2560&auto=format&fit=crop" 
           alt="Da Nang Background" 
-          className="w-full h-full object-cover opacity-30 brightness-50"
+          className={cn(
+            "w-full h-full object-cover transition-all duration-1000",
+            theme === 'light' ? "opacity-10 grayscale-[50%]" : "opacity-30 brightness-50"
+          )}
           referrerPolicy="no-referrer"
         />
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-950/90 via-slate-900/95 to-slate-950/90"></div>
+        <div className={cn(
+          "absolute inset-0 transition-all duration-500",
+          theme === 'light' 
+            ? "bg-gradient-to-br from-white/90 via-slate-50/95 to-white/90" 
+            : "bg-gradient-to-br from-slate-950/90 via-slate-900/95 to-slate-950/90"
+        )}></div>
       </div>
 
       {/* Sidebar */}
-      <aside className="w-64 bg-slate-900/40 backdrop-blur-3xl border-r border-slate-800/50 flex flex-col shrink-0 z-10 relative">
-        <div className="p-6 border-b border-slate-800/50 mb-4 bg-gradient-to-br from-slate-800/30 to-transparent">
+      <aside className={cn(
+        "w-64 backdrop-blur-3xl border-r flex flex-col shrink-0 z-10 relative transition-all",
+        theme === 'light' ? "bg-white/60 border-slate-200" : "bg-slate-900/40 border-slate-800/50"
+      )}>
+        <div className={cn(
+          "p-6 border-b mb-4 transition-all",
+          theme === 'light' 
+            ? "border-slate-200 bg-gradient-to-br from-slate-100/30 to-transparent" 
+            : "border-slate-800/50 bg-gradient-to-br from-slate-800/30 to-transparent"
+        )}>
           <div className="flex items-center gap-3 mb-1">
             <div className="w-10 h-10 bg-festive-gold rounded-xl flex items-center justify-center shadow-lg shadow-festive-gold/20">
               <Building2 className="text-festive-dark" size={24} />
             </div>
             <div>
                <h1 className="font-bold text-xl tracking-tight text-festive-gold font-serif italic">GCN Tracker</h1>
-               <p className="text-[10px] text-slate-400 uppercase font-bold tracking-[0.3em] leading-none">Regional</p>
+               <p className={cn("text-[10px] uppercase font-bold tracking-[0.3em] leading-none", theme === 'light' ? "text-slate-500" : "text-slate-400")}>Regional</p>
             </div>
           </div>
         </div>
 
         <nav className="flex-1 px-4 space-y-1">
+          {/* Notifications Trigger */}
+          <div className="relative mb-2">
+            <button 
+              onClick={() => setIsNotiOpen(!isNotiOpen)}
+              className={cn(
+                "w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
+                isNotiOpen 
+                  ? (theme === 'light' ? "bg-slate-200 text-slate-950" : "bg-slate-800 text-white") 
+                  : (theme === 'light' ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200")
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <Bell size={18} className={notifications.some(n => !n.isRead) ? "text-rose-500 animate-bounce" : ""} />
+                Thông báo
+              </div>
+              {notifications.some(n => !n.isRead) && (
+                <span className="bg-rose-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">
+                  {notifications.filter(n => !n.isRead).length}
+                </span>
+              )}
+            </button>
+            <AnimatePresence>
+              {isNotiOpen && (
+                <NotificationPanel 
+                  notifications={notifications} 
+                  onClose={() => setIsNotiOpen(false)} 
+                  onRead={(id) => setNotifications(prev => prev.map(n => n.id === id ? {...n, isRead: true} : n))}
+                  theme={theme}
+                />
+              )}
+            </AnimatePresence>
+          </div>
+
           <button 
             onClick={() => setActiveTab('dashboard')}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
-              activeTab === 'dashboard' ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+              activeTab === 'dashboard' 
+                ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
+                : (theme === 'light' ? "text-slate-500 hover:bg-slate-200/50 hover:text-slate-900" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200")
             )}
           >
             <LayoutDashboard size={18} />
@@ -1533,7 +1822,9 @@ export default function App() {
             onClick={() => setActiveTab('applications')}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
-              activeTab === 'applications' ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+              activeTab === 'applications' 
+                ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
+                : (theme === 'light' ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200")
             )}
           >
             <Files size={18} />
@@ -1545,7 +1836,9 @@ export default function App() {
               onClick={() => setActiveTab('reports')}
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
-                activeTab === 'reports' ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+                activeTab === 'reports' 
+                  ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
+                  : (theme === 'light' ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200")
               )}
             >
               <FileBarChart size={18} />
@@ -1557,7 +1850,9 @@ export default function App() {
             onClick={() => setActiveTab('resources')}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
-              activeTab === 'resources' ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+              activeTab === 'resources' 
+                ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
+                : (theme === 'light' ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200")
             )}
           >
             <HelpCircle size={18} />
@@ -1570,17 +1865,33 @@ export default function App() {
                 onClick={() => setActiveTab('users')}
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
-                  activeTab === 'users' ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+                  activeTab === 'users' 
+                    ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
+                    : (theme === 'light' ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200")
                 )}
               >
                 <User size={18} />
                 Quản trị Người dùng
               </button>
               <button 
+                onClick={() => setActiveTab('projects')}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
+                  activeTab === 'projects' 
+                    ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20" 
+                    : (theme === 'light' ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200")
+                )}
+              >
+                <Building2 size={18} />
+                Quản lý Dự án
+              </button>
+              <button 
                 onClick={() => setActiveTab('settings')}
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
-                  activeTab === 'settings' ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200"
+                  activeTab === 'settings' 
+                    ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
+                    : (theme === 'light' ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200")
                 )}
               >
                 <Settings size={18} />
@@ -1617,13 +1928,31 @@ export default function App() {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-slate-800/50 space-y-3">
-          <div className="bg-slate-950/40 p-3 rounded-2xl border border-slate-800 flex items-center gap-3">
+        <div className={cn(
+          "p-4 border-t space-y-3 transition-all",
+          theme === 'light' ? "border-slate-200" : "border-slate-800/50"
+        )}>
+          {/* Theme Toggle Button */}
+          <button 
+            onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 font-bold text-[10px] uppercase tracking-widest outline-none border",
+              theme === 'light' ? "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200" : "bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-800"
+            )}
+          >
+            {theme === 'dark' ? <Sun size={14} className="text-festive-gold" /> : <Moon size={14} className="text-indigo-500" />}
+            {theme === 'dark' ? 'Giao diện Sáng' : 'Giao diện Tối'}
+          </button>
+
+          <div className={cn(
+            "p-3 rounded-2xl border flex items-center gap-3 transition-all",
+            theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-950/40 border-slate-800"
+          )}>
             <div className="w-10 h-10 rounded-xl bg-festive-gold/20 flex items-center justify-center text-festive-gold font-black text-xs border border-festive-gold/20">
               {currentUser?.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
             </div>
             <div className="flex-1 overflow-hidden">
-              <p className="text-xs font-bold text-white truncate">{currentUser?.name}</p>
+              <p className={cn("text-xs font-bold truncate", theme === 'light' ? "text-slate-900" : "text-white")}>{currentUser?.name}</p>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest truncate">
@@ -1645,9 +1974,12 @@ export default function App() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden z-10 relative">
         {/* Header */}
-        <header className="h-20 bg-slate-900/20 backdrop-blur-lg border-b border-slate-800/50 flex items-center justify-between px-8 shrink-0">
+        <header className={cn(
+          "h-20 backdrop-blur-lg border-b flex items-center justify-between px-8 shrink-0 transition-all",
+          theme === 'light' ? "bg-white/60 border-slate-200" : "bg-slate-900/20 border-slate-800/50"
+        )}>
           <div className="flex items-center gap-4">
-            <h2 className="text-2xl font-black text-white font-serif italic tracking-tighter">
+            <h2 className={cn("text-2xl font-black font-serif italic tracking-tighter", theme === 'light' ? "text-slate-900" : "text-white")}>
               {activeTab === 'dashboard' ? (selectedProject ? `Dashboard: ${selectedProject.name}` : 'Tổng quan Vùng') : (selectedProject ? `Hồ sơ: ${selectedProject.name}` : 'Danh sách Hồ sơ cấp GCN')}
             </h2>
           </div>
@@ -1707,104 +2039,162 @@ export default function App() {
                 {/* Role-Based KPI Cards */}
                 {userRole === 'PTT' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <StatCard title="Hồ sơ đang giữ" value={roleKpis.ptt.holding} icon={Files} colorClass="bg-indigo-500" delay={0.1} />
-                    <StatCard title="Thiếu giấy tờ" value={roleKpis.ptt.missingDocs} icon={AlertTriangle} colorClass="bg-amber-500" delay={0.2} />
-                    <StatCard title="Chưa xong NVTC" value={roleKpis.ptt.taxPending} icon={Clock} colorClass="bg-rose-500" delay={0.3} />
-                    <StatCard title="Hồ sơ hoàn tất" value={kpis.completed} icon={CheckCircle2} colorClass="bg-emerald-500" delay={0.4} />
+                    <StatCard title="Hồ sơ đang giữ" value={roleKpis.ptt.holding} icon={Files} colorClass="bg-indigo-500" delay={0.1} theme={theme} />
+                    <StatCard title="Thiếu giấy tờ" value={roleKpis.ptt.missingDocs} icon={AlertTriangle} colorClass="bg-amber-500" delay={0.2} theme={theme} />
+                    <StatCard title="Chưa xong NVTC" value={roleKpis.ptt.taxPending} icon={Clock} colorClass="bg-rose-500" delay={0.3} theme={theme} />
+                    <StatCard title="Hồ sơ hoàn tất" value={kpis.completed} icon={CheckCircle2} colorClass="bg-emerald-500" delay={0.4} theme={theme} />
                   </div>
                 )}
 
                 {userRole === 'KT' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <StatCard title="Hồ sơ đã tiếp nhận" value={roleKpis.kt.received} icon={Files} colorClass="bg-indigo-500" delay={0.1} />
-                    <StatCard title="Đang ghép sổ" value={roleKpis.kt.grouping} icon={Map} colorClass="bg-amber-500" delay={0.2} />
-                    <StatCard title="Đã nộp 1 cửa" value={roleKpis.kt.submitted} icon={CheckCircle2} colorClass="bg-emerald-500" delay={0.3} />
-                    <StatCard title="GCN đã nhận" value={roleKpis.kt.gcnReceived} icon={Building2} colorClass="bg-cyan-500" delay={0.4} />
+                    <StatCard title="Hồ sơ đã tiếp nhận" value={roleKpis.kt.received} icon={Files} colorClass="bg-indigo-500" delay={0.1} theme={theme} />
+                    <StatCard title="Đang ghép sổ" value={roleKpis.kt.grouping} icon={Map} colorClass="bg-amber-500" delay={0.2} theme={theme} />
+                    <StatCard title="Đã nộp 1 cửa" value={roleKpis.kt.submitted} icon={CheckCircle2} colorClass="bg-emerald-500" delay={0.3} theme={theme} />
+                    <StatCard title="GCN đã nhận" value={roleKpis.kt.gcnReceived} icon={Building2} colorClass="bg-cyan-500" delay={0.4} theme={theme} />
                   </div>
                 )}
 
                 {userRole === 'PTDA' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <StatCard title="Chưa có TB Thuế" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-rose-500" delay={0.1} />
-                    <StatCard title="Chờ TB Thuế TB" value={`${roleKpis.ptda.avgTaxWait} ngày`} icon={History} colorClass="bg-indigo-500" delay={0.2} />
-                    <StatCard title="Trễ tại CQNN" value={roleKpis.ptda.stuck} icon={AlertCircle} colorClass="bg-amber-600" delay={0.3} />
-                    <StatCard title="HS Đã nhận TB Thuế" value={roleKpis.kt.submitted - roleKpis.ptda.noTax} icon={CheckCircle2} colorClass="bg-emerald-500" delay={0.4} />
+                    <StatCard title="Chưa có TB Thuế" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-rose-500" delay={0.1} theme={theme} />
+                    <StatCard title="Chờ TB Thuế TB" value={`${roleKpis.ptda.avgTaxWait} ngày`} icon={History} colorClass="bg-indigo-500" delay={0.2} theme={theme} />
+                    <StatCard title="Trễ tại CQNN" value={roleKpis.ptda.stuck} icon={AlertCircle} colorClass="bg-amber-600" delay={0.3} theme={theme} />
+                    <StatCard title="HS Đã nhận TB Thuế" value={roleKpis.kt.submitted - roleKpis.ptda.noTax} icon={CheckCircle2} colorClass="bg-emerald-500" delay={0.4} theme={theme} />
                   </div>
                 )}
 
                 {(userRole === 'ADMIN' || userRole === 'MANAGER' || !userRole) && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <StatCard title="Tổng số căn" value={kpis.total} icon={Building2} colorClass="bg-festive-gold" delay={0.1} />
-                    <StatCard title="Hồ sơ hoàn tất" value={kpis.completed} icon={CheckCircle2} colorClass="bg-emerald-500" delay={0.2} />
-                    <StatCard title="Trễ hạn xử lý" value={kpis.overdue} icon={AlertCircle} colorClass="bg-amber-600 shadow-amber-900/40" delay={0.3} />
-                    <StatCard title="Vướng / Sai sót" value={kpis.error} icon={AlertCircle} colorClass="bg-rose-500 shadow-rose-900/40" delay={0.4} />
+                    <StatCard title="Tổng số căn" value={kpis.total} icon={Building2} colorClass="bg-festive-gold" delay={0.1} theme={theme} />
+                    <StatCard title="Hồ sơ hoàn tất" value={kpis.completed} icon={CheckCircle2} colorClass="bg-emerald-500" delay={0.2} theme={theme} />
+                    <StatCard title="Trễ hạn xử lý" value={kpis.overdue} icon={AlertCircle} colorClass="bg-amber-600 shadow-amber-900/40" delay={0.3} theme={theme} />
+                    <StatCard title="Vướng / Sai sót" value={kpis.error} icon={AlertCircle} colorClass="bg-rose-500 shadow-rose-900/40" delay={0.4} theme={theme} />
                   </div>
                 )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-                  {/* Slowest List for PTT */}
-                  {userRole === 'PTT' ? (
-                    <div className="bg-slate-900/40 p-6 rounded-2xl border border-slate-800 lg:col-span-2">
-                       <h3 className="text-white font-bold mb-4 flex items-center gap-2">
-                         <AlertTriangle size={18} className="text-rose-500" />
-                         Danh sách hồ sơ chậm nhất
-                       </h3>
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                         {roleKpis.ptt.slowest.map(app => (
-                           <div key={app.id} className="flex items-center justify-between p-3 bg-slate-950/40 rounded-xl border border-slate-800/50 hover:border-slate-700 transition-all cursor-pointer" onClick={() => { setActiveTab('inbox'); setSearch(app.unitCode); }}>
-                             <div className="flex items-center gap-3">
-                               <div className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center font-bold text-xs shrink-0">
-                                 {app.overdue.daysLate}d
+                
+                {/* Dashboard Critical Alert Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  <div className="lg:col-span-2 space-y-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Slowest List for PTT */}
+                      {userRole === 'PTT' ? (
+                        <div className={cn(
+                          "p-6 rounded-2xl border transition-all lg:col-span-2",
+                          theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800"
+                        )}>
+                           <h3 className={cn("font-bold mb-4 flex items-center gap-2", theme === 'light' ? "text-slate-900" : "text-white")}>
+                             <AlertTriangle size={18} className="text-rose-500" />
+                             Danh sách hồ sơ chậm nhất
+                           </h3>
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             {roleKpis.ptt.slowest.map(app => (
+                               <div key={app.id} className={cn(
+                                 "flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer",
+                                 theme === 'light' ? "bg-slate-50 border-slate-100 hover:border-slate-200" : "bg-slate-950/40 border-slate-800/50 hover:border-slate-700"
+                               )} onClick={() => { setActiveTab('applications'); setSearch(app.unitCode); }}>
+                                 <div className="flex items-center gap-3">
+                                   <div className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center font-bold text-xs shrink-0">
+                                     {app.overdue.daysLate}d
+                                   </div>
+                                   <div className="truncate">
+                                     <p className={cn("text-sm font-bold", theme === 'light' ? "text-slate-800" : "text-slate-200")}>{app.unitCode}</p>
+                                     <p className="text-[10px] text-slate-500 truncate">{app.customerName} - {app.overdue.label}</p>
+                                   </div>
+                                 </div>
+                                 <ChevronRight size={16} className="text-slate-700 shrink-0" />
                                </div>
-                               <div className="truncate">
-                                 <p className="text-sm font-bold text-slate-200">{app.unitCode}</p>
-                                 <p className="text-[10px] text-slate-500 truncate">{app.customerName} - {app.overdue.label}</p>
-                               </div>
-                             </div>
-                             <ChevronRight size={16} className="text-slate-700 shrink-0" />
+                             ))}
+                             {roleKpis.ptt.slowest.length === 0 && <p className="text-slate-500 text-xs italic text-center py-4 lg:col-span-2">Chưa có hồ sơ trễ hạn</p>}
                            </div>
-                         ))}
-                         {roleKpis.ptt.slowest.length === 0 && <p className="text-slate-500 text-xs italic text-center py-4 lg:col-span-2">Chưa có hồ sơ trễ hạn</p>}
-                       </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className={cn(
+                            "p-4 rounded-2xl border flex items-center justify-between transition-all",
+                            theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800"
+                          )}>
+                            <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-500 flex items-center justify-center">
+                                <User size={20} />
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Khách hàng vay</p>
+                                <p className={cn("text-xl font-bold", theme === 'light' ? "text-slate-900" : "text-white")}>{kpis.loanCount} <span className="text-xs text-slate-500 font-normal">Hồ sơ</span></p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[10px] text-indigo-400 font-bold">{Math.round((kpis.loanCount/kpis.total)*100) || 0}%</p>
+                              <div className={cn("w-24 h-1 rounded-full mt-1 overflow-hidden", theme === 'light' ? "bg-slate-100" : "bg-slate-800")}>
+                                <div className="h-full bg-indigo-500" style={{ width: `${(kpis.loanCount/kpis.total)*100}%` }}></div>
+                              </div>
+                            </div>
+                          </div>
+                          <div className={cn(
+                            "p-4 rounded-2xl border flex items-center justify-between transition-all",
+                            theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800"
+                          )}>
+                            <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 rounded-xl bg-slate-500/20 text-slate-400 flex items-center justify-center">
+                                <User size={20} />
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Sử dụng vốn tự có</p>
+                                <p className={cn("text-xl font-bold", theme === 'light' ? "text-slate-900" : "text-white")}>{kpis.regularCount} <span className="text-xs text-slate-500 font-normal">Hồ sơ</span></p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[10px] text-slate-400 font-bold">{Math.round((kpis.regularCount/kpis.total)*100) || 0}%</p>
+                              <div className={cn("w-24 h-1 rounded-full mt-1 overflow-hidden", theme === 'light' ? "bg-slate-100" : "bg-slate-800")}>
+                                <div className="h-full bg-slate-500" style={{ width: `${(kpis.regularCount/kpis.total)*100}%` }}></div>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
-                  ) : (
-                    <>
-                      <div className="bg-slate-900/40 p-4 rounded-2xl border border-slate-800 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-500 flex items-center justify-center">
-                            <User size={20} />
-                          </div>
-                          <div>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Khách hàng vay</p>
-                            <p className="text-xl font-bold text-white">{kpis.loanCount} <span className="text-xs text-slate-500 font-normal">Hồ sơ</span></p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[10px] text-indigo-400 font-bold">{Math.round((kpis.loanCount/kpis.total)*100) || 0}%</p>
-                          <div className="w-24 h-1 bg-slate-800 rounded-full mt-1 overflow-hidden">
-                            <div className="h-full bg-indigo-500" style={{ width: `${(kpis.loanCount/kpis.total)*100}%` }}></div>
-                          </div>
-                        </div>
+                  </div>
+
+                  <div className="lg:col-span-1 space-y-8">
+                    {/* Urgent Tasks Section */}
+                    <section className={cn(
+                      "backdrop-blur-xl border rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden group h-full transition-all",
+                      theme === 'light' 
+                        ? "bg-white border-rose-100 shadow-rose-900/5" 
+                        : "bg-slate-900/40 border-rose-500/20 shadow-2xl"
+                    )}>
+                      <div className="absolute top-0 right-0 p-8">
+                         <AlertTriangle className="text-rose-500/40 animate-pulse" size={24} />
                       </div>
-                      <div className="bg-slate-900/40 p-4 rounded-2xl border border-slate-800 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-xl bg-slate-500/20 text-slate-400 flex items-center justify-center">
-                            <User size={20} />
+                      <h3 className="text-[10px] font-black text-rose-500 uppercase tracking-[0.2em] mb-6">Cảnh báo cấp bách</h3>
+                      <div className="space-y-4">
+                        {applications.filter(a => a.status === 'Error').slice(0, 4).map(app => (
+                          <div key={app.id} className={cn(
+                            "p-4 rounded-2xl border transition-all cursor-pointer group/task",
+                            theme === 'light' 
+                              ? "bg-rose-50/30 border-rose-100 hover:border-rose-300" 
+                              : "bg-slate-950/50 border-rose-500/10 hover:border-rose-500/30"
+                          )} onClick={() => { setSelectedApp(app); setActiveTab('applications'); }}>
+                            <div className="flex justify-between items-start mb-2">
+                              <p className={cn("text-sm font-black", theme === 'light' ? "text-slate-900" : "text-slate-200")}>{app.unitCode}</p>
+                              <span className="text-[9px] font-bold text-rose-500 bg-rose-500/10 px-2 py-0.5 rounded italic">Lỗi/Vướng</span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 font-bold mb-3 truncate">{app.projectName}</p>
+                            <div className="flex items-center justify-between">
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter italic truncate">{app.currentStep}</p>
+                              <ArrowRight size={14} className="text-slate-600 group-hover/task:text-rose-500 transition-all translate-x-[-10px] opacity-0 group-hover/task:translate-x-0 group-hover/task:opacity-100" />
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Sử dụng vốn tự có</p>
-                            <p className="text-xl font-bold text-white">{kpis.regularCount} <span className="text-xs text-slate-500 font-normal">Hồ sơ</span></p>
+                        ))}
+                        {applications.filter(a => a.status === 'Error').length === 0 && (
+                          <div className="py-8 text-center">
+                            <CheckCircle2 size={32} className="mx-auto text-emerald-500/30 mb-2" />
+                            <p className="text-[10px] text-slate-600 font-bold italic">Tuyệt vời! Hệ thống ổn định</p>
                           </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[10px] text-slate-400 font-bold">{Math.round((kpis.regularCount/kpis.total)*100) || 0}%</p>
-                          <div className="w-24 h-1 bg-slate-800 rounded-full mt-1 overflow-hidden">
-                            <div className="h-full bg-slate-500" style={{ width: `${(kpis.regularCount/kpis.total)*100}%` }}></div>
-                          </div>
-                        </div>
+                        )}
                       </div>
-                    </>
-                  )}
+                    </section>
+                  </div>
                 </div>
 
                 {/* Charts Section */}
@@ -1971,22 +2361,25 @@ export default function App() {
                     </div>
                   </div>
                 )}
-                <div className="bg-slate-900/20 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-800/50 overflow-hidden">
-                  <div className="p-6 border-b border-slate-800/50 flex items-center justify-between">
-                    <h3 className="font-bold text-white font-serif text-xl italic italic">Trạng thái theo Dự án</h3>
+                <div className={cn(
+                  "backdrop-blur-xl rounded-3xl shadow-2xl border transition-all overflow-hidden",
+                  theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/20 shadow-2xl border-slate-800/50"
+                )}>
+                  <div className={cn("p-6 border-b flex items-center justify-between", theme === 'light' ? "border-slate-100 bg-slate-50" : "border-slate-800/50")}>
+                    <h3 className={cn("font-bold font-serif text-xl italic", theme === 'light' ? "text-slate-900" : "text-white")}>Trạng thái theo Dự án</h3>
                     <button className="text-festive-gold text-xs font-bold hover:underline">Chi tiết báo cáo</button>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
-                        <tr className="bg-slate-800/30">
-                          <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">Dự án</th>
-                          <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">Quỹ căn</th>
-                          <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">Đã cấp sổ</th>
-                          <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono">Tiến độ</th>
+                        <tr className={theme === 'light' ? "bg-slate-50" : "bg-slate-800/30"}>
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono italic">Dự án</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono italic">Quỹ căn</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono italic">Đã cấp sổ</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono italic">Tiến độ</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800/50">
+                      <tbody className={cn("divide-y", theme === 'light' ? "divide-slate-50" : "divide-slate-800/50")}>
                         {visibleProjects.map(p => {
                           const projectApps = applications.filter(a => a.projectName === p.name);
                           const completed = projectApps.filter(a => a.status === 'Completed').length;
@@ -1996,26 +2389,31 @@ export default function App() {
                               key={p.id} 
                               onClick={() => setSelectedProjectId(p.id)}
                               className={cn(
-                                "hover:bg-slate-800/30 transition-colors cursor-pointer group border-b border-slate-800/20",
-                                selectedProjectId === p.id && "bg-slate-800/60 ring-1 ring-inset ring-festive-gold/20"
+                                "transition-colors cursor-pointer group border-b",
+                                theme === 'light' 
+                                  ? (selectedProjectId === p.id ? "bg-festive-gold/10 border-festive-gold/30 text-slate-800" : "hover:bg-slate-50 border-slate-50 text-slate-700") 
+                                  : (selectedProjectId === p.id ? "bg-slate-800/60 border-slate-700 text-white" : "hover:bg-slate-800/30 border-slate-800/20 text-slate-300")
                               )}
                             >
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-slate-800/50 flex items-center justify-center text-slate-500 group-hover:text-festive-gold transition-colors border border-slate-700/50">
+                                  <div className={cn(
+                                    "w-8 h-8 rounded-lg flex items-center justify-center transition-colors border",
+                                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-400" : "bg-slate-800/50 border-slate-700/50 text-slate-500"
+                                  )}>
                                     <Building2 size={16} />
                                   </div>
                                   <div>
-                                    <p className="text-sm font-bold text-white">{p.name}</p>
-                                    <p className="text-[11px] text-slate-500 tracking-wider font-bold">{p.region}</p>
+                                    <p className={cn("text-sm font-bold", theme === 'light' ? "text-slate-900" : "text-white")}>{p.name}</p>
+                                    <p className="text-[11px] text-slate-500 tracking-wider font-bold italic">{p.region}</p>
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-6 py-4 text-sm font-mono text-slate-400">{p.totalUnits}</td>
-                              <td className="px-6 py-4 text-sm font-mono text-slate-400">{completed}</td>
+                              <td className="px-6 py-4 text-sm font-mono text-slate-500">{p.totalUnits}</td>
+                              <td className="px-6 py-4 text-sm font-mono text-slate-500">{completed}</td>
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
-                                  <div className="flex-1 h-1.5 bg-slate-950/50 rounded-full overflow-hidden w-24 border border-slate-800">
+                                  <div className={cn("flex-1 h-1.5 rounded-full overflow-hidden w-24 border", theme === 'light' ? "bg-slate-100 border-slate-200" : "bg-slate-950/50 border-slate-800")}>
                                     <div 
                                       className="h-full bg-festive-gold rounded-full transition-all duration-1000 shadow-sm shadow-festive-gold/30" 
                                       style={{ width: `${progress}%` }} 
@@ -2042,8 +2440,11 @@ export default function App() {
                 exit={{ opacity: 0 }}
                 className="max-w-7xl mx-auto"
               >
-                <div className="bg-slate-900/40 backdrop-blur-md rounded-3xl shadow-2xl border border-slate-800/50 overflow-hidden">
-                  <div className="p-6 border-b border-slate-800/50">
+                <div className={cn(
+                  "backdrop-blur-md rounded-3xl shadow-2xl border transition-all overflow-hidden",
+                  theme === 'light' ? "bg-white border-slate-200 shadow-slate-900/5" : "bg-slate-900/40 border-slate-800/50"
+                )}>
+                  <div className={cn("p-6 border-b", theme === 'light' ? "border-slate-100 shadow-inner bg-slate-50/50" : "border-slate-800/50")}>
                     <div className="flex items-center justify-between gap-4 mb-4">
                       <div className="flex items-center gap-4">
                         <button 
@@ -2052,7 +2453,7 @@ export default function App() {
                             "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all",
                             isShowFilters 
                               ? "bg-festive-gold text-slate-950 border-festive-gold" 
-                              : "bg-slate-950/40 text-slate-400 border-slate-800 hover:border-festive-gold/30"
+                              : (theme === 'light' ? "bg-white text-slate-600 border-slate-200 shadow-sm hover:bg-slate-50" : "bg-slate-950/40 text-slate-400 border-slate-800 hover:border-festive-gold/30")
                           )}
                         >
                           <Filter size={14} />
@@ -2072,11 +2473,17 @@ export default function App() {
                           exit={{ height: 0, opacity: 0 }}
                           className="overflow-hidden"
                         >
-                          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4 pt-4 border-t border-slate-800/30">
+                          <div className={cn(
+                            "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4 pt-4 border-t",
+                            theme === 'light' ? "border-slate-100" : "border-slate-800/30"
+                          )}>
                             <div className="space-y-2">
                               <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1">Trạng thái hồ sơ</label>
                               <select 
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-festive-gold/20"
+                                className={cn(
+                                  "w-full rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
+                                  theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
+                                )}
                                 value={filterStatus}
                                 onChange={(e) => setFilterStatus(e.target.value as any)}
                               >
@@ -2093,7 +2500,10 @@ export default function App() {
                             <div className="space-y-2">
                               <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1">Giai đoạn hiện tại</label>
                               <select 
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-festive-gold/20"
+                                className={cn(
+                                  "w-full rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
+                                  theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
+                                )}
                                 value={filterStep}
                                 onChange={(e) => setFilterStep(e.target.value as any)}
                               >
@@ -2108,7 +2518,10 @@ export default function App() {
                             <div className="space-y-2">
                               <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1">Lọc theo lỗi</label>
                               <select 
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-festive-gold/20"
+                                className={cn(
+                                  "w-full rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
+                                  theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
+                                )}
                                 value={filterStatus === 'Error' ? 'Error' : 'ALL'}
                                 onChange={(e) => setFilterStatus(e.target.value === 'Error' ? 'Error' : 'ALL')}
                               >
@@ -2221,7 +2634,10 @@ export default function App() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
-                        <tr className="bg-slate-950/30 text-slate-500 uppercase">
+                        <tr className={cn(
+                          "uppercase transition-all",
+                          theme === 'light' ? "bg-slate-100 text-slate-500" : "bg-slate-950/30 text-slate-500"
+                        )}>
                           <th className="px-4 py-4 w-10">
                             <input 
                               type="checkbox" 
@@ -2249,15 +2665,20 @@ export default function App() {
                           <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Hành động</th>
                         </tr>
                       </thead>
-                      <tbody className="text-slate-300 divide-y divide-slate-800/40">
+                      <tbody className={cn(
+                        "divide-y transition-all",
+                        theme === 'light' ? "text-slate-700 divide-slate-100" : "text-slate-300 divide-slate-800/40"
+                      )}>
                         {filteredApps.map(app => {
                           const overdue = getOverdueInfo(app);
                           return (
                             <tr 
                               key={app.id} 
                               className={cn(
-                                "hover:bg-slate-800/30 transition-colors cursor-pointer group",
-                                selectedAppIds.includes(app.id) && "bg-festive-gold/5"
+                                "transition-colors cursor-pointer group border-b",
+                                theme === 'light' 
+                                  ? (selectedAppIds.includes(app.id) ? "bg-festive-gold/10" : "hover:bg-slate-50 border-slate-100") 
+                                  : (selectedAppIds.includes(app.id) ? "bg-festive-gold/5" : "hover:bg-slate-800/30 border-slate-800/40")
                               )}
                             >
                               <td className="px-4 py-5" onClick={(e) => e.stopPropagation()}>
@@ -2283,11 +2704,14 @@ export default function App() {
                               </td>
                               <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-500">
+                                  <div className={cn(
+                                    "w-8 h-8 rounded-full flex items-center justify-center transition-all",
+                                    theme === 'light' ? "bg-slate-100 text-slate-400" : "bg-slate-800 text-slate-500"
+                                  )}>
                                     <User size={14} />
                                   </div>
                                   <div className="flex flex-col">
-                                    <span className="text-sm font-medium text-slate-300">{app.customerName}</span>
+                                    <span className={cn("text-sm font-medium", theme === 'light' ? "text-slate-700" : "text-slate-300")}>{app.customerName}</span>
                                     <div className="flex gap-1 mt-1">
                                       {app.loanStatus === 'Co_Vay' && <span className="text-[8px] bg-indigo-500/20 text-indigo-400 px-1 rounded font-bold uppercase">Có vay</span>}
                                       {app.isSelfService && <span className="text-[8px] bg-amber-500/20 text-amber-500 px-1 rounded font-bold uppercase">Tự làm</span>}
@@ -2300,29 +2724,32 @@ export default function App() {
                               </td>
                               {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER') && (
                                 <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
-                                  <span className="text-[11px] font-mono text-slate-500">{app.submissionDate || '---'}</span>
+                                  <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{app.submissionDate || '---'}</span>
                                 </td>
                               )}
                               {(userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER') && (
                                 <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
                                   <div className="flex flex-col items-center">
-                                    <span className="text-[11px] font-mono text-slate-500">{app.taxReceiptDate || '---'}</span>
+                                    <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{app.taxReceiptDate || '---'}</span>
                                     {app.taxPaymentStatus === 'Paid' && <span className="text-[8px] text-emerald-500 font-bold">DONE</span>}
                                   </div>
                                 </td>
                               )}
                               {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER') && (
                                 <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
-                                  <span className="text-[11px] font-mono text-slate-500">{app.gcnReceivedDate || '---'}</span>
+                                  <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{app.gcnReceivedDate || '---'}</span>
                                 </td>
                               )}
                               <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
-                                <span className="text-[11px] font-mono text-slate-500">{app.customerHandoverDate || '---'}</span>
+                                <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{app.customerHandoverDate || '---'}</span>
                               </td>
                               <td className="px-6 py-5 text-center">
                                 <button 
                                   onClick={() => setSelectedApp(app)}
-                                  className="p-2 rounded-lg hover:bg-slate-800 text-slate-500 transition-colors"
+                                  className={cn(
+                                    "p-2 rounded-lg transition-colors text-slate-500",
+                                    theme === 'light' ? "hover:bg-slate-100" : "hover:bg-slate-800"
+                                  )}
                                 >
                                   <ChevronRight size={18} />
                                 </button>
@@ -2350,6 +2777,51 @@ export default function App() {
                   onEdit={(u) => { setEditUser(u); setIsUserModalOpen(true); }} 
                   onDelete={(id) => setUsers(prev => prev.filter(u => u.id !== id))} 
                   onCreate={() => { setEditUser(null); setIsUserModalOpen(true); }} 
+                  onResetPassword={(u) => {
+                    if (confirm(`Bạn có chắc muốn reset mật khẩu cho tài khoản @${u.username}? Mật khẩu mặc định sẽ là '123456'.`)) {
+                      setUsers(prev => prev.map(usr => usr.id === u.id ? { ...usr, password: '123456' } : usr));
+                      alert(`Đã reset mật khẩu cho @${u.username} thành 123456`);
+                    }
+                  }}
+                  theme={theme}
+                />
+              </motion.div>
+            )}
+
+            {activeTab === 'projects' && userRole === 'ADMIN' && (
+              <motion.div 
+                key="projects"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.05 }}
+                className="max-w-7xl mx-auto"
+              >
+                <ProjectManagementView 
+                  projects={projects}
+                  onCreate={() => {
+                    const name = prompt("Nhập tên dự án mới:");
+                    if (name) {
+                      const newP: Project = { 
+                        id: `PJ-${Math.random().toString(36).substr(2, 5).toUpperCase()}`, 
+                        name, 
+                        region: 'TP. Đà Nẵng',
+                        totalUnits: 0
+                      };
+                      setProjects(prev => [...prev, newP]);
+                    }
+                  }}
+                  onEdit={(p) => {
+                    const newName = prompt("Sửa tên dự án:", p.name);
+                    if (newName) {
+                      setProjects(prev => prev.map(item => item.id === p.id ? { ...item, name: newName } : item));
+                    }
+                  }}
+                  onDelete={(id) => {
+                    if (confirm("Bạn có chắc muốn xóa dự án này?")) {
+                      setProjects(prev => prev.filter(p => p.id !== id));
+                    }
+                  }}
+                  theme={theme}
                 />
               </motion.div>
             )}
@@ -2362,7 +2834,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="max-w-7xl mx-auto"
               >
-                <ReportsView applications={applications} projects={PROJECTS} regions={regions} />
+                <ReportsView applications={applications} projects={PROJECTS} regions={regions} theme={theme} />
               </motion.div>
             )}
 
@@ -2831,31 +3303,80 @@ export default function App() {
                   </section>
                 )}
 
-                {/* Timeline */}
-                <section>
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    <History size={14} /> Lịch sử xử lý
-                  </h4>
-                  <div className="space-y-6 pl-2 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-700">
-                    {selectedApp.history.map((h, idx) => (
-                      <div key={h.id} className="relative pl-8">
-                        <div className={cn(
-                          "absolute left-0 top-1 w-2.5 h-2.5 rounded-full z-10 border-2 border-[#1E293B]",
-                          idx === 0 ? "bg-emerald-500 ring-4 ring-emerald-500/10" : "bg-slate-600"
-                        )} />
-                        <div className="flex justify-between items-start mb-1">
-                          <p className="text-sm font-bold text-slate-200">{h.stepName}</p>
-                          <span className="text-[10px] font-mono text-slate-500">{h.receivedDate}</span>
-                        </div>
-                        <p className="text-xs text-slate-400 italic mb-1">Phòng chịu trách nhiệm: {h.dept}</p>
-                        {h.note && (
-                          <div className="bg-slate-900 border border-slate-800 p-2 rounded-lg text-[11px] text-slate-400 italic border-l-2 border-l-emerald-500">
-                            {h.note}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                {/* History & Audit Trail Tabs */}
+                <section className="space-y-6">
+                  <div className="flex gap-4 border-b border-slate-800">
+                    <button 
+                      onClick={() => setDetailTab('Workflow')}
+                      className={cn(
+                        "pb-2 text-[10px] font-black uppercase tracking-widest transition-all relative",
+                        detailTab === 'Workflow' ? "text-festive-gold" : "text-slate-500 hover:text-slate-300"
+                      )}
+                    >
+                      Lịch sử xử lý
+                      {detailTab === 'Workflow' && <motion.div layoutId="detailUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-festive-gold" />}
+                    </button>
+                    <button 
+                      onClick={() => setDetailTab('Audit')}
+                      className={cn(
+                        "pb-2 text-[10px] font-black uppercase tracking-widest transition-all relative",
+                        detailTab === 'Audit' ? "text-festive-gold" : "text-slate-500 hover:text-slate-300"
+                      )}
+                    >
+                      Audit Trail
+                      {detailTab === 'Audit' && <motion.div layoutId="detailUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-festive-gold" />}
+                    </button>
                   </div>
+
+                  {detailTab === 'Workflow' ? (
+                    <div className="space-y-6 pl-2 relative before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-700">
+                      {(editApp || selectedApp).history.map((h, idx) => (
+                        <div key={h.id} className="relative pl-8">
+                          <div className={cn(
+                            "absolute left-0 top-1 w-2.5 h-2.5 rounded-full z-10 border-2 border-[#1E293B]",
+                            idx === 0 ? "bg-emerald-500 ring-4 ring-emerald-500/10" : "bg-slate-600"
+                          )} />
+                          <div className="flex justify-between items-start mb-1">
+                            <p className="text-sm font-bold text-slate-200">{h.stepName}</p>
+                            <span className="text-[10px] font-mono text-slate-500">{h.receivedDate}</span>
+                          </div>
+                          <p className="text-xs text-slate-400 italic mb-1">Phòng chịu trách nhiệm: {h.dept}</p>
+                          {h.note && (
+                            <div className="bg-slate-900 border border-slate-800 p-2 rounded-lg text-[11px] text-slate-400 italic border-l-2 border-l-emerald-500">
+                              {h.note}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {((editApp || selectedApp).auditTrail || []).length > 0 ? (
+                        (editApp || selectedApp).auditTrail?.map((entry) => (
+                           <div key={entry.id} className="p-3 bg-slate-900/60 rounded-xl border border-slate-800 flex gap-3 items-start">
+                              <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-500">
+                                {entry.userName.charAt(0)}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex justify-between items-center mb-1">
+                                  <p className="text-[11px] font-bold text-slate-200">{entry.userName}</p>
+                                  <p className="text-[9px] font-mono text-slate-500">{entry.timestamp}</p>
+                                </div>
+                                <p className="text-[11px] text-slate-400">{entry.action}</p>
+                                {entry.changes && (
+                                  <p className="text-[9px] text-slate-600 font-bold italic mt-1 italic">Thay đổi: {entry.changes}</p>
+                                )}
+                              </div>
+                           </div>
+                        ))
+                      ) : (
+                        <div className="py-8 text-center bg-slate-900/20 rounded-2xl border border-slate-800/50">
+                           <History size={24} className="mx-auto text-slate-700 mb-2" />
+                           <p className="text-[10px] text-slate-600 font-bold italic">Chưa có nhật ký thay đổi</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </section>
               </div>
 

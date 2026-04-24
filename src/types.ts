@@ -53,6 +53,15 @@ export type ApplicationStepHistory = {
 
 export type PropertyType = 'Dat_Nen' | 'Can_Ho';
 
+export type AuditTrailEntry = {
+  id: string;
+  userId: string;
+  userName: string;
+  action: string;
+  timestamp: string;
+  changes?: string;
+};
+
 export type Application = {
   id: string;
   unitCode: string; // Mã lô/căn
@@ -95,6 +104,16 @@ export type Application = {
     [key: string]: boolean;
   };
   history: ApplicationStepHistory[];
+  auditTrail?: AuditTrailEntry[];
+};
+
+export type AppNotification = {
+  id: string;
+  title: string;
+  message: string;
+  time: string;
+  type: 'Urgent' | 'Info' | 'Success';
+  isRead: boolean;
 };
 
 export type KPI = {

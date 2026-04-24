@@ -10,11 +10,23 @@
   --color-festive-gold: #F59E0B;
   --color-festive-dark: #020617;
   --color-accent-emerald: #10B981;
+
+  --color-bg-primary: #020617;
+  --color-bg-secondary: #0f172a;
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #94a3b8;
 }
 
 @layer base {
   body {
-    @apply bg-festive-dark text-slate-200 antialiased;
+    @apply bg-bg-primary text-text-primary antialiased transition-colors duration-300;
+  }
+
+  .light {
+    --color-bg-primary: #f8fafc;
+    --color-bg-secondary: #ffffff;
+    --color-text-primary: #0f172a;
+    --color-text-secondary: #475569;
   }
 }
 
