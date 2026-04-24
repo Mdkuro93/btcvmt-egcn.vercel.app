@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Cell,
   PieChart, Pie, LabelList, Legend
@@ -50,6 +50,9 @@ import {
   FileJson,
   Bell,
   BellOff,
+  EyeOff,
+  Folder,
+  FolderOpen,
   Sun,
   Moon
 } from 'lucide-react';
@@ -205,16 +208,18 @@ const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark' 
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay }}
     className={cn(
-      "p-5 rounded-3xl shadow-2xl border flex flex-col gap-4 relative overflow-hidden transition-all",
-      theme === 'dark' ? "bg-slate-900/80 backdrop-blur-xl border-slate-700/50" : "bg-white border-slate-200"
+      "p-6 rounded-[2.5rem] shadow-2xl border flex flex-col gap-4 relative overflow-hidden transition-all",
+      theme === 'dark' 
+        ? "bg-slate-900/80 backdrop-blur-xl border-slate-700/50" 
+        : "bg-white border-slate-200 shadow-slate-200/50"
     )}
   >
     <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/5 rounded-full blur-2xl"></div>
-    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg", colorClass)}>
-      <Icon size={24} className="text-white" />
+    <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-transform hover:rotate-12", colorClass)}>
+      <Icon size={28} className={theme === 'dark' ? "text-white" : "text-white"} />
     </div>
     <div>
-      <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-1">{title}</p>
+      <p className={cn("text-[10px] font-black uppercase tracking-[0.2em] mb-1", theme === 'dark' ? "text-slate-500" : "text-slate-400")}>{title}</p>
       <p className={cn("text-3xl font-black font-serif italic tracking-tighter", theme === 'dark' ? "text-white" : "text-slate-900")}>{value}</p>
     </div>
   </motion.div>
@@ -434,7 +439,7 @@ const SettingsView = ({ slaConfig, setSlaConfig, checklistTemplates, setChecklis
 };
 
 const ReportsView = ({ applications, projects, regions, theme }: { applications: Application[], projects: Project[], regions: string[], theme: 'light' | 'dark' }) => {
-  const [reportType, setReportType] = useState<'PROJECT' | 'REGION' | 'DEPT'>('PROJECT');
+  const [reportType, setReportType] = useState<'PROJECT' | 'REGION' | 'DEPT' | 'LOAN'>('PROJECT');
 
   const stats = useMemo(() => {
     if (reportType === 'PROJECT') {
@@ -519,31 +524,98 @@ const ReportsView = ({ applications, projects, regions, theme }: { applications:
                   reportType === 'REGION' ? "bg-amber-500 border-amber-400 text-slate-950 shadow-lg shadow-amber-500/20" : "bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300"
                 )}
               >Vùng (VPĐK)</button>
+              <button 
+                onClick={() => setReportType('LOAN')}
+                className={cn(
+                  "px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all tracking-widest border",
+                  reportType === 'LOAN' ? "bg-rose-500 border-rose-400 text-white shadow-lg shadow-rose-500/20" : "bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300"
+                )}
+              >Vốn vay</button>
             </div>
             
-            <div className="h-[400px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? "#e2e8f0" : "#1e293b"} vertical={false} />
-                  <XAxis dataKey="name" stroke="#475569" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
-                  <YAxis stroke="#475569" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
-                  <ReTooltip 
-                    cursor={{ fill: theme === 'light' ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)' }}
-                    contentStyle={{ 
-                      backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
-                      border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #1e293b', 
-                      borderRadius: '16px', 
-                      boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)' 
-                    }}
-                    itemStyle={{ fontSize: '12px', fontWeight: 'bold', color: theme === 'light' ? '#334155' : '#fff' }}
-                  />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '30px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em' }} />
-                  <Bar dataKey="processing" name="Đang xử lý" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="completed" name="Hoàn tất" stackId="a" fill="#10b981" radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="overdue" name="Chậm trễ" fill="#ef4444" radius={[6, 6, 6, 6]} barSize={12} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            {reportType === 'LOAN' ? (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className={cn("text-base font-black italic font-serif", theme === 'light' ? "text-slate-900" : "text-white")}>Tình hình xử lý khách hàng vay vốn</h3>
+                  <span className="text-[10px] px-3 py-1 bg-rose-500/10 text-rose-500 rounded-full font-black uppercase tracking-widest border border-rose-500/20">
+                    {applications.filter(a => a.loanStatus === 'Co_Vay').length} Hồ sơ
+                  </span>
+                </div>
+                <div className="overflow-x-auto rounded-3xl border border-slate-800/50">
+                  <table className="w-full text-left border-collapse min-w-[800px]">
+                    <thead>
+                      <tr className={theme === 'light' ? "bg-slate-50 border-b border-slate-100" : "bg-slate-950/50 border-b border-slate-800"}>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Dự án / Mã căn</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Khách hàng</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Ngân hàng</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Trạng thái hiện tại</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest italic text-center">Tiến độ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/50">
+                      {applications.filter(a => a.loanStatus === 'Co_Vay').map(app => (
+                        <tr key={app.id} className={theme === 'light' ? "hover:bg-slate-50 transition-colors" : "hover:bg-slate-800/20 transition-colors"}>
+                          <td className="px-6 py-4">
+                            <p className={cn("text-xs font-bold", theme === 'light' ? "text-slate-900" : "text-slate-200")}>{app.projectName}</p>
+                            <p className="text-[10px] text-slate-500 font-mono mt-0.5">{app.unitCode}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className={cn("text-xs font-bold", theme === 'light' ? "text-slate-700" : "text-slate-300")}>{app.customerName}</p>
+                            <p className="text-[10px] text-slate-500 mt-0.5">{app.phoneNumber}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-xs font-bold text-indigo-400">{app.bankName || 'Đang cập nhật'}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <StatusBadge status={app.status} />
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col items-center">
+                              <div className="w-full bg-slate-800 h-1 rounded-full mb-1">
+                                <div 
+                                  className="h-full bg-emerald-500 rounded-full transition-all duration-1000"
+                                  style={{ width: `${Math.round(((getPhaseIndex(app.currentStep) + 1) / 6) * 100)}%` }}
+                                />
+                              </div>
+                              <span className="text-[9px] font-black text-slate-500 uppercase">{STEP_CONFIG[app.currentStep]?.label.split(':')[0]}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {applications.filter(a => a.loanStatus === 'Co_Vay').length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-12 text-center text-slate-500 italic text-xs">Không có hồ sơ vay vốn nào được ghi nhận.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="h-[400px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={stats} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? "#e2e8f0" : "#1e293b"} vertical={false} />
+                    <XAxis dataKey="name" stroke="#475569" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
+                    <YAxis stroke="#475569" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
+                    <ReTooltip 
+                      cursor={{ fill: theme === 'light' ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)' }}
+                      contentStyle={{ 
+                        backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
+                        border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #1e293b', 
+                        borderRadius: '16px', 
+                        boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)' 
+                      }}
+                      itemStyle={{ fontSize: '12px', fontWeight: 'bold', color: theme === 'light' ? '#334155' : '#fff' }}
+                    />
+                    <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '30px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em' }} />
+                    <Bar dataKey="processing" name="Đang xử lý" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="completed" name="Hoàn tất" stackId="a" fill="#10b981" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="overdue" name="Chậm trễ" fill="#ef4444" radius={[6, 6, 6, 6]} barSize={12} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
 
           {/* Average Time Chart */}
@@ -673,136 +745,441 @@ const ReportsView = ({ applications, projects, regions, theme }: { applications:
 };
 
 
-const NotificationPanel = ({ notifications, onClose, onRead, theme }: { notifications: Notification[], onClose: () => void, onRead: (id: string) => void, theme: 'light' | 'dark' }) => (
-  <motion.div 
-    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-    animate={{ opacity: 1, y: 0, scale: 1 }}
-    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-    className={cn(
-      "absolute left-full ml-4 top-0 w-80 border rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.4)] z-[100] overflow-hidden text-left transition-all",
-      theme === 'dark' ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200 shadow-2xl"
-    )}
-  >
-    <div className={cn(
-      "p-5 border-b flex justify-between items-center transition-all",
-      theme === 'dark' ? "border-slate-700 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-900"
-    )}>
-      <h4 className="text-xs font-black uppercase tracking-widest">Thông báo</h4>
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] bg-rose-500 text-white px-2 py-0.5 rounded-full font-bold">{notifications.filter(n => !n.isRead).length} Mới</span>
-        <button onClick={onClose} className="p-1 hover:bg-slate-500/10 rounded-lg transition-all">
-          <X size={14} className="text-slate-400" />
-        </button>
+const NotificationPanel = ({ notifications, onClose, onRead, theme }: { notifications: Notification[], onClose: () => void, onRead: (id: string) => void, theme: 'light' | 'dark' }) => {
+  const [filterUnreadOnly, setFilterUnreadOnly] = useState(false);
+
+  const displayedNotifications = filterUnreadOnly 
+    ? notifications.filter(n => !n.isRead) 
+    : notifications;
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+      className={cn(
+        "absolute right-0 top-full mt-4 w-96 border rounded-[2.5rem] shadow-[0_30px_80px_rgba(0,0,0,0.4)] z-[100] overflow-hidden text-left transition-all",
+        theme === 'dark' ? "bg-slate-950/95 border-slate-800 backdrop-blur-xl" : "bg-white/95 border-slate-200 shadow-2xl backdrop-blur-xl"
+      )}
+    >
+      <div className={cn(
+        "p-6 border-b transition-all",
+        theme === 'dark' ? "border-slate-800 bg-slate-900/50 text-white" : "border-slate-100 bg-slate-50 text-slate-900"
+      )}>
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h4 className="text-sm font-black uppercase tracking-widest">Thông báo</h4>
+            <div className="flex items-center gap-3 mt-1">
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  notifications.forEach(n => !n.isRead && onRead(n.id));
+                }}
+                className="text-[10px] text-indigo-500 hover:text-indigo-600 font-black uppercase tracking-tighter transition-colors"
+              >
+                Đọc tất cả
+              </button>
+              <div className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700" />
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFilterUnreadOnly(!filterUnreadOnly);
+                }}
+                className={cn(
+                  "text-[10px] font-black uppercase tracking-tighter transition-colors",
+                  filterUnreadOnly ? "text-rose-500" : "text-slate-500 hover:text-slate-700"
+                )}
+              >
+                {filterUnreadOnly ? "Hiện tất cả" : "Chỉ chưa đọc"}
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className={cn(
+              "text-[10px] px-2 py-0.5 rounded-full font-bold",
+              notifications.filter(n => !n.isRead).length > 0 ? "bg-rose-500 text-white" : "bg-slate-500/20 text-slate-500"
+            )}>
+              {notifications.filter(n => !n.isRead).length} Mới
+            </span>
+            <button onClick={onClose} className="p-2 hover:bg-slate-500/10 rounded-xl transition-all">
+              <X size={18} className="text-slate-400" />
+            </button>
+          </div>
+        </div>
       </div>
-    </div>
-    <div className="max-h-96 overflow-y-auto custom-scrollbar">
-      {notifications.length > 0 ? (
-        notifications.map(n => (
+      <div className="max-h-[450px] overflow-y-auto custom-scrollbar">
+        {displayedNotifications.length > 0 ? (
+          displayedNotifications.map(n => (
+            <div 
+              key={n.id} 
+              onClick={() => onRead(n.id)}
+              className={cn(
+                "p-5 border-b transition-all relative group cursor-pointer",
+                theme === 'dark' 
+                  ? "border-slate-900/50 hover:bg-white/5" 
+                  : "border-slate-100 hover:bg-slate-50",
+                !n.isRead && (theme === 'dark' ? "bg-indigo-500/5" : "bg-indigo-50/30")
+              )}
+            >
+              <div className="flex gap-4">
+                <div className={cn(
+                  "w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 transition-all",
+                  n.isRead ? "bg-slate-300 dark:bg-slate-700 scale-75 opacity-50" : (n.type === 'Urgent' ? "bg-rose-500 shadow-lg shadow-rose-500/30" : n.type === 'Success' ? "bg-emerald-500" : "bg-indigo-500")
+                )} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-start gap-2">
+                    <p className={cn("text-sm font-bold leading-tight mb-1", theme === 'dark' ? (n.isRead ? "text-slate-500" : "text-slate-100") : (n.isRead ? "text-slate-400" : "text-slate-900"))}>{n.title}</p>
+                  </div>
+                  <p className={cn("text-xs leading-relaxed line-clamp-2", theme === 'dark' ? (n.isRead ? "text-slate-600" : "text-slate-400") : (n.isRead ? "text-slate-400" : "text-slate-600"))}>{n.message}</p>
+                  <div className="flex items-center justify-between mt-3">
+                    <p className={cn("text-[10px] font-black uppercase tracking-tighter", theme === 'dark' ? "text-slate-600" : "text-slate-400")}>{n.time}</p>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRead(n.id);
+                      }}
+                      className={cn(
+                        "p-1.5 rounded-lg transition-all shadow-sm",
+                        theme === 'dark' ? "hover:bg-slate-800 bg-slate-950 border border-slate-800" : "hover:bg-white bg-slate-100 border border-slate-200"
+                      )}
+                      title={n.isRead ? "Đánh dấu chưa đọc" : "Đánh dấu đã đọc"}
+                    >
+                      {n.isRead ? <EyeOff size={14} className="text-slate-500" /> : <Check size={14} className="text-indigo-500" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="p-16 text-center">
+            <div className="w-20 h-20 bg-slate-500/5 rounded-[2rem] flex items-center justify-center mx-auto mb-6">
+              <BellOff size={32} className="text-slate-500 opacity-20" />
+            </div>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">{filterUnreadOnly ? "Không có thông báo chưa đọc" : "Hộp thư trống"}</p>
+          </div>
+        )}
+      </div>
+      <button className={cn(
+        "w-full py-6 text-[10px] font-black uppercase tracking-[0.3em] transition-all border-t",
+        theme === 'dark' 
+          ? "text-slate-500 hover:text-white bg-slate-900/50 border-slate-800" 
+          : "text-slate-500 hover:text-slate-900 bg-slate-50 border-slate-100"
+      )}>
+        Xem tất cả thông báo
+      </button>
+    </motion.div>
+  );
+};
+
+
+const ProjectManagementView = ({ projects, onCreate, onEdit, onDelete, theme }: { projects: Project[]; onCreate: () => void; onEdit: (p: Project) => void; onDelete: (id: string) => void; theme: 'light' | 'dark' }) => {
+  const [pSearch, setPSearch] = useState('');
+
+  const groupedProjects = useMemo(() => {
+    return projects
+      .filter(p => p.name.toLowerCase().includes(pSearch.toLowerCase()) || (p.region || '').toLowerCase().includes(pSearch.toLowerCase()))
+      .reduce((acc, p) => {
+        const region = p.region || 'Các Dự án khác';
+        if (!acc[region]) acc[region] = [];
+        acc[region].push(p);
+        return acc;
+      }, {} as Record<string, Project[]>);
+  }, [projects, pSearch]);
+
+  const [expandedRegions, setExpandedRegions] = useState<Record<string, boolean>>(
+    Object.keys(groupedProjects).reduce((acc, key) => ({ ...acc, [key]: true }), {})
+  );
+
+  const toggleRegion = (region: string) => {
+    setExpandedRegions(prev => ({ ...prev, [region]: !prev[region] }));
+  };
+
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <header className="flex justify-between items-end text-left">
+        <div>
+           <h2 className={cn("text-3xl font-black italic font-serif tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Cây thư mục Dự án</h2>
+           <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em] mt-1">Quản lý theo khu vực & cụm dự án</p>
+        </div>
+        <div className="flex gap-4">
+          <div className="relative group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+            <input 
+              type="text"
+              placeholder="Tìm dự án..."
+              value={pSearch}
+              onChange={(e) => setPSearch(e.target.value)}
+              className={cn(
+                "w-64 pl-12 pr-6 py-3 rounded-2xl border text-[10px] font-black uppercase tracking-widest focus:outline-none focus:border-indigo-500 transition-all",
+                theme === 'light' ? "bg-white border-slate-200 text-slate-900" : "bg-slate-950 border-slate-800 text-white"
+              )}
+            />
+          </div>
+          <div className={cn(
+            "px-6 py-3 rounded-2xl border flex flex-col justify-center",
+            theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800"
+          )}>
+            <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Tổng dự án</p>
+            <p className={cn("text-xl font-black italic font-serif", theme === 'light' ? "text-slate-900" : "text-white")}>{projects.length}</p>
+          </div>
+          <button 
+            onClick={onCreate}
+            className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all outline-none"
+          >
+            <Plus size={16} /> Thêm dự án mới
+          </button>
+        </div>
+      </header>
+
+      <div className="space-y-6">
+        {(Object.entries(groupedProjects) as [string, Project[]][]).map(([region, regionProjects]) => (
           <div 
-            key={n.id} 
-            onClick={() => onRead(n.id)}
+            key={region} 
             className={cn(
-              "p-4 border-b cursor-pointer transition-all",
-              theme === 'dark' 
-                ? "border-slate-800 hover:bg-slate-800/80" 
-                : "border-slate-100 hover:bg-slate-50",
-              !n.isRead ? (theme === 'dark' ? "bg-indigo-500/10" : "bg-indigo-50/50") : "opacity-60"
+              "rounded-[2.5rem] border overflow-hidden transition-all duration-500",
+              theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/20 border-slate-800/50"
             )}
           >
-            <div className="flex gap-3">
+            <button 
+              onClick={() => toggleRegion(region)}
+              className={cn(
+                "w-full px-8 py-5 flex items-center justify-between group transition-colors",
+                theme === 'light' ? "hover:bg-slate-50" : "hover:bg-slate-800/30"
+              )}
+            >
+              <div className="flex items-center gap-4">
+                <div className={cn(
+                  "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+                  expandedRegions[region] !== false ? "bg-festive-gold text-slate-900" : "bg-slate-800 text-slate-400"
+                )}>
+                  {expandedRegions[region] !== false ? <FolderOpen size={20} /> : <Folder size={20} />}
+                </div>
+                <div className="text-left">
+                  <h3 className={cn("font-bold text-lg", theme === 'light' ? "text-slate-900" : "text-white")}>{region}</h3>
+                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{regionProjects.length} Dự án thành viên</p>
+                </div>
+              </div>
               <div className={cn(
-                "w-2 h-2 rounded-full mt-1.5 shrink-0",
-                n.type === 'Urgent' ? "bg-rose-500" : n.type === 'Success' ? "bg-emerald-500" : "bg-blue-500"
-              )} />
+                "w-8 h-8 rounded-full flex items-center justify-center transition-transform duration-300",
+                expandedRegions[region] !== false ? "rotate-180" : "rotate-0",
+                theme === 'light' ? "bg-slate-100 text-slate-400" : "bg-slate-800 text-slate-500"
+              )}>
+                <ChevronDown size={16} />
+              </div>
+            </button>
+
+            <AnimatePresence>
+              {expandedRegions[region] !== false && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-8 pb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-top-4">
+                    {regionProjects.map(project => (
+                      <div 
+                        key={project.id}
+                        className={cn(
+                          "p-6 rounded-[2rem] border transition-all group relative overflow-hidden",
+                          theme === 'light' ? "bg-slate-50/50 border-slate-200" : "bg-slate-900/60 border-slate-700/50"
+                        )}
+                      >
+                        <div className="flex justify-between items-start mb-6">
+                          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center border border-emerald-500/20">
+                            <Building2 size={24} />
+                          </div>
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => onEdit(project)}
+                              className="p-2 rounded-xl bg-slate-800/80 text-slate-400 hover:text-white transition-all"
+                            >
+                              <Settings size={14} />
+                            </button>
+                            <button 
+                              onClick={() => onDelete(project.id)}
+                              className="p-2 rounded-xl bg-slate-800/80 text-rose-500 hover:bg-rose-500 hover:text-white transition-all"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <h3 className={cn("text-xl font-bold mb-2", theme === 'light' ? "text-slate-900" : "text-white")}>{project.name}</h3>
+                        <div className="flex items-center gap-6 pt-6 border-t border-slate-800/30">
+                           <div>
+                             <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Mã dự án</p>
+                             <p className={cn("text-sm font-mono font-bold", theme === 'light' ? "text-slate-700" : "text-slate-300")}>{project.id}</p>
+                           </div>
+                           <div>
+                             <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Sản phẩm</p>
+                             <p className={cn("text-sm font-bold", theme === 'light' ? "text-slate-700" : "text-slate-300")}>{project.totalUnits} Units</p>
+                           </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const ProjectModal = ({ 
+  isOpen, 
+  onClose, 
+  onSave, 
+  project, 
+  theme 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  onSave: (p: Partial<Project>) => void; 
+  project: Project | null;
+  theme: 'light' | 'dark'
+}) => {
+  const [formData, setFormData] = useState<Partial<Project>>({
+    name: '',
+    region: 'TP. Đà Nẵng',
+    totalUnits: 0
+  });
+
+  useEffect(() => {
+    if (project) {
+      setFormData(project);
+    } else {
+      setFormData({
+        name: '',
+        region: 'TP. Đà Nẵng',
+        totalUnits: 0
+      });
+    }
+  }, [project, isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+      />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+        className={cn(
+          "relative w-full max-w-lg rounded-[2.5rem] border shadow-2xl overflow-hidden",
+          theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900 border-slate-800"
+        )}
+      >
+        <div className="p-8">
+          <div className="flex justify-between items-center mb-8">
+            <div>
+              <h2 className={cn("text-2xl font-black italic font-serif", theme === 'light' ? "text-slate-900" : "text-white")}>
+                {project ? 'Chỉnh sửa Dự án' : 'Tạo Dự án Mới'}
+              </h2>
+              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">Thông tin vận hành hệ thống</p>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-500/10 transition-all">
+              <X size={20} className="text-slate-500" />
+            </button>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Tên dự án</label>
+              <input 
+                type="text"
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                placeholder="VD: Sunshine Riverside"
+                className={cn(
+                  "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none transition-all",
+                  theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900 focus:border-indigo-500" : "bg-slate-950 border-slate-800 text-white focus:border-festive-gold"
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className={cn("text-xs font-bold", theme === 'dark' ? "text-slate-100" : "text-slate-900")}>{n.title}</p>
-                <p className={cn("text-[10px] mt-0.5 leading-relaxed", theme === 'dark' ? "text-slate-400" : "text-slate-600")}>{n.message}</p>
-                <p className={cn("text-[9px] mt-2 font-black uppercase tracking-tighter", theme === 'dark' ? "text-slate-500" : "text-slate-400")}>{n.time}</p>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Khu vực / Tỉnh thành</label>
+                <select 
+                  value={formData.region}
+                  onChange={e => setFormData({ ...formData, region: e.target.value })}
+                  className={cn(
+                    "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none transition-all",
+                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900" : "bg-slate-950 border-slate-800 text-white"
+                  )}
+                >
+                  <option value="Đà Nẵng">Đà Nẵng</option>
+                  <option value="Quảng Trị">Quảng Trị</option>
+                  <option value="Quảng Ngãi">Quảng Ngãi</option>
+                  <option value="Khánh Hòa">Khánh Hòa</option>
+                  <option value="Gia Lai">Gia Lai</option>
+                  <option value="Lâm Đồng">Lâm Đồng</option>
+                  <option value="Đắk Lắk">Đắk Lắk</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Tổng số sản phẩm</label>
+                <input 
+                  type="number"
+                  value={formData.totalUnits}
+                  onChange={e => setFormData({ ...formData, totalUnits: parseInt(e.target.value) || 0 })}
+                  className={cn(
+                    "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none transition-all focus:border-indigo-500",
+                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900" : "bg-slate-950 border-slate-800 text-white"
+                  )}
+                />
               </div>
             </div>
           </div>
-        ))
-      ) : (
-        <div className="p-8 text-center text-slate-500">
-          <BellOff size={32} className="mx-auto mb-2 opacity-20" />
-          <p className="text-xs font-bold italic">Không có thông báo mới</p>
-        </div>
-      )}
-    </div>
-    <button className={cn(
-      "w-full py-3 text-[10px] font-black uppercase tracking-widest transition-colors border-t",
-      theme === 'dark' 
-        ? "text-slate-400 hover:text-white bg-slate-900 border-slate-700" 
-        : "text-slate-500 hover:text-slate-900 bg-slate-50 border-slate-200"
-    )}>
-      Xem tất cả
-    </button>
-  </motion.div>
-);
 
-
-const ProjectManagementView = ({ projects, onCreate, onEdit, onDelete, theme }: { projects: Project[]; onCreate: () => void; onEdit: (p: Project) => void; onDelete: (id: string) => void; theme: 'light' | 'dark' }) => (
-  <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-    <header className="flex justify-between items-end text-left">
-      <div>
-         <h2 className={cn("text-3xl font-black italic font-serif tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Quản lý Dự án</h2>
-         <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em] mt-1">Thiết lập phạm vi vận hành hệ thống</p>
-      </div>
-      <button 
-        onClick={onCreate}
-        className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all outline-none"
-      >
-        <Plus size={16} /> Thêm dự án mới
-      </button>
-    </header>
-
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {projects.map(project => (
-        <div 
-          key={project.id}
-          className={cn(
-            "p-6 rounded-[2rem] border transition-all group relative overflow-hidden",
-            theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800 shadow-2xl"
-          )}
-        >
-          <div className="flex justify-between items-start mb-6">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center border border-emerald-500/20">
-              <Building2 size={24} />
-            </div>
-            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-              <button 
-                onClick={() => onEdit(project)}
-                className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-all"
-              >
-                <Settings size={14} />
-              </button>
-              <button 
-                onClick={() => onDelete(project.id)}
-                className="p-2 rounded-xl bg-slate-800 text-rose-500 hover:bg-rose-500 hover:text-white transition-all"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          </div>
-          
-          <h3 className={cn("text-xl font-bold mb-2", theme === 'light' ? "text-slate-900" : "text-white")}>{project.name}</h3>
-          <p className="text-xs text-slate-500 font-medium mb-6 uppercase tracking-widest">{project.region}</p>
-          
-          <div className="flex items-center gap-6 pt-6 border-t border-slate-800/50">
-             <div>
-               <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Mã dự án</p>
-               <p className={cn("text-sm font-mono font-bold", theme === 'light' ? "text-slate-700" : "text-slate-300")}>{project.id}</p>
-             </div>
-             <div>
-               <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Loại hình</p>
-               <p className={cn("text-sm font-bold", theme === 'light' ? "text-slate-700" : "text-slate-300")}>Chung cư/Phố</p>
-             </div>
+          <div className="flex gap-4 mt-12">
+            <button 
+              onClick={onClose}
+              className="flex-1 px-8 py-4 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:bg-slate-500/10 transition-all"
+            >
+              Hủy bỏ
+            </button>
+            <button 
+              onClick={() => onSave(formData)}
+              className="flex-1 px-8 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all"
+            >
+              Lưu thông tin
+            </button>
           </div>
         </div>
-      ))}
+      </motion.div>
     </div>
-  </div>
-);
+  );
+};
+
+const calculateDaysDiff = (dateStr: string) => {
+  const date = new Date(dateStr);
+  const today = new Date();
+  const diffTime = Math.abs(today.getTime() - date.getTime());
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
+const getPhaseIndex = (step: StepName) => {
+  if (['GD1_ChuanBi', 'GD1_Cho_KT_TiepNhan'].includes(step)) return 0;
+  if (['GD2_Cho_Nop_VPDK', 'GD2_Cho_PTDA_TiepNhan'].includes(step)) return 1;
+  if (['GD3_Cho_TBThue'].includes(step)) return 2;
+  if (['GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo'].includes(step)) return 3;
+  if (['GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG'].includes(step)) return 4;
+  if (['GD6_Cho_BG_Khach', 'Hoan_Tat'].includes(step)) return 5;
+  return -1;
+};
 
 const UserManagementView = ({ users, onEdit, onDelete, onCreate, onResetPassword, theme }: { users: UserProfile[]; onEdit: (u: UserProfile) => void; onDelete: (id: string) => void; onCreate: () => void; onResetPassword: (u: UserProfile) => void; theme: 'light' | 'dark' }) => (
   <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -936,6 +1313,15 @@ export default function App() {
   });
   const [editApp, setEditApp] = useState<Application | null>(null);
   const [search, setSearch] = useState('');
+  const [projectSearch, setProjectSearch] = useState('');
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [expandedSidebarRegions, setExpandedSidebarRegions] = useState<Record<string, boolean>>({});
+  
+  // Toggle region in sidebar
+  const toggleSidebarRegion = (region: string) => {
+    setExpandedSidebarRegions(prev => ({ ...prev, [region]: !prev[region] }));
+  };
   
   // System Configuration States
   const [slaConfig, setSlaConfig] = useState<Record<string, number>>({
@@ -984,23 +1370,6 @@ export default function App() {
     isSelfService: false
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-
-  const calculateDaysDiff = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const today = new Date();
-    const diffTime = Math.abs(today.getTime() - date.getTime());
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
-  const getPhaseIndex = (step: StepName) => {
-    if (['GD1_ChuanBi', 'GD1_Cho_KT_TiepNhan'].includes(step)) return 0;
-    if (['GD2_Cho_Nop_VPDK', 'GD2_Cho_PTDA_TiepNhan'].includes(step)) return 1;
-    if (['GD3_Cho_TBThue'].includes(step)) return 2;
-    if (['GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo'].includes(step)) return 3;
-    if (['GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG'].includes(step)) return 4;
-    if (['GD6_Cho_BG_Khach', 'Hoan_Tat'].includes(step)) return 5;
-    return -1;
-  };
 
   const getOverdueInfo = (app: Application) => {
     const phaseIndex = getPhaseIndex(app.currentStep);
@@ -1728,17 +2097,17 @@ export default function App() {
 
   return (
     <div className={cn(
-      "flex h-screen overflow-hidden font-sans relative transition-colors duration-500",
-      theme === 'light' ? 'light bg-slate-50 text-slate-900' : 'bg-festive-dark text-slate-200'
+      "flex h-screen w-full overflow-hidden font-sans relative transition-colors duration-500",
+      theme === 'light' ? 'light bg-slate-50 text-slate-900' : 'bg-slate-950 text-slate-200'
     )}>
       {/* Background Image Container */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 overflow-hidden">
         <img 
           src="https://images.unsplash.com/photo-1559592442-7e18259f6966?q=80&w=2560&auto=format&fit=crop" 
           alt="Da Nang Background" 
           className={cn(
             "w-full h-full object-cover transition-all duration-1000",
-            theme === 'light' ? "opacity-10 grayscale-[50%]" : "opacity-40 brightness-50"
+            theme === 'light' ? "opacity-10 grayscale-[50%]" : "opacity-30 brightness-[0.3]"
           )}
           referrerPolicy="no-referrer"
         />
@@ -1746,15 +2115,15 @@ export default function App() {
           "absolute inset-0 transition-all duration-500",
           theme === 'light' 
             ? "bg-gradient-to-br from-white/95 via-slate-50/98 to-white/95" 
-            : "bg-gradient-to-br from-slate-950/95 via-slate-900/98 to-slate-950/95"
+            : "bg-gradient-to-br from-slate-950/98 via-slate-900/98 to-slate-950/98"
         )}></div>
         <FestiveBranding />
       </div>
 
-      {/* Sidebar */}
+      {/* Sidebar - Enhanced Blur and border */}
       <aside className={cn(
-        "w-64 backdrop-blur-3xl border-r flex flex-col shrink-0 z-10 relative transition-all",
-        theme === 'light' ? "bg-white/60 border-slate-200" : "bg-slate-900/40 border-slate-800/50"
+        "w-64 backdrop-blur-2xl border-r flex flex-col shrink-0 z-20 relative transition-all",
+        theme === 'light' ? "bg-white/80 border-slate-200 shadow-xl" : "bg-slate-900/60 border-slate-800/80 shadow-2xl"
       )}>
         <div className={cn(
           "p-6 border-b mb-4 transition-all",
@@ -1774,39 +2143,6 @@ export default function App() {
         </div>
 
         <nav className="flex-1 px-4 space-y-1">
-          {/* Notifications Trigger */}
-          <div className="relative mb-2">
-            <button 
-              onClick={() => setIsNotiOpen(!isNotiOpen)}
-              className={cn(
-                "w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
-                isNotiOpen 
-                  ? (theme === 'light' ? "bg-slate-200 text-slate-950" : "bg-slate-800 text-white") 
-                  : (theme === 'light' ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200")
-              )}
-            >
-              <div className="flex items-center gap-3">
-                <Bell size={18} className={notifications.some(n => !n.isRead) ? "text-rose-500 animate-bounce" : ""} />
-                Thông báo
-              </div>
-              {notifications.some(n => !n.isRead) && (
-                <span className="bg-rose-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">
-                  {notifications.filter(n => !n.isRead).length}
-                </span>
-              )}
-            </button>
-            <AnimatePresence>
-              {isNotiOpen && (
-                <NotificationPanel 
-                  notifications={notifications} 
-                  onClose={() => setIsNotiOpen(false)} 
-                  onRead={(id) => setNotifications(prev => prev.map(n => n.id === id ? {...n, isRead: true} : n))}
-                  theme={theme}
-                />
-              )}
-            </AnimatePresence>
-          </div>
-
           <button 
             onClick={() => setActiveTab('dashboard')}
             className={cn(
@@ -1901,127 +2237,228 @@ export default function App() {
             </>
           )}
 
-          <div className="pt-4 border-t border-slate-800/50 mt-4 px-4 pb-2">
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Dự án</p>
+          <div className="pt-4 border-t border-slate-800/10 mt-4 px-6 pb-2">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Khu vực & Dự án</p>
+            </div>
+            <div className="relative mb-4 group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={12} />
+              <input 
+                type="text"
+                placeholder="Tìm nhanh..."
+                value={projectSearch}
+                onChange={(e) => setProjectSearch(e.target.value)}
+                className={cn(
+                  "w-full bg-slate-800/20 border border-slate-800/50 rounded-xl pl-9 pr-4 py-2 text-[10px] font-bold focus:outline-none focus:border-festive-gold/30 transition-all",
+                  theme === 'light' ? "bg-slate-100 border-slate-200 text-slate-900" : "text-white"
+                )}
+              />
+            </div>
           </div>
-          <button 
-            onClick={() => setSelectedProjectId(null)}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-bold",
-              selectedProjectId === null ? "bg-slate-800/80 text-festive-gold ring-1 ring-slate-700" : "text-slate-400 hover:bg-slate-800/50"
-            )}
-          >
-            <Map size={16} />
-            <span className="truncate">Tất cả dự án</span>
-          </button>
-          {visibleProjects.map(p => (
+
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-4 space-y-4 pb-6">
             <button 
-              key={p.id} 
-              onClick={() => setSelectedProjectId(p.id)}
+              onClick={() => setSelectedProjectId(null)}
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-bold",
-                selectedProjectId === p.id ? "bg-slate-800/80 text-festive-gold ring-1 ring-slate-700" : "text-slate-400 hover:bg-slate-800/50"
+                selectedProjectId === null ? "bg-slate-800/80 text-festive-gold ring-1 ring-slate-700" : "text-slate-400 hover:bg-slate-800/50"
               )}
             >
               <Map size={16} />
-              <span className="truncate">{p.name}</span>
+              <span className="truncate">Tất cả dự án</span>
             </button>
-          ))}
-        </nav>
-
-        <div className={cn(
-          "p-4 border-t space-y-3 transition-all",
-          theme === 'light' ? "border-slate-200" : "border-slate-800/50"
-        )}>
-          {/* Theme Toggle Button */}
-          <button 
-            onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 font-bold text-[10px] uppercase tracking-widest outline-none border",
-              theme === 'light' ? "bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200" : "bg-slate-800/50 border-slate-700 text-slate-300 hover:bg-slate-800"
-            )}
-          >
-            {theme === 'dark' ? <Sun size={14} className="text-festive-gold" /> : <Moon size={14} className="text-indigo-500" />}
-            {theme === 'dark' ? 'Giao diện Sáng' : 'Giao diện Tối'}
-          </button>
-
-          <div className={cn(
-            "p-3 rounded-2xl border flex items-center gap-3 transition-all",
-            theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-950/40 border-slate-800"
-          )}>
-            <div className="w-10 h-10 rounded-xl bg-festive-gold/20 flex items-center justify-center text-festive-gold font-black text-xs border border-festive-gold/20">
-              {currentUser?.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <p className={cn("text-xs font-bold truncate", theme === 'light' ? "text-slate-900" : "text-white")}>{currentUser?.name}</p>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest truncate">
-                  Dept: <span className="text-festive-gold">{currentUser?.dept}</span>
-                </p>
+            
+            {(Object.entries(
+              (visibleProjects || [])
+                .filter(p => {
+                  const matchesSearch = p.name.toLowerCase().includes(projectSearch.toLowerCase()) || 
+                                      (p.region && p.region.toLowerCase().includes(projectSearch.toLowerCase()));
+                  return matchesSearch;
+                })
+                .reduce((acc, p) => {
+                  const reg = p.region || 'Khác';
+                  if (!acc[reg]) acc[reg] = [];
+                  acc[reg].push(p);
+                  return acc;
+                }, {} as Record<string, Project[]>)
+            ) as [string, Project[]][]).sort().map(([region, regionProjects]) => (
+              <div key={region} className="space-y-1">
+                <button 
+                  onClick={() => toggleSidebarRegion(region)}
+                  className={cn(
+                    "w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all group",
+                    theme === 'light' ? "hover:bg-slate-100" : "hover:bg-slate-800/40",
+                    expandedSidebarRegions[region] && (theme === 'light' ? "bg-slate-100" : "bg-slate-800/30")
+                  )}
+                >
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <Folder size={12} className={cn(
+                      "shrink-0 transition-colors",
+                      expandedSidebarRegions[region] ? "text-festive-gold" : "text-slate-500"
+                    )} />
+                    <span className={cn(
+                      "text-[10px] font-black uppercase tracking-widest truncate transition-colors",
+                      expandedSidebarRegions[region] ? (theme === 'light' ? "text-slate-900" : "text-white") : "text-slate-500"
+                    )}>{region}</span>
+                  </div>
+                  <ChevronDown size={10} className={cn(
+                    "text-slate-600 transition-transform duration-300 shrink-0",
+                    expandedSidebarRegions[region] ? "rotate-180" : "rotate-0"
+                  )} />
+                </button>
+                
+                <AnimatePresence>
+                  {expandedSidebarRegions[region] && (
+                    <motion.div 
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden space-y-1 pl-4"
+                    >
+                      {regionProjects.map(p => (
+                        <button 
+                          key={p.id} 
+                          onClick={() => { setSelectedProjectId(p.id); setActiveTab('dashboard'); }}
+                          className={cn(
+                            "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-bold group",
+                            selectedProjectId === p.id 
+                              ? "bg-slate-800/80 text-festive-gold ring-1 ring-slate-700" 
+                              : "text-slate-400 hover:bg-slate-800/50"
+                          )}
+                        >
+                          <div className={cn(
+                            "w-1.5 h-1.5 rounded-full shrink-0 transition-transform group-hover:scale-125",
+                            selectedProjectId === p.id ? "bg-festive-gold" : "bg-slate-700"
+                          )} />
+                          <span className="truncate">{p.name}</span>
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            </div>
+            ))}
           </div>
-          <button 
-            onClick={() => setCurrentUser(null)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-bold text-rose-400 border border-rose-500/10 hover:bg-rose-500/10 transition-all uppercase tracking-widest"
-          >
-            <LogOut size={12} />
-            Đăng xuất
-          </button>
-        </div>
+        </nav>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden z-10 relative">
+      <main className="flex-1 flex flex-col h-full overflow-hidden z-10 relative bg-transparent">
         {/* Header */}
         <header className={cn(
-          "h-20 backdrop-blur-lg border-b flex items-center justify-between px-8 shrink-0 transition-all",
-          theme === 'light' ? "bg-white/60 border-slate-200" : "bg-slate-900/20 border-slate-800/50"
+          "h-20 backdrop-blur-xl border-b flex items-center justify-between px-8 shrink-0 z-20 transition-all",
+          theme === 'light' ? "bg-white/70 border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800/80"
         )}>
           <div className="flex items-center gap-4">
             <h2 className={cn("text-2xl font-black font-serif italic tracking-tighter", theme === 'light' ? "text-slate-900" : "text-white")}>
               {activeTab === 'dashboard' ? (selectedProject ? `Dashboard: ${selectedProject.name}` : 'Tổng quan Vùng') : (selectedProject ? `Hồ sơ: ${selectedProject.name}` : 'Danh sách Hồ sơ cấp GCN')}
             </h2>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
-              <input 
-                type="text" 
-                placeholder="Tìm mã căn, khách..." 
-                className="pl-10 pr-4 py-2 bg-slate-950/50 border border-slate-700/50 rounded-full text-sm text-slate-200 focus:ring-2 focus:ring-festive-gold/20 transition-all w-64 outline-none"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            
-            <div className="flex items-center gap-2 border-x border-slate-800/50 px-4 h-10">
+
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2 border-r border-slate-800/20 pr-4">
+              <div className="relative group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
+                <input 
+                  type="text" 
+                  placeholder="Tìm hồ sơ..." 
+                  className={cn(
+                    "pl-9 pr-4 py-2 rounded-full text-xs font-bold transition-all w-48 outline-none border",
+                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-800 focus:ring-slate-200" : "bg-slate-950/50 border-slate-700/50 text-slate-200 focus:ring-festive-gold/20"
+                  )}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              
               <button 
                 onClick={handleDownloadTemplate}
-                className="p-2.5 rounded-full bg-slate-800/50 border border-slate-700/50 text-slate-400 hover:text-festive-gold hover:border-festive-gold/30 transition-all shadow-sm group relative"
+                className={cn(
+                  "p-2.5 rounded-full border transition-all shadow-sm group relative",
+                  theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200" : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-festive-gold hover:border-festive-gold/30"
+                )}
                 title="Tải mẫu Excel"
               >
                 <Download size={18} />
-                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 border border-festive-gold/20 text-[10px] text-festive-gold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Tải mẫu Excel</span>
               </button>
-              <label className="p-2.5 rounded-full bg-slate-800/50 border border-slate-700/50 text-slate-400 hover:text-festive-gold hover:border-festive-gold/30 transition-all shadow-sm cursor-pointer group relative" title="Nhập liệu Excel">
-                <Upload size={18} />
-                <input type="file" accept=".xlsx, .xls" className="hidden" onChange={handleImportTemplate} />
-                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 border border-festive-gold/20 text-[10px] text-festive-gold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Nhập liệu Excel</span>
-              </label>
+
+              <button 
+                onClick={() => {
+                  const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : PROJECTS[0].name);
+                  setNewApp(prev => ({ ...prev, projectName: defaultProj }));
+                  setIsCreateModalOpen(true);
+                }}
+                className="bg-festive-gold hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-festive-gold/10 transition-all active:scale-95"
+              >
+                + Hồ sơ
+              </button>
             </div>
 
-            <button 
-              onClick={() => {
-                const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : PROJECTS[0].name);
-                setNewApp(prev => ({ ...prev, projectName: defaultProj }));
-                setIsCreateModalOpen(true);
-              }}
-              className="bg-festive-gold hover:bg-amber-400 text-slate-950 px-5 py-2.5 rounded-full text-xs font-black uppercase tracking-widest shadow-xl shadow-festive-gold/10 transition-all active:scale-95"
-            >
-              + Tạo mới hồ sơ
-            </button>
+            <div className="flex items-center gap-3">
+              {/* Notification Trigger */}
+              <div className="relative">
+                <button 
+                  onClick={() => setIsNotiOpen(!isNotiOpen)}
+                  className={cn(
+                    "p-2.5 rounded-xl transition-all relative border",
+                    isNotiOpen 
+                      ? (theme === 'light' ? "bg-slate-200 border-slate-300 text-slate-950" : "bg-slate-800 border-slate-700 text-white") 
+                      : (theme === 'light' ? "bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-900 shadow-sm" : "bg-slate-900/50 border-slate-800 text-slate-400 hover:bg-slate-800/40 hover:text-slate-200")
+                  )}
+                  title="Thông báo"
+                >
+                  <Bell size={20} className={notifications.some(n => !n.isRead) ? "text-rose-500" : ""} />
+                  {notifications.some(n => !n.isRead) && (
+                    <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white dark:ring-slate-900"></span>
+                  )}
+                </button>
+                <AnimatePresence>
+                  {isNotiOpen && (
+                    <div className="absolute right-0 mt-3 w-80 z-50">
+                      <NotificationPanel 
+                        notifications={notifications} 
+                        onClose={() => setIsNotiOpen(false)} 
+                        onRead={(id) => setNotifications(prev => prev.map(n => n.id === id ? {...n, isRead: true} : n))}
+                        theme={theme}
+                      />
+                    </div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Theme Toggle */}
+              <button 
+                onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+                className={cn(
+                  "p-2.5 rounded-xl transition-all border",
+                  theme === 'light' ? "bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-900 shadow-sm" : "bg-slate-900/50 border-slate-800 text-slate-400 hover:bg-slate-800/40 hover:text-slate-200"
+                )}
+                title={theme === 'light' ? "Chuyển chế độ tối" : "Chuyển chế độ sáng"}
+              >
+                {theme === 'light' ? <Moon size={20} /> : <Sun size={20} className="text-festive-gold" />}
+              </button>
+            </div>
+
+            {/* User Profile */}
+            <div className="flex items-center gap-4 pl-6 border-l border-slate-800/20">
+              <div className="text-right hidden sm:block overflow-hidden max-w-[150px]">
+                <p className={cn("text-xs font-black uppercase tracking-widest truncate", theme === 'light' ? "text-slate-900" : "text-white")}>{currentUser?.name}</p>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter truncate">Dept: {currentUser?.dept}</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-festive-gold/10 border border-festive-gold/20 flex items-center justify-center text-festive-gold font-black text-xs shadow-lg shadow-festive-gold/5">
+                {currentUser?.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+              </div>
+              <button 
+                onClick={() => setCurrentUser(null)}
+                className={cn(
+                  "p-2.5 rounded-xl transition-all border",
+                  theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 shadow-sm" : "bg-slate-900/50 border-slate-800 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10"
+                )}
+                title="Đăng xuất"
+              >
+                <LogOut size={20} />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -2199,101 +2636,115 @@ export default function App() {
 
                 {/* Charts Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  <div className="lg:col-span-2 bg-slate-900/40 backdrop-blur-md p-6 rounded-3xl shadow-2xl border border-slate-800/50">
-                    <div className="flex items-center justify-between mb-8">
-                      <h3 className="font-bold text-white flex items-center gap-2 font-serif text-xl italic italic">
-                        <LayoutDashboard size={18} className="text-festive-gold" />
+                  <div className={cn(
+                    "lg:col-span-2 backdrop-blur-md p-8 rounded-[3rem] border transition-all duration-500 group",
+                    theme === 'light' ? "bg-white border-slate-200 shadow-2xl shadow-slate-200/50" : "bg-slate-900/40 border-slate-800/50 shadow-2xl"
+                  )}>
+                    <div className="flex items-center justify-between mb-10">
+                      <h3 className={cn("font-bold flex items-center gap-3 font-serif text-2xl italic", theme === 'light' ? "text-slate-900" : "text-white")}>
+                        <LayoutDashboard size={20} className="text-festive-gold" />
                         Tiến độ các giai đoạn
                       </h3>
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-2.5 h-2.5 rounded-sm bg-slate-500" />
-                            <span className="text-[10px] text-white font-bold uppercase tracking-widest">Bình thường</span>
+                        <div className="flex items-center gap-6">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-indigo-500 shadow-lg shadow-indigo-500/20" />
+                            <span className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Bình thường</span>
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-2.5 h-2.5 rounded-sm bg-rose-500" />
-                            <span className="text-[10px] text-rose-400 font-bold uppercase tracking-widest">Sai sót</span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-rose-500 shadow-lg shadow-rose-500/20" />
+                            <span className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Sai sót</span>
                           </div>
-                          <p className="text-xs text-slate-500 font-mono italic">Đơn vị: Hồ sơ</p>
+                          <p className="text-xs text-slate-400 font-mono italic">Hồ sơ</p>
                         </div>
                     </div>
-                    <div className="h-[350px] w-full">
-                      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                    <div className="h-[380px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.3} />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? "#f1f5f9" : "#1e293b"} />
                           <XAxis 
                             dataKey="name" 
                             axisLine={false} 
                             tickLine={false} 
-                            tick={{ fontSize: 11, fill: '#94a3b8' }} 
-                            dy={10}
+                            tick={{ fontSize: 11, fill: theme === 'light' ? '#64748b' : '#94a3b8', fontWeight: 800 }} 
+                            dy={15}
                           />
                           <YAxis 
                             axisLine={false} 
                             tickLine={false} 
-                            tick={{ fontSize: 11, fill: '#94a3b8' }} 
+                            tick={{ fontSize: 11, fill: theme === 'light' ? '#64748b' : '#94a3b8', fontWeight: 800 }} 
                             allowDecimals={false}
                           />
                           <ReTooltip 
-                            cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                            contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #334155', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.3)' }}
-                            itemStyle={{ color: '#fff' }}
+                            cursor={{ fill: theme === 'light' ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.05)' }}
+                            contentStyle={{ 
+                              backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
+                              borderRadius: '20px', 
+                              border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #334155', 
+                              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                              fontSize: '11px',
+                              fontWeight: 800,
+                              padding: '12px 16px'
+                            }}
+                            itemStyle={{ textTransform: 'uppercase', marginBottom: '4px' }}
                             formatter={(value: any, name: string) => {
-                              if (name === 'normal') return [value, 'Hồ sơ bình thường'];
-                              if (name === 'error') return [value, 'Hồ sơ lỗi/vướng'];
+                              if (name === 'normal') return [value, 'Bình thường'];
+                              if (name === 'error') return [value, 'Sai sót'];
                               return [value, name];
                             }}
                           />
-                          <Bar dataKey="normal" stackId="a" barSize={40}>
+                          <Bar dataKey="normal" stackId="a" barSize={32}>
                             {chartData.map((entry, index) => (
-                              <Cell key={`cell-normal-${index}`} fill={entry.color} />
+                              <Cell key={`cell-normal-${index}`} fill={entry.color} fillOpacity={0.8} />
                             ))}
                           </Bar>
-                          <Bar dataKey="error" stackId="a" fill="#f43f5e" barSize={40} radius={[8, 8, 0, 0]}>
-                            <LabelList dataKey="value" position="top" fill="#94a3b8" fontSize={11} offset={8} />
+                          <Bar dataKey="error" stackId="a" fill="#f43f5e" barSize={32} radius={[8, 8, 0, 0]}>
+                            <LabelList dataKey="value" position="top" fill={theme === 'light' ? '#475569' : '#94a3b8'} fontSize={11} fontWeight={900} offset={12} />
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
 
-                  <div className="bg-slate-900/40 backdrop-blur-md p-6 rounded-3xl shadow-2xl border border-slate-800/50 flex flex-col">
-                    <h3 className="font-bold text-white mb-6 font-serif text-xl italic flex items-center gap-2 italic">
-                       <Filter size={18} className="text-festive-gold" />
-                       Tỷ lệ theo Trạng thái
+                  <div className={cn(
+                    "backdrop-blur-md p-8 rounded-[3rem] border transition-all duration-500 flex flex-col group",
+                    theme === 'light' ? "bg-white border-slate-200 shadow-2xl shadow-slate-200/50" : "bg-slate-900/40 border-slate-800/50 shadow-2xl"
+                  )}>
+                    <h3 className={cn("font-bold mb-10 font-serif text-2xl italic flex items-center gap-3", theme === 'light' ? "text-slate-900" : "text-white")}>
+                       <Filter size={20} className="text-festive-gold" />
+                       Tỷ lệ Trạng thái
                     </h3>
                     <div className="flex-1 flex flex-col items-center justify-center relative">
-                      <ResponsiveContainer width="100%" height={260} minWidth={0} minHeight={0}>
+                      <ResponsiveContainer width="100%" height={280}>
                         <PieChart>
                           <Pie
                             data={chartData}
                             cx="50%"
                             cy="50%"
-                            innerRadius={70}
-                            outerRadius={90}
-                            paddingAngle={8}
+                            innerRadius={85}
+                            outerRadius={115}
+                            paddingAngle={10}
                             dataKey="value"
                             stroke="none"
                           >
                             {chartData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
+                              <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={0.9} />
                             ))}
                           </Pie>
                         </PieChart>
                       </ResponsiveContainer>
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span className="text-3xl font-bold text-slate-100">{kpis.total}</span>
-                        <span className="text-[10px] uppercase font-bold text-slate-500">Hồ sơ</span>
+                        <span className={cn("text-4xl font-black italic font-serif", theme === 'light' ? "text-slate-900" : "text-slate-100")}>{kpis.total}</span>
+                        <span className="text-[10px] uppercase font-black tracking-widest text-slate-500 mt-1">Hồ sơ</span>
                       </div>
                     </div>
-                    <div className="mt-6 space-y-3">
+                    <div className="mt-8 space-y-4">
                       {chartData.map((item) => (
-                        <div key={item.name} className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                            <span className="text-xs text-slate-400 font-medium">{item.name}</span>
+                        <div key={item.name} className="flex items-center justify-between group/legend">
+                          <div className="flex items-center gap-3">
+                            <div className="w-3 h-3 rounded-full shadow-lg" style={{ backgroundColor: item.color, boxShadow: `0 4px 10px ${item.color}33` }} />
+                            <span className={cn("text-[11px] font-bold uppercase tracking-tight transition-colors", theme === 'light' ? "text-slate-500 group-hover/legend:text-slate-900" : "text-slate-400 group-hover/legend:text-slate-100 text-slate-200")}>{item.name}</span>
                           </div>
-                          <span className="text-xs font-bold text-slate-200">{Math.round((item.value / kpis.total) * 100)}%</span>
+                          <span className={cn("text-[11px] font-black", theme === 'light' ? "text-slate-900" : "text-slate-100")}>{Math.round((item.value / kpis.total) * 100) || 0}%</span>
                         </div>
                       ))}
                     </div>
@@ -2799,25 +3250,15 @@ export default function App() {
                 <ProjectManagementView 
                   projects={projects}
                   onCreate={() => {
-                    const name = prompt("Nhập tên dự án mới:");
-                    if (name) {
-                      const newP: Project = { 
-                        id: `PJ-${Math.random().toString(36).substr(2, 5).toUpperCase()}`, 
-                        name, 
-                        region: 'TP. Đà Nẵng',
-                        totalUnits: 0
-                      };
-                      setProjects(prev => [...prev, newP]);
-                    }
+                    setEditingProject(null);
+                    setIsProjectModalOpen(true);
                   }}
                   onEdit={(p) => {
-                    const newName = prompt("Sửa tên dự án:", p.name);
-                    if (newName) {
-                      setProjects(prev => prev.map(item => item.id === p.id ? { ...item, name: newName } : item));
-                    }
+                    setEditingProject(p);
+                    setIsProjectModalOpen(true);
                   }}
                   onDelete={(id) => {
-                    if (confirm("Bạn có chắc muốn xóa dự án này?")) {
+                    if (confirm("Bạn có chắc muốn xóa dự án này? Tất cả hồ sơ liên quan sẽ bị ảnh hưởng.")) {
                       setProjects(prev => prev.filter(p => p.id !== id));
                     }
                   }}
@@ -3093,6 +3534,22 @@ export default function App() {
                       options={['Có vay ngân hàng', 'Không vay']}
                       onChange={(val) => handleFieldChange('loanStatus', val === 'Có vay ngân hàng' ? 'Co_Vay' : 'Khong_Vay')}
                     />
+                    {(editApp || selectedApp).loanStatus === 'Co_Vay' && (
+                      <>
+                        <DetailCard 
+                          label="Ngân hàng vay" 
+                          value={(editApp || selectedApp).bankName || 'Chưa cập nhật'} 
+                          editable={isFieldEditable('bankName')}
+                          onChange={(val) => handleFieldChange('bankName', val)}
+                        />
+                        <DetailCard 
+                          label="Số HĐTD" 
+                          value={(editApp || selectedApp).loanAgreementNumber || 'Chưa cập nhật'} 
+                          editable={isFieldEditable('loanAgreementNumber')}
+                          onChange={(val) => handleFieldChange('loanAgreementNumber', val)}
+                        />
+                      </>
+                    )}
                   </div>
                 </section>
 
@@ -3719,6 +4176,31 @@ export default function App() {
                        </div>
                     </div>
                   </div>
+
+                  {newApp.loanStatus === 'Co_Vay' && (
+                    <div className="grid grid-cols-2 gap-6 pt-2 animate-in fade-in slide-in-from-top-2">
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Tên ngân hàng</label>
+                          <input 
+                            type="text" 
+                            placeholder="VD: Vietcombank"
+                            className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-2xl text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500/20 transition-all outline-none"
+                            value={(newApp as any).bankName || ''}
+                            onChange={(e) => setNewApp({...newApp, [ 'bankName' as any]: e.target.value})}
+                          />
+                       </div>
+                       <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Số HĐ tín dụng</label>
+                          <input 
+                            type="text" 
+                            placeholder="VD: HĐ123/2024"
+                            className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-2xl text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500/20 transition-all outline-none"
+                            value={(newApp as any).loanAgreementNumber || ''}
+                            onChange={(e) => setNewApp({...newApp, [ 'loanAgreementNumber' as any]: e.target.value})}
+                          />
+                       </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Section 3: Quy trình */}
@@ -3949,6 +4431,32 @@ export default function App() {
            </>
          )}
        </AnimatePresence>
+      {isProjectModalOpen && (
+        <ProjectModal 
+          isOpen={isProjectModalOpen}
+          onClose={() => setIsProjectModalOpen(false)}
+          project={editingProject}
+          theme={theme}
+          onSave={(p) => {
+            if (editingProject) {
+              setProjects(prev => prev.map(proj => proj.id === editingProject.id ? { ...proj, ...p } as Project : proj));
+            } else {
+              const newP: Project = { 
+                id: `PJ-${Math.random().toString(36).substr(2, 5).toUpperCase()}`, 
+                name: p.name || '', 
+                region: p.region || 'TP. Đà Nẵng',
+                totalUnits: p.totalUnits || 0
+              };
+              setProjects(prev => [...prev, newP]);
+              // Add to sidebar regions if needed
+              if (newP.region) {
+                setExpandedSidebarRegions(prev => ({ ...prev, [newP.region as string]: true }));
+              }
+            }
+            setIsProjectModalOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

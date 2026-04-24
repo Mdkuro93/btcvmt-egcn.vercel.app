@@ -70,6 +70,8 @@ export type Application = {
   phoneNumber?: string;
   propertyType: PropertyType; // Loại tài sản
   loanStatus: 'Co_Vay' | 'Khong_Vay'; // Trạng thái vay
+  bankName?: string; // Tên ngân hàng vay vốn
+  loanAgreementNumber?: string; // Số hợp đồng tín dụng
   reportUpdateDate?: string; // Ngày cập nhật BC
   contractSigningDate?: string; // Ngày ký HĐCN
   assignorGcnNumber?: string; // Số GCN QSDĐ của bên CN

@@ -9,14 +9,23 @@ export const PROJECTS: Project[] = [
   { id: 'p6', name: 'Dự án Ponte', region: 'Đà Nẵng', totalUnits: 220 },
   { id: 'p7', name: 'Dự án Symphony', region: 'Đà Nẵng', totalUnits: 350 },
   { id: 'p8', name: 'Dự án Hải Minh', region: 'Đà Nẵng', totalUnits: 150 },
+  { id: 'p9', name: 'Dự án Sunneva Island', region: 'Đà Nẵng', totalUnits: 387 },
+  { id: 'p10', name: 'Dự án Nam Hòa Xuân', region: 'Đà Nẵng', totalUnits: 1000 },
+  { id: 'p11', name: 'Khu dân cư Đông Đà Nẵng', region: 'Đà Nẵng', totalUnits: 200 },
+  { id: 'p12', name: 'Dự án Đông Hà', region: 'Quảng Trị', totalUnits: 150 },
+  { id: 'p13', name: 'Dự án Dung Quất', region: 'Quảng Ngãi', totalUnits: 400 },
+  { id: 'p14', name: 'Dự án An Viên', region: 'Khánh Hòa', totalUnits: 300 },
+  { id: 'p15', name: 'Dự án Pleiku Park', region: 'Gia Lai', totalUnits: 250 },
+  { id: 'p16', name: 'Dự án Đà Lạt View', region: 'Lâm Đồng', totalUnits: 120 },
+  { id: 'p17', name: 'Dự án Buôn Ma Thuột', region: 'Đắk Lắk', totalUnits: 180 },
 ];
 
 export const MOCK_USERS: UserProfile[] = [
-  { id: 'u1', username: 'admin', name: 'Hệ thống Admin', dept: 'ADMIN', email: 'admin@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'] },
-  { id: 'u2', username: 'ptt_user', name: 'Nguyễn Thu Thủ Tục', dept: 'PTT', email: 'thutuc@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2'] },
-  { id: 'u3', username: 'kt_user', name: 'Trần Kế Toán', dept: 'KT', email: 'ketoan@sunshine.vn', status: 'Active', assignedProjectIds: ['p3', 'p4'] },
-  { id: 'u4', username: 'ptda_user', name: 'Lê Phát Triển', dept: 'PTDA', email: 'ptda@sunshine.vn', status: 'Active', assignedProjectIds: ['p5', 'p6'] },
-  { id: 'u5', username: 'manager', name: 'Phạm Trưởng Phòng', dept: 'MANAGER', email: 'manager@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'] },
+  { id: 'u1', username: 'admin', name: 'Hệ thống Admin', dept: 'ADMIN', email: 'admin@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17'] },
+  { id: 'u2', username: 'ptt_user', name: 'Nguyễn Thu Thủ Tục', dept: 'PTT', email: 'thutuc@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p12', 'p13'] },
+  { id: 'u3', username: 'kt_user', name: 'Trần Kế Toán', dept: 'KT', email: 'ketoan@sunshine.vn', status: 'Active', assignedProjectIds: ['p3', 'p4', 'p14', 'p15'] },
+  { id: 'u4', username: 'ptda_user', name: 'Lê Phát Triển', dept: 'PTDA', email: 'ptda@sunshine.vn', status: 'Active', assignedProjectIds: ['p5', 'p6', 'p16', 'p17'] },
+  { id: 'u5', username: 'manager', name: 'Phạm Trưởng Phòng', dept: 'MANAGER', email: 'manager@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17'] },
 ];
 
 export const MOCK_APPLICATIONS: Application[] = [
@@ -116,6 +125,36 @@ export const MOCK_APPLICATIONS: Application[] = [
     receivedDate: '2026-04-15',
     taxPaymentStatus: 'Unpaid',
     history: [{ id: 'h10', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-04-15' }]
+  },
+  {
+    id: 'app7',
+    unitCode: 'DH-K1-010',
+    projectName: 'Dự án Đông Hà',
+    customerName: 'Lý Kim Quy',
+    phoneNumber: '0988123123',
+    propertyType: 'Dat_Nen',
+    loanStatus: 'Co_Vay',
+    currentStep: 'GD1_ChuanBi',
+    status: 'Processing',
+    receivedDate: '2026-04-20',
+    taxPaymentStatus: 'Unpaid',
+    history: [{ id: 'h11', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-04-20' }]
+  },
+  {
+    id: 'app8',
+    unitCode: 'AV-A1-005',
+    projectName: 'Dự án An Viên',
+    customerName: 'Vũ Mạnh Thắng',
+    phoneNumber: '0977889900',
+    propertyType: 'Can_Ho',
+    loanStatus: 'Co_Vay',
+    currentStep: 'GD4_Cho_Nop_NVTC',
+    status: 'TaxCompleted',
+    receivedDate: '2026-01-15',
+    taxPaymentStatus: 'Paid',
+    taxNotificationDate: '2026-02-10',
+    taxReceiptDate: '2026-02-15',
+    history: [{ id: 'h12', stepName: 'GĐ4: Chờ hoàn thành NVTC', dept: 'PTT', receivedDate: '2026-01-15' }]
   }
 ];
 
