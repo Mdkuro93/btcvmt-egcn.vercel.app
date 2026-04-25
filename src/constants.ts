@@ -1,31 +1,23 @@
 import { Application, Project, Dept, UnitStatus, UserProfile } from './types';
 
 export const PROJECTS: Project[] = [
+  { id: 'p12', name: 'Dự án trung tâm thành phố Đồng Hới', region: 'Quảng Trị', totalUnits: 150 },
   { id: 'p1', name: 'Dự án Hòa Xuân', region: 'Đà Nẵng', totalUnits: 120 },
   { id: 'p2', name: 'Dự án Hòa Quý - Đồng Nò', region: 'Đà Nẵng', totalUnits: 450 },
   { id: 'p3', name: 'Dự án Hòa Quý Mở rộng', region: 'Đà Nẵng', totalUnits: 300 },
   { id: 'p4', name: 'Dự án Panoma', region: 'Đà Nẵng', totalUnits: 250 },
-  { id: 'p5', name: 'Dự án Cosmo', region: 'Đà Nẵng', totalUnits: 180 },
-  { id: 'p6', name: 'Dự án Ponte', region: 'Đà Nẵng', totalUnits: 220 },
-  { id: 'p7', name: 'Dự án Symphony', region: 'Đà Nẵng', totalUnits: 350 },
-  { id: 'p8', name: 'Dự án Hải Minh', region: 'Đà Nẵng', totalUnits: 150 },
   { id: 'p9', name: 'Dự án Sunneva Island', region: 'Đà Nẵng', totalUnits: 387 },
   { id: 'p10', name: 'Dự án Nam Hòa Xuân', region: 'Đà Nẵng', totalUnits: 1000 },
-  { id: 'p11', name: 'Khu dân cư Đông Đà Nẵng', region: 'Đà Nẵng', totalUnits: 200 },
-  { id: 'p12', name: 'Dự án Đông Hà', region: 'Quảng Trị', totalUnits: 150 },
-  { id: 'p13', name: 'Dự án Dung Quất', region: 'Quảng Ngãi', totalUnits: 400 },
-  { id: 'p14', name: 'Dự án An Viên', region: 'Khánh Hòa', totalUnits: 300 },
-  { id: 'p15', name: 'Dự án Pleiku Park', region: 'Gia Lai', totalUnits: 250 },
-  { id: 'p16', name: 'Dự án Đà Lạt View', region: 'Lâm Đồng', totalUnits: 120 },
-  { id: 'p17', name: 'Dự án Buôn Ma Thuột', region: 'Đắk Lắk', totalUnits: 180 },
+  { id: 'p13', name: 'Dự án Đảo Ngọc', region: 'Quảng Ngãi', totalUnits: 400 },
+  { id: 'p14', name: 'Nam Nha Trang', region: 'Khánh Hòa', totalUnits: 300 },
 ];
 
 export const MOCK_USERS: UserProfile[] = [
-  { id: 'u1', username: 'admin', name: 'Hệ thống Admin', dept: 'ADMIN', email: 'admin@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17'] },
+  { id: 'u1', username: 'admin', name: 'Hệ thống Admin', dept: 'ADMIN', email: 'admin@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p9', 'p10', 'p12', 'p13', 'p14'] },
   { id: 'u2', username: 'ptt_user', name: 'Nguyễn Thu Thủ Tục', dept: 'PTT', email: 'thutuc@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p12', 'p13'] },
-  { id: 'u3', username: 'kt_user', name: 'Trần Kế Toán', dept: 'KT', email: 'ketoan@sunshine.vn', status: 'Active', assignedProjectIds: ['p3', 'p4', 'p14', 'p15'] },
-  { id: 'u4', username: 'ptda_user', name: 'Lê Phát Triển', dept: 'PTDA', email: 'ptda@sunshine.vn', status: 'Active', assignedProjectIds: ['p5', 'p6', 'p16', 'p17'] },
-  { id: 'u5', username: 'manager', name: 'Phạm Trưởng Phòng', dept: 'MANAGER', email: 'manager@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'p17'] },
+  { id: 'u3', username: 'kt_user', name: 'Trần Kế Toán', dept: 'KT', email: 'ketoan@sunshine.vn', status: 'Active', assignedProjectIds: ['p3', 'p4', 'p14'] },
+  { id: 'u4', username: 'ptda_user', name: 'Lê Phát Triển', dept: 'PTDA', email: 'ptda@sunshine.vn', status: 'Active', assignedProjectIds: ['p9', 'p10'] },
+  { id: 'u5', username: 'manager', name: 'Phạm Trưởng Phòng', dept: 'MANAGER', email: 'manager@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p9', 'p10', 'p12', 'p13', 'p14'] },
 ];
 
 export const MOCK_APPLICATIONS: Application[] = [
@@ -114,8 +106,8 @@ export const MOCK_APPLICATIONS: Application[] = [
   },
   {
     id: 'app6',
-    unitCode: 'HM-L1-0022',
-    projectName: 'Dự án Hải Minh',
+    unitCode: 'SI-L1-0022',
+    projectName: 'Dự án Sunneva Island',
     customerName: 'Nguyễn Hải M',
     phoneNumber: '0905998877',
     propertyType: 'Dat_Nen',
@@ -129,7 +121,7 @@ export const MOCK_APPLICATIONS: Application[] = [
   {
     id: 'app7',
     unitCode: 'DH-K1-010',
-    projectName: 'Dự án Đông Hà',
+    projectName: 'Dự án trung tâm thành phố Đồng Hới',
     customerName: 'Lý Kim Quy',
     phoneNumber: '0988123123',
     propertyType: 'Dat_Nen',
@@ -142,8 +134,8 @@ export const MOCK_APPLICATIONS: Application[] = [
   },
   {
     id: 'app8',
-    unitCode: 'AV-A1-005',
-    projectName: 'Dự án An Viên',
+    unitCode: 'NNT-A1-005',
+    projectName: 'Nam Nha Trang',
     customerName: 'Vũ Mạnh Thắng',
     phoneNumber: '0977889900',
     propertyType: 'Can_Ho',

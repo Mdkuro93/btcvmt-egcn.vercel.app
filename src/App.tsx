@@ -87,6 +87,8 @@ const DOC_CHECKLIST_ITEMS = [
   'Tờ khai sử dụng đất PNN'
 ];
 
+const REGION_ORDER = ['Quảng Trị', 'Đà Nẵng', 'Quảng Ngãi', 'Khánh Hòa'];
+
 const LoginScreen = ({ onLogin, users, theme, onThemeToggle }: { onLogin: (user: UserProfile) => void, users: UserProfile[], theme: 'light' | 'dark', onThemeToggle: () => void }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -933,7 +935,16 @@ const ProjectManagementView = ({ projects, onCreate, onEdit, onDelete, theme }: 
       </header>
 
       <div className="space-y-6">
-        {(Object.entries(groupedProjects) as [string, Project[]][]).map(([region, regionProjects]) => (
+        {(Object.entries(groupedProjects) as [string, Project[]][])
+          .sort(([a], [b]) => {
+            const idxA = REGION_ORDER.indexOf(a);
+            const idxB = REGION_ORDER.indexOf(b);
+            if (idxA === -1 && idxB === -1) return a.localeCompare(b);
+            if (idxA === -1) return 1;
+            if (idxB === -1) return -1;
+            return idxA - idxB;
+          })
+          .map(([region, regionProjects]) => (
           <div 
             key={region} 
             className={cn(
@@ -1045,7 +1056,7 @@ const ProjectModal = ({
 }) => {
   const [formData, setFormData] = useState<Partial<Project>>({
     name: '',
-    region: 'TP. Đà Nẵng',
+    region: 'Quảng Trị',
     totalUnits: 0
   });
 
@@ -1055,7 +1066,7 @@ const ProjectModal = ({
     } else {
       setFormData({
         name: '',
-        region: 'TP. Đà Nẵng',
+        region: 'Quảng Trị',
         totalUnits: 0
       });
     }
@@ -1120,8 +1131,8 @@ const ProjectModal = ({
                     theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900" : "bg-slate-950 border-slate-800 text-white"
                   )}
                 >
-                  <option value="Đà Nẵng">Đà Nẵng</option>
                   <option value="Quảng Trị">Quảng Trị</option>
+                  <option value="Đà Nẵng">Đà Nẵng</option>
                   <option value="Quảng Ngãi">Quảng Ngãi</option>
                   <option value="Khánh Hòa">Khánh Hòa</option>
                   <option value="Gia Lai">Gia Lai</option>
@@ -1362,7 +1373,7 @@ export default function App() {
   const [newApp, setNewApp] = useState({
     unitCode: '',
     customerName: '',
-    projectName: PROJECTS[0].name,
+    projectName: projects[0].name,
     propertyType: 'Dat_Nen' as PropertyType,
     loanStatus: 'Khong_Vay' as 'Co_Vay' | 'Khong_Vay',
     submissionLocation: 'PHUONG' as 'PHUONG' | 'TP_DANANG',
@@ -1520,7 +1531,7 @@ export default function App() {
              id: `imported-${Date.now()}-${Math.random()}`,
              unitCode: unitCode,
              customerName: row[2] || '---',
-             projectName: row[0] || PROJECTS[0].name,
+             projectName: row[0] || projects[0].name,
              loanStatus: row[3] === 'Có' ? 'Co_Vay' : 'Khong_Vay',
              propertyType: row[4] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen',
              currentStep: 'GD1_ChuanBi',
@@ -1883,7 +1894,7 @@ export default function App() {
     setNewApp({ 
       unitCode: '', 
       customerName: '', 
-      projectName: PROJECTS[0].name,
+      projectName: projects[0].name,
       propertyType: 'Dat_Nen',
       loanStatus: 'Khong_Vay',
       submissionLocation: 'PHUONG',
@@ -1916,20 +1927,31 @@ export default function App() {
   };
 
   const selectedProject = useMemo(() => 
-    PROJECTS.find(p => p.id === selectedProjectId), 
-  [selectedProjectId]);
+    projects.find(p => p.id === selectedProjectId), 
+  [projects, selectedProjectId]);
 
   const visibleProjects = useMemo(() => {
-    if (userRole === 'ADMIN' || userRole === 'MANAGER') return PROJECTS;
-    if (!currentUser?.assignedProjectIds || currentUser.assignedProjectIds.length === 0) return PROJECTS; 
-    return PROJECTS.filter(p => currentUser.assignedProjectIds?.includes(p.id));
-  }, [currentUser, userRole]);
+    let baseProjects = projects;
+    if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
+      baseProjects = projects.filter(p => currentUser?.assignedProjectIds?.includes(p.id));
+    }
+    
+    return [...baseProjects].sort((a, b) => {
+      const idxA = REGION_ORDER.indexOf(a.region || '');
+      const idxB = REGION_ORDER.indexOf(b.region || '');
+      if (idxA === -1 && idxB === -1) return (a.region || '').localeCompare(b.region || '');
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      if (idxA !== idxB) return idxA - idxB;
+      return a.name.localeCompare(b.name);
+    });
+  }, [projects, currentUser, userRole]);
 
   const filteredByProjectApps = useMemo(() => {
     const baseApps = (userRole === 'ADMIN' || userRole === 'MANAGER') 
       ? applications 
       : applications.filter(app => {
-          const project = PROJECTS.find(p => p.name === app.projectName);
+          const project = projects.find(p => p.name === app.projectName);
           return project && (currentUser?.assignedProjectIds || []).includes(project.id);
         });
 
@@ -2281,7 +2303,16 @@ export default function App() {
                   acc[reg].push(p);
                   return acc;
                 }, {} as Record<string, Project[]>)
-            ) as [string, Project[]][]).sort().map(([region, regionProjects]) => (
+            ) as [string, Project[]][])
+            .sort(([a], [b]) => {
+              const idxA = REGION_ORDER.indexOf(a);
+              const idxB = REGION_ORDER.indexOf(b);
+              if (idxA === -1 && idxB === -1) return a.localeCompare(b);
+              if (idxA === -1) return 1;
+              if (idxB === -1) return -1;
+              return idxA - idxB;
+            })
+            .map(([region, regionProjects]) => (
               <div key={region} className="space-y-1">
                 <button 
                   onClick={() => toggleSidebarRegion(region)}
@@ -2384,7 +2415,7 @@ export default function App() {
 
               <button 
                 onClick={() => {
-                  const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : PROJECTS[0].name);
+                  const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
                   setNewApp(prev => ({ ...prev, projectName: defaultProj }));
                   setIsCreateModalOpen(true);
                 }}
@@ -3275,7 +3306,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="max-w-7xl mx-auto"
               >
-                <ReportsView applications={applications} projects={PROJECTS} regions={regions} theme={theme} />
+                <ReportsView applications={applications} projects={projects} regions={regions} theme={theme} />
               </motion.div>
             )}
 
@@ -4376,7 +4407,7 @@ export default function App() {
                 <div className="space-y-2">
                   <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1">Dự án được phân quyền</label>
                   <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 max-h-40 overflow-y-auto custom-scrollbar grid grid-cols-2 gap-2">
-                    {PROJECTS.map(project => {
+                    {projects.map(project => {
                       const isAssigned = editUser 
                         ? (editUser.assignedProjectIds || []).includes(project.id)
                         : newUser.assignedProjectIds.includes(project.id);
