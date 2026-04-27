@@ -62,6 +62,16 @@ export type AuditTrailEntry = {
   changes?: string;
 };
 
+export type IssueSeverity = 'Minor' | 'Moderate' | 'Critical';
+
+export type ScannedFile = {
+  id: string;
+  name: string;
+  url: string;
+  type: string;
+  uploadDate: string;
+};
+
 export type Application = {
   id: string;
   unitCode: string; // Mã lô/căn
@@ -99,7 +109,10 @@ export type Application = {
   taxNoticeProvisionDate?: string; // Ngày cung cấp TB Thuế
   gcnSignedDate?: string; // Ngày hoàn thành in / trình ký GCN
   issueType?: 'None' | 'Paperwork' | 'Financial' | 'Authority' | 'Other';
+  issueSeverity?: IssueSeverity;
   issueNotes?: string;
+  estimatedCompletionDate?: string;
+  scannedFiles?: ScannedFile[];
 
   taxPaymentStatus: 'Unpaid' | 'Paid';
   checklist?: {

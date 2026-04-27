@@ -40,7 +40,7 @@ export const MOCK_APPLICATIONS: Application[] = [
     history: [{ id: 'h1', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-03-15' }],
     auditTrail: [
       { id: 'at1', userId: 'u1', userName: 'Admin', action: 'Khởi tạo hồ sơ', timestamp: '2026-03-15 08:00' },
-      { id: 'at2', userId: 'u2', userName: 'Nguyễn Thu Thủ Tục', action: 'Cập nhật Ngày ký HĐCN', timestamp: '2026-03-15 09:30' }
+      { id: 'at2', userId: 'u2', userName: 'Nguyễn Thu Thủ Tục', action: 'Cập nhật Ngày ký HĐCN', timestamp: '2026-03-15 09:30', changes: 'Ngày ký HĐCN -> 2026-03-10' }
     ]
   },
   {
@@ -85,9 +85,15 @@ export const MOCK_APPLICATIONS: Application[] = [
     loanStatus: 'Co_Vay',
     currentStep: 'GD2_Cho_Nop_VPDK',
     status: 'Error',
+    issueType: 'Paperwork',
+    issueSeverity: 'Critical',
+    issueNotes: 'Thiếu CMND bản sao công chứng của chủ sở hữu, đã yêu cầu bổ sung 3 lần.',
     receivedDate: '2026-02-01',
     taxPaymentStatus: 'Paid',
-    history: [{ id: 'h6', stepName: 'Đang xử lý sai sót/vướng', dept: 'KT', receivedDate: '2026-02-20' }]
+    history: [{ id: 'h6', stepName: 'Đang xử lý sai sót/vướng', dept: 'KT', receivedDate: '2026-02-20' }],
+    auditTrail: [
+      { id: 'at_err_1', userId: 'u3', userName: 'Trần Kế Toán', action: 'Báo cáo sai sót hồ sơ', timestamp: '2026-02-20 11:00', changes: 'Status -> Error, Issue -> Paperwork' }
+    ]
   },
   {
     id: 'app5',

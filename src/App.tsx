@@ -189,25 +189,30 @@ function cn(...inputs: ClassValue[]) {
 }
 
 // Sub-components
-const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark' }: { title: string, value: number | string, icon: any, colorClass: string, delay: number, theme?: 'light' | 'dark' }) => (
+const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark', onClick }: { title: string, value: number | string, icon: any, colorClass: string, delay: number, theme?: 'light' | 'dark', onClick?: () => void }) => (
   <motion.div 
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay }}
+    onClick={onClick}
     className={cn(
-      "p-6 rounded-[2.5rem] shadow-2xl border flex flex-col gap-4 relative overflow-hidden transition-all",
+      "p-6 rounded-[2.5rem] shadow-2xl border flex flex-col gap-4 relative overflow-hidden transition-all group",
+      onClick ? "cursor-pointer hover:scale-[1.02] active:scale-95" : "",
       theme === 'dark' 
-        ? "bg-slate-900/80 backdrop-blur-xl border-slate-700/50" 
-        : "bg-white border-slate-200 shadow-slate-200/50"
+        ? "bg-slate-900/80 backdrop-blur-xl border-slate-700/50 hover:border-festive-gold/30" 
+        : "bg-white border-slate-200 hover:border-festive-gold/40 shadow-slate-200/50"
     )}
   >
     <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/5 rounded-full blur-2xl"></div>
-    <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-transform hover:rotate-12", colorClass)}>
-      <Icon size={28} className={theme === 'dark' ? "text-white" : "text-white"} />
+    <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-transform group-hover:rotate-12", colorClass)}>
+      <Icon size={28} className="text-white" />
     </div>
     <div>
       <p className={cn("text-[10px] font-black uppercase tracking-[0.2em] mb-1", theme === 'dark' ? "text-slate-500" : "text-slate-400")}>{title}</p>
-      <p className={cn("text-3xl font-black font-serif italic tracking-tighter", theme === 'dark' ? "text-white" : "text-slate-900")}>{value}</p>
+      <div className="flex items-center justify-between">
+        <p className={cn("text-3xl font-black font-serif italic tracking-tighter", theme === 'dark' ? "text-white" : "text-slate-900")}>{value}</p>
+        {onClick && <ArrowRight size={16} className="text-slate-500 group-hover:text-festive-gold transition-all" />}
+      </div>
     </div>
   </motion.div>
 );
@@ -484,9 +489,34 @@ const ReportsView = ({ applications, projects, regions, theme }: { applications:
           overdue: apps.filter(a => a.status === 'Error').length
         };
       });
+    } else if (reportType === 'SLA') {
+      // Dept Bottleneck Stats
+      const depts = ['PTT', 'KT', 'PTDA'];
+      return depts.map(dept => {
+        const appsInDept = applications.filter(a => {
+           const stepConfig = STEP_CONFIG[a.currentStep];
+           return stepConfig?.dept === dept;
+        });
+        const totalApps = appsInDept.length;
+        const delayedApps = appsInDept.filter(a => {
+           const overdue = applications.filter(app => app.id === a.id).map(app => {
+             const status = Object.keys(STEP_CONFIG).filter(s => STEP_CONFIG[s as StepName].dept === dept);
+             // Simple approximation for bottleneck analysis
+             return calculateDaysDiff(app.receivedDate) > 10;
+           });
+           return overdue[0];
+        }).length;
+
+        return {
+          name: dept === 'PTT' ? 'Phòng Thủ tục' : dept === 'KT' ? 'Kế toán/Pháp lý' : 'PTDA/In sổ',
+          total: totalApps,
+          delayed: delayedApps,
+          efficiency: totalApps > 0 ? Math.round(((totalApps - delayedApps) / totalApps) * 100) : 100
+        };
+      });
     }
     return [];
-  }, [applications, projects, regions, reportType]);
+  }, [applications, projects, reportType]);
 
   // SLA Heatmap Data
   const slaStats = useMemo(() => {
@@ -799,11 +829,17 @@ const ReportsView = ({ applications, projects, regions, theme }: { applications:
                 <AlertCircle size={14} className="text-rose-500" />
              </div>
              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-rose-500/10 rounded-2xl border border-rose-500/20">
+                <div 
+                  onClick={() => { setActiveTab('applications'); setDashboardFilter('OVERDUE'); }}
+                  className="flex items-center justify-between p-3 bg-rose-500/10 rounded-2xl border border-rose-500/20 cursor-pointer hover:bg-rose-500/20 transition-all transition-all"
+                >
                    <span className="text-[10px] font-black text-rose-500 uppercase">{"Hồ sơ trễ hạn > 15 ngày"}</span>
                    <span className="text-sm font-black text-rose-500">{applications.filter(a => calculateDaysDiff(a.receivedDate) > 15).length}</span>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20">
+                <div 
+                  onClick={() => { setActiveTab('applications'); setFilterLoanStatus('Co_Vay'); }}
+                  className="flex items-center justify-between p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20 cursor-pointer hover:bg-amber-500/20 transition-all"
+                >
                    <span className="text-[10px] font-black text-amber-500 uppercase">Vi phạm Cam kết cấp GCN</span>
                    <span className="text-sm font-black text-amber-500">{loanApps.filter(a => calculateDaysDiff(a.receivedDate) > 10).length}</span>
                 </div>
@@ -1342,6 +1378,8 @@ const UserManagementView = ({ users, onEdit, onDelete, onCreate, onResetPassword
                   <span className={cn(
                     "px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border transition-all",
                     user.dept === 'ADMIN' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                    user.dept === 'DIRECTOR' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
+                    user.dept === 'MANAGER' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
                     user.dept === 'PTT' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
                     user.dept === 'KT' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
                     user.dept === 'PTDA' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-slate-700 text-slate-400 border-slate-600'
@@ -1421,6 +1459,8 @@ export default function App() {
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [expandedSidebarRegions, setExpandedSidebarRegions] = useState<Record<string, boolean>>({});
+  const [dashboardFilter, setDashboardFilter] = useState<'ALL' | 'OVERDUE' | 'ERROR' | 'COMPLETED'>('ALL');
+  const [projectRegionFilter, setProjectRegionFilter] = useState<string>('ALL');
   
   // Toggle region in sidebar
   const toggleSidebarRegion = (region: string) => {
@@ -1454,7 +1494,7 @@ export default function App() {
     return ["VPĐK Phường", "VPĐK TP Đà Nẵng", "VPĐK Quận Liên Chiểu"];
   }, []);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
-  const [detailTab, setDetailTab] = useState<'Workflow' | 'Audit'>('Workflow');
+  const [detailTab, setDetailTab] = useState<'Workflow' | 'Audit' | 'Documents'>('Workflow');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
   const [filterStep, setFilterStep] = useState<StepName | 'ALL'>('ALL');
@@ -2200,7 +2240,13 @@ export default function App() {
     const matchesSelfService = filterSelfService === 'ALL' || 
       (filterSelfService === 'YES' ? app.isSelfService === true : app.isSelfService !== true);
     
-    return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService;
+    const matchesDashboardFilter = 
+      dashboardFilter === 'ALL' ||
+      (dashboardFilter === 'OVERDUE' && getOverdueInfo(app).isOverdue) ||
+      (dashboardFilter === 'ERROR' && app.status === 'Error') ||
+      (dashboardFilter === 'COMPLETED' && app.status === 'Completed');
+
+    return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService && matchesDashboardFilter;
   });
 
   if (!currentUser) {
@@ -2627,10 +2673,42 @@ export default function App() {
 
                 {(userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR' || !userRole) && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <StatCard title="Tổng số căn" value={kpis.total} icon={Building2} colorClass="bg-festive-gold" delay={0.1} theme={theme} />
-                    <StatCard title="Hồ sơ hoàn tất" value={kpis.completed} icon={CheckCircle2} colorClass="bg-emerald-500" delay={0.2} theme={theme} />
-                    <StatCard title="Trễ hạn xử lý" value={kpis.overdue} icon={AlertCircle} colorClass="bg-amber-600 shadow-amber-900/40" delay={0.3} theme={theme} />
-                    <StatCard title="Vướng / Sai sót" value={kpis.error} icon={AlertCircle} colorClass="bg-rose-500 shadow-rose-900/40" delay={0.4} theme={theme} />
+                    <StatCard 
+                      title="Tổng số căn" 
+                      value={kpis.total} 
+                      icon={Building2} 
+                      colorClass="bg-festive-gold" 
+                      delay={0.1} 
+                      theme={theme} 
+                      onClick={() => { setActiveTab('applications'); setDashboardFilter('ALL'); }}
+                    />
+                    <StatCard 
+                      title="Hồ sơ hoàn tất" 
+                      value={kpis.completed} 
+                      icon={CheckCircle2} 
+                      colorClass="bg-emerald-500" 
+                      delay={0.2} 
+                      theme={theme} 
+                      onClick={() => { setActiveTab('applications'); setDashboardFilter('COMPLETED'); }}
+                    />
+                    <StatCard 
+                      title="Trễ hạn xử lý" 
+                      value={kpis.overdue} 
+                      icon={AlertCircle} 
+                      colorClass="bg-amber-600 shadow-amber-900/40" 
+                      delay={0.3} 
+                      theme={theme} 
+                      onClick={() => { setActiveTab('applications'); setDashboardFilter('OVERDUE'); }}
+                    />
+                    <StatCard 
+                      title="Vướng / Sai sót" 
+                      value={kpis.error} 
+                      icon={AlertCircle} 
+                      colorClass="bg-rose-500 shadow-rose-900/40" 
+                      delay={0.4} 
+                      theme={theme} 
+                      onClick={() => { setActiveTab('applications'); setDashboardFilter('ERROR'); }}
+                    />
                   </div>
                 )}
                 
@@ -2941,65 +3019,102 @@ export default function App() {
                   theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/20 shadow-2xl border-slate-800/50"
                 )}>
                   <div className={cn("p-6 border-b flex items-center justify-between", theme === 'light' ? "border-slate-100 bg-slate-50" : "border-slate-800/50")}>
-                    <h3 className={cn("font-bold font-serif text-xl italic", theme === 'light' ? "text-slate-900" : "text-white")}>Trạng thái theo Dự án</h3>
+                    <div className="flex items-center gap-4">
+                      <h3 className={cn("font-bold font-serif text-xl italic", theme === 'light' ? "text-slate-900" : "text-white")}>Trạng thái theo Dự án</h3>
+                      <div className="flex items-center gap-2 bg-slate-800/20 rounded-lg p-1 border border-slate-700/30">
+                        <Filter size={12} className="text-slate-500 ml-1" />
+                        <select 
+                          className="bg-transparent text-[10px] font-black uppercase text-slate-400 outline-none pr-2 cursor-pointer"
+                          value={projectRegionFilter}
+                          onChange={(e) => setProjectRegionFilter(e.target.value)}
+                        >
+                          <option value="ALL">Tất cả khu vực</option>
+                          {REGION_ORDER.map(r => (
+                            <option key={r} value={r}>{r}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                     <button className="text-festive-gold text-xs font-bold hover:underline">Chi tiết báo cáo</button>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
                         <tr className={theme === 'light' ? "bg-slate-50" : "bg-slate-800/30"}>
-                          <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono italic">Dự án</th>
-                          <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono italic">Quỹ căn</th>
-                          <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono italic">Đã cấp sổ</th>
-                          <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono italic">Tiến độ</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono italic">Dự án & Khu vực</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono italic text-center">Quỹ căn</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono italic text-center">Đã xong</th>
+                          <th className="px-6 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono italic">Tiến độ pháp lý</th>
                         </tr>
                       </thead>
                       <tbody className={cn("divide-y", theme === 'light' ? "divide-slate-50" : "divide-slate-800/50")}>
-                        {visibleProjects.map(p => {
-                          const projectApps = applications.filter(a => a.projectName === p.name);
-                          const completed = projectApps.filter(a => a.status === 'Completed').length;
-                          const progress = Math.round((completed / p.totalUnits) * 100);
-                          return (
-                            <tr 
-                              key={p.id} 
-                              onClick={() => setSelectedProjectId(p.id)}
-                              className={cn(
-                                "transition-colors cursor-pointer group border-b",
-                                theme === 'light' 
-                                  ? (selectedProjectId === p.id ? "bg-festive-gold/10 border-festive-gold/30 text-slate-800" : "hover:bg-slate-50 border-slate-50 text-slate-700") 
-                                  : (selectedProjectId === p.id ? "bg-slate-800/60 border-slate-700 text-white" : "hover:bg-slate-800/30 border-slate-800/20 text-slate-300")
-                              )}
-                            >
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                  <div className={cn(
-                                    "w-8 h-8 rounded-lg flex items-center justify-center transition-colors border",
-                                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-400" : "bg-slate-800/50 border-slate-700/50 text-slate-500"
-                                  )}>
-                                    <Building2 size={16} />
+                        {visibleProjects
+                          .filter(p => projectRegionFilter === 'ALL' || p.region === projectRegionFilter)
+                          .map(p => {
+                            const projectApps = applications.filter(a => a.projectName === p.name);
+                            const completed = projectApps.filter(a => a.status === 'Completed').length;
+                            const progress = Math.round((completed / p.totalUnits) * 100);
+                            
+                            // Calculate colored progress bar
+                            const barColor = progress > 80 ? 'bg-emerald-500' : progress > 30 ? 'bg-indigo-500' : 'bg-amber-500';
+                            const shadowColor = progress > 80 ? 'shadow-emerald-500/30' : progress > 30 ? 'shadow-indigo-500/30' : 'shadow-amber-500/30';
+
+                            return (
+                              <tr 
+                                key={p.id} 
+                                onClick={() => setSelectedProjectId(p.id)}
+                                className={cn(
+                                  "transition-colors cursor-pointer group border-b",
+                                  theme === 'light' 
+                                    ? (selectedProjectId === p.id ? "bg-festive-gold/10 border-festive-gold/30 text-slate-800" : "hover:bg-slate-50 border-slate-50 text-slate-700") 
+                                    : (selectedProjectId === p.id ? "bg-slate-800/60 border-slate-700 text-white" : "hover:bg-slate-800/30 border-slate-800/20 text-slate-300")
+                                )}
+                              >
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className={cn(
+                                      "w-8 h-8 rounded-lg flex items-center justify-center transition-colors border",
+                                      theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-400" : "bg-slate-800/50 border-slate-700/50 text-slate-500"
+                                    )}>
+                                      <Building2 size={16} />
+                                    </div>
+                                    <div>
+                                      <p className={cn("text-sm font-bold", theme === 'light' ? "text-slate-900" : "text-white")}>{p.name}</p>
+                                      <div className="flex items-center gap-1.5 mt-0.5">
+                                        <MapPin size={8} className="text-slate-500" />
+                                        <p className="text-[9px] text-slate-500 tracking-[0.15em] font-black uppercase">{p.region}</p>
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <p className={cn("text-sm font-bold", theme === 'light' ? "text-slate-900" : "text-white")}>{p.name}</p>
-                                    <p className="text-[11px] text-slate-500 tracking-wider font-bold italic">{p.region}</p>
+                                </td>
+                                <td className="px-6 py-4 text-center text-xs font-black text-slate-500 font-mono tracking-tighter">{p.totalUnits}</td>
+                                <td className="px-6 py-4 text-center text-xs font-black text-slate-500 font-mono tracking-tighter">{completed}</td>
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-4">
+                                    <div className="flex-1 min-w-[120px]">
+                                      <div className="flex items-center justify-between mb-1.5">
+                                        <span className={cn("text-[10px] font-black uppercase tracking-widest", theme === 'light' ? "text-slate-400" : "text-slate-500")}>Hoàn thành</span>
+                                        <span className={cn("text-[10px] font-black font-mono", theme === 'light' ? "text-slate-700" : "text-white")}>{progress}%</span>
+                                      </div>
+                                      <div className={cn("h-2 rounded-full overflow-hidden border", theme === 'light' ? "bg-slate-100 border-slate-200" : "bg-slate-950/50 border-slate-800")}>
+                                        <motion.div 
+                                          initial={{ width: 0 }}
+                                          animate={{ width: `${progress}%` }}
+                                          className={cn("h-full shadow-lg transition-all", barColor, shadowColor)}
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className={cn(
+                                      "w-8 h-8 rounded-lg flex items-center justify-center transform group-hover:scale-110 group-hover:bg-festive-gold group-hover:text-slate-950 transition-all",
+                                      theme === 'light' ? "bg-slate-100 text-slate-400" : "bg-slate-800/40 text-slate-600"
+                                    )}>
+                                      <ArrowRight size={14} />
+                                    </div>
                                   </div>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 text-sm font-mono text-slate-500">{p.totalUnits}</td>
-                              <td className="px-6 py-4 text-sm font-mono text-slate-500">{completed}</td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                  <div className={cn("flex-1 h-1.5 rounded-full overflow-hidden w-24 border", theme === 'light' ? "bg-slate-100 border-slate-200" : "bg-slate-950/50 border-slate-800")}>
-                                    <div 
-                                      className="h-full bg-festive-gold rounded-full transition-all duration-1000 shadow-sm shadow-festive-gold/30" 
-                                      style={{ width: `${progress}%` }} 
-                                    />
-                                  </div>
-                                  <span className="text-xs font-bold text-festive-gold/80">{progress}%</span>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                                </td>
+                              </tr>
+                            );
+                          })}
                       </tbody>
                     </table>
                   </div>
@@ -3457,14 +3572,25 @@ export default function App() {
 
                   <div className="space-y-8">
                     <div className="bg-slate-900/40 backdrop-blur-md p-8 rounded-[2.5rem] border border-slate-800/50 shadow-2xl">
-                      <div className="flex items-center gap-4 mb-8">
-                        <div className="w-12 h-12 bg-indigo-500/10 text-indigo-400 rounded-2xl flex items-center justify-center">
-                          <Files size={24} />
+                      <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-indigo-500/10 text-indigo-400 rounded-2xl flex items-center justify-center">
+                            <Files size={24} />
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-bold text-white font-serif italic">Biểu mẫu Tải xuống</h3>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Tải về các mẫu văn bản hành chính</p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="text-xl font-bold text-white font-serif italic">Biểu mẫu Tải xuống</h3>
-                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Tải về các mẫu văn bản hành chính</p>
-                        </div>
+                        {userRole === 'ADMIN' && (
+                          <button 
+                            onClick={handleDownloadTemplate}
+                            className="px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 rounded-xl text-[10px] font-black uppercase border border-indigo-500/30 flex items-center gap-2 transition-all"
+                            title="Tải toàn bộ dữ liệu hồ sơ"
+                          >
+                            <FileSpreadsheet size={14} /> Tải dữ liệu
+                          </button>
+                        )}
                       </div>
                       <div className="space-y-3">
                         {[
@@ -3843,28 +3969,49 @@ export default function App() {
                       {(userRole === 'KT' || userRole === 'PTDA') && isEditing && <span className="text-[9px] bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-md font-bold uppercase">Ghi nhận vướng mắc</span>}
                     </div>
                     <div className="space-y-3">
-                      <DetailCard 
-                        label="Loại vướng mắc" 
-                        value={
-                          (editApp || selectedApp).issueType === 'Paperwork' ? 'Hồ sơ pháp lý' :
-                          (editApp || selectedApp).issueType === 'Financial' ? 'Nghĩa vụ tài chính' :
-                          (editApp || selectedApp).issueType === 'Authority' ? 'Cơ quan nhà nước' :
-                          (editApp || selectedApp).issueType === 'Other' ? 'Vướng mắc khác' : 'Chưa có vướng mắc'
-                        } 
-                        type="select"
-                        editable={(userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'DIRECTOR') && isEditing}
-                        options={['Chưa có vướng mắc', 'Hồ sơ pháp lý', 'Nghĩa vụ tài chính', 'Cơ quan nhà nước', 'Vướng mắc khác']}
-                        onChange={(val) => {
-                          const mapping: any = {
-                            'Chưa có vướng mắc': 'None',
-                            'Hồ sơ pháp lý': 'Paperwork',
-                            'Nghĩa vụ tài chính': 'Financial',
-                            'Cơ quan nhà nước': 'Authority',
-                            'Vướng mắc khác': 'Other'
-                          };
-                          handleFieldChange('issueType', mapping[val]);
-                        }}
-                      />
+                    <DetailCard 
+                      label="Loại vướng mắc" 
+                      value={
+                        (editApp || selectedApp).issueType === 'Paperwork' ? 'Hồ sơ pháp lý' :
+                        (editApp || selectedApp).issueType === 'Financial' ? 'Nghĩa vụ tài chính' :
+                        (editApp || selectedApp).issueType === 'Authority' ? 'Cơ quan nhà nước' :
+                        (editApp || selectedApp).issueType === 'Other' ? 'Vướng mắc khác' : 'Chưa có vướng mắc'
+                      } 
+                      type="select"
+                      editable={(userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'DIRECTOR') && isEditing}
+                      options={['Chưa có vướng mắc', 'Hồ sơ pháp lý', 'Nghĩa vụ tài chính', 'Cơ quan nhà nước', 'Vướng mắc khác']}
+                      onChange={(val) => {
+                        const mapping: any = {
+                          'Chưa có vướng mắc': 'None',
+                          'Hồ sơ pháp lý': 'Paperwork',
+                          'Nghĩa vụ tài chính': 'Financial',
+                          'Cơ quan nhà nước': 'Authority',
+                          'Vướng mắc khác': 'Other'
+                        };
+                        handleFieldChange('issueType', mapping[val]);
+                      }}
+                    />
+                    <DetailCard 
+                      label="Mức độ nghiêm trọng" 
+                      value={
+                        (editApp || selectedApp).issueSeverity === 'Minor' ? 'Thấp (Nhân viên tự xử lý)' :
+                        (editApp || selectedApp).issueSeverity === 'Moderate' ? 'Trung bình' :
+                        (editApp || selectedApp).issueSeverity === 'Critical' ? 'Cao (Cần lãnh đạo can thiệp)' : 'Chưa xác định'
+                      } 
+                      type="select"
+                      valueColor={(editApp || selectedApp).issueSeverity === 'Critical' ? 'text-rose-500 font-black' : (editApp || selectedApp).issueSeverity === 'Moderate' ? 'text-amber-500' : 'text-slate-400'}
+                      editable={(userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'DIRECTOR') && isEditing}
+                      options={['Chưa xác định', 'Thấp (Nhân viên tự xử lý)', 'Trung bình', 'Cao (Cần lãnh đạo can thiệp)']}
+                      onChange={(val) => {
+                        const mapping: any = {
+                          'Chưa xác định': undefined,
+                          'Thấp (Nhân viên tự xử lý)': 'Minor',
+                          'Trung bình': 'Moderate',
+                          'Cao (Cần lãnh đạo can thiệp)': 'Critical'
+                        };
+                        handleFieldChange('issueSeverity', mapping[val]);
+                      }}
+                    />
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Ghi chú sai sót vướng mắc</label>
                         {((userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'DIRECTOR') && isEditing) ? (
@@ -3907,6 +4054,16 @@ export default function App() {
                       Audit Trail
                       {detailTab === 'Audit' && <motion.div layoutId="detailUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-festive-gold" />}
                     </button>
+                    <button 
+                      onClick={() => setDetailTab('Documents')}
+                      className={cn(
+                        "pb-2 text-[10px] font-black uppercase tracking-widest transition-all relative",
+                        detailTab === 'Documents' ? "text-festive-gold" : "text-slate-500 hover:text-slate-300"
+                      )}
+                    >
+                      E-Document (Scan)
+                      {detailTab === 'Documents' && <motion.div layoutId="detailUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-festive-gold" />}
+                    </button>
                   </div>
 
                   {detailTab === 'Workflow' ? (
@@ -3930,7 +4087,7 @@ export default function App() {
                         </div>
                       ))}
                     </div>
-                  ) : (
+                  ) : detailTab === 'Audit' ? (
                     <div className="space-y-4">
                       {((editApp || selectedApp).auditTrail || []).length > 0 ? (
                         (editApp || selectedApp).auditTrail?.map((entry) => (
@@ -3956,6 +4113,59 @@ export default function App() {
                            <p className="text-[10px] text-slate-600 font-bold italic">Chưa có nhật ký thay đổi</p>
                         </div>
                       )}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Danh mục tài liệu số</p>
+                        <button className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 rounded-lg text-[9px] font-black text-slate-400 hover:text-white transition-all">
+                          <Upload size={12} /> Tải tệp lên
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        {[
+                          { name: 'Hợp đồng chuyển nhượng.pdf', size: '2.4 MB', date: '2026-03-15' },
+                          { name: 'CCCD_Sao_Y.jpg', size: '1.1 MB', date: '2026-03-15' },
+                          { name: 'GCN_Goc_Scan.pdf', size: '5.8 MB', date: '2026-03-16' },
+                          { name: 'Bien_Ban_Ban_Giao.pdf', size: '0.8 MB', date: '2026-03-18' }
+                        ].map((file, i) => (
+                          <div key={i} className="group/file p-3 bg-slate-900 rounded-2xl border border-slate-800 hover:border-festive-gold/30 transition-all cursor-pointer">
+                            <div className="flex items-center gap-3 mb-2">
+                              <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-indigo-400">
+                                <FileText size={18} />
+                              </div>
+                              <div className="flex-1 overflow-hidden">
+                                <p className="text-[10px] font-bold text-slate-200 truncate">{file.name}</p>
+                                <p className="text-[8px] text-slate-600 font-black">{file.size} • {file.date}</p>
+                              </div>
+                            </div>
+                            <div className="flex justify-between items-center opacity-0 group-hover/file:opacity-100 transition-opacity">
+                              <button className="text-[9px] font-black text-festive-gold flex items-center gap-1">
+                                <Search size={10} /> Xem nhanh
+                              </button>
+                              <button className="text-slate-500 hover:text-white transition-colors">
+                                <Download size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-4 p-4 rounded-2xl border border-slate-800 bg-slate-900/40 relative overflow-hidden h-[300px] flex items-center justify-center">
+                         <div className="absolute inset-0 bg-slate-950/20 backdrop-blur-[2px] flex items-center justify-center flex-col gap-4 text-center p-6 z-10 transition-all hover:backdrop-blur-0 hover:bg-transparent group/preview cursor-pointer">
+                            <div className="p-4 rounded-full bg-slate-800 text-slate-500 group-hover/preview:scale-110 transition-transform">
+                               <Map size={32} />
+                            </div>
+                            <div>
+                               <p className="text-xs font-bold text-slate-300">Nhấn để xem trước tài liệu</p>
+                               <p className="text-[9px] text-slate-500 mt-1 uppercase font-black">Hợp đồng chuyển nhượng.pdf</p>
+                            </div>
+                         </div>
+                         <img 
+                           src="https://images.unsplash.com/photo-1568605114967-8130f3a36994?q=80&w=2070&auto=format&fit=crop" 
+                           alt="Mock Doc" 
+                           className="w-full h-full object-cover opacity-20 grayscale"
+                         />
+                      </div>
                     </div>
                   )}
                 </section>
@@ -4480,7 +4690,8 @@ export default function App() {
                       <option value="PTT">Chuyên viên PTT</option>
                       <option value="KT">Chuyên viên Kế toán</option>
                       <option value="PTDA">Chuyên viên PTDA</option>
-                      <option value="MANAGER">Lãnh đạo / Trưởng phòng</option>
+                      <option value="MANAGER">Trưởng bộ phận / Trưởng phòng</option>
+                      <option value="DIRECTOR">Lãnh đạo Sunshine (Ban GĐ)</option>
                       <option value="ADMIN">Quản trị viên (Admin)</option>
                     </select>
                   </div>
@@ -4533,7 +4744,7 @@ export default function App() {
                       );
                     })}
                   </div>
-                  <p className="text-[10px] text-slate-600 italic px-1">Lưu ý: Admin/Manager luôn có quyền xem tất cả dự án.</p>
+                  <p className="text-[10px] text-slate-600 italic px-1">Lưu ý: Admin/Lãnh đạo luôn có quyền xem tất cả dự án.</p>
                 </div>
               </div>
 
