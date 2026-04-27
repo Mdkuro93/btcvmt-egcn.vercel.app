@@ -178,21 +178,6 @@ const LoginScreen = ({ onLogin, users, theme, onThemeToggle }: { onLogin: (user:
             Đăng nhập
           </button>
         </form>
-
-        <div className="mt-8 pt-6 border-t border-slate-800/50">
-          <p className="text-center text-[10px] text-slate-600 font-bold uppercase tracking-tight">Gợi ý đăng nhập Demo:</p>
-          <div className="flex flex-wrap justify-center gap-2 mt-3">
-            {users.map(u => (
-              <button 
-                key={u.id}
-                onClick={() => setUsername(u.username)}
-                className="text-[9px] px-2 py-1 bg-slate-800/50 rounded-lg text-slate-400 hover:text-white transition-colors"
-              >
-                {u.username}
-              </button>
-            ))}
-          </div>
-        </div>
       </motion.div>
     </div>
   );
@@ -441,7 +426,36 @@ const SettingsView = ({ slaConfig, setSlaConfig, checklistTemplates, setChecklis
 };
 
 const ReportsView = ({ applications, projects, regions, theme }: { applications: Application[], projects: Project[], regions: string[], theme: 'light' | 'dark' }) => {
-  const [reportType, setReportType] = useState<'PROJECT' | 'REGION' | 'DEPT' | 'LOAN'>('PROJECT');
+  const [reportType, setReportType] = useState<'PROJECT' | 'REGION' | 'LOAN' | 'SLA'>('LOAN');
+  const [selectedItem, setSelectedItem] = useState<string | null>(null);
+
+  // Management Objectives & KPIs mapping
+  const reportConfig = {
+    PROJECT: {
+      title: "Hiệu suất Dự án",
+      desc: "Mục tiêu: Đánh giá tiến độ pháp lý và tỷ lệ ra sổ của từng dự án thành viên.",
+      kpis: ["Tỷ lệ hoàn thành (Target 100%)", "Hồ sơ vướng (Error Rate)", "Tốc độ xử lý"],
+      roles: ["Lãnh đạo", "Trưởng phòng DA"]
+    },
+    REGION: {
+      title: "Báo cáo quản trị theo địa bàn",
+      desc: "Mục tiêu: Đánh giá hiệu quả phối hợp với các cơ quan chức năng tại địa phương.",
+      kpis: ["Thời gian duyệt Thuế", "Tỷ lệ trả hồ sơ", "Volume hồ sơ theo khu vực"],
+      roles: ["Giám đốc Vùng", "Lãnh đạo"]
+    },
+    LOAN: {
+      title: "Quản lý tiến độ cấp GCN (Cam kết tín dụng)",
+      desc: "Mục tiêu: Theo dõi tiến độ hoàn thành đăng ký biến động để hoàn trả GCN theo cam kết tín dụng ngân hàng.",
+      kpis: ["SLA Cam kết tín dụng", "Risk Score (Hạn chót trả GCN)", "Tỷ lệ hồ sơ vay đúng hạn"],
+      roles: ["Phòng Tài chính", "Lãnh đạo", "QL Vay vốn"]
+    },
+    SLA: {
+      title: "Phân tích SLA & Điểm nghẽn",
+      desc: "Mục tiêu: Phát hiện tắc nghẽn quy trình, tối ưu hóa nguồn lực nhân sự.",
+      kpis: ["Avg. TAT theo bước", "Max Delay Step", "Hiệu suất Bộ phận (Dept Efficiency)"],
+      roles: ["QL Vận hành", "Trưởng phòng Thủ tục"]
+    }
+  };
 
   const stats = useMemo(() => {
     if (reportType === 'PROJECT') {
@@ -452,14 +466,18 @@ const ReportsView = ({ applications, projects, regions, theme }: { applications:
           total: apps.length,
           completed: apps.filter(a => a.currentStep === 'Hoan_Tat').length,
           processing: apps.filter(a => a.currentStep !== 'Hoan_Tat').length,
-          overdue: apps.filter(a => a.status === 'Error').length
+          overdue: apps.filter(a => a.status === 'Error').length,
+          efficiency: apps.length > 0 ? (apps.filter(a => a.currentStep === 'Hoan_Tat').length / apps.length) * 100 : 0
         };
       });
-    } else {
-      return regions.map(r => {
-        const apps = applications.filter(a => a.submissionLocation === (r === 'VPĐK Phường' ? 'PHUONG' : 'TP_DANANG'));
+    } else if (reportType === 'REGION') {
+      return REGION_ORDER.map(reg => {
+        const apps = applications.filter(a => {
+           const p = projects.find(proj => proj.name === a.projectName);
+           return p?.region === reg;
+        });
         return {
-          name: r,
+          name: reg,
           total: apps.length,
           completed: apps.filter(a => a.currentStep === 'Hoan_Tat').length,
           processing: apps.filter(a => a.currentStep !== 'Hoan_Tat').length,
@@ -467,134 +485,270 @@ const ReportsView = ({ applications, projects, regions, theme }: { applications:
         };
       });
     }
+    return [];
   }, [applications, projects, regions, reportType]);
 
-  const avgProcessingData = [
-    { step: 'KT Hồ sơ', time: 1.5 },
-    { step: 'Trình ký', time: 2.8 },
-    { step: 'Nộp VPĐK', time: 0.5 },
-    { step: 'Đợi Thuế', time: 12.4 },
-    { step: 'Đóng Thuế', time: 2.1 },
-    { step: 'In GCN', time: 4.2 },
-  ];
+  // SLA Heatmap Data
+  const slaStats = useMemo(() => {
+    const steps = Object.keys(STEP_CONFIG).filter(s => s !== 'Hoan_Tat') as StepName[];
+    return steps.map(step => {
+      const appsAtStep = applications.filter(a => a.currentStep === step);
+      const avgTime = appsAtStep.length > 0 ? (appsAtStep.reduce((acc, curr) => {
+        return acc + calculateDaysDiff(curr.receivedDate);
+      }, 0) / appsAtStep.length) : 0;
+      
+      return {
+        step: STEP_CONFIG[step]?.label.split(':')[0],
+        dept: STEP_CONFIG[step]?.dept,
+        avgDays: parseFloat(avgTime.toFixed(1)),
+        slaLimit: 7, // Default mock SLA
+        isCritical: avgTime > 10
+      };
+    });
+  }, [applications]);
 
-  const exportPDF = () => {
-    alert("Đang khởi tạo tệp PDF báo cáo...");
-  };
+  const loanApps = applications.filter(a => a.loanStatus === 'Co_Vay');
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 text-left">
-      <header className="flex justify-between items-end">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-           <h2 className="text-3xl font-black text-white italic font-serif tracking-tight">Báo cáo & Thống kê</h2>
-           <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em] mt-1">Phân tích hiệu suất & Tiến độ khu vực</p>
+           <div className="flex items-center gap-3 mb-1">
+             <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
+                <FileBarChart className="text-indigo-500" size={20} />
+             </div>
+             <h2 className={cn("text-3xl font-black italic font-serif tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>
+               Trung tâm Điều hành & Quản trị
+             </h2>
+           </div>
+           <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em]">Hệ thống phân tích báo cáo rủi ro đa chiều</p>
         </div>
-        <div className="flex gap-3">
-          <button 
-            onClick={exportPDF}
-            className="flex items-center gap-2 px-6 py-3 bg-slate-900 border border-slate-800 rounded-2xl text-[10px] font-black uppercase text-slate-300 hover:bg-slate-800 transition-all shadow-xl shadow-black/20"
-          >
-            <FileText size={14} className="text-rose-500" /> Xuất PDF
-          </button>
-          <button className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-emerald-600/20 transition-all active:scale-95">
-            <FileSpreadsheet size={14} /> Xuất Excel
+        <div className="flex gap-3 w-full md:w-auto">
+          <button className={cn(
+            "flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95 border",
+            theme === 'light' ? "bg-white border-slate-200 text-slate-700" : "bg-slate-900 border-slate-800 text-slate-300"
+          )}>
+            <Download size={14} className="text-indigo-500" /> Export Business Intelligence
           </button>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 text-left">
+      {/* Report Navigation */}
+      <div className="flex flex-wrap gap-2">
+        {(Object.keys(reportConfig) as Array<keyof typeof reportConfig>).map(type => (
+          <button
+            key={type}
+            onClick={() => { setReportType(type); setSelectedItem(null); }}
+            className={cn(
+              "px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all tracking-[0.15em] border flex items-center gap-2 group",
+              reportType === type 
+                ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20" 
+                : theme === 'light' ? "bg-white border-slate-200 text-slate-500 hover:border-slate-300" : "bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300"
+            )}
+          >
+            {type === 'LOAN' && <AlertTriangle size={12} className={reportType === type ? "text-white" : "text-rose-500"} />}
+            {reportConfig[type].title}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        {/* Left Column: Analysis & Charts */}
         <div className="lg:col-span-3 space-y-8">
+          
+          {/* Management Info Header */}
+          <motion.div 
+            key={reportType}
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className={cn(
+              "p-6 rounded-[2.5rem] border-l-4 border-indigo-500 shadow-xl",
+              theme === 'light' ? "bg-white border-y border-r border-slate-200" : "bg-slate-900/60 border-y border-r border-slate-800"
+            )}
+          >
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className={cn("text-base font-black uppercase tracking-tight mb-1", theme === 'light' ? "text-slate-900" : "text-white")}>
+                  {reportConfig[reportType].title}
+                </h3>
+                <p className="text-xs text-slate-500 font-medium italic">{reportConfig[reportType].desc}</p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Roles:</span>
+                <div className="flex gap-1 justify-end">
+                  {reportConfig[reportType].roles.map(r => (
+                    <span key={r} className="px-2 py-0.5 bg-indigo-500/10 text-indigo-500 text-[8px] font-black rounded-lg border border-indigo-500/20">{r}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-8 mt-6">
+               {reportConfig[reportType].kpis.map((kpi, i) => (
+                 <div key={i} className="space-y-1">
+                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">{kpi}</p>
+                    <div className="h-1 w-full bg-slate-800 rounded-full mt-2 overflow-hidden">
+                      <div className="h-full bg-indigo-500" style={{ width: `${80 - i * 15}%` }} />
+                    </div>
+                 </div>
+               ))}
+            </div>
+          </motion.div>
+
+          {/* Main Visualization Area */}
           <div className={cn(
-            "backdrop-blur-xl border rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden group transition-all",
-            theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800"
+             "rounded-[2.5rem] p-8 border shadow-2xl overflow-hidden relative",
+             theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800"
           )}>
-            <div className="absolute top-0 right-0 p-8 opacity-0 group-hover:opacity-100 transition-opacity">
-               <TrendingUp className="text-amber-500/50" />
-            </div>
-            <div className="flex items-center gap-4 mb-8">
-              <button 
-                onClick={() => setReportType('PROJECT')}
-                className={cn(
-                  "px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all tracking-widest border",
-                  reportType === 'PROJECT' ? "bg-amber-500 border-amber-400 text-slate-950 shadow-lg shadow-amber-500/20" : "bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300"
-                )}
-              >Dự án</button>
-              <button 
-                onClick={() => setReportType('REGION')}
-                className={cn(
-                  "px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all tracking-widest border",
-                  reportType === 'REGION' ? "bg-amber-500 border-amber-400 text-slate-950 shadow-lg shadow-amber-500/20" : "bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300"
-                )}
-              >Vùng (VPĐK)</button>
-              <button 
-                onClick={() => setReportType('LOAN')}
-                className={cn(
-                  "px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase transition-all tracking-widest border",
-                  reportType === 'LOAN' ? "bg-rose-500 border-rose-400 text-white shadow-lg shadow-rose-500/20" : "bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300"
-                )}
-              >Vốn vay</button>
-            </div>
-            
             {reportType === 'LOAN' ? (
               <div className="space-y-6">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className={cn("text-base font-black italic font-serif", theme === 'light' ? "text-slate-900" : "text-white")}>Tình hình xử lý khách hàng vay vốn</h3>
-                  <span className="text-[10px] px-3 py-1 bg-rose-500/10 text-rose-500 rounded-full font-black uppercase tracking-widest border border-rose-500/20">
-                    {applications.filter(a => a.loanStatus === 'Co_Vay').length} Hồ sơ
-                  </span>
+                <div className="flex items-center justify-between">
+                  <h3 className={cn("text-sm font-black uppercase tracking-widest", theme === 'light' ? "text-slate-800" : "text-slate-200")}>Ưu tiên: Theo dõi tiến độ GCN - Hồ sơ Cam kết Tín dụng</h3>
+                  <div className="flex gap-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-rose-500" />
+                      <span className="text-[9px] font-black uppercase text-slate-500">{"Rủi ro trễ cam kết (SLA > 10 ngày)"}</span>
+                    </div>
+                  </div>
                 </div>
+
                 <div className="overflow-x-auto rounded-3xl border border-slate-800/50">
-                  <table className="w-full text-left border-collapse min-w-[800px]">
-                    <thead>
-                      <tr className={theme === 'light' ? "bg-slate-50 border-b border-slate-100" : "bg-slate-950/50 border-b border-slate-800"}>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Dự án / Mã căn</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Khách hàng</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Ngân hàng</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Trạng thái hiện tại</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest italic text-center">Tiến độ</th>
+                  <table className="w-full text-left border-collapse min-w-[900px]">
+                    <thead className={theme === 'light' ? "bg-slate-50 border-b border-slate-100" : "bg-slate-950/50 border-b border-slate-800"}>
+                      <tr>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Dự án & Mã căn</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Thông tin Vay & HĐTD</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Tiến độ cấp GCN</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Ngày chậm</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Rủi ro Cam kết</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/50">
-                      {applications.filter(a => a.loanStatus === 'Co_Vay').map(app => (
-                        <tr key={app.id} className={theme === 'light' ? "hover:bg-slate-50 transition-colors" : "hover:bg-slate-800/20 transition-colors"}>
-                          <td className="px-6 py-4">
-                            <p className={cn("text-xs font-bold", theme === 'light' ? "text-slate-900" : "text-slate-200")}>{app.projectName}</p>
-                            <p className="text-[10px] text-slate-500 font-mono mt-0.5">{app.unitCode}</p>
-                          </td>
-                          <td className="px-6 py-4">
-                            <p className={cn("text-xs font-bold", theme === 'light' ? "text-slate-700" : "text-slate-300")}>{app.customerName}</p>
-                            <p className="text-[10px] text-slate-500 mt-0.5">{app.phoneNumber}</p>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-xs font-bold text-indigo-400">{app.bankName || 'Đang cập nhật'}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <StatusBadge status={app.status} />
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex flex-col items-center">
-                              <div className="w-full bg-slate-800 h-1 rounded-full mb-1">
-                                <div 
-                                  className="h-full bg-emerald-500 rounded-full transition-all duration-1000"
-                                  style={{ width: `${Math.round(((getPhaseIndex(app.currentStep) + 1) / 6) * 100)}%` }}
-                                />
-                              </div>
-                              <span className="text-[9px] font-black text-slate-500 uppercase">{STEP_CONFIG[app.currentStep]?.label.split(':')[0]}</span>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {applications.filter(a => a.loanStatus === 'Co_Vay').length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="px-6 py-12 text-center text-slate-500 italic text-xs">Không có hồ sơ vay vốn nào được ghi nhận.</td>
-                        </tr>
-                      )}
+                      {loanApps.map(app => {
+                        const days = calculateDaysDiff(app.receivedDate);
+                        const isHighRisk = days > 10;
+                        const isMediumRisk = days > 5 && days <= 10;
+
+                        return (
+                          <tr 
+                            key={app.id} 
+                            className={cn(
+                              "transition-all cursor-pointer group",
+                              theme === 'light' ? "hover:bg-slate-50" : "hover:bg-slate-800/30"
+                            )}
+                          >
+                            <td className="px-6 py-5">
+                               <p className={cn("text-xs font-black", theme === 'light' ? "text-slate-900" : "text-white")}>{app.projectName}</p>
+                               <p className="text-[9px] font-mono text-slate-500 mt-0.5">{app.unitCode} • {app.customerName}</p>
+                            </td>
+                            <td className="px-6 py-5">
+                               <div className="flex items-center gap-2">
+                                 <Building2 size={12} className="text-indigo-400" />
+                                 <span className="text-xs font-bold text-indigo-400">{app.bankName || 'Chưa định danh'}</span>
+                               </div>
+                               <p className="text-[9px] text-slate-500 mt-0.5">HĐ: {app.loanAgreementNumber || '---'}</p>
+                            </td>
+                            <td className="px-6 py-5 text-center">
+                               <StatusBadge status={app.status} />
+                               <p className="text-[8px] font-black text-slate-500 uppercase mt-1">{STEP_CONFIG[app.currentStep]?.label.split(':')[0]}</p>
+                            </td>
+                            <td className="px-6 py-5 text-center">
+                               <span className={cn(
+                                 "text-xs font-black p-2 rounded-xl",
+                                 isHighRisk ? "bg-rose-500/10 text-rose-500" : isMediumRisk ? "bg-amber-500/10 text-amber-500" : "text-slate-500"
+                               )}>
+                                 {days} Ngày {isHighRisk && "!!"}
+                               </span>
+                            </td>
+                            <td className="px-6 py-5">
+                               <div className="flex items-center justify-center">
+                                 {isHighRisk ? (
+                                   <div className="flex items-center gap-1.5 px-3 py-1 bg-rose-500 text-white rounded-full text-[9px] font-black uppercase tracking-tighter animate-pulse">
+                                     <AlertTriangle size={10} /> Trễ cam kết tín dụng
+                                   </div>
+                                 ) : isMediumRisk ? (
+                                   <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-full text-[9px] font-black uppercase tracking-tighter">
+                                     Gần hạn chót
+                                   </div>
+                                 ) : (
+                                   <CheckCircle2 size={16} className="text-emerald-500" />
+                                 )}
+                               </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               </div>
+            ) : reportType === 'SLA' ? (
+              <div className="space-y-8">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className={cn("text-sm font-black uppercase tracking-widest", theme === 'light' ? "text-slate-800" : "text-slate-200")}>Phân tích Bottleneck & Hiệu suất Bộ phận</h3>
+                    <p className="text-[10px] text-slate-500 mt-1 italic">Các bước có thời gian trung bình (Avg TAT) cao nhất là điểm nghẽn của quy trình.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                   <div className="h-[400px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={slaStats} layout="vertical" margin={{ left: 20 }}>
+                          <XAxis type="number" hide />
+                          <YAxis dataKey="step" type="category" stroke="#94a3b8" fontSize={10} width={100} axisLine={false} tickLine={false} />
+                          <ReTooltip 
+                            cursor={{ fill: 'rgba(99,102,241,0.05)' }}
+                            contentStyle={{ 
+                              backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
+                              border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #1e293b', 
+                              borderRadius: '16px' 
+                            }}
+                          />
+                          <Bar dataKey="avgDays" name="Số ngày tb" radius={[0, 6, 6, 0]} barSize={20}>
+                            {slaStats.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.isCritical ? '#f43f5e' : entry.avgDays > 5 ? '#f59e0b' : '#6366f1'} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                   </div>
+                   
+                   <div className="space-y-4">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Trách nhiệm Phòng ban & TAT</p>
+                      <div className="space-y-3">
+                         {slaStats.sort((a,b) => b.avgDays - a.avgDays).map((item, i) => (
+                           <div key={i} className={cn(
+                             "p-4 rounded-2xl border flex items-center justify-between transition-all group",
+                             item.isCritical ? "bg-rose-500/5 border-rose-500/20" : "bg-slate-950/20 border-slate-800"
+                           )}>
+                              <div className="flex items-center gap-4">
+                                 <div className={cn(
+                                   "w-2 h-2 rounded-full",
+                                   item.isCritical ? "bg-rose-500" : "bg-indigo-500"
+                                 )} />
+                                 <div>
+                                   <p className={cn("text-xs font-black", theme === 'light' ? "text-slate-900" : "text-white group-hover:text-indigo-400 transition-colors")}>{item.step}</p>
+                                   <div className="flex items-center gap-2 mt-0.5">
+                                      <span className="text-[9px] font-black text-slate-500 uppercase">Phụ trách:</span>
+                                      <span className="px-2 py-0.5 bg-slate-800 text-slate-300 text-[8px] font-black rounded-lg">{item.dept}</span>
+                                   </div>
+                                 </div>
+                              </div>
+                              <div className="text-right">
+                                 <p className={cn(
+                                   "text-sm font-black italic",
+                                   item.isCritical ? "text-rose-500" : "text-slate-300"
+                                 )}>{item.avgDays} Ngày</p>
+                                 <p className="text-[8px] font-black text-slate-600 uppercase">Avg. TAT</p>
+                              </div>
+                           </div>
+                         ))}
+                      </div>
+                   </div>
+                </div>
+              </div>
             ) : (
-              <div className="h-[400px] w-full">
+              <div className="h-[450px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={stats} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? "#e2e8f0" : "#1e293b"} vertical={false} />
@@ -619,125 +773,64 @@ const ReportsView = ({ applications, projects, regions, theme }: { applications:
               </div>
             )}
           </div>
-
-          {/* Average Time Chart */}
-          <div className={cn(
-            "backdrop-blur-xl border rounded-[2.5rem] p-8 shadow-2xl transition-all",
-            theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800"
-          )}>
-            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-8 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
-                <Clock size={16} className="text-indigo-500" />
-              </div>
-               Thời gian xử lý trung bình từng bước (Ngày)
-            </h3>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={avgProcessingData} layout="vertical" margin={{ left: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? "#e2e8f0" : "#1e293b"} horizontal={false} />
-                  <XAxis type="number" stroke="#475569" fontSize={10} axisLine={false} tickLine={false} />
-                  <YAxis dataKey="step" type="category" stroke="#94a3b8" fontSize={10} fontWeight="black" width={80} axisLine={false} tickLine={false} />
-                  <ReTooltip 
-                    cursor={{ fill: theme === 'light' ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)' }}
-                    contentStyle={{ 
-                      backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
-                      border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #1e293b', 
-                      borderRadius: '16px' 
-                    }}
-                    itemStyle={{ fontSize: '12px', fontWeight: 'bold', color: theme === 'light' ? '#334155' : '#fff' }}
-                  />
-                  <Bar dataKey="time" name="Ngày" fill="#6366f1" radius={[0, 6, 6, 0]} barSize={16}>
-                    {avgProcessingData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.time > 10 ? '#f43f5e' : '#6366f1'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
         </div>
 
+        {/* Right Column: Key Metrics & Risk Radar */}
         <div className="space-y-8">
-          <div className="bg-gradient-to-br from-emerald-600 to-emerald-800 rounded-[2.5rem] p-8 text-white shadow-xl shadow-emerald-900/20 relative overflow-hidden group">
+           {/* Total Health Score */}
+           <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[2.5rem] p-8 text-white shadow-xl shadow-indigo-900/20 relative overflow-hidden group">
             <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-125 transition-all duration-700"></div>
-            <h4 className="text-[10px] font-black uppercase tracking-[0.3em] opacity-80 mb-4">Tổng hoàn thành</h4>
+            <h4 className="text-[10px] font-black uppercase tracking-[0.3em] opacity-80 mb-4">Sức khỏe Hệ thống</h4>
             <div className="flex items-end justify-between relative z-10">
-              <p className="text-5xl font-black italic tracking-tighter">{applications.filter(a => a.currentStep === 'Hoan_Tat').length}</p>
+              <p className="text-5xl font-black italic tracking-tighter">8.5</p>
               <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
-                <CheckCircle2 size={32} />
+                <Activity size={32} />
               </div>
             </div>
-            <div className="mt-8 pt-6 border-t border-white/20 relative z-10 flex items-center gap-2">
-              <Activity size={14} className="text-emerald-300" />
-              <p className="text-[10px] font-bold tracking-tight">+12% so với tháng trước</p>
-            </div>
-          </div>
-
-          <div className={cn(
-            "border rounded-[2.5rem] p-8 shadow-2xl transition-all",
-            theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800"
-          )}>
-            <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-6 flex items-center justify-between">
-              Top Dự án 
-              <Activity size={14} className="text-amber-500/50" />
-            </h4>
-            <div className="space-y-6">
-              {projects.slice(0, 3).map((p, i) => (
-                <div key={p.id} className="flex items-center gap-5">
-                   <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center text-xs font-black text-amber-500 border border-slate-200 italic shadow-inner">#{i+1}</div>
-                   <div className="flex-1">
-                     <p className={cn("text-xs font-black tracking-tight", theme === 'light' ? "text-slate-800" : "text-slate-200")}>{p.name}</p>
-                     <div className={cn("w-full h-1.5 rounded-full mt-2 overflow-hidden", theme === 'light' ? "bg-slate-100" : "bg-slate-950")}>
-                       <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: i===0 ? '90%' : i===1 ? '75%' : '60%' }}
-                        className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full" 
-                       />
-                     </div>
-                   </div>
-                </div>
-              ))}
-            </div>
+            <p className="text-[10px] font-bold tracking-tight mt-4 opacity-70">CHỈ SỐ TỰ ĐỘNG DỰA TRÊN SLA & RỦI RO VỐN VAY</p>
           </div>
 
           <div className={cn(
             "border rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden transition-all",
             theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800"
           )}>
-             <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-2">Phân bổ Khu vực</h4>
-             <div className="h-[220px] w-full">
-               <ResponsiveContainer width="100%" height="100%">
-                 <PieChart>
-                    <Pie 
-                      data={[
-                        { name: 'VPĐK Phường', value: 45 },
-                        { name: 'VPĐK Thành phố', value: 35 },
-                        { name: 'Khác', value: 20 },
-                      ]}
-                      innerRadius={60}
-                      outerRadius={80}
-                      paddingAngle={5}
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      <Cell fill="#f59e0b" />
-                      <Cell fill="#3b82f6" />
-                      <Cell fill={theme === 'light' ? '#e2e8f0' : '#334155'} />
-                    </Pie>
-                    <ReTooltip 
-                      contentStyle={{ 
-                        backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
-                        border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #1e293b', 
-                        borderRadius: '12px' 
-                      }}
-                      itemStyle={{ color: theme === 'light' ? '#334155' : '#fff', fontWeight: 'bold' }}
-                    />
-                 </PieChart>
-               </ResponsiveContainer>
-               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none mt-4">
-                 <p className={cn("text-xl font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>100%</p>
-                 <p className="text-[8px] font-black text-slate-500 uppercase tracking-tighter">Hồ sơ</p>
-               </div>
+             <div className="flex items-center justify-between mb-6">
+                <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Cảnh báo Rủi ro cao</h4>
+                <AlertCircle size={14} className="text-rose-500" />
+             </div>
+             <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-rose-500/10 rounded-2xl border border-rose-500/20">
+                   <span className="text-[10px] font-black text-rose-500 uppercase">{"Hồ sơ trễ hạn > 15 ngày"}</span>
+                   <span className="text-sm font-black text-rose-500">{applications.filter(a => calculateDaysDiff(a.receivedDate) > 15).length}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20">
+                   <span className="text-[10px] font-black text-amber-500 uppercase">Vi phạm Cam kết cấp GCN</span>
+                   <span className="text-sm font-black text-amber-500">{loanApps.filter(a => calculateDaysDiff(a.receivedDate) > 10).length}</span>
+                </div>
+             </div>
+             <button className="w-full mt-6 py-3 bg-slate-900 border border-slate-800 rounded-2xl text-[9px] font-black uppercase text-slate-500 hover:text-white transition-all">
+                Xem danh sách điểm nóng
+             </button>
+          </div>
+
+          <div className={cn(
+            "border rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden transition-all",
+            theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800"
+          )}>
+             <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-6 flex items-center justify-between">
+                Ranking Dự án 
+                <TrendingUp size={14} className="text-emerald-500" />
+             </h4>
+             <div className="space-y-6">
+                {stats.slice(0, 4).sort((a,b) => b.completed - a.completed).map((p, i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-500 italic">#{i+1}</div>
+                    <div className="flex-1">
+                       <p className={cn("text-xs font-black", theme === 'light' ? "text-slate-800" : "text-slate-200")}>{p.name}</p>
+                       <p className="text-[9px] text-slate-500">{p.completed} hồ sơ hoàn tất</p>
+                    </div>
+                  </div>
+                ))}
              </div>
           </div>
         </div>
@@ -1758,7 +1851,7 @@ export default function App() {
 
   const isFieldEditable = (fieldName: string) => {
     if (!isEditing) return false;
-    if (userRole === 'ADMIN') return true;
+    if (userRole === 'ADMIN' || userRole === 'DIRECTOR') return true;
 
     // Master & Procedural: PTT responsible for initial collection and master data
     const pttFields = [
@@ -1790,7 +1883,7 @@ export default function App() {
   };
 
   const isFieldVisible = (fieldName: string) => {
-    if (userRole === 'ADMIN' || userRole === 'MANAGER') return true;
+    if (userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') return true;
 
     // PTDA and KT don't need to see doc checklist
     if (fieldName === 'checklist') {
@@ -1932,7 +2025,7 @@ export default function App() {
 
   const visibleProjects = useMemo(() => {
     let baseProjects = projects;
-    if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
+    if (userRole !== 'ADMIN' && userRole !== 'DIRECTOR') {
       baseProjects = projects.filter(p => currentUser?.assignedProjectIds?.includes(p.id));
     }
     
@@ -1948,7 +2041,7 @@ export default function App() {
   }, [projects, currentUser, userRole]);
 
   const filteredByProjectApps = useMemo(() => {
-    const baseApps = (userRole === 'ADMIN' || userRole === 'MANAGER') 
+    const baseApps = (userRole === 'ADMIN' || userRole === 'DIRECTOR') 
       ? applications 
       : applications.filter(app => {
           const project = projects.find(p => p.name === app.projectName);
@@ -1957,7 +2050,7 @@ export default function App() {
 
     if (!selectedProjectId) return baseApps;
     return baseApps.filter(app => app.projectName === selectedProject?.name);
-  }, [selectedProjectId, selectedProject, applications, currentUser, userRole]);
+  }, [selectedProjectId, selectedProject, applications, currentUser, userRole, projects]);
 
   const kpis: KPI = useMemo(() => {
     return {
@@ -2190,7 +2283,7 @@ export default function App() {
             Quản lý Hồ sơ
           </button>
 
-          {(userRole === 'ADMIN' || userRole === 'PTDA') && (
+          {(userRole === 'ADMIN' || userRole === 'DIRECTOR') && (
             <button 
               onClick={() => setActiveTab('reports')}
               className={cn(
@@ -2201,7 +2294,7 @@ export default function App() {
               )}
             >
               <FileBarChart size={18} />
-              Báo cáo & Thống kê
+              Báo cáo & Thống kê (Lãnh đạo)
             </button>
           )}
 
@@ -2532,7 +2625,7 @@ export default function App() {
                   </div>
                 )}
 
-                {(userRole === 'ADMIN' || userRole === 'MANAGER' || !userRole) && (
+                {(userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR' || !userRole) && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <StatCard title="Tổng số căn" value={kpis.total} icon={Building2} colorClass="bg-festive-gold" delay={0.1} theme={theme} />
                     <StatCard title="Hồ sơ hoàn tất" value={kpis.completed} icon={CheckCircle2} colorClass="bg-emerald-500" delay={0.2} theme={theme} />
@@ -3134,13 +3227,13 @@ export default function App() {
                           <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Mã lô/căn</th>
                           <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Khách hàng</th>
                           <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Trạng thái</th>
-                          {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER') && (
+                          {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                             <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nộp VPĐK</th>
                           )}
-                          {(userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER') && (
+                          {(userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                             <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nộp tiền</th>
                           )}
-                          {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER') && (
+                          {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                             <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nhận sổ</th>
                           )}
                           <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">BG Khách</th>
@@ -3204,12 +3297,12 @@ export default function App() {
                               <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
                                 <StatusBadge status={app.status} />
                               </td>
-                              {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER') && (
+                              {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                                 <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
                                   <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{app.submissionDate || '---'}</span>
                                 </td>
                               )}
-                              {(userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER') && (
+                              {(userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                                 <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
                                   <div className="flex flex-col items-center">
                                     <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{app.taxReceiptDate || '---'}</span>
@@ -3217,7 +3310,7 @@ export default function App() {
                                   </div>
                                 </td>
                               )}
-                              {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER') && (
+                              {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                                 <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
                                   <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{app.gcnReceivedDate || '---'}</span>
                                 </td>
@@ -3270,7 +3363,7 @@ export default function App() {
               </motion.div>
             )}
 
-            {activeTab === 'projects' && userRole === 'ADMIN' && (
+            {activeTab === 'projects' && (userRole === 'ADMIN' || userRole === 'DIRECTOR') && (
               <motion.div 
                 key="projects"
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -3306,7 +3399,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="max-w-7xl mx-auto"
               >
-                <ReportsView applications={applications} projects={projects} regions={regions} theme={theme} />
+                <ReportsView applications={filteredByProjectApps} projects={visibleProjects} regions={regions} theme={theme} />
               </motion.div>
             )}
 
@@ -3740,7 +3833,7 @@ export default function App() {
                 </section>
 
                 {/* Section 5: Vướng mắc & Sai sót (Visible to KT, PTDA, ADMIN) */}
-                {(userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER') && (
+                {(userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                   <section className="space-y-4 bg-rose-500/5 p-4 rounded-3xl border border-rose-500/20">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
@@ -3759,7 +3852,7 @@ export default function App() {
                           (editApp || selectedApp).issueType === 'Other' ? 'Vướng mắc khác' : 'Chưa có vướng mắc'
                         } 
                         type="select"
-                        editable={(userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN') && isEditing}
+                        editable={(userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'DIRECTOR') && isEditing}
                         options={['Chưa có vướng mắc', 'Hồ sơ pháp lý', 'Nghĩa vụ tài chính', 'Cơ quan nhà nước', 'Vướng mắc khác']}
                         onChange={(val) => {
                           const mapping: any = {
@@ -3774,7 +3867,7 @@ export default function App() {
                       />
                       <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Ghi chú sai sót vướng mắc</label>
-                        {((userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN') && isEditing) ? (
+                        {((userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'DIRECTOR') && isEditing) ? (
                           <textarea 
                             className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-xs text-slate-300 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all resize-none min-h-[100px]"
                             value={(editApp || selectedApp).issueNotes || ''}

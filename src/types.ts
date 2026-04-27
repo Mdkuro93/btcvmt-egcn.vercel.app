@@ -18,7 +18,7 @@ export type StepName =
   | 'GD6_Cho_BG_Khach'
   | 'Hoan_Tat';
 
-export type Dept = 'PTT' | 'KT' | 'PTDA' | 'MANAGER' | 'ADMIN';
+export type Dept = 'PTT' | 'KT' | 'PTDA' | 'MANAGER' | 'DIRECTOR' | 'ADMIN';
 
 export type UserProfile = {
   id: string;
