@@ -42,6 +42,8 @@ import {
   Check,
   Settings,
   Users,
+  GitMerge,
+  Info,
   ShieldCheck,
   FolderArchive,
   TrendingUp,
@@ -58,14 +60,16 @@ import {
   FolderOpen,
   Sun,
   Moon,
-  Camera
+  Camera,
+  Wallet,
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
-import { MOCK_APPLICATIONS, PROJECTS, STEP_CONFIG, MOCK_USERS } from './constants';
+import { MOCK_APPLICATIONS, PROJECTS, STEP_CONFIG as INITIAL_STEP_CONFIG, MOCK_USERS } from './constants';
 import { Application, UnitStatus, KPI, Dept, UserProfile, PropertyType, StepName, AppNotification, Project, ApplicationStepHistory, AuditTrailEntry } from './types';
 
 type ApplicationHistory = {
@@ -340,7 +344,21 @@ const FestiveBranding = () => (
   </div>
 );
 
-const SettingsView = ({ slaConfig, setSlaConfig, checklistTemplates, setChecklistTemplates }: { slaConfig: Record<string, number>, setSlaConfig: any, checklistTemplates: string[], setChecklistTemplates: any }) => {
+const SettingsView = ({ 
+  slaConfig, 
+  setSlaConfig, 
+  checklistTemplates, 
+  setChecklistTemplates,
+  stepConfig,
+  setStepConfig
+}: { 
+  slaConfig: Record<string, number>, 
+  setSlaConfig: any, 
+  checklistTemplates: string[], 
+  setChecklistTemplates: any,
+  stepConfig: any,
+  setStepConfig: any
+}) => {
   const [newChecklistItem, setNewChecklistItem] = useState('');
 
   return (
@@ -430,6 +448,98 @@ const SettingsView = ({ slaConfig, setSlaConfig, checklistTemplates, setChecklis
           </div>
         </section>
       </div>
+
+      {/* Workflow Configuration */}
+      <section className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-[2.5rem] overflow-hidden group">
+        <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
+              <GitMerge className="text-indigo-500" size={20} />
+            </div>
+            <h3 className="text-base font-black text-white uppercase tracking-tight">Cấu hình Quy trình Xử lý (Workflow)</h3>
+          </div>
+          <Settings className="text-slate-700 animate-spin-slow" size={20} />
+        </div>
+        <div className="p-8">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-slate-800">
+                  <th className="pb-4 text-[10px] font-black text-slate-500 uppercase tracking-widest pl-4">Mã bước</th>
+                  <th className="pb-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Tên hiển thị</th>
+                  <th className="pb-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Phòng ban</th>
+                  <th className="pb-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Trạng thái gắn kèm</th>
+                  <th className="pb-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">SLA (Ngày)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/50">
+                {Object.entries(stepConfig).map(([key, config]: [string, any]) => (
+                  <tr key={key} className="group/row hover:bg-slate-800/10 transition-colors">
+                    <td className="py-4 pl-4 text-xs font-mono text-slate-500">{key}</td>
+                    <td className="py-4">
+                      <input 
+                        type="text" 
+                        value={config.label}
+                        onChange={(e) => setStepConfig({...stepConfig, [key]: {...config, label: e.target.value}})}
+                        className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:ring-1 focus:ring-indigo-500/50 outline-none w-full max-w-[200px]"
+                      />
+                    </td>
+                    <td className="py-4">
+                      <select 
+                        value={config.dept}
+                        onChange={(e) => setStepConfig({...stepConfig, [key]: {...config, dept: e.target.value}})}
+                        className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-[10px] font-black uppercase text-indigo-400 outline-none"
+                      >
+                        <option value="PTT">PTT</option>
+                        <option value="KT">KT</option>
+                        <option value="PTDA">PTDA</option>
+                        <option value="MANAGER">MANAGER</option>
+                        <option value="DIRECTOR">DIRECTOR</option>
+                      </select>
+                    </td>
+                    <td className="py-4">
+                      <select 
+                        value={config.status}
+                        onChange={(e) => setStepConfig({...stepConfig, [key]: {...config, status: e.target.value}})}
+                        className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-[10px] font-black uppercase text-slate-400 outline-none"
+                      >
+                        <option value="Processing">Đang xử lý</option>
+                        <option value="Submitted">Đã nộp hồ sơ</option>
+                        <option value="TaxPending">Chờ TB Thuế</option>
+                        <option value="TaxCompleted">Đã nộp thuế</option>
+                        <option value="GCN_Issued">Đã có GCN</option>
+                        <option value="Completed">Hoàn tất</option>
+                      </select>
+                    </td>
+                    <td className="py-4">
+                       <input 
+                        type="number" 
+                        value={config.slaDays || 0}
+                        onChange={(e) => setStepConfig({...stepConfig, [key]: {...config, slaDays: parseInt(e.target.value) || 0}})}
+                        className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-center text-xs font-black text-amber-500 outline-none"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-8 p-6 bg-indigo-500/5 rounded-3xl border border-indigo-500/10 flex items-center justify-between">
+             <div className="flex items-center gap-3">
+                <Info size={18} className="text-indigo-400" />
+                <p className="text-xs text-slate-400 leading-relaxed max-w-2xl">
+                  <strong>Chú ý:</strong> Thay đổi quy trình sẽ ảnh hưởng đến việc phân quyền hiển thị hồ sơ cho các phòng ban và cách tính toán KPI trên Dashboard. Hãy kiểm tra kỹ trước khi cập nhật.
+                </p>
+             </div>
+             <button 
+               onClick={() => alert('Cấu hình đã được lưu tạm thời vào trạng thái ứng dụng.')}
+               className="px-6 py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-600/20"
+             >
+               Lưu cấu trình
+             </button>
+          </div>
+        </div>
+      </section>
     </div>
   );
 };
@@ -441,7 +551,8 @@ const ReportsView = ({
   theme,
   setActiveTab,
   setDashboardFilter,
-  setFilterLoanStatus
+  setFilterLoanStatus,
+  stepConfig
 }: { 
   applications: Application[], 
   projects: Project[], 
@@ -449,7 +560,8 @@ const ReportsView = ({
   theme: 'light' | 'dark',
   setActiveTab: (tab: any) => void,
   setDashboardFilter: (filter: any) => void,
-  setFilterLoanStatus: (filter: any) => void
+  setFilterLoanStatus: (filter: any) => void,
+  stepConfig: any
 }) => {
   const [reportType, setReportType] = useState<'PROJECT' | 'REGION' | 'LOAN' | 'SLA'>('LOAN');
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
@@ -514,13 +626,13 @@ const ReportsView = ({
       const depts = ['PTT', 'KT', 'PTDA'];
       return depts.map(dept => {
         const appsInDept = applications.filter(a => {
-           const stepConfig = STEP_CONFIG[a.currentStep];
-           return stepConfig?.dept === dept;
+           const sc = stepConfig[a.currentStep];
+           return sc?.dept === dept;
         });
         const totalApps = appsInDept.length;
         const delayedApps = appsInDept.filter(a => {
            const overdue = applications.filter(app => app.id === a.id).map(app => {
-             const status = Object.keys(STEP_CONFIG).filter(s => STEP_CONFIG[s as StepName].dept === dept);
+             const status = Object.keys(stepConfig).filter(s => stepConfig[s as StepName].dept === dept);
              // Simple approximation for bottleneck analysis
              return calculateDaysDiff(app.receivedDate) > 10;
            });
@@ -536,11 +648,11 @@ const ReportsView = ({
       });
     }
     return [];
-  }, [applications, projects, reportType]);
+  }, [applications, projects, reportType, stepConfig]);
 
   // SLA Heatmap Data
   const slaStats = useMemo(() => {
-    const steps = Object.keys(STEP_CONFIG).filter(s => s !== 'Hoan_Tat') as StepName[];
+    const steps = Object.keys(stepConfig).filter(s => s !== 'Hoan_Tat') as StepName[];
     return steps.map(step => {
       const appsAtStep = applications.filter(a => a.currentStep === step);
       const avgTime = appsAtStep.length > 0 ? (appsAtStep.reduce((acc, curr) => {
@@ -548,14 +660,14 @@ const ReportsView = ({
       }, 0) / appsAtStep.length) : 0;
       
       return {
-        step: STEP_CONFIG[step]?.label.split(':')[0],
-        dept: STEP_CONFIG[step]?.dept,
+        step: stepConfig[step]?.label.split(':')[0],
+        dept: stepConfig[step]?.dept,
         avgDays: parseFloat(avgTime.toFixed(1)),
         slaLimit: 7, // Default mock SLA
         isCritical: avgTime > 10
       };
     });
-  }, [applications]);
+  }, [applications, stepConfig]);
 
   const loanApps = applications.filter(a => a.loanStatus === 'Co_Vay');
 
@@ -698,6 +810,74 @@ const ReportsView = ({
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                   <div className={cn(
+                     "p-6 rounded-[2rem] border overflow-hidden",
+                     theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950/40 border-slate-800"
+                   )}>
+                      <h4 className="text-[10px] font-black uppercase text-slate-500 mb-6 tracking-widest text-center">Phân bổ trạng thái Hồ sơ vay</h4>
+                      <div className="h-[250px] w-full">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                               <Pie
+                                 data={[
+                                   { name: 'Đang xử lý', value: loanApps.filter(a => a.status === 'Processing').length, color: '#6366f1' },
+                                   { name: 'Đã nộp HS', value: loanApps.filter(a => a.status === 'Submitted').length, color: '#8b5cf6' },
+                                   { name: 'Chờ Thuế', value: loanApps.filter(a => a.status === 'TaxPending').length, color: '#f59e0b' },
+                                   { name: 'Hoàn tất', value: loanApps.filter(a => a.status === 'Completed').length, color: '#10b981' },
+                                   { name: 'Sai sót', value: loanApps.filter(a => a.status === 'Error').length, color: '#f43f5e' }
+                                 ].filter(d => d.value > 0)}
+                                 innerRadius={60}
+                                 outerRadius={80}
+                                 paddingAngle={5}
+                                 dataKey="value"
+                               >
+                                 {( [
+                                   { name: 'Đang xử lý', value: loanApps.filter(a => a.status === 'Processing').length, color: '#6366f1' },
+                                   { name: 'Đã nộp HS', value: loanApps.filter(a => a.status === 'Submitted').length, color: '#8b5cf6' },
+                                   { name: 'Chờ Thuế', value: loanApps.filter(a => a.status === 'TaxPending').length, color: '#f59e0b' },
+                                   { name: 'Hoàn tất', value: loanApps.filter(a => a.status === 'Completed').length, color: '#10b981' },
+                                   { name: 'Sai sót', value: loanApps.filter(a => a.status === 'Error').length, color: '#f43f5e' }
+                                 ].filter(d => d.value > 0)).map((entry: any, index: number) => (
+                                   <Cell key={`cell-${index}`} fill={entry.color} />
+                                 ))}
+                               </Pie>
+                               <ReTooltip 
+                                 contentStyle={{ backgroundColor: theme === 'light' ? '#fff' : '#0f172a', border: 'none', borderRadius: '12px', fontSize: '10px' }}
+                                 itemStyle={{ color: '#fff' }}
+                               />
+                               <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }} />
+                            </PieChart>
+                         </ResponsiveContainer>
+                      </div>
+                   </div>
+
+                   <div className={cn(
+                     "p-6 rounded-[2rem] border overflow-hidden",
+                     theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950/40 border-slate-800"
+                   )}>
+                      <h4 className="text-[10px] font-black uppercase text-slate-500 mb-6 tracking-widest text-center">Tiến độ hồ sơ vay theo giai đoạn</h4>
+                      <div className="h-[250px] w-full">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={[
+                              'GD1_ChuanBi', 'GD1_Cho_KT_TiepNhan', 'GD2_Cho_Nop_VPDK', 'GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD6_Cho_BG_Khach'
+                            ].map(step => ({
+                              name: stepConfig[step]?.label.split(':')[0] || step,
+                              count: loanApps.filter(a => a.currentStep === step).length
+                            }))}>
+                               <XAxis dataKey="name" stroke="#94a3b8" fontSize={8} tickLine={false} axisLine={false} />
+                               <YAxis stroke="#94a3b8" fontSize={8} tickLine={false} axisLine={false} />
+                               <ReTooltip 
+                                 cursor={{ fill: 'rgba(99,102,241,0.05)' }}
+                                 contentStyle={{ backgroundColor: theme === 'light' ? '#fff' : '#0f172a', border: 'none', borderRadius: '12px', fontSize: '10px' }}
+                                />
+                               <Bar dataKey="count" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={20} />
+                            </BarChart>
+                         </ResponsiveContainer>
+                      </div>
+                   </div>
+                </div>
+
                 <div className="overflow-x-auto rounded-3xl border border-slate-800/50">
                   <table className="w-full text-left border-collapse min-w-[900px]">
                     <thead className={theme === 'light' ? "bg-slate-50 border-b border-slate-100" : "bg-slate-950/50 border-b border-slate-800"}>
@@ -735,7 +915,7 @@ const ReportsView = ({
                             </td>
                             <td className="px-6 py-5 text-center">
                                <StatusBadge status={app.status} />
-                               <p className="text-[8px] font-black text-slate-500 uppercase mt-1">{STEP_CONFIG[app.currentStep]?.label.split(':')[0]}</p>
+                               <p className="text-[8px] font-black text-slate-500 uppercase mt-1">{stepConfig[app.currentStep]?.label.split(':')[0]}</p>
                             </td>
                             <td className="px-6 py-5 text-center">
                                <span className={cn(
@@ -1705,6 +1885,7 @@ export default function App() {
   ]);
   const [isNotiOpen, setIsNotiOpen] = useState(false);
   const [users, setUsers] = useState<UserProfile[]>(MOCK_USERS);
+  const [stepConfig, setStepConfig] = useState<Record<string, { label: string, dept: Dept, status: UnitStatus, slaDays?: number }>>(INITIAL_STEP_CONFIG);
   const [projects, setProjects] = useState<Project[]>(PROJECTS);
   const [applications, setApplications] = useState<Application[]>(MOCK_APPLICATIONS);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'applications' | 'users' | 'resources' | 'reports' | 'settings'>('dashboard');
@@ -1727,7 +1908,7 @@ export default function App() {
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [expandedSidebarRegions, setExpandedSidebarRegions] = useState<Record<string, boolean>>({});
-  const [dashboardFilter, setDashboardFilter] = useState<'ALL' | 'OVERDUE' | 'ERROR' | 'COMPLETED' | 'PTT_PROCESSING' | 'PTT_HOLDING' | 'PTT_ISSUES' | 'PTT_TAX_UNPAID' | 'KT_RECEIVED' | 'KT_GROUPING' | 'KT_SUBMITTED' | 'KT_GCN_RECEIVED' | 'PTDA_NO_TAX' | 'PTDA_STUCK' | 'PTDA_TAX_RECEIVED'>('ALL');
+  const [dashboardFilter, setDashboardFilter] = useState<'ALL' | 'OVERDUE' | 'ERROR' | 'COMPLETED' | 'PTT_PROCESSING' | 'PTT_HOLDING' | 'PTT_ISSUES' | 'PTT_TAX_UNPAID' | 'KT_RECEIVED' | 'KT_SUBMITTED_DONE' | 'KT_TAX_SUBMITTED' | 'KT_GCN_RECEIVED' | 'PTDA_NO_TAX' | 'PTDA_TAX_RECEIVED' | 'PTDA_GCN_WAITING'>('ALL');
   const [projectRegionFilter, setProjectRegionFilter] = useState<string>('ALL');
   const [isFieldMode, setIsFieldMode] = useState(false);
   
@@ -1794,7 +1975,36 @@ export default function App() {
     let data: any[][] = [];
     const sourceApps = selectedProjectId ? filteredByProjectApps : applications;
 
-    if (userRole === 'PTT') {
+    if (userRole === 'ADMIN' || userRole === 'DIRECTOR') {
+      headers = [
+        "Dự án", "Mã lô/căn", "Khách hàng", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)", 
+        "Hạn GCN cam kết", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Tự làm sổ (Có/Không)",
+        "Nơi nộp", "Mã VPĐK", "Ngày nộp hồ sơ", "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", 
+        "Ngày GCN đã ký", "Ngày GCN đã nhận", "Ngày BG KT", "Ngày BG GCN Khách"
+      ];
+      data = sourceApps.map(app => [
+        app.projectName,
+        app.unitCode,
+        app.customerName,
+        app.phoneNumber || '',
+        app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
+        app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
+        app.bankCommitmentDeadline || '',
+        app.receivedDate || '',
+        app.contractSigningDate || '',
+        app.isSelfService ? 'Có' : 'Không',
+        app.submissionLocation || '',
+        app.vpdkCode || '',
+        app.submissionDate || '',
+        app.taxNotificationDate || '',
+        app.taxNotificationReceivedDate || '',
+        app.taxReceiptDate || '',
+        app.gcnSignedDate || '',
+        app.gcnReceivedDate || '',
+        app.accountingHandoverDate || '',
+        app.customerHandoverDate || ''
+      ]);
+    } else if (userRole === 'PTT') {
       headers = [
         "Dự án", "Mã lô/căn", "Khách hàng", "Sử dụng gói vay", "Loại tài sản", 
         "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Cam kết Ngân hàng (Vay)", "Tự làm sổ", "Ngày BG GCN Khách"
@@ -1889,7 +2099,59 @@ export default function App() {
       const newApplications = [...applications];
 
       excelData.slice(1).forEach((row) => {
-        if (userRole === 'PTT') {
+        if (userRole === 'ADMIN' || userRole === 'DIRECTOR') {
+          const unitCode = row[1];
+          if (!unitCode) return;
+          const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
+          
+          const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
+             id: `admin-imp-${Date.now()}-${Math.random()}`,
+             unitCode: unitCode,
+             projectName: row[0] || projects[0].name,
+             customerName: row[2] || '---',
+             phoneNumber: row[3] || '',
+             loanStatus: row[4] === 'Có' ? 'Co_Vay' : 'Khong_Vay',
+             propertyType: row[5] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen',
+             bankCommitmentDeadline: row[6] || '',
+             receivedDate: row[7] || new Date().toISOString().split('T')[0],
+             contractSigningDate: row[8],
+             isSelfService: row[9] === 'Có',
+             status: 'Processing',
+             currentStep: 'GD1_ChuanBi',
+             history: [{ id: `hist-${Date.now()}`, stepName: 'Quản trị viên Import', dept: 'ADMIN', receivedDate: new Date().toISOString().split('T')[0] }]
+          } as Application;
+
+          // Update Admin fields (Entire process)
+          app.projectName = row[0] || app.projectName;
+          app.customerName = row[2] || app.customerName;
+          app.phoneNumber = row[3] || app.phoneNumber;
+          app.loanStatus = row[4] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
+          app.propertyType = row[5] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
+          app.bankCommitmentDeadline = row[6] || app.bankCommitmentDeadline;
+          app.receivedDate = row[7] || app.receivedDate;
+          app.contractSigningDate = row[8] || app.contractSigningDate;
+          app.isSelfService = row[9] === 'Có';
+          
+          // Phase 2-4 fields
+          if (row[10]) app.submissionLocation = row[10] === 'Phường' ? 'PHUONG' : 'TP_DANANG';
+          if (row[11]) app.vpdkCode = row[11];
+          if (row[12]) app.submissionDate = row[12];
+          if (row[13]) app.taxNotificationDate = row[13];
+          if (row[14]) app.taxNotificationReceivedDate = row[14];
+          if (row[15]) app.taxReceiptDate = row[15];
+          if (row[16]) app.gcnSignedDate = row[16];
+          if (row[17]) app.gcnReceivedDate = row[17];
+          if (row[18]) app.accountingHandoverDate = row[18];
+          if (row[19]) app.customerHandoverDate = row[19];
+
+          if (existingIndex > -1) {
+            newApplications[existingIndex] = app;
+            updatedCount++;
+          } else {
+            newApplications.push(app);
+            createdCount++;
+          }
+        } else if (userRole === 'PTT') {
           const unitCode = row[1];
           if (!unitCode) return;
           const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
@@ -2019,17 +2281,27 @@ export default function App() {
     const newHistory = [
       {
         id: `hist-${Date.now()}`,
-        stepName: STEP_CONFIG[targetStep].label,
-        dept: STEP_CONFIG[targetStep].dept,
+        stepName: stepConfig[targetStep].label,
+        dept: stepConfig[targetStep].dept,
         receivedDate: new Date().toISOString().split('T')[0]
       },
       ...app.history
     ];
 
+    const nowStr = new Date().toISOString().split('T')[0];
+    
+    // Auto-populate dates based on transition if not already set
+    const autoDates: Partial<Application> = {};
+    if (targetStep === 'GD1_Cho_KT_TiepNhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
+    if (targetStep === 'GD4_Cho_Nop_NVTC' && !app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
+    if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
+    if (targetStep === 'GD6_Cho_BG_Khach' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
+
     const updatedApp = {
       ...app,
+      ...autoDates,
       currentStep: targetStep,
-      status: targetStep === 'GD1_ChuanBi' ? 'Error' : STEP_CONFIG[targetStep].status,
+      status: targetStep === 'GD1_ChuanBi' ? 'Error' : stepConfig[targetStep].status,
       isRejected: targetStep === 'GD1_ChuanBi' ? app.isRejected : false,
       rejectionReason: targetStep === 'GD1_ChuanBi' ? app.rejectionReason : '',
       history: newHistory
@@ -2039,7 +2311,7 @@ export default function App() {
     setSelectedApp(updatedApp);
     setEditApp(null);
     setIsEditing(false);
-    alert(`Đã chuyển hồ sơ sang bước: ${STEP_CONFIG[targetStep].label}`);
+    alert(`Đã chuyển hồ sơ sang bước: ${stepConfig[targetStep].label}`);
   };
 
   const handleBulkStepTransition = (nextStep: StepName) => {
@@ -2065,18 +2337,26 @@ export default function App() {
       const newHistory = [
         {
           id: `hist-${Date.now()}-${app.id}`,
-          stepName: STEP_CONFIG[targetStep].label,
-          dept: STEP_CONFIG[targetStep].dept,
+          stepName: stepConfig[targetStep].label,
+          dept: stepConfig[targetStep].dept,
           receivedDate: nowStr,
           note: 'Chuyển hàng loạt'
         },
         ...app.history
       ];
       
+      // Auto-populate dates based on transition if not already set
+      const autoDates: Partial<Application> = {};
+      if (targetStep === 'GD1_Cho_KT_TiepNhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
+      if (targetStep === 'GD4_Cho_Nop_NVTC' && !app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
+      if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
+      if (targetStep === 'GD6_Cho_BG_Khach' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
+
       return {
         ...app,
+        ...autoDates,
         currentStep: targetStep,
-        status: targetStep === 'GD1_ChuanBi' ? 'Error' : STEP_CONFIG[targetStep].status,
+        status: targetStep === 'GD1_ChuanBi' ? 'Error' : stepConfig[targetStep].status,
         isRejected: targetStep === 'GD1_ChuanBi' ? app.isRejected : false,
         rejectionReason: targetStep === 'GD1_ChuanBi' ? app.rejectionReason : '',
         history: newHistory
@@ -2133,7 +2413,7 @@ export default function App() {
 
     const updatedApp = {
       ...app,
-      status: STEP_CONFIG[app.currentStep]?.status || 'Processing',
+      status: stepConfig[app.currentStep]?.status || 'Processing',
       history: newHistory
     };
 
@@ -2200,13 +2480,13 @@ export default function App() {
       'submissionLocation', 'vpdkCode', 'submissionDate',
       'taxNotificationDate', 'taxNotificationReceivedDate', 
       'taxReceiptDate', 'taxPaymentStatus', 
+      'gcnReceivedDate', 'ptdaHandoverDate',
       'issueType', 'issueNotes'
     ];
 
     // Project/Authority: PTDA responsible for processing dates (GCN milestones)
     const ptdaFields = [
       'taxNoticeProvisionDate', 'gcnSignedDate',
-      'gcnReceivedDate', 'ptdaHandoverDate', 'accountingHandoverDate',
       'customerHandoverDate', 'issueType', 'issueNotes'
     ];
 
@@ -2377,12 +2657,12 @@ export default function App() {
   }, [projects, currentUser, userRole]);
 
   const filteredByProjectApps = useMemo(() => {
-    const baseApps = (userRole === 'ADMIN' || userRole === 'DIRECTOR') 
+    const baseApps = ((userRole === 'ADMIN' || userRole === 'DIRECTOR') 
       ? applications 
       : applications.filter(app => {
           const project = projects.find(p => p.name === app.projectName);
           return project && (currentUser?.assignedProjectIds || []).includes(project.id);
-        });
+        })).filter(a => a.status !== 'Completed');
 
     if (!selectedProjectId) return baseApps;
     return baseApps.filter(app => app.projectName === selectedProject?.name);
@@ -2392,12 +2672,12 @@ export default function App() {
     return {
       total: filteredByProjectApps.length,
       // Aggregating by logical status from Step Config to include errors in their stages
-      processing: filteredByProjectApps.filter(a => STEP_CONFIG[a.currentStep]?.status === 'Processing').length,
-      submitted: filteredByProjectApps.filter(a => STEP_CONFIG[a.currentStep]?.status === 'Submitted').length,
-      taxPending: filteredByProjectApps.filter(a => STEP_CONFIG[a.currentStep]?.status === 'TaxPending').length,
-      taxCompleted: filteredByProjectApps.filter(a => STEP_CONFIG[a.currentStep]?.status === 'TaxCompleted').length,
-      gcnIssued: filteredByProjectApps.filter(a => STEP_CONFIG[a.currentStep]?.status === 'GCN_Issued').length,
-      completed: filteredByProjectApps.filter(a => STEP_CONFIG[a.currentStep]?.status === 'Completed').length,
+      processing: filteredByProjectApps.filter(a => stepConfig[a.currentStep]?.status === 'Processing').length,
+      submitted: filteredByProjectApps.filter(a => stepConfig[a.currentStep]?.status === 'Submitted').length,
+      taxPending: filteredByProjectApps.filter(a => stepConfig[a.currentStep]?.status === 'TaxPending').length,
+      taxCompleted: filteredByProjectApps.filter(a => stepConfig[a.currentStep]?.status === 'TaxCompleted').length,
+      gcnIssued: filteredByProjectApps.filter(a => stepConfig[a.currentStep]?.status === 'GCN_Issued').length,
+      completed: filteredByProjectApps.filter(a => stepConfig[a.currentStep]?.status === 'Completed').length,
       error: filteredByProjectApps.filter(a => a.status === 'Error').length,
       overdue: filteredByProjectApps.filter(a => getOverdueInfo(a).isOverdue).length,
       loanCount: filteredByProjectApps.filter(a => a.loanStatus === 'Co_Vay').length,
@@ -2413,22 +2693,29 @@ export default function App() {
     const pttTotal = apps.length;
     const pttProcessing = apps.filter(a => a.status === 'Processing').length;
     const pttIssues = apps.filter(a => a.isRejected || a.status === 'Error').length;
-    const pttTaxPending = apps.filter(a => a.taxPaymentStatus === 'Unpaid' && a.status !== 'Completed').length;
-    const pttSlowest = apps.filter(a => STEP_CONFIG[a.currentStep]?.dept === 'PTT')
+    // PTT Tax Pending: Has tax notification but not handed over for NVTC yet
+    const pttTaxPending = apps.filter(a => !!a.taxNotificationDate && !a.taxNoticeProvisionDate).length;
+    const pttSlowest = apps.filter(a => stepConfig[a.currentStep]?.dept === 'PTT')
         .map(a => ({ ...a, overdue: getOverdueInfo(a) }))
         .filter(a => a.overdue.isOverdue)
         .sort((a, b) => (b.overdue.daysLate || 0) - (a.overdue.daysLate || 0))
         .slice(0, 5);
 
     // KT
-    const ktReceived = apps.filter(a => STEP_CONFIG[a.currentStep]?.dept === 'KT').length;
-    const ktGrouping = apps.filter(a => a.currentStep === 'GD2_Cho_Nop_VPDK').length;
+    // Hồ sơ đã/cần tiếp nhận: at KT or waiting at GD1_Cho_KT_TiepNhan
+    const ktTotal = apps.filter(a => stepConfig[a.currentStep]?.dept === 'KT' || a.currentStep === 'GD1_Cho_KT_TiepNhan').length;
     const ktSubmitted = apps.filter(a => !!a.submissionDate).length;
-    const ktPrinting = apps.filter(a => a.status === 'GCN_Issued').length;
+    // Hồ sơ đã nộp NVTC: at step 4 (NVTC) and has received handover date
+    const ktTaxDone = apps.filter(a => !!a.taxNoticeProvisionDate && (a.taxPaymentStatus === 'Paid' || !!a.taxReceiptDate)).length;
     const ktGcnReceived = apps.filter(a => !!a.gcnReceivedDate).length;
 
     // PTDA
-    const ptdaNoTax = apps.filter(a => a.currentStep === 'GD3_Cho_TBThue').length;
+    const ptdaNoTax = apps.filter(a => a.currentStep === 'GD3_Cho_TBThue' && !a.taxNotificationDate).length;
+    // PTDA Tax Received: Has notification but tax not paid yet (waiting for PTT handover/KT payment)
+    const ptdaWithTax = apps.filter(a => !!a.taxNotificationDate && !(a.taxPaymentStatus === 'Paid' || !!a.taxReceiptDate)).length;
+    // PTDA GCN Waiting: Tax paid, waiting for GCN collection/printing
+    const ptdaGcnWaiting = apps.filter(a => (a.taxPaymentStatus === 'Paid' || !!a.taxReceiptDate) && !a.gcnReceivedDate).length;
+    
     const ptdaAppsWithTax = apps.filter(a => a.submissionDate && a.taxNotificationDate);
     const avgTaxWait = ptdaAppsWithTax.length > 0 
         ? ptdaAppsWithTax.reduce((acc, curr) => {
@@ -2437,15 +2724,33 @@ export default function App() {
             return acc + (end - start);
           }, 0) / ptdaAppsWithTax.length / (1000 * 60 * 60 * 24)
         : 0;
-    const ptdaStuck = apps.filter(a => STEP_CONFIG[a.currentStep]?.dept === 'PTDA' && getOverdueInfo(a).isOverdue).length;
+    const ptdaStuck = apps.filter(a => stepConfig[a.currentStep]?.dept === 'PTDA' && getOverdueInfo(a).isOverdue).length;
 
-    // Admin Specific - SLA Stats & Warnings
+    // Simplified Bottleneck Stats by Department
+    const depts: Dept[] = ['PTT', 'KT', 'PTDA'];
+    const deptStats = depts.map(dept => {
+        const appsInDept = apps.filter(a => stepConfig[a.currentStep]?.dept === dept);
+        const avgDays = appsInDept.length > 0 
+            ? appsInDept.reduce((acc, curr) => acc + calculateDaysDiff(curr.receivedDate), 0) / appsInDept.length
+            : 0;
+            
+        return {
+            dept,
+            label: dept === 'PTT' ? 'Thủ tục' : dept === 'KT' ? 'Kế toán' : 'PTDA',
+            avgDays: Math.round(avgDays),
+            count: appsInDept.length,
+            color: avgDays > 10 ? 'bg-rose-500' : (avgDays > 5 ? 'bg-amber-500' : 'bg-emerald-500')
+        };
+    });
+
+    // Admin Warnings
     const adminSlaStages = [
         { label: 'GĐ1: Chuẩn bị', sla: 25 },
         { label: 'GĐ2: Nộp VPĐK', sla: 5 },
         { label: 'GĐ3: TB Thuế', sla: 15 },
         { label: 'GĐ4: NVTC', sla: 10 },
         { label: 'GĐ5: Có sổ', sla: 10 },
+        { label: 'GĐ6: Bàn giao', sla: 7 },
     ];
 
     const adminSlaStats = adminSlaStages.map(stage => {
@@ -2464,6 +2769,28 @@ export default function App() {
     const overdueCount = apps.filter(a => getOverdueInfo(a).isOverdue).length;
     const errorCount = apps.filter(a => a.status === 'Error').length;
     
+    // Check 2-day KT receipt warning
+    const ktPendingReceipt = apps.filter(a => a.currentStep === 'GD1_Cho_KT_TiepNhan' && a.accountingHandoverDate).filter(a => {
+        const handoverDate = new Date(a.accountingHandoverDate!);
+        const now = new Date();
+        let daysDiff = 0;
+        let d = new Date(handoverDate);
+        while (d < now) {
+            d.setDate(d.getDate() + 1);
+            if (d.getDay() !== 0) daysDiff++;
+        }
+        return daysDiff >= 2;
+    }).length;
+
+    if (ktPendingReceipt > 0) {
+        adminWarnings.push({
+            title: `${ktPendingReceipt} Hồ sơ chờ KT tiếp nhận > 2 ngày`,
+            desc: "Vượt quá thời gian quy định tiếp nhận hồ sơ tại GĐ1.",
+            icon: Clock,
+            color: 'rose'
+        });
+    }
+
     if (overdueCount > 0) {
         adminWarnings.push({
             title: `${overdueCount} Hồ sơ trễ hạn SLA`,
@@ -2499,17 +2826,27 @@ export default function App() {
         });
     }
 
+    // Loan Stats
+    const loanApps = apps.filter(a => a.loanStatus === 'Co_Vay');
+    const loanStatusStats = [
+      { name: 'Đang xử lý', value: loanApps.filter(a => a.status === 'Processing').length, color: '#6366f1' },
+      { name: 'Hoàn tất', value: loanApps.filter(a => a.status === 'Completed' || a.status === 'GCN_Issued').length, color: '#10b981' },
+      { name: 'Vướng mắc', value: loanApps.filter(a => a.status === 'Error' || a.isRejected).length, color: '#f43f5e' },
+      { name: 'Chờ duyệt', value: loanApps.filter(a => a.status === 'Pending').length, color: '#f59e0b' }
+    ].filter(s => s.value > 0);
+
     return {
+        loanStatusStats,
         ptt: { total: pttTotal, processing: pttProcessing, issues: pttIssues, taxPending: pttTaxPending, slowest: pttSlowest },
-        kt: { received: ktReceived, grouping: ktGrouping, submitted: ktSubmitted, printing: ktPrinting, gcnReceived: ktGcnReceived },
-        ptda: { noTax: ptdaNoTax, avgTaxWait: Math.round(avgTaxWait), stuck: ptdaStuck },
-        admin: { slaStats: adminSlaStats, warnings: adminWarnings }
+        kt: { received: ktTotal, submitted: ktSubmitted, taxPaid: ktTaxDone, gcnReceived: ktGcnReceived },
+        ptda: { noTax: ptdaNoTax, withTax: ptdaWithTax, gcnWaiting: ptdaGcnWaiting, avgTaxWait: Math.round(avgTaxWait) },
+        admin: { slaStats: adminSlaStats, warnings: adminWarnings, deptStats }
     };
   }, [filteredByProjectApps, selectedProjectId, selectedProject]);
 
   const chartData = useMemo(() => {
     const getStageStats = (status: UnitStatus) => {
-      const apps = filteredByProjectApps.filter(a => STEP_CONFIG[a.currentStep]?.status === status);
+      const apps = filteredByProjectApps.filter(a => stepConfig[a.currentStep]?.status === status);
       return {
         total: apps.length,
         error: apps.filter(a => a.status === 'Error').length,
@@ -2525,14 +2862,60 @@ export default function App() {
     const completed = getStageStats('Completed');
 
     return [
-      { name: 'Đang xử lý', value: processing.total, normal: processing.normal, error: processing.error, color: '#f59e0b' },
-      { name: 'Đã nộp VPĐK', value: submitted.total, normal: submitted.normal, error: submitted.error, color: '#6366f1' },
-      { name: 'Chờ thuế', value: taxPending.total, normal: taxPending.normal, error: taxPending.error, color: '#fb923c' },
-      { name: 'Xong thuế', value: taxCompleted.total, normal: taxCompleted.normal, error: taxCompleted.error, color: '#10b981' },
-      { name: 'Đã có GCN', value: gcnIssued.total, normal: gcnIssued.normal, error: gcnIssued.error, color: '#06b6d4' },
-      { name: 'Hoàn tất', value: completed.total, normal: completed.normal, error: completed.error, color: '#059669' },
+      { 
+        name: 'Đang xử lý', 
+        value: processing.total, 
+        normal: processing.normal, 
+        error: processing.error, 
+        color: '#d97706' 
+      },
+      { 
+        name: 'Đã nộp VPĐK', 
+        value: submitted.total, 
+        normal: submitted.normal, 
+        error: submitted.error, 
+        color: '#4f46e5' 
+      },
+      { 
+        name: 'Chờ thuế', 
+        value: taxPending.total, 
+        normal: taxPending.normal, 
+        error: taxPending.error, 
+        color: '#c2410c' 
+      },
+      { 
+        name: 'Xong thuế', 
+        value: taxCompleted.total, 
+        normal: taxCompleted.normal, 
+        error: taxCompleted.error, 
+        color: '#10b981' 
+      },
+      { 
+        name: 'Đã có GCN', 
+        value: gcnIssued.total, 
+        normal: gcnIssued.normal, 
+        error: gcnIssued.error, 
+        color: '#0ea5e9' 
+      },
+      { 
+        name: 'Hoàn tất', 
+        value: completed.total, 
+        normal: completed.normal, 
+        error: completed.error, 
+        color: '#059669' 
+      },
     ];
-  }, [filteredByProjectApps]);
+  }, [filteredByProjectApps, stepConfig]);
+
+  const overallPieData = useMemo(() => {
+    const totalApps = filteredByProjectApps.length || 1;
+    return chartData.map(d => ({
+      name: d.name,
+      value: d.value,
+      percentage: Math.round((d.value / totalApps) * 100),
+      color: d.color
+    })).filter(d => d.value > 0);
+  }, [chartData, filteredByProjectApps.length]);
 
   const filteredApps = filteredByProjectApps.filter(app => {
     const matchesSearch = app.unitCode.toLowerCase().includes(search.toLowerCase()) ||
@@ -2551,16 +2934,16 @@ export default function App() {
       (dashboardFilter === 'ERROR' && app.status === 'Error') ||
       (dashboardFilter === 'COMPLETED' && app.status === 'Completed') ||
       (dashboardFilter === 'PTT_PROCESSING' && app.status === 'Processing') ||
-      (dashboardFilter === 'PTT_HOLDING' && STEP_CONFIG[app.currentStep]?.dept === 'PTT') ||
+      (dashboardFilter === 'PTT_HOLDING' && stepConfig[app.currentStep]?.dept === 'PTT') ||
       (dashboardFilter === 'PTT_ISSUES' && (app.isRejected || app.status === 'Error')) ||
-      (dashboardFilter === 'PTT_TAX_UNPAID' && app.taxPaymentStatus === 'Unpaid' && app.status !== 'Completed') ||
-      (dashboardFilter === 'KT_RECEIVED' && STEP_CONFIG[app.currentStep]?.dept === 'KT') ||
-      (dashboardFilter === 'KT_GROUPING' && app.currentStep === 'GD2_Cho_Nop_VPDK') ||
-      (dashboardFilter === 'KT_SUBMITTED' && !!app.submissionDate) ||
+      (dashboardFilter === 'PTT_TAX_UNPAID' && !!app.taxNotificationDate && !app.taxNoticeProvisionDate) ||
+      (dashboardFilter === 'KT_RECEIVED' && (stepConfig[app.currentStep]?.dept === 'KT' || app.currentStep === 'GD1_Cho_KT_TiepNhan')) ||
+      (dashboardFilter === 'KT_SUBMITTED_DONE' && !!app.submissionDate) ||
+      (dashboardFilter === 'KT_TAX_SUBMITTED' && !!app.taxNoticeProvisionDate && (app.taxPaymentStatus === 'Paid' || !!app.taxReceiptDate)) ||
       (dashboardFilter === 'KT_GCN_RECEIVED' && !!app.gcnReceivedDate) ||
-      (dashboardFilter === 'PTDA_NO_TAX' && app.currentStep === 'GD3_Cho_TBThue') ||
-      (dashboardFilter === 'PTDA_STUCK' && STEP_CONFIG[app.currentStep]?.dept === 'PTDA' && getOverdueInfo(app).isOverdue) ||
-      (dashboardFilter === 'PTDA_TAX_RECEIVED' && !!app.taxNotificationDate);
+      (dashboardFilter === 'PTDA_NO_TAX' && app.currentStep === 'GD3_Cho_TBThue' && !app.taxNotificationDate) ||
+      (dashboardFilter === 'PTDA_TAX_RECEIVED' && !!app.taxNotificationDate && !(app.taxPaymentStatus === 'Paid' || !!app.taxReceiptDate)) ||
+      (dashboardFilter === 'PTDA_GCN_WAITING' && (app.taxPaymentStatus === 'Paid' || !!app.taxReceiptDate) && !app.gcnReceivedDate);
 
     return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService && matchesDashboardFilter;
   });
@@ -2681,7 +3064,7 @@ export default function App() {
               )}
             >
               <FileBarChart size={18} />
-              {userRole === 'ADMIN' ? 'Báo cáo & Thống kê' : 'Báo cáo & Thống kê (Lãnh đạo)'}
+              {userRole === 'ADMIN' || userRole === 'DIRECTOR' ? 'Báo cáo & Thống kê' : 'Báo cáo & Thống kê'}
             </button>
           )}
 
@@ -2906,6 +3289,26 @@ export default function App() {
                 <Download size={18} />
               </button>
 
+              <div className="relative">
+                <input 
+                  type="file" 
+                  id="excel-import" 
+                  className="hidden" 
+                  accept=".xlsx, .xls" 
+                  onChange={handleImportTemplate} 
+                />
+                <button 
+                  onClick={() => document.getElementById('excel-import')?.click()}
+                  className={cn(
+                    "p-2.5 rounded-full border transition-all shadow-sm group relative",
+                    theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-200" : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-emerald-400 hover:border-emerald-500/30"
+                  )}
+                  title="Nhập từ Excel"
+                >
+                  <Upload size={18} />
+                </button>
+              </div>
+
               <button 
                 onClick={() => {
                   const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
@@ -3041,41 +3444,32 @@ export default function App() {
 
                 {userRole === 'KT' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <StatCard title="Hồ sơ đã tiếp nhận" value={roleKpis.kt.received} icon={Files} colorClass="bg-indigo-500 shadow-indigo-900/40" delay={0.1} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_RECEIVED'); }} />
-                    <StatCard title="Đang ghép sổ" value={roleKpis.kt.grouping} icon={Map} colorClass="bg-amber-500 shadow-amber-900/40" delay={0.2} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_GROUPING'); }} />
-                    <StatCard title="Đã nộp 1 cửa" value={roleKpis.kt.submitted} icon={CheckCircle2} colorClass="bg-emerald-500 shadow-emerald-900/40" delay={0.3} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_SUBMITTED'); }} />
+                    <StatCard title="Hồ sơ đã/cần tiếp nhận" value={roleKpis.kt.received} icon={Files} colorClass="bg-indigo-500 shadow-indigo-900/40" delay={0.1} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_RECEIVED'); }} />
+                    <StatCard title="Đã hoàn thành nộp hồ sơ" value={roleKpis.kt.submitted} icon={CheckCircle2} colorClass="bg-emerald-500 shadow-emerald-900/40" delay={0.2} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_SUBMITTED_DONE'); }} />
+                    <StatCard title="Hồ sơ đã nộp NVTC" value={roleKpis.kt.taxPaid} icon={Map} colorClass="bg-amber-500 shadow-amber-900/40" delay={0.3} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_TAX_SUBMITTED'); }} />
                     <StatCard title="GCN đã nhận" value={roleKpis.kt.gcnReceived} icon={Building2} colorClass="bg-cyan-500 shadow-cyan-900/40" delay={0.4} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_GCN_RECEIVED'); }} />
                   </div>
                 )}
 
                 {userRole === 'PTDA' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <StatCard title="Chưa có TB Thuế" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-rose-500 shadow-rose-900/40" delay={0.1} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_NO_TAX'); }} />
-                    <StatCard title="Chờ TB Thuế TB" value={`${roleKpis.ptda.avgTaxWait} ngày`} icon={History} colorClass="bg-indigo-500 shadow-indigo-900/40" delay={0.2} theme={theme} />
-                    <StatCard title="Trễ tại CQNN" value={roleKpis.ptda.stuck} icon={AlertCircle} colorClass="bg-amber-600 shadow-amber-900/40" delay={0.3} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_STUCK'); }} />
-                    <StatCard title="HS Đã nhận TB Thuế" value={roleKpis.kt.submitted - roleKpis.ptda.noTax} icon={CheckCircle2} colorClass="bg-emerald-500 shadow-emerald-900/40" delay={0.4} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_TAX_RECEIVED'); }} />
+                    <StatCard title="Chưa có TB thuế" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-rose-500 shadow-rose-900/40" delay={0.1} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_NO_TAX'); }} />
+                    <StatCard title="Hồ sơ đã nhận TB thuế" value={roleKpis.ptda.withTax} icon={CheckCircle2} colorClass="bg-emerald-500 shadow-emerald-900/40" delay={0.2} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_TAX_RECEIVED'); }} />
+                    <StatCard title="Hồ sơ chờ In/trình ký GCN" value={roleKpis.ptda.gcnWaiting} icon={FileText} colorClass="bg-indigo-500 shadow-indigo-900/40" delay={0.3} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_GCN_WAITING'); }} />
+                    <StatCard title="Thời gian chờ TB Thuế TB" value={`${roleKpis.ptda.avgTaxWait} ngày`} icon={History} colorClass="bg-blue-500 shadow-blue-900/40" delay={0.4} theme={theme} />
                   </div>
                 )}
 
                 {(userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR' || !userRole) && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <StatCard 
-                      title="Tổng số căn" 
+                      title="Tổng số lượng căn đang xử lý" 
                       value={kpis.total} 
                       icon={Building2} 
                       colorClass="bg-festive-gold" 
                       delay={0.1} 
                       theme={theme} 
                       onClick={() => { setActiveTab('applications'); setDashboardFilter('ALL'); }}
-                    />
-                    <StatCard 
-                      title="Hồ sơ hoàn tất" 
-                      value={kpis.completed} 
-                      icon={CheckCircle2} 
-                      colorClass="bg-emerald-500" 
-                      delay={0.2} 
-                      theme={theme} 
-                      onClick={() => { setActiveTab('applications'); setDashboardFilter('COMPLETED'); }}
                     />
                     <StatCard 
                       title="Trễ hạn xử lý" 
@@ -3234,188 +3628,246 @@ export default function App() {
                 {/* Charts Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   <div className={cn(
-                    "lg:col-span-2 backdrop-blur-md p-8 rounded-[3rem] border transition-all duration-500 group",
+                    "lg:col-span-2 backdrop-blur-md p-8 rounded-[3rem] border transition-all duration-500",
                     theme === 'light' ? "bg-white border-slate-200 shadow-2xl shadow-slate-200/50" : "bg-slate-900/40 border-slate-800/50 shadow-2xl"
                   )}>
                     <div className="flex items-center justify-between mb-10">
                       <h3 className={cn("font-bold flex items-center gap-3 font-serif text-2xl italic", theme === 'light' ? "text-slate-900" : "text-white")}>
-                        <LayoutDashboard size={20} className="text-festive-gold" />
+                        <LayoutDashboard size={20} className="text-amber-500" />
                         Tiến độ các giai đoạn
                       </h3>
-                        <div className="flex items-center gap-6">
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-indigo-500 shadow-lg shadow-indigo-500/20" />
-                            <span className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Bình thường</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full bg-rose-500 shadow-lg shadow-rose-500/20" />
-                            <span className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Sai sót</span>
-                          </div>
-                          <p className="text-xs text-slate-400 font-mono italic">Hồ sơ</p>
+                      <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-indigo-500/80" />
+                          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Bình thường</span>
                         </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-rose-500" />
+                          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Sai sót</span>
+                        </div>
+                        <p className="text-[10px] italic text-slate-500 font-bold ml-4">Hồ sơ</p>
+                      </div>
                     </div>
                     <div className="h-[380px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? "#f1f5f9" : "#1e293b"} />
                           <XAxis 
                             dataKey="name" 
                             axisLine={false} 
                             tickLine={false} 
-                            tick={{ fontSize: 11, fill: theme === 'light' ? '#64748b' : '#94a3b8', fontWeight: 800 }} 
-                            dy={15}
+                            tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 800 }} 
+                            dy={10}
                           />
                           <YAxis 
                             axisLine={false} 
                             tickLine={false} 
-                            tick={{ fontSize: 11, fill: theme === 'light' ? '#64748b' : '#94a3b8', fontWeight: 800 }} 
+                            tick={{ fontSize: 10, fill: '#64748b', fontWeight: 800 }} 
                             allowDecimals={false}
                           />
                           <ReTooltip 
-                            cursor={{ fill: theme === 'light' ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.05)' }}
+                            cursor={{ fill: 'rgba(255,255,255,0.05)' }}
                             contentStyle={{ 
                               backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
-                              borderRadius: '20px', 
-                              border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #334155', 
-                              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                              borderRadius: '16px', 
+                              border: 'none',
+                              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
                               fontSize: '11px',
-                              fontWeight: 800,
-                              padding: '12px 16px'
-                            }}
-                            itemStyle={{ textTransform: 'uppercase', marginBottom: '4px' }}
-                            formatter={(value: any, name: string) => {
-                              if (name === 'normal') return [value, 'Bình thường'];
-                              if (name === 'error') return [value, 'Sai sót'];
-                              return [value, name];
+                              fontWeight: 800
                             }}
                           />
-                          <Bar dataKey="normal" stackId="a" barSize={32}>
+                          <Bar dataKey="normal" stackId="a" barSize={26} radius={[0, 0, 0, 0]}>
                             {chartData.map((entry, index) => (
-                              <Cell key={`cell-normal-${index}`} fill={entry.color} fillOpacity={0.8} />
+                              <Cell key={`cell-normal-${index}`} fill={entry.color} />
                             ))}
                           </Bar>
-                          <Bar dataKey="error" stackId="a" fill="#f43f5e" barSize={32} radius={[8, 8, 0, 0]}>
-                            <LabelList dataKey="value" position="top" fill={theme === 'light' ? '#475569' : '#94a3b8'} fontSize={11} fontWeight={900} offset={12} />
-                          </Bar>
+                          <Bar 
+                            dataKey="error" 
+                            stackId="a" 
+                            fill="#f43f5e" 
+                            barSize={26} 
+                            radius={[4, 4, 0, 0]} 
+                            label={(props: any) => {
+                              const { x, y, width, payload } = props;
+                              if (!payload || payload.value === 0) return null;
+                              return (
+                                <text 
+                                  x={x + width / 2} 
+                                  y={y - 8} 
+                                  fill={theme === 'light' ? '#475569' : '#cbd5e1'} 
+                                  textAnchor="middle" 
+                                  fontSize={10} 
+                                  fontWeight="900"
+                                >
+                                  {payload.value}
+                                </text>
+                              );
+                            }} 
+                          />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
 
                   <div className={cn(
-                    "backdrop-blur-md p-8 rounded-[3rem] border transition-all duration-500 flex flex-col group",
+                    "backdrop-blur-md p-8 rounded-[3rem] border transition-all duration-500 flex flex-col group divide-y divide-slate-800/10",
                     theme === 'light' ? "bg-white border-slate-200 shadow-2xl shadow-slate-200/50" : "bg-slate-900/40 border-slate-800/50 shadow-2xl"
                   )}>
-                    <h3 className={cn("font-bold mb-10 font-serif text-2xl italic flex items-center gap-3", theme === 'light' ? "text-slate-900" : "text-white")}>
-                       <Filter size={20} className="text-festive-gold" />
-                       Tỷ lệ Trạng thái
-                    </h3>
-                    <div className="flex-1 flex flex-col items-center justify-center relative">
-                      <ResponsiveContainer width="100%" height={280}>
-                        <PieChart>
-                          <Pie
-                            data={chartData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={85}
-                            outerRadius={115}
-                            paddingAngle={10}
-                            dataKey="value"
-                            stroke="none"
-                          >
-                            {chartData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={0.9} />
-                            ))}
-                          </Pie>
-                        </PieChart>
-                      </ResponsiveContainer>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span className={cn("text-4xl font-black italic font-serif", theme === 'light' ? "text-slate-900" : "text-slate-100")}>{kpis.total}</span>
-                        <span className="text-[10px] uppercase font-black tracking-widest text-slate-500 mt-1">Hồ sơ</span>
-                      </div>
-                    </div>
-                    <div className="mt-8 space-y-4">
-                      {chartData.map((item) => (
-                        <div key={item.name} className="flex items-center justify-between group/legend">
-                          <div className="flex items-center gap-3">
-                            <div className="w-3 h-3 rounded-full shadow-lg" style={{ backgroundColor: item.color, boxShadow: `0 4px 10px ${item.color}33` }} />
-                            <span className={cn("text-[11px] font-bold uppercase tracking-tight transition-colors", theme === 'light' ? "text-slate-500 group-hover/legend:text-slate-900" : "text-slate-400 group-hover/legend:text-slate-100 text-slate-200")}>{item.name}</span>
-                          </div>
-                          <span className={cn("text-[11px] font-black", theme === 'light' ? "text-slate-900" : "text-slate-100")}>{Math.round((item.value / kpis.total) * 100) || 0}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Administration Section for Admin/Manager */}
-                {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <div className="bg-slate-900/40 backdrop-blur-md p-6 rounded-3xl border border-slate-800/50">
-                      <h3 className="font-bold text-white mb-6 font-serif text-xl italic flex items-center gap-2">
-                        <CheckCircle2 size={18} className="text-emerald-500" />
-                        So sánh SLA Thực tế vs Kế hoạch {selectedProject ? `- ${selectedProject.name}` : ''}
+                    <div className="pb-8">
+                      <h3 className={cn("font-bold mb-6 font-serif text-xl italic flex items-center gap-3", theme === 'light' ? "text-slate-900" : "text-white")}>
+                        <Filter size={18} className="text-amber-500" />
+                        Tỷ lệ Trạng thái
                       </h3>
-                      <div className="space-y-6">
-                        {roleKpis.admin.slaStats.map(item => (
-                          <div key={item.label}>
-                            <div className="flex justify-between items-center mb-2">
-                              <span className="text-xs font-bold text-slate-300">{item.label}</span>
-                              <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">KH: {item.sla}d | TT: {item.avg}d</span>
+                      <div className="h-[220px] w-full relative">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie 
+                              data={overallPieData} 
+                              cx="50%" 
+                              cy="50%" 
+                              innerRadius={65} 
+                              outerRadius={85} 
+                              paddingAngle={8} 
+                              dataKey="value"
+                              stroke="none"
+                            >
+                              {overallPieData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <ReTooltip 
+                              content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                  const data = payload[0].payload;
+                                  return (
+                                    <div className={cn(
+                                      "p-3 rounded-xl shadow-2xl border-none outline-none",
+                                      theme === 'light' ? "bg-white text-slate-800" : "bg-slate-900 text-white"
+                                    )}>
+                                      <p className="font-black uppercase text-[10px]">{data.name}</p>
+                                      <p className="font-black italic text-indigo-500 text-lg">{data.percentage}%</p>
+                                      <p className="text-[9px] text-slate-500 font-bold">{data.value} căn</p>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mb-6">
+                          <span className={cn("text-3xl font-black italic font-serif", theme === 'light' ? "text-slate-900" : "text-white")}>{kpis.total}</span>
+                          <span className="text-[8px] uppercase font-black text-slate-500 mt-1">Hồ sơ</span>
+                        </div>
+                      </div>
+                      <div className="mt-8 space-y-4">
+                        {overallPieData.map((d) => (
+                          <div key={d.name} className="flex items-center justify-between px-2">
+                            <div className="flex items-center gap-3">
+                              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
+                              <span className="text-[10px] font-black text-slate-200 uppercase tracking-tight">{d.name}</span>
                             </div>
-                            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                              <div className={cn("h-full rounded-full transition-all duration-1000", item.color)} style={{ width: `${Math.min(100, (item.avg / item.sla) * 100)}%` }}></div>
-                            </div>
+                            <span className={cn("text-[10px] font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>{d.percentage}%</span>
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    <div className="bg-slate-900/40 backdrop-blur-md p-6 rounded-3xl border border-slate-800/50">
-                      <h3 className="font-bold text-white mb-6 font-serif text-xl italic flex items-center gap-2">
-                        <AlertCircle size={18} className="text-amber-500" />
-                        Cảnh báo & Rủi ro Hệ thống {selectedProject ? `- ${selectedProject.name}` : ''}
-                      </h3>
-                      <div className="space-y-4">
-                         {roleKpis.admin.warnings.map((warning, idx) => {
-                           const WarningIcon = warning.icon;
-                           const colorMap: {[key: string]: string} = {
-                             rose: 'bg-rose-500/10 border-rose-500/20 text-rose-500',
-                             amber: 'bg-amber-500/10 border-amber-500/20 text-amber-500',
-                             indigo: 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
-                           };
-                           const iconColorMap: {[key: string]: string} = {
-                             rose: 'text-rose-500',
-                             amber: 'text-amber-500',
-                             indigo: 'text-indigo-400'
-                           };
-                           return (
-                             <div key={idx} className={cn("p-4 border rounded-2xl flex gap-4 transition-all hover:scale-[1.02]", colorMap[warning.color])}>
-                               <WarningIcon className={cn("shrink-0", iconColorMap[warning.color])} size={24} />
-                               <div>
-                                  <p className="text-sm font-bold">{warning.title}</p>
-                                  <p className="text-[11px] text-slate-400 mt-1">{warning.desc}</p>
-                               </div>
-                             </div>
-                           );
-                         })}
-                         {roleKpis.admin.warnings.length === 0 && (
-                           <div className="h-full flex flex-col items-center justify-center py-10 opacity-40">
-                             <CheckCircle2 size={40} className="text-emerald-500 mb-2" />
-                             <p className="text-slate-400 text-xs italic">Hệ thống hoạt động ổn định</p>
-                           </div>
-                         )}
-                      </div>
+                    <div className="pt-8">
+                       <h3 className={cn("font-bold mb-6 font-serif text-xl italic flex items-center gap-3", theme === 'light' ? "text-slate-900" : "text-white")}>
+                         <Wallet size={18} className="text-emerald-500" />
+                         Trạng thái Căn có vay
+                       </h3>
+                       {roleKpis.loanStatusStats.length > 0 ? (
+                         <div className="grid grid-cols-1 gap-4">
+                            <div className="h-[120px] w-full relative">
+                               <ResponsiveContainer width="100%" height="100%">
+                                 <PieChart>
+                                   <Pie data={roleKpis.loanStatusStats} cx="50%" cy="50%" innerRadius={40} outerRadius={55} paddingAngle={5} dataKey="value">
+                                     {roleKpis.loanStatusStats.map((entry: any, index: number) => (
+                                       <Cell key={`cell-loan-${index}`} fill={entry.color} />
+                                     ))}
+                                   </Pie>
+                                 </PieChart>
+                               </ResponsiveContainer>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                               {roleKpis.loanStatusStats.map((s: any) => (
+                                 <div key={s.name} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/10 border border-slate-800/10">
+                                   <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.color }} />
+                                   <span className="text-[8px] text-slate-500 font-bold uppercase">{s.name}:</span>
+                                   <span className={cn("text-[9px] font-black", theme === 'light' ? "text-slate-900" : "text-white")}>{s.value}</span>
+                                 </div>
+                               ))}
+                            </div>
+                         </div>
+                       ) : (
+                         <div className="py-10 text-center opacity-40">
+                            <p className="text-[10px] italic">Không có dữ liệu căn có vay</p>
+                         </div>
+                       )}
                     </div>
                   </div>
-                )}
+                </div>
+
                 <div className={cn(
                   "backdrop-blur-xl rounded-3xl shadow-2xl border transition-all overflow-hidden",
                   theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/20 shadow-2xl border-slate-800/50"
                 )}>
                   <div className={cn("p-6 border-b flex items-center justify-between", theme === 'light' ? "border-slate-100 bg-slate-50" : "border-slate-800/50")}>
                     <div className="flex items-center gap-4">
-                      <h3 className={cn("font-bold font-serif text-xl italic", theme === 'light' ? "text-slate-900" : "text-white")}>Trạng thái theo Dự án</h3>
+                      <h3 className={cn("font-bold font-serif text-xl italic", theme === 'light' ? "text-slate-900" : "text-white")}>Hiệu suất Trách nhiệm Phòng ban theo ngày</h3>
+                      <div className="flex items-center gap-2 bg-slate-800/20 rounded-lg p-1 border border-slate-700/30">
+                        <Clock size={12} className="text-slate-500 ml-1" />
+                        <span className="text-[10px] font-black uppercase text-slate-400 px-2 italic">Thời gian xử lý trung bình</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-8">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                      {roleKpis.admin.deptStats.map((dept, idx) => (
+                        <div key={dept.dept} className={cn(
+                          "p-6 rounded-[2.5rem] border transition-all hover:border-festive-gold/50 duration-300 relative overflow-hidden",
+                          theme === 'light' ? "bg-slate-50 border-slate-100 shadow-sm" : "bg-slate-800/40 border-slate-700/30 shadow-xl"
+                        )}>
+                          <div className="flex justify-between items-start mb-6">
+                            <div>
+                               <p className={cn("text-[9px] font-black uppercase tracking-widest leading-none mb-1", theme === 'light' ? "text-slate-400" : "text-slate-500")}>Phòng ban</p>
+                               <h4 className={cn("text-lg font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>{dept.label}</h4>
+                            </div>
+                            <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center", dept.color + " bg-opacity-10")}>
+                               <Layers size={18} className={dept.color.replace('bg-', 'text-')} />
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-baseline gap-2 mb-4">
+                            <span className={cn("text-4xl font-black italic font-serif", theme === 'light' ? "text-slate-900" : "text-white")}>{dept.avgDays}</span>
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Ngày / Hồ sơ</span>
+                          </div>
+
+                          <div className="h-2 w-full bg-slate-800/20 rounded-full overflow-hidden mb-4">
+                             <div className={cn("h-full rounded-full transition-all duration-1000", dept.color)} style={{ width: `${Math.min(100, (dept.avgDays / 15) * 100)}%` }} />
+                          </div>
+                          
+                          <div className="flex justify-between items-center text-[10px]">
+                             <span className="text-slate-500 font-bold uppercase tracking-tighter">Đang xử lý: {dept.count} căn</span>
+                             <span className={cn("font-black italic px-2 py-0.5 rounded-lg", dept.avgDays > 10 ? "text-rose-500 bg-rose-500/10" : "text-emerald-500 bg-emerald-500/10")}>
+                               {dept.avgDays > 10 ? 'Cảnh báo chậm' : 'Tiến độ tốt'}
+                             </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className={cn(
+                  "backdrop-blur-xl rounded-3xl shadow-2xl border transition-all overflow-hidden",
+                  theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/20 shadow-2xl border-slate-800/50"
+                )}>
+                  <div className={cn("p-6 border-b flex items-center justify-between", theme === 'light' ? "border-slate-100 bg-slate-50" : "border-slate-800/50")}>
+                    <div className="flex items-center gap-4">
+                      <h3 className={cn("font-bold font-serif text-xl italic", theme === 'light' ? "text-slate-900" : "text-white")}>Tình hình xử lý theo Dự án</h3>
                       <div className="flex items-center gap-2 bg-slate-800/20 rounded-lg p-1 border border-slate-700/30">
                         <Filter size={12} className="text-slate-500 ml-1" />
                         <select 
@@ -3593,8 +4045,8 @@ export default function App() {
                                 onChange={(e) => setFilterStep(e.target.value as any)}
                               >
                                 <option value="ALL">Tất cả giai đoạn</option>
-                                {Object.keys(STEP_CONFIG).map(step => (
-                                  <option key={step} value={step}>{STEP_CONFIG[step].label}</option>
+                                {Object.keys(stepConfig).map(step => (
+                                  <option key={step} value={step}>{stepConfig[step].label}</option>
                                 ))}
                                 <option value="Hoan_Tat">Hồ sơ đã hoàn tất</option>
                               </select>
@@ -3924,6 +4376,7 @@ export default function App() {
                   setActiveTab={setActiveTab}
                   setDashboardFilter={setDashboardFilter}
                   setFilterLoanStatus={setFilterLoanStatus}
+                  stepConfig={stepConfig}
                 />
               </motion.div>
             )}
@@ -3940,7 +4393,9 @@ export default function App() {
                   slaConfig={slaConfig} 
                   setSlaConfig={setSlaConfig} 
                   checklistTemplates={checklistTemplates} 
-                  setChecklistTemplates={setChecklistTemplates} 
+                  setChecklistTemplates={setChecklistTemplates}
+                  stepConfig={stepConfig}
+                  setStepConfig={setStepConfig}
                 />
               </motion.div>
             )}
@@ -4225,7 +4680,7 @@ export default function App() {
                       <div>
                         <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1.5 opacity-70">Bước hiện tại:</p>
                         <p className="text-base font-black text-slate-100 uppercase tracking-tight">
-                          {STEP_CONFIG[(editApp || selectedApp).currentStep]?.label}
+                          {stepConfig[(editApp || selectedApp).currentStep]?.label}
                         </p>
                       </div>
                     </div>
@@ -4236,7 +4691,7 @@ export default function App() {
                       <div>
                         <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5 opacity-70">Phòng chủ trì:</p>
                         <p className="text-base font-black text-slate-300 uppercase tracking-tight">
-                          {STEP_CONFIG[(editApp || selectedApp).currentStep]?.dept}
+                          {stepConfig[(editApp || selectedApp).currentStep]?.dept}
                         </p>
                       </div>
                     </div>
@@ -4425,6 +4880,22 @@ export default function App() {
                         field="taxPaymentStatus"
                         onChange={(val) => handleFieldChange('taxPaymentStatus', val === 'Đã hoàn thành' ? 'Paid' : 'Unpaid')}
                       />
+                      <DetailCard 
+                        label="Ngày nhận GCN thực tế" 
+                        value={(editApp || selectedApp).gcnReceivedDate} 
+                        type="date"
+                        editable={isFieldEditable('gcnReceivedDate')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('gcnReceivedDate', val)}
+                      />
+                      <DetailCard 
+                        label="Ngày bàn giao GCN PTT" 
+                        value={(editApp || selectedApp).ptdaHandoverDate} 
+                        type="date"
+                        editable={isFieldEditable('ptdaHandoverDate')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('ptdaHandoverDate', val)}
+                      />
                     </div>
                   </section>
                 </div>
@@ -4455,22 +4926,6 @@ export default function App() {
                       isEditing={isEditing}
                       onChange={(val) => handleFieldChange('gcnSignedDate', val)}
                     />
-                    <DetailCard 
-                        label="Ngày nhận GCN thực tế" 
-                        value={(editApp || selectedApp).gcnReceivedDate} 
-                        type="date"
-                        editable={isFieldEditable('gcnReceivedDate')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('gcnReceivedDate', val)}
-                      />
-                      <DetailCard 
-                        label="Ngày bàn giao GCN PTT" 
-                        value={(editApp || selectedApp).ptdaHandoverDate} 
-                        type="date"
-                        editable={isFieldEditable('ptdaHandoverDate')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('ptdaHandoverDate', val)}
-                      />
                   </div>
                 </section>
 
@@ -4730,8 +5185,11 @@ export default function App() {
                         );
                       }
 
+                      const canAction = role === 'ADMIN' || role === 'DIRECTOR' || stepConfig[app.currentStep].dept === role;
+                      if (!canAction) return null;
+
                       // GĐ 1: Chuyển bàn giao
-                      if (app.currentStep === 'GD1_ChuanBi' && role === 'PTT') {
+                      if (app.currentStep === 'GD1_ChuanBi') {
                         if (app.isSelfService) {
                           return (
                             <button 
@@ -4752,15 +5210,15 @@ export default function App() {
                         );
                       }
 
-                      // GĐ 1: KT xác nhận
-                      if (app.currentStep === 'GD1_Cho_KT_TiepNhan' && role === 'KT') {
+                      // GĐ 1: KT xác nhận (Tiếp nhận)
+                      if (app.currentStep === 'GD1_Cho_KT_TiepNhan') {
                         return (
                           <div className="flex flex-col gap-3">
                             <button 
                               onClick={() => handleStepTransition('GD2_Cho_Nop_VPDK')}
                               className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
                             >
-                              Xác nhận tiếp nhận hồ sơ <CheckCircle2 size={16} />
+                              Tiếp nhận hồ sơ đầu vào (KT) <CheckCircle2 size={16} />
                             </button>
                             <button 
                               onClick={() => {
@@ -4769,104 +5227,119 @@ export default function App() {
                               }}
                               className="w-full py-2.5 border-2 border-rose-500/50 text-rose-500 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-rose-500/10 transition-all flex items-center justify-center gap-2"
                             >
-                              <RotateCcw size={14} /> Yêu cầu bổ sung (Trả về PTT)
+                              <RotateCcw size={14} /> Trả về PTT (Thiếu chứng từ)
                             </button>
                           </div>
                         );
                       }
 
                       // GĐ 2: KT đã nộp VPĐK
-                      if (app.currentStep === 'GD2_Cho_Nop_VPDK' && role === 'KT' && app.submissionDate) {
+                      if (app.currentStep === 'GD2_Cho_Nop_VPDK') {
                         return (
                           <button 
+                            disabled={!app.submissionDate}
                             onClick={() => handleStepTransition('GD2_Cho_PTDA_TiepNhan')}
-                            className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
+                            className={cn(
+                                "w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2",
+                                app.submissionDate ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20" : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+                            )}
                           >
-                            Đã nộp VPĐK &rarr; Chuyển PTDA <ChevronRight size={16} />
+                            {!app.submissionDate && <Clock size={16} />}
+                            {app.submissionDate ? "Bàn giao hồ sơ cho PTDA" : "Cần nhập Ngày nộp VPĐK để Chuyển bước"} <ChevronRight size={16} />
                           </button>
                         );
                       }
 
                       // GĐ 2: PTDA xác nhận
-                      if (app.currentStep === 'GD2_Cho_PTDA_TiepNhan' && role === 'PTDA') {
+                      if (app.currentStep === 'GD2_Cho_PTDA_TiepNhan') {
                         return (
                           <button 
                             onClick={() => handleStepTransition('GD3_Cho_TBThue')}
                             className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
                           >
-                            Xác nhận tiếp nhận (GĐ3) <CheckCircle2 size={16} />
+                            Tiếp nhận theo dõi Thuế (PTDA) <CheckCircle2 size={16} />
                           </button>
                         );
                       }
 
                       // GĐ 3: PTDA đã có TB Thuế
-                      if (app.currentStep === 'GD3_Cho_TBThue' && role === 'PTDA' && app.taxNotificationDate) {
+                      if (app.currentStep === 'GD3_Cho_TBThue') {
                         return (
                           <button 
+                            disabled={!app.taxNotificationDate}
                             onClick={() => handleStepTransition('GD4_Cho_Nop_NVTC')}
-                            className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
+                            className={cn(
+                                "w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2",
+                                app.taxNotificationDate ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20" : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+                            )}
                           >
-                            Đã có TB Thuế &rarr; Chuyển PTT <ChevronRight size={16} />
+                            {!app.taxNotificationDate && <Clock size={16} />}
+                            {app.taxNotificationDate ? "Gửi TB Thuế cho PTT" : "Cần có Ngày TB Thuế để Chuyển bước"} <ChevronRight size={16} />
                           </button>
                         );
                       }
 
                       // GĐ 4: PTT đã nộp thuế
-                      if (app.currentStep === 'GD4_Cho_Nop_NVTC' && role === 'PTT' && app.taxReceiptDate) {
+                      if (app.currentStep === 'GD4_Cho_Nop_NVTC') {
                         return (
                           <button 
                             onClick={() => handleStepTransition('GD4_Cho_KT_TiepNhan_LaySo')}
                             className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
                           >
-                            Hoàn tất NVTC &rarr; Chuyển KT lấy sổ <ChevronRight size={16} />
+                            Bàn giao HS đóng thuế cho KT <ChevronRight size={16} />
                           </button>
                         );
                       }
 
                       // GĐ 4: KT xác nhận lấy sổ
-                      if (app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo' && role === 'KT') {
+                      if (app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') {
                         return (
                           <button 
                             onClick={() => handleStepTransition('GD5_Cho_GCN')}
                             className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
                           >
-                            Xác nhận tiếp nhận (Lấy sổ) <CheckCircle2 size={16} />
+                            Tiếp nhận lấy sổ (KT) <CheckCircle2 size={16} />
                           </button>
                         );
                       }
 
                       // GĐ 5: KT đã nhận sổ
-                      if (app.currentStep === 'GD5_Cho_GCN' && role === 'KT' && app.gcnReceivedDate) {
+                      if (app.currentStep === 'GD5_Cho_GCN') {
                         return (
                           <button 
+                            disabled={!app.gcnReceivedDate}
                             onClick={() => handleStepTransition('GD5_Cho_PTT_TiepNhan_BG')}
-                            className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
+                            className={cn(
+                                "w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2",
+                                app.gcnReceivedDate ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20" : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+                            )}
                           >
-                            Đã nhận sổ &rarr; Chuyển PTT bàn giao <ChevronRight size={16} />
+                            {!app.gcnReceivedDate && <Clock size={16} />}
+                            {app.gcnReceivedDate ? "Bàn giao GCN cho PTT" : "Cần nhập Ngày nhận GCN để Chuyển bước"} <ChevronRight size={16} />
                           </button>
                         );
                       }
 
                       // GĐ 5: PTT xác nhận nhận sổ
-                      if (app.currentStep === 'GD5_Cho_PTT_TiepNhan_BG' && role === 'PTT') {
+                      if (app.currentStep === 'GD5_Cho_PTT_TiepNhan_BG') {
                         return (
                           <button 
                             onClick={() => handleStepTransition('GD6_Cho_BG_Khach')}
                             className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
                           >
-                            Xác nhận nhận sổ gốc <CheckCircle2 size={16} />
+                            Tiếp nhận GCN thực tế (PTT) <CheckCircle2 size={16} />
                           </button>
                         );
                       }
 
                       // GĐ 6: PTT bàn giao xong
-                      if (app.currentStep === 'GD6_Cho_BG_Khach' && role === 'PTT' && app.customerHandoverDate) {
+                      if (app.currentStep === 'GD6_Cho_BG_Khach') {
                         return (
                           <button 
                             onClick={() => handleStepTransition('Hoan_Tat')}
                             className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
                           >
-                            Hoàn tất quy trình bàn giao <CheckCircle2 size={16} />
+                            Hoàn tất bàn giao Khách hàng <CheckCircle2 size={16} />
                           </button>
                         );
                       }
