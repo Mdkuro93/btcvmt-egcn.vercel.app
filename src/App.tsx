@@ -17,6 +17,7 @@ import {
   User,
   MoreVertical,
   History,
+  RotateCcw,
   FileText,
   ChevronRight,
   Download,
@@ -65,7 +66,7 @@ import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { MOCK_APPLICATIONS, PROJECTS, STEP_CONFIG, MOCK_USERS } from './constants';
-import { Application, UnitStatus, KPI, Dept, UserProfile, PropertyType, StepName, AppNotification as Notification, Project, ApplicationStepHistory, AuditTrailEntry } from './types';
+import { Application, UnitStatus, KPI, Dept, UserProfile, PropertyType, StepName, AppNotification, Project, ApplicationStepHistory, AuditTrailEntry } from './types';
 
 type ApplicationHistory = {
   id: string;
@@ -931,7 +932,7 @@ const ReportsView = ({
 };
 
 
-const NotificationPanel = ({ notifications, onClose, onRead, theme }: { notifications: Notification[], onClose: () => void, onRead: (id: string) => void, theme: 'light' | 'dark' }) => {
+const NotificationPanel = ({ notifications, onClose, onRead, theme }: { notifications: AppNotification[], onClose: () => void, onRead: (id: string) => void, theme: 'light' | 'dark' }) => {
   const [filterUnreadOnly, setFilterUnreadOnly] = useState(false);
 
   const displayedNotifications = filterUnreadOnly 
@@ -1698,7 +1699,7 @@ const UserManagementView = ({ users, onEdit, onDelete, onCreate, onResetPassword
 export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [notifications, setNotifications] = useState<Notification[]>([
+  const [notifications, setNotifications] = useState<AppNotification[]>([
     { id: '1', title: 'Hồ sơ trễ hạn', message: 'Lô A1.1205 đã quá hạn xử lý 2 ngày', time: '5 phút trước', type: 'Urgent', isRead: false },
     { id: '2', title: 'Cập nhật trạng thái', message: 'Căn hộ B2.0504 đã hoàn tất nộp thuế', time: '1 giờ trước', type: 'Success', isRead: false },
   ]);
@@ -1726,7 +1727,7 @@ export default function App() {
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [expandedSidebarRegions, setExpandedSidebarRegions] = useState<Record<string, boolean>>({});
-  const [dashboardFilter, setDashboardFilter] = useState<'ALL' | 'OVERDUE' | 'ERROR' | 'COMPLETED'>('ALL');
+  const [dashboardFilter, setDashboardFilter] = useState<'ALL' | 'OVERDUE' | 'ERROR' | 'COMPLETED' | 'PTT_PROCESSING' | 'PTT_HOLDING' | 'PTT_ISSUES' | 'PTT_TAX_UNPAID' | 'KT_RECEIVED' | 'KT_GROUPING' | 'KT_SUBMITTED' | 'KT_GCN_RECEIVED' | 'PTDA_NO_TAX' | 'PTDA_STUCK' | 'PTDA_TAX_RECEIVED'>('ALL');
   const [projectRegionFilter, setProjectRegionFilter] = useState<string>('ALL');
   const [isFieldMode, setIsFieldMode] = useState(false);
   
@@ -2028,7 +2029,9 @@ export default function App() {
     const updatedApp = {
       ...app,
       currentStep: targetStep,
-      status: STEP_CONFIG[targetStep].status,
+      status: targetStep === 'GD1_ChuanBi' ? 'Error' : STEP_CONFIG[targetStep].status,
+      isRejected: targetStep === 'GD1_ChuanBi' ? app.isRejected : false,
+      rejectionReason: targetStep === 'GD1_ChuanBi' ? app.rejectionReason : '',
       history: newHistory
     };
 
@@ -2073,7 +2076,9 @@ export default function App() {
       return {
         ...app,
         currentStep: targetStep,
-        status: STEP_CONFIG[targetStep].status,
+        status: targetStep === 'GD1_ChuanBi' ? 'Error' : STEP_CONFIG[targetStep].status,
+        isRejected: targetStep === 'GD1_ChuanBi' ? app.isRejected : false,
+        rejectionReason: targetStep === 'GD1_ChuanBi' ? app.rejectionReason : '',
         history: newHistory
       };
     }));
@@ -2135,6 +2140,49 @@ export default function App() {
     setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
     setSelectedApp(updatedApp);
     alert('Đơn hàng đã được phục hồi trạng thái xử lý.');
+  };
+
+  const handleRejectApp = (reason: string) => {
+    const app = editApp || selectedApp;
+    if (!app) return;
+
+    const newHistory = [
+      {
+        id: `hist-${Date.now()}`,
+        stepName: 'Yêu cầu chỉnh sửa / Bổ sung',
+        dept: userRole,
+        receivedDate: new Date().toISOString().split('T')[0],
+        note: `Hồ sơ sai sót/cần bổ sung: ${reason}`
+      },
+      ...app.history
+    ];
+
+    const updatedApp = {
+      ...app,
+      currentStep: 'GD1_ChuanBi' as StepName,
+      status: 'Error' as const,
+      rejectionCount: (app.rejectionCount || 0) + 1,
+      isRejected: true,
+      rejectionReason: reason,
+      history: newHistory
+    };
+
+    // Add notification
+    const newNotification: AppNotification = {
+      id: `notif-${Date.now()}`,
+      title: 'Hồ sơ bị trả về / Cần bổ sung',
+      message: `Hồ sơ lô ${app.unitCode} (${app.projectName}) bị Kế toán trả về: ${reason}`,
+      time: 'Vừa xong',
+      type: 'Urgent',
+      isRead: false
+    };
+
+    setNotifications(prev => [newNotification, ...prev]);
+    setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
+    setSelectedApp(updatedApp);
+    setEditApp(null);
+    setIsEditing(false);
+    alert('Hồ sơ đã được trả về giai đoạn 1 để PTT bổ sung.');
   };
 
   const isFieldEditable = (fieldName: string) => {
@@ -2354,6 +2402,7 @@ export default function App() {
       overdue: filteredByProjectApps.filter(a => getOverdueInfo(a).isOverdue).length,
       loanCount: filteredByProjectApps.filter(a => a.loanStatus === 'Co_Vay').length,
       regularCount: filteredByProjectApps.filter(a => a.loanStatus === 'Khong_Vay').length,
+      rejectedCount: filteredByProjectApps.filter(a => a.isRejected && a.currentStep === 'GD1_ChuanBi').length,
     };
   }, [filteredByProjectApps]);
 
@@ -2361,12 +2410,10 @@ export default function App() {
     const apps = filteredByProjectApps;
     
     // PTT
-    const pttHolding = apps.filter(a => STEP_CONFIG[a.currentStep]?.dept === 'PTT').length;
-    const pttMissingDocs = apps.filter(a => {
-        const checklistCount = Object.values(a.checklist || {}).filter(v => v).length;
-        return checklistCount < DOC_CHECKLIST_ITEMS.length;
-    }).length;
-    const pttTaxPending = apps.filter(a => a.currentStep === 'GD4_Cho_Nop_NVTC' && a.taxPaymentStatus === 'Unpaid').length;
+    const pttTotal = apps.length;
+    const pttProcessing = apps.filter(a => a.status === 'Processing').length;
+    const pttIssues = apps.filter(a => a.isRejected || a.status === 'Error').length;
+    const pttTaxPending = apps.filter(a => a.taxPaymentStatus === 'Unpaid' && a.status !== 'Completed').length;
     const pttSlowest = apps.filter(a => STEP_CONFIG[a.currentStep]?.dept === 'PTT')
         .map(a => ({ ...a, overdue: getOverdueInfo(a) }))
         .filter(a => a.overdue.isOverdue)
@@ -2433,6 +2480,16 @@ export default function App() {
             color: 'amber'
         });
     }
+
+    const rejCount = apps.filter(a => a.isRejected).length;
+    if (rejCount > 0) {
+        adminWarnings.push({
+            title: `${rejCount} Hồ sơ đang bị trả về`,
+            desc: `Kế toán yêu cầu bổ sung thông tin cho các hồ sơ này tại Giai đoạn 1.`,
+            icon: RotateCcw,
+            color: 'rose'
+        });
+    }
     if (apps.length > 0 && overdueCount > apps.length * 0.3) {
         adminWarnings.push({
             title: `Cảnh báo rủi ro Hệ thống: ${Math.round((overdueCount/apps.length)*100)}% trễ hạn`,
@@ -2443,7 +2500,7 @@ export default function App() {
     }
 
     return {
-        ptt: { holding: pttHolding, missingDocs: pttMissingDocs, taxPending: pttTaxPending, slowest: pttSlowest },
+        ptt: { total: pttTotal, processing: pttProcessing, issues: pttIssues, taxPending: pttTaxPending, slowest: pttSlowest },
         kt: { received: ktReceived, grouping: ktGrouping, submitted: ktSubmitted, printing: ktPrinting, gcnReceived: ktGcnReceived },
         ptda: { noTax: ptdaNoTax, avgTaxWait: Math.round(avgTaxWait), stuck: ptdaStuck },
         admin: { slaStats: adminSlaStats, warnings: adminWarnings }
@@ -2492,7 +2549,18 @@ export default function App() {
       dashboardFilter === 'ALL' ||
       (dashboardFilter === 'OVERDUE' && getOverdueInfo(app).isOverdue) ||
       (dashboardFilter === 'ERROR' && app.status === 'Error') ||
-      (dashboardFilter === 'COMPLETED' && app.status === 'Completed');
+      (dashboardFilter === 'COMPLETED' && app.status === 'Completed') ||
+      (dashboardFilter === 'PTT_PROCESSING' && app.status === 'Processing') ||
+      (dashboardFilter === 'PTT_HOLDING' && STEP_CONFIG[app.currentStep]?.dept === 'PTT') ||
+      (dashboardFilter === 'PTT_ISSUES' && (app.isRejected || app.status === 'Error')) ||
+      (dashboardFilter === 'PTT_TAX_UNPAID' && app.taxPaymentStatus === 'Unpaid' && app.status !== 'Completed') ||
+      (dashboardFilter === 'KT_RECEIVED' && STEP_CONFIG[app.currentStep]?.dept === 'KT') ||
+      (dashboardFilter === 'KT_GROUPING' && app.currentStep === 'GD2_Cho_Nop_VPDK') ||
+      (dashboardFilter === 'KT_SUBMITTED' && !!app.submissionDate) ||
+      (dashboardFilter === 'KT_GCN_RECEIVED' && !!app.gcnReceivedDate) ||
+      (dashboardFilter === 'PTDA_NO_TAX' && app.currentStep === 'GD3_Cho_TBThue') ||
+      (dashboardFilter === 'PTDA_STUCK' && STEP_CONFIG[app.currentStep]?.dept === 'PTDA' && getOverdueInfo(app).isOverdue) ||
+      (dashboardFilter === 'PTDA_TAX_RECEIVED' && !!app.taxNotificationDate);
 
     return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService && matchesDashboardFilter;
   });
@@ -2932,28 +3000,60 @@ export default function App() {
                 {/* Role-Based KPI Cards */}
                 {userRole === 'PTT' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <StatCard title="Hồ sơ đang giữ" value={roleKpis.ptt.holding} icon={Files} colorClass="bg-indigo-500" delay={0.1} theme={theme} />
-                    <StatCard title="Thiếu giấy tờ" value={roleKpis.ptt.missingDocs} icon={AlertTriangle} colorClass="bg-amber-500" delay={0.2} theme={theme} />
-                    <StatCard title="Chưa xong NVTC" value={roleKpis.ptt.taxPending} icon={Clock} colorClass="bg-rose-500" delay={0.3} theme={theme} />
-                    <StatCard title="Hồ sơ hoàn tất" value={kpis.completed} icon={CheckCircle2} colorClass="bg-emerald-500" delay={0.4} theme={theme} />
+                    <StatCard 
+                      title="Tổng số lượng hồ sơ" 
+                      value={roleKpis.ptt.total} 
+                      icon={Files} 
+                      colorClass="bg-blue-500 shadow-blue-900/40" 
+                      delay={0.1} 
+                      theme={theme} 
+                      onClick={() => { setActiveTab('applications'); setDashboardFilter('ALL'); }}
+                    />
+                    <StatCard 
+                      title="Hồ sơ đang xử lý" 
+                      value={roleKpis.ptt.processing} 
+                      icon={Activity} 
+                      colorClass="bg-indigo-500 shadow-indigo-900/40" 
+                      delay={0.2} 
+                      theme={theme} 
+                      onClick={() => { setActiveTab('applications'); setDashboardFilter('PTT_PROCESSING'); }}
+                    />
+                    <StatCard 
+                      title="Hồ sơ sai sót/vướng mắc" 
+                      value={roleKpis.ptt.issues} 
+                      icon={AlertTriangle} 
+                      colorClass="bg-rose-500 shadow-rose-900/40" 
+                      delay={0.3} 
+                      theme={theme} 
+                      onClick={() => { setActiveTab('applications'); setDashboardFilter('PTT_ISSUES'); }}
+                    />
+                    <StatCard 
+                      title="Chưa hoàn thành NVTC" 
+                      value={roleKpis.ptt.taxPending} 
+                      icon={Clock} 
+                      colorClass="bg-amber-500 shadow-amber-900/40" 
+                      delay={0.4} 
+                      theme={theme} 
+                      onClick={() => { setActiveTab('applications'); setDashboardFilter('PTT_TAX_UNPAID'); }}
+                    />
                   </div>
                 )}
 
                 {userRole === 'KT' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <StatCard title="Hồ sơ đã tiếp nhận" value={roleKpis.kt.received} icon={Files} colorClass="bg-indigo-500" delay={0.1} theme={theme} />
-                    <StatCard title="Đang ghép sổ" value={roleKpis.kt.grouping} icon={Map} colorClass="bg-amber-500" delay={0.2} theme={theme} />
-                    <StatCard title="Đã nộp 1 cửa" value={roleKpis.kt.submitted} icon={CheckCircle2} colorClass="bg-emerald-500" delay={0.3} theme={theme} />
-                    <StatCard title="GCN đã nhận" value={roleKpis.kt.gcnReceived} icon={Building2} colorClass="bg-cyan-500" delay={0.4} theme={theme} />
+                    <StatCard title="Hồ sơ đã tiếp nhận" value={roleKpis.kt.received} icon={Files} colorClass="bg-indigo-500 shadow-indigo-900/40" delay={0.1} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_RECEIVED'); }} />
+                    <StatCard title="Đang ghép sổ" value={roleKpis.kt.grouping} icon={Map} colorClass="bg-amber-500 shadow-amber-900/40" delay={0.2} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_GROUPING'); }} />
+                    <StatCard title="Đã nộp 1 cửa" value={roleKpis.kt.submitted} icon={CheckCircle2} colorClass="bg-emerald-500 shadow-emerald-900/40" delay={0.3} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_SUBMITTED'); }} />
+                    <StatCard title="GCN đã nhận" value={roleKpis.kt.gcnReceived} icon={Building2} colorClass="bg-cyan-500 shadow-cyan-900/40" delay={0.4} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_GCN_RECEIVED'); }} />
                   </div>
                 )}
 
                 {userRole === 'PTDA' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <StatCard title="Chưa có TB Thuế" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-rose-500" delay={0.1} theme={theme} />
-                    <StatCard title="Chờ TB Thuế TB" value={`${roleKpis.ptda.avgTaxWait} ngày`} icon={History} colorClass="bg-indigo-500" delay={0.2} theme={theme} />
-                    <StatCard title="Trễ tại CQNN" value={roleKpis.ptda.stuck} icon={AlertCircle} colorClass="bg-amber-600" delay={0.3} theme={theme} />
-                    <StatCard title="HS Đã nhận TB Thuế" value={roleKpis.kt.submitted - roleKpis.ptda.noTax} icon={CheckCircle2} colorClass="bg-emerald-500" delay={0.4} theme={theme} />
+                    <StatCard title="Chưa có TB Thuế" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-rose-500 shadow-rose-900/40" delay={0.1} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_NO_TAX'); }} />
+                    <StatCard title="Chờ TB Thuế TB" value={`${roleKpis.ptda.avgTaxWait} ngày`} icon={History} colorClass="bg-indigo-500 shadow-indigo-900/40" delay={0.2} theme={theme} />
+                    <StatCard title="Trễ tại CQNN" value={roleKpis.ptda.stuck} icon={AlertCircle} colorClass="bg-amber-600 shadow-amber-900/40" delay={0.3} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_STUCK'); }} />
+                    <StatCard title="HS Đã nhận TB Thuế" value={roleKpis.kt.submitted - roleKpis.ptda.noTax} icon={CheckCircle2} colorClass="bg-emerald-500 shadow-emerald-900/40" delay={0.4} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_TAX_RECEIVED'); }} />
                   </div>
                 )}
 
@@ -3679,7 +3779,14 @@ export default function App() {
                               </td>
                               <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
                                 <div className="flex flex-col">
-                                  <span className="text-sm font-black text-festive-gold font-mono tracking-tight">{app.unitCode}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-black text-festive-gold font-mono tracking-tight">{app.unitCode}</span>
+                                    {app.isRejected && app.currentStep === 'GD1_ChuanBi' && (
+                                      <span className="animate-pulse flex items-center gap-1 text-[8px] bg-rose-500 text-white px-1.5 py-0.5 rounded-full font-black uppercase tracking-tighter">
+                                        <RotateCcw size={8} /> Trả về
+                                      </span>
+                                    )}
+                                  </div>
                                   {overdue.isOverdue && (
                                     <span className="text-[9px] text-amber-500 font-bold uppercase tracking-tighter flex items-center gap-1 mt-1">
                                       <AlertTriangle size={10} /> {overdue.label} ({overdue.daysLate} ngày)
@@ -4043,6 +4150,26 @@ export default function App() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
+                {(editApp || selectedApp).isRejected && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex items-start gap-4 mb-6"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-rose-500 flex items-center justify-center shrink-0 shadow-lg shadow-rose-500/20">
+                      <RotateCcw size={20} className="text-white" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Hồ sơ Cần bổ sung / Sửa đổi</p>
+                        <span className="text-[10px] font-mono text-rose-400 bg-rose-500/5 px-2 py-0.5 rounded border border-rose-500/10">Lần {(editApp || selectedApp).rejectionCount}</span>
+                      </div>
+                      <p className="text-xs font-bold text-slate-200">{(editApp || selectedApp).rejectionReason}</p>
+                      <p className="text-[10px] text-slate-500 mt-2 italic font-medium">Báo cáo bời bộ phận Kế toán. Vui lòng cập nhật thông tin và bàn giao lại.</p>
+                    </div>
+                  </motion.div>
+                )}
+
                 {/* Workflow Tracker - Wider Display */}
                 <section className="bg-slate-900/40 p-8 rounded-[2.5rem] border border-slate-800/50 relative overflow-hidden backdrop-blur-md">
                    <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-[100px] -mr-32 -mt-32"></div>
@@ -4628,12 +4755,23 @@ export default function App() {
                       // GĐ 1: KT xác nhận
                       if (app.currentStep === 'GD1_Cho_KT_TiepNhan' && role === 'KT') {
                         return (
-                          <button 
-                            onClick={() => handleStepTransition('GD2_Cho_Nop_VPDK')}
-                            className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                          >
-                            Xác nhận tiếp nhận hồ sơ <CheckCircle2 size={16} />
-                          </button>
+                          <div className="flex flex-col gap-3">
+                            <button 
+                              onClick={() => handleStepTransition('GD2_Cho_Nop_VPDK')}
+                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
+                            >
+                              Xác nhận tiếp nhận hồ sơ <CheckCircle2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => {
+                                const reason = prompt("Lý do trả hồ sơ / Yêu cầu bổ sung:");
+                                if (reason) handleRejectApp(reason);
+                              }}
+                              className="w-full py-2.5 border-2 border-rose-500/50 text-rose-500 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-rose-500/10 transition-all flex items-center justify-center gap-2"
+                            >
+                              <RotateCcw size={14} /> Yêu cầu bổ sung (Trả về PTT)
+                            </button>
+                          </div>
                         );
                       }
 

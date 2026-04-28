@@ -111,6 +111,9 @@ export type Application = {
   issueSeverity?: IssueSeverity;
   issueNotes?: string;
   estimatedCompletionDate?: string;
+  rejectionCount?: number; // Số lần hồ sơ bị trả về
+  isRejected?: boolean; // Trạng thái đang bị trả về chờ sửa
+  rejectionReason?: string; // Lý do trả hồ sơ
   scannedFiles?: ScannedFile[];
 
   taxPaymentStatus: 'Unpaid' | 'Paid';
@@ -142,4 +145,5 @@ export type KPI = {
   overdue: number;
   loanCount: number;
   regularCount: number;
+  rejectedCount: number; // Số lượng hồ sơ bị trả về (Giai đoạn 1)
 };
