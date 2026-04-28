@@ -24,6 +24,8 @@ import {
   LogOut,
   AlertTriangle,
   HelpCircle,
+  CreditCard,
+  Edit3,
   Plus,
   X,
   ChevronDown,
@@ -54,7 +56,8 @@ import {
   Folder,
   FolderOpen,
   Sun,
-  Moon
+  Moon,
+  Camera
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -62,7 +65,7 @@ import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { MOCK_APPLICATIONS, PROJECTS, STEP_CONFIG, MOCK_USERS } from './constants';
-import { Application, UnitStatus, KPI, Dept, UserProfile, PropertyType, StepName, AppNotification as Notification, Project, ApplicationStepHistory } from './types';
+import { Application, UnitStatus, KPI, Dept, UserProfile, PropertyType, StepName, AppNotification as Notification, Project, ApplicationStepHistory, AuditTrailEntry } from './types';
 
 type ApplicationHistory = {
   id: string;
@@ -269,8 +272,8 @@ const DetailCard = ({ label, value, field, valueColor = 'text-white', editable =
                   options.map(opt => <option key={opt} value={opt}>{opt}</option>)
                 ) : field === 'submissionLocation' ? (
                   <>
-                    <option value="PHUONG">VPĐK Phường</option>
-                    <option value="TP_DANANG">VPĐK TP Đà Nẵng</option>
+                    <option value="PHUONG">Phường/Xã</option>
+                    <option value="TP_DANANG">Tỉnh/Thành phố</option>
                   </>
                 ) : field === 'taxPaymentStatus' ? (
                   <>
@@ -430,7 +433,23 @@ const SettingsView = ({ slaConfig, setSlaConfig, checklistTemplates, setChecklis
   );
 };
 
-const ReportsView = ({ applications, projects, regions, theme }: { applications: Application[], projects: Project[], regions: string[], theme: 'light' | 'dark' }) => {
+const ReportsView = ({ 
+  applications, 
+  projects, 
+  regions, 
+  theme,
+  setActiveTab,
+  setDashboardFilter,
+  setFilterLoanStatus
+}: { 
+  applications: Application[], 
+  projects: Project[], 
+  regions: string[], 
+  theme: 'light' | 'dark',
+  setActiveTab: (tab: any) => void,
+  setDashboardFilter: (filter: any) => void,
+  setFilterLoanStatus: (filter: any) => void
+}) => {
   const [reportType, setReportType] = useState<'PROJECT' | 'REGION' | 'LOAN' | 'SLA'>('LOAN');
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
 
@@ -633,10 +652,47 @@ const ReportsView = ({ applications, projects, regions, theme }: { applications:
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <h3 className={cn("text-sm font-black uppercase tracking-widest", theme === 'light' ? "text-slate-800" : "text-slate-200")}>Ưu tiên: Theo dõi tiến độ GCN - Hồ sơ Cam kết Tín dụng</h3>
-                  <div className="flex gap-4">
+                  <div className="flex gap-4 items-center">
+                    <button 
+                      onClick={() => alert('Đang xuất báo cáo chi tiết các căn có vay (Excel)...')}
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-900/20"
+                    >
+                      <Download size={14} /> Xuất BC Có Vay
+                    </button>
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-rose-500" />
                       <span className="text-[9px] font-black uppercase text-slate-500">{"Rủi ro trễ cam kết (SLA > 10 ngày)"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress Summary for Loan Customers */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                  <div className="bg-slate-950/40 p-6 rounded-3xl border border-slate-800/50 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center">
+                      <TrendingUp className="text-indigo-400" size={24} />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Tổng căn có vay</p>
+                      <p className="text-2xl font-black text-white italic">{loanApps.length}</p>
+                    </div>
+                  </div>
+                  <div className="bg-slate-950/40 p-6 rounded-3xl border border-slate-800/50 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
+                      <CheckCircle2 className="text-emerald-400" size={24} />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Đã ra sổ / Hoàn tất</p>
+                      <p className="text-2xl font-black text-white italic">{loanApps.filter(a => a.status === 'Completed').length}</p>
+                    </div>
+                  </div>
+                  <div className="bg-slate-950/40 p-6 rounded-3xl border border-slate-800/50 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center">
+                      <Clock className="text-amber-400" size={24} />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Đang xử lý đúng hạn</p>
+                      <p className="text-2xl font-black text-white italic">{loanApps.filter(a => a.status !== 'Completed' && !getOverdueInfo(a).isOverdue).length}</p>
                     </div>
                   </div>
                 </div>
@@ -646,7 +702,7 @@ const ReportsView = ({ applications, projects, regions, theme }: { applications:
                     <thead className={theme === 'light' ? "bg-slate-50 border-b border-slate-100" : "bg-slate-950/50 border-b border-slate-800"}>
                       <tr>
                         <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Dự án & Mã căn</th>
-                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Thông tin Vay & HĐTD</th>
+                        <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Gói vay</th>
                         <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Tiến độ cấp GCN</th>
                         <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Ngày chậm</th>
                         <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Rủi ro Cam kết</th>
@@ -672,10 +728,9 @@ const ReportsView = ({ applications, projects, regions, theme }: { applications:
                             </td>
                             <td className="px-6 py-5">
                                <div className="flex items-center gap-2">
-                                 <Building2 size={12} className="text-indigo-400" />
-                                 <span className="text-xs font-bold text-indigo-400">{app.bankName || 'Chưa định danh'}</span>
+                                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-sm" />
+                                 <span className="text-xs font-bold text-indigo-400">{app.loanStatus === 'Co_Vay' ? 'Có vay' : 'Không vay'}</span>
                                </div>
-                               <p className="text-[9px] text-slate-500 mt-0.5">HĐ: {app.loanAgreementNumber || '---'}</p>
                             </td>
                             <td className="px-6 py-5 text-center">
                                <StatusBadge status={app.status} />
@@ -1004,6 +1059,182 @@ const NotificationPanel = ({ notifications, onClose, onRead, theme }: { notifica
 };
 
 
+const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: { applications: Application[], projects: Project[], onUpdateApp: (app: Application) => void, theme: 'light' | 'dark', onExit: () => void }) => {
+  const [search, setSearch] = useState('');
+  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+  
+  const filteredApps = applications.filter(a => 
+    a.unitCode.toLowerCase().includes(search.toLowerCase()) || 
+    a.customerName.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white p-4 font-sans safe-area-inset overflow-x-hidden text-left">
+       <header className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center">
+                <LayoutDashboard size={20} />
+             </div>
+             <div className="text-left">
+                <h2 className="text-lg font-black italic">Field Portal</h2>
+                <p className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Cập nhật hồ sơ hiện trường</p>
+             </div>
+          </div>
+          <button onClick={onExit} className="p-2 bg-slate-900 rounded-xl border border-slate-800 text-slate-400">
+             <X size={20} />
+          </button>
+       </header>
+
+       <div className="relative mb-6">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+          <input 
+            type="text" 
+            placeholder="Tìm mã căn / khách hàng..."
+            className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-12 pr-4 py-4 text-sm font-bold focus:border-indigo-500 transition-all text-left"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+       </div>
+
+       <div className="space-y-4 pb-24 text-left">
+          {filteredApps.length > 0 ? (
+            filteredApps.map(app => (
+              <div 
+                key={app.id} 
+                onClick={() => setSelectedApp(app)}
+                className="bg-slate-900/40 p-5 rounded-[2rem] border border-slate-800 flex items-center justify-between active:scale-[0.98] transition-all"
+              >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{app.unitCode}</span>
+                        {app.loanStatus === 'Co_Vay' && (
+                          <span className="text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase bg-indigo-500/20 text-indigo-400 border border-indigo-500/20">Có vay</span>
+                        )}
+                        <span className={cn(
+                          "text-[8px] px-2 py-0.5 rounded-md font-black uppercase",
+                          app.status === 'Error' ? "bg-rose-500/20 text-rose-500" : "bg-emerald-500/10 text-emerald-500"
+                        )}>{app.status}</span>
+                    </div>
+                    <p className="text-sm font-bold truncate">{app.customerName}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">{app.projectName}</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-500">
+                    <ChevronRight size={20} />
+                  </div>
+              </div>
+            ))
+          ) : (
+            <div className="py-20 text-center opacity-30">
+               <Search size={48} className="mx-auto mb-4" />
+               <p className="text-xs font-black uppercase">Không tìm thấy hồ sơ</p>
+            </div>
+          )}
+       </div>
+
+       <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-950/80 backdrop-blur-xl border-t border-slate-800 grid grid-cols-3 gap-2">
+          <button className="flex flex-col items-center gap-1 p-2 text-indigo-400">
+             <LayoutDashboard size={20} />
+             <span className="text-[8px] font-black uppercase">Tất cả</span>
+          </button>
+          <button className="flex flex-col items-center gap-1 p-2 text-slate-500">
+             <AlertCircle size={20} />
+             <span className="text-[8px] font-black uppercase">Vướng mắc</span>
+          </button>
+          <button className="flex flex-col items-center gap-1 p-2 text-slate-500 group">
+             <Camera size={20} className="group-active:scale-125 transition-transform" />
+             <span className="text-[8px] font-black uppercase">Chụp ảnh</span>
+          </button>
+       </div>
+
+       <AnimatePresence>
+          {selectedApp && (
+             <motion.div 
+               initial={{ y: '100%' }}
+               animate={{ y: 0 }}
+               exit={{ y: '100%' }}
+               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+               className="fixed inset-0 z-[200] bg-slate-950 p-6 flex flex-col text-left"
+             >
+                <header className="flex items-center justify-between mb-8">
+                   <h2 className="text-xl font-black italic">Cập nhật hồ sơ</h2>
+                   <button onClick={() => setSelectedApp(null)} className="p-3 bg-slate-900 rounded-2xl border border-slate-800 text-slate-500">
+                      <X size={20} />
+                   </button>
+                </header>
+
+                <div className="flex-1 overflow-y-auto space-y-8 custom-scrollbar">
+                   <div className="p-6 bg-slate-900 rounded-3xl border border-slate-800 text-center">
+                      <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Hồ sơ mục tiêu</p>
+                      <h3 className="text-2xl font-black text-indigo-400 font-serif italic mb-1">{selectedApp.unitCode}</h3>
+                      <div className="flex justify-center gap-2 mb-2">
+                        <span className="text-[9px] px-2 py-0.5 bg-slate-800 text-slate-400 rounded-lg font-black uppercase">
+                          {selectedApp.propertyType === 'Dat_Nen' ? 'Đất nền' : 'Căn hộ'}
+                        </span>
+                        <span className={cn(
+                          "text-[9px] px-3 py-0.5 rounded-lg font-black uppercase",
+                          selectedApp.loanStatus === 'Co_Vay' ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/20" : "bg-slate-800 text-slate-500"
+                        )}>
+                          {selectedApp.loanStatus === 'Co_Vay' ? 'Có vay' : 'Không vay'}
+                        </span>
+                      </div>
+                      <p className="text-sm font-bold text-slate-300">{selectedApp.customerName}</p>
+                   </div>
+
+                   <section className="space-y-4">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-2">Trạng thái công việc</p>
+                      <div className="grid grid-cols-2 gap-3">
+                         {[
+                           { val: 'Processing', label: 'Đang xử lý' },
+                           { val: 'Completed', label: 'Đã xong' },
+                           { val: 'Error', label: 'Vướng mắc' }
+                         ].map(st => (
+                            <button 
+                              key={st.val}
+                              onClick={() => {
+                                 onUpdateApp({ ...selectedApp, status: st.val as any });
+                                 setSelectedApp(null);
+                              }}
+                              className={cn(
+                                "py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all",
+                                selectedApp.status === st.val ? "bg-indigo-600 border-indigo-500 text-white" : "bg-slate-950 border-slate-800 text-slate-500"
+                              )}
+                            >
+                               {st.label}
+                            </button>
+                         ))}
+                      </div>
+                   </section>
+
+                   <section className="space-y-4">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-2">Ảnh hiện trường / Hồ sơ scan</p>
+                      <div className="grid grid-cols-2 gap-4">
+                         <div className="aspect-square bg-slate-900 border border-slate-800 rounded-3xl flex flex-col items-center justify-center gap-3 active:scale-95 transition-all text-slate-500 border-dashed border-2 cursor-pointer">
+                            <Camera size={32} />
+                            <span className="text-[9px] font-black uppercase">Chụp ảnh mới</span>
+                         </div>
+                         <div className="aspect-square bg-slate-900 border border-slate-800 rounded-3xl flex flex-col items-center justify-center gap-3 active:scale-95 transition-all text-slate-500 border-dashed border-2 cursor-pointer">
+                            <Upload size={32} />
+                            <span className="text-[9px] font-black uppercase">Tải tệp lên</span>
+                         </div>
+                      </div>
+                   </section>
+                </div>
+
+                <div className="pt-6">
+                   <button 
+                     onClick={() => setSelectedApp(null)}
+                     className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/20 active:scale-95 transition-all"
+                   >
+                      Hoàn tất & Đồng bộ
+                   </button>
+                </div>
+             </motion.div>
+          )}
+       </AnimatePresence>
+    </div>
+  );
+};
+
 const ProjectManagementView = ({ projects, onCreate, onEdit, onDelete, theme }: { projects: Project[]; onCreate: () => void; onEdit: (p: Project) => void; onDelete: (id: string) => void; theme: 'light' | 'dark' }) => {
   const [pSearch, setPSearch] = useState('');
 
@@ -1321,6 +1552,42 @@ const getPhaseIndex = (step: StepName) => {
   return -1;
 };
 
+const getOverdueInfo = (app: Application) => {
+  const phaseIndex = getPhaseIndex(app.currentStep);
+
+  // SLA GĐ 1: HĐCN -> Bàn giao hồ sơ (25 ngày)
+  if (phaseIndex === 0 && app.contractSigningDate && !app.accountingHandoverDate) {
+    const days = calculateDaysDiff(app.contractSigningDate);
+    if (days > 25) return { isOverdue: true, daysLate: days - 25, label: 'Trễ bàn giao HS (GĐ1)' };
+  }
+
+  // SLA GĐ 2: Tiếp nhận -> Nộp (5 ngày)
+  if (phaseIndex === 1 && app.accountingHandoverDate && !app.submissionDate) {
+    const days = calculateDaysDiff(app.accountingHandoverDate);
+    if (days > 5) return { isOverdue: true, daysLate: days - 5, label: 'Trễ nộp VPĐK (GĐ2)' };
+  }
+
+  // SLA GĐ 3: Nộp -> TB Thuế (15 ngày)
+  if (phaseIndex === 2 && app.submissionDate && !app.taxNotificationDate) {
+    const days = calculateDaysDiff(app.submissionDate);
+    if (days > 15) return { isOverdue: true, daysLate: days - 15, label: 'Trễ TB Thuế (GĐ3)' };
+  }
+
+  // SLA GĐ 4: TB Thuế -> NVTC (10 ngày)
+  if (phaseIndex === 3 && app.taxNotificationDate && !app.taxReceiptDate) {
+    const days = calculateDaysDiff(app.taxNotificationDate);
+    if (days > 10) return { isOverdue: true, daysLate: days - 10, label: 'Trễ nộp thuế (GĐ4)' };
+  }
+
+  // SLA GĐ 5: Hoàn thành thuế -> Có sổ (10 ngày)
+  if (phaseIndex === 4 && app.taxReceiptDate && !app.gcnReceivedDate) {
+    const days = calculateDaysDiff(app.taxReceiptDate);
+    if (days > 10) return { isOverdue: true, daysLate: days - 10, label: 'Trễ nhận GCN (GĐ5)' };
+  }
+
+  return { isOverdue: false, daysLate: 0 };
+};
+
 const UserManagementView = ({ users, onEdit, onDelete, onCreate, onResetPassword, theme }: { users: UserProfile[]; onEdit: (u: UserProfile) => void; onDelete: (id: string) => void; onCreate: () => void; onResetPassword: (u: UserProfile) => void; theme: 'light' | 'dark' }) => (
   <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
     <header className="flex justify-between items-end text-left">
@@ -1461,6 +1728,7 @@ export default function App() {
   const [expandedSidebarRegions, setExpandedSidebarRegions] = useState<Record<string, boolean>>({});
   const [dashboardFilter, setDashboardFilter] = useState<'ALL' | 'OVERDUE' | 'ERROR' | 'COMPLETED'>('ALL');
   const [projectRegionFilter, setProjectRegionFilter] = useState<string>('ALL');
+  const [isFieldMode, setIsFieldMode] = useState(false);
   
   // Toggle region in sidebar
   const toggleSidebarRegion = (region: string) => {
@@ -1515,42 +1783,6 @@ export default function App() {
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  const getOverdueInfo = (app: Application) => {
-    const phaseIndex = getPhaseIndex(app.currentStep);
-
-    // SLA GĐ 1: HĐCN -> Bàn giao hồ sơ (25 ngày)
-    if (phaseIndex === 0 && app.contractSigningDate && !app.accountingHandoverDate) {
-      const days = calculateDaysDiff(app.contractSigningDate);
-      if (days > 25) return { isOverdue: true, daysLate: days - 25, label: 'Trễ bàn giao HS (GĐ1)' };
-    }
-
-    // SLA GĐ 2: Tiếp nhận -> Nộp (5 ngày)
-    if (phaseIndex === 1 && app.accountingHandoverDate && !app.submissionDate) {
-      const days = calculateDaysDiff(app.accountingHandoverDate);
-      if (days > 5) return { isOverdue: true, daysLate: days - 5, label: 'Trễ nộp VPĐK (GĐ2)' };
-    }
-
-    // SLA GĐ 3: Nộp -> TB Thuế (15 ngày)
-    if (phaseIndex === 2 && app.submissionDate && !app.taxNotificationDate) {
-      const days = calculateDaysDiff(app.submissionDate);
-      if (days > 15) return { isOverdue: true, daysLate: days - 15, label: 'Trễ TB Thuế (GĐ3)' };
-    }
-
-    // SLA GĐ 4: TB Thuế -> NVTC (10 ngày)
-    if (phaseIndex === 3 && app.taxNotificationDate && !app.taxReceiptDate) {
-      const days = calculateDaysDiff(app.taxNotificationDate);
-      if (days > 10) return { isOverdue: true, daysLate: days - 10, label: 'Trễ nộp thuế (GĐ4)' };
-    }
-
-    // SLA GĐ 5: Hoàn thành thuế -> Có sổ (10 ngày)
-    if (phaseIndex === 4 && app.taxReceiptDate && !app.gcnReceivedDate) {
-      const days = calculateDaysDiff(app.taxReceiptDate);
-      if (days > 10) return { isOverdue: true, daysLate: days - 10, label: 'Trễ nhận GCN (GĐ5)' };
-    }
-
-    return { isOverdue: false, daysLate: 0 };
-  };
-
   const validatePhone = (phone: string) => {
     const phoneRegex = /(84|0[3|5|7|8|9])+([0-9]{8})\b/g;
     return phoneRegex.test(phone);
@@ -1564,17 +1796,17 @@ export default function App() {
     if (userRole === 'PTT') {
       headers = [
         "Dự án", "Mã lô/căn", "Khách hàng", "Sử dụng gói vay", "Loại tài sản", 
-        "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày BG HS nội bộ", "Tự làm sổ", "Ngày BG GCN Khách"
+        "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Cam kết Ngân hàng (Vay)", "Tự làm sổ", "Ngày BG GCN Khách"
       ];
       data = sourceApps.map(app => [
         app.projectName,
         app.unitCode,
         app.customerName,
-        app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
+        app.loanStatus === 'Co_Vay' ? 'Có vay' : 'Không vay',
         app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
         app.receivedDate || '',
         app.contractSigningDate || '',
-        app.accountingHandoverDate || '',
+        app.bankCommitmentDeadline || '',
         app.isSelfService ? 'Có' : 'Không',
         app.customerHandoverDate || ''
       ]);
@@ -1588,7 +1820,7 @@ export default function App() {
         app.projectName,
         app.unitCode,
         app.customerName,
-        app.submissionLocation === 'PHUONG' ? 'Phường' : 'TP Đà Nẵng',
+        app.submissionLocation === 'PHUONG' ? 'Phường/Xã' : app.submissionLocation === 'TINH' ? 'Tỉnh/Thành phố' : '',
         app.vpdkCode || '',
         app.submissionDate || '',
         app.taxNotificationDate || '',
@@ -1646,9 +1878,9 @@ export default function App() {
       const worksheet = workbook.Sheets[worksheetName];
       const excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
-      const pttFields = ['customerName', 'phoneNumber', 'contractSigningDate', 'submissionLocation', 'isSelfService', 'customerHandoverDate', 'vpdkCode', 'submissionDate'];
-      const ktFields = ['taxNotificationDate', 'taxNotificationReceivedDate', 'taxReceiptDate', 'taxPaymentStatus'];
-      const ptdaFields = ['gcnReceivedDate', 'ptdaHandoverDate', 'accountingHandoverDate'];
+      const pttFields = ['customerName', 'phoneNumber', 'loanStatus', 'bankCommitmentDeadline', 'propertyType', 'contractSigningDate', 'receivedDate', 'isSelfService'];
+      const ktFields = ['submissionLocation', 'vpdkCode', 'submissionDate', 'taxNotificationDate', 'taxNotificationReceivedDate', 'taxReceiptDate', 'taxPaymentStatus'];
+      const ptdaFields = ['taxNoticeProvisionDate', 'gcnSignedDate', 'gcnReceivedDate', 'ptdaHandoverDate', 'accountingHandoverDate', 'customerHandoverDate'];
 
       let updatedCount = 0;
       let createdCount = 0;
@@ -1671,8 +1903,8 @@ export default function App() {
              status: 'Processing',
              receivedDate: row[5] || new Date().toISOString().split('T')[0],
              contractSigningDate: row[6],
-             isSelfService: row[7] === 'Có',
-             customerHandoverDate: row[8],
+             bankCommitmentDeadline: row[7] || '',
+             isSelfService: row[8] === 'Có',
              taxPaymentStatus: 'Unpaid' as any,
              history: [{ id: `hist-${Date.now()}`, stepName: 'Khởi tạo (Import)', dept: 'PTT', receivedDate: new Date().toISOString().split('T')[0] }]
           } as Application;
@@ -1684,9 +1916,8 @@ export default function App() {
             app.propertyType = row[4] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
             app.receivedDate = row[5] || app.receivedDate;
             app.contractSigningDate = row[6] || app.contractSigningDate;
-            app.accountingHandoverDate = row[7] || app.accountingHandoverDate;
+            app.bankCommitmentDeadline = row[7] || app.bankCommitmentDeadline;
             app.isSelfService = row[8] === 'Có';
-            app.customerHandoverDate = row[9] || app.customerHandoverDate;
             newApplications[existingIndex] = app;
             updatedCount++;
           } else {
@@ -1745,9 +1976,26 @@ export default function App() {
   };
 
   const handleUpdateApp = () => {
-    if (!editApp) return;
-    setApplications(prev => prev.map(app => app.id === editApp.id ? editApp : app));
-    setSelectedApp(editApp);
+    if (!editApp || !selectedApp) return;
+    
+    // Add audit trail for manual update
+    const auditEntry: AuditTrailEntry = {
+      id: `audit-${Date.now()}`,
+      userId: currentUser?.id || 'admin',
+      userName: currentUser?.name || 'Admin',
+      timestamp: new Date().toLocaleString('vi-VN'),
+      action: 'Cập nhật thông tin hồ sơ thủ công',
+      changes: 'Chỉnh sửa bởi Admin/Quản lý'
+    };
+
+    const updatedApp = {
+      ...editApp,
+      auditTrail: [auditEntry, ...(editApp.auditTrail || [])]
+    };
+
+    setApplications(prev => prev.map(app => app.id === updatedApp.id ? updatedApp : app));
+    setSelectedApp(updatedApp);
+    setEditApp(null);
     setIsEditing(false);
     alert('Đã cập nhật thông tin hồ sơ thành công!');
   };
@@ -1895,11 +2143,11 @@ export default function App() {
 
     // Master & Procedural: PTT responsible for initial collection and master data
     const pttFields = [
-      'customerName', 'loanStatus', 'propertyType', 
+      'customerName', 'phoneNumber', 'loanStatus', 'bankCommitmentDeadline', 'propertyType', 
       'contractSigningDate', 'receivedDate', 'isSelfService'
     ];
 
-    // Financial & Tax & Authority Submission: KT now responsible for VPDK submission too
+    // Financial & Tax & Authority Submission: KT responsible for processing according to function (Tax/Accounting)
     const ktFields = [
       'submissionLocation', 'vpdkCode', 'submissionDate',
       'taxNotificationDate', 'taxNotificationReceivedDate', 
@@ -1907,7 +2155,7 @@ export default function App() {
       'issueType', 'issueNotes'
     ];
 
-    // Project/Authority: PTDA responsible for GCN receiving and signing progress
+    // Project/Authority: PTDA responsible for processing dates (GCN milestones)
     const ptdaFields = [
       'taxNoticeProvisionDate', 'gcnSignedDate',
       'gcnReceivedDate', 'ptdaHandoverDate', 'accountingHandoverDate',
@@ -2256,6 +2504,31 @@ export default function App() {
     }} />;
   }
 
+  if (isFieldMode) {
+    return (
+      <FieldModeView 
+        applications={applications} 
+        projects={projects} 
+        onUpdateApp={(updated) => {
+          setApplications(prev => prev.map(a => a.id === updated.id ? updated : a));
+          setNotifications(prev => [
+            { 
+              id: Date.now().toString(), 
+              title: 'Cập nhật hiện trường', 
+              message: `Hồ sơ ${updated.unitCode} được cập nhật trạng thái bởi nhân viên hiện trường.`, 
+              time: 'Vừa xong', 
+              type: 'Success', 
+              isRead: false 
+            },
+            ...prev
+          ]);
+        }} 
+        theme={theme}
+        onExit={() => setIsFieldMode(false)}
+      />
+    );
+  }
+
   return (
     <div className={cn(
       "flex h-screen w-full overflow-hidden font-sans relative transition-colors duration-500",
@@ -2340,7 +2613,7 @@ export default function App() {
               )}
             >
               <FileBarChart size={18} />
-              Báo cáo & Thống kê (Lãnh đạo)
+              {userRole === 'ADMIN' ? 'Báo cáo & Thống kê' : 'Báo cáo & Thống kê (Lãnh đạo)'}
             </button>
           )}
 
@@ -2397,6 +2670,19 @@ export default function App() {
               </button>
             </>
           )}
+
+          <div className="pt-4 mt-4 border-t border-slate-800/10">
+            <button 
+              onClick={() => setIsFieldMode(true)}
+              className={cn(
+                "w-full flex items-center gap-3 px-8 py-4 rounded-2xl transition-all duration-200 font-black text-[10px] uppercase tracking-widest",
+                "bg-indigo-600/10 text-indigo-400 border border-indigo-600/20 hover:bg-indigo-600/20"
+              )}
+            >
+              <LayoutDashboard size={14} />
+              Field Portal (Mobile)
+            </button>
+          </div>
 
           <div className="pt-4 border-t border-slate-800/10 mt-4 px-6 pb-2">
             <div className="flex items-center justify-between mb-3">
@@ -2708,6 +2994,15 @@ export default function App() {
                       delay={0.4} 
                       theme={theme} 
                       onClick={() => { setActiveTab('applications'); setDashboardFilter('ERROR'); }}
+                    />
+                    <StatCard 
+                      title="Căn có vay" 
+                      value={applications.filter(a => a.loanStatus === 'Co_Vay').length} 
+                      icon={CreditCard} 
+                      colorClass="bg-indigo-600 shadow-indigo-900/40" 
+                      delay={0.5} 
+                      theme={theme} 
+                      onClick={() => { setActiveTab('reports'); }}
                     />
                   </div>
                 )}
@@ -3514,7 +3809,15 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="max-w-7xl mx-auto"
               >
-                <ReportsView applications={filteredByProjectApps} projects={visibleProjects} regions={regions} theme={theme} />
+                <ReportsView 
+                  applications={filteredByProjectApps} 
+                  projects={visibleProjects} 
+                  regions={regions} 
+                  theme={theme}
+                  setActiveTab={setActiveTab}
+                  setDashboardFilter={setDashboardFilter}
+                  setFilterLoanStatus={setFilterLoanStatus}
+                />
               </motion.div>
             )}
 
@@ -3540,55 +3843,94 @@ export default function App() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.05 }}
-                className="max-w-5xl mx-auto space-y-8"
+                className="max-w-6xl mx-auto space-y-12 pb-20 text-left"
               >
-                <div className="text-center space-y-4 mb-12">
-                  <h2 className="text-4xl font-black text-white font-serif italic tracking-tight">Tra cứu & Biểu mẫu</h2>
-                  <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.3em]">Trung tâm tài nguyên & Quy trình chuẩn</p>
+                <div className="relative p-12 rounded-[3.5rem] bg-indigo-600 overflow-hidden shadow-2xl">
+                   <div className="absolute top-0 right-0 p-12 opacity-10">
+                      <Files size={120} />
+                   </div>
+                   <div className="relative z-10 text-left space-y-4">
+                      <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/20 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-[0.2em] text-white/80 mb-2">
+                        <CheckCircle2 size={12} /> Resource Center
+                      </div>
+                      <h2 className="text-5xl font-black text-white font-serif italic tracking-tight">Tra cứu & Biểu mẫu</h2>
+                      <p className="text-sm text-indigo-100 font-medium max-w-xl">Trung tâm tài nguyên tập trung dành cho Chuyên viên và Lãnh đạo. Tải xuống các biểu mẫu chuẩn hoặc cập nhật tài liệu mới nhất lên hệ thống.</p>
+                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="bg-slate-900/40 backdrop-blur-md p-8 rounded-[2.5rem] border border-slate-800/50 shadow-2xl">
-                    <div className="flex items-center gap-4 mb-8">
-                      <div className="w-12 h-12 bg-amber-500/10 text-amber-500 rounded-2xl flex items-center justify-center">
-                        <CheckCircle2 size={24} />
+                  <div className={cn(
+                    "backdrop-blur-md p-10 rounded-[3rem] border shadow-2xl transition-all",
+                    theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800/50"
+                  )}>
+                    <div className="flex items-center gap-5 mb-10">
+                      <div className="w-14 h-14 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+                        <CheckCircle2 size={28} className="text-white" />
                       </div>
                       <div>
-                        <h3 className="text-xl font-bold text-white font-serif italic">Checklist Hồ sơ chuẩn</h3>
-                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Danh mục hồ sơ cần chuẩn bị</p>
+                        <h3 className={cn("text-2xl font-black font-serif italic tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Checklist Hồ sơ chuẩn</h3>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Quy định bắt buộc GĐ chuẩn bị</p>
                       </div>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {DOC_CHECKLIST_ITEMS.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-3 p-4 rounded-2xl bg-slate-950/30 border border-slate-800/30 hover:border-amber-500/30 transition-all group">
-                          <div className="w-6 h-6 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-600 group-hover:text-amber-500 group-hover:border-amber-500/30">
+                        <div key={idx} className={cn(
+                          "flex items-center gap-4 p-5 rounded-2xl border transition-all group",
+                          theme === 'light' ? "bg-slate-50 border-slate-100 hover:border-amber-200" : "bg-slate-950/30 border-slate-800/30 hover:border-amber-500/30"
+                        )}>
+                          <div className={cn(
+                            "w-8 h-8 rounded-full border flex items-center justify-center text-[12px] font-black transition-all",
+                            theme === 'light' ? "bg-white border-slate-200 text-slate-400 group-hover:text-amber-500" : "bg-slate-900 border-slate-800 text-slate-600 group-hover:text-amber-500"
+                          )}>
                             {idx + 1}
                           </div>
-                          <span className="text-sm text-slate-300">{item}</span>
+                          <span className={cn("text-sm font-bold", theme === 'light' ? "text-slate-700" : "text-slate-300")}>{item}</span>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="space-y-8">
-                    <div className="bg-slate-900/40 backdrop-blur-md p-8 rounded-[2.5rem] border border-slate-800/50 shadow-2xl">
-                      <div className="flex items-center justify-between mb-8">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-indigo-500/10 text-indigo-400 rounded-2xl flex items-center justify-center">
-                            <Files size={24} />
+                  <div className="space-y-10">
+                    <div className={cn(
+                      "backdrop-blur-md p-10 rounded-[3rem] border shadow-2xl transition-all",
+                      theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800/50"
+                    )}>
+                      <div className="flex items-center justify-between mb-10">
+                        <div className="flex items-center gap-5">
+                          <div className="w-14 h-14 bg-indigo-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                            <Files size={28} className="text-white" />
                           </div>
                           <div>
-                            <h3 className="text-xl font-bold text-white font-serif italic">Biểu mẫu Tải xuống</h3>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Tải về các mẫu văn bản hành chính</p>
+                            <h3 className={cn("text-2xl font-black font-serif italic tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Biểu mẫu & Dữ liệu</h3>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Tài liệu số & Export</p>
                           </div>
                         </div>
+                      </div>
+
+                      <div className="flex gap-3 mb-8">
+                        {(userRole === 'ADMIN' || userRole === 'KT') && (
+                          <button 
+                            onClick={() => {
+                              const input = document.createElement('input');
+                              input.type = 'file';
+                              input.onchange = (e: any) => {
+                                const file = e.target.files[0];
+                                if (file) alert(`Hệ thống đã nhận biểu mẫu: ${file.name}. Đang xử lý tải lên...`);
+                              };
+                              input.click();
+                            }}
+                            className="flex-1 px-4 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all"
+                          >
+                            <Upload size={16} /> Tải biểu mẫu mới
+                          </button>
+                        )}
                         {userRole === 'ADMIN' && (
                           <button 
                             onClick={handleDownloadTemplate}
-                            className="px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 rounded-xl text-[10px] font-black uppercase border border-indigo-500/30 flex items-center gap-2 transition-all"
+                            className="px-4 py-4 bg-white border border-slate-200 text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 hover:bg-slate-50 transition-all font-bold"
                             title="Tải toàn bộ dữ liệu hồ sơ"
                           >
-                            <FileSpreadsheet size={14} /> Tải dữ liệu
+                            <FileSpreadsheet size={16} /> Data Export
                           </button>
                         )}
                       </div>
@@ -3643,34 +3985,49 @@ export default function App() {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed right-0 top-0 bottom-0 w-[480px] bg-[#1E293B] z-50 shadow-2xl flex flex-col border-l border-slate-700"
+              className="fixed right-0 top-0 bottom-0 w-full md:w-[750px] lg:w-[900px] bg-[#1E293B] z-50 shadow-2xl flex flex-col border-l border-slate-700"
             >
-              <div className="p-6 border-b border-slate-700 flex items-center justify-between bg-slate-900/50">
+              <div className="p-8 border-b border-slate-700 flex items-center justify-between bg-slate-900/50">
                 <div>
-                  <h3 className="text-xl font-bold text-slate-100">{(editApp || selectedApp).unitCode}</h3>
-                  <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest">{(editApp || selectedApp).projectName}</p>
+                  <div className="flex items-center gap-3 mb-1">
+                    <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 rounded text-[10px] font-black uppercase tracking-widest border border-indigo-500/20">
+                      {(editApp || selectedApp).unitCode}
+                    </span>
+                    <StatusBadge status={(editApp || selectedApp).status} />
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-100 italic font-serif">{(editApp || selectedApp).projectName}</h3>
+                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">{(editApp || selectedApp).customerName}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   {!isEditing ? (
                     <button 
                       onClick={() => {
                         setIsEditing(true);
                         setEditApp(selectedApp);
                       }}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-festive-gold text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all border border-slate-700"
+                      className="flex items-center gap-2 px-6 py-3 bg-festive-gold hover:bg-amber-400 text-slate-900 text-xs font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-festive-gold/10"
                     >
+                      <Edit3 size={16} />
                       Sửa hồ sơ
                     </button>
                   ) : (
-                    <button 
-                      onClick={() => {
-                        setIsEditing(false);
-                        setEditApp(null);
-                      }}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-rose-400 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all border border-slate-700"
-                    >
-                      Hủy
-                    </button>
+                    <div className="flex items-center gap-2">
+                       <button 
+                        onClick={() => {
+                          setIsEditing(false);
+                          setEditApp(null);
+                        }}
+                        className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all border border-slate-700"
+                      >
+                        Hủy
+                      </button>
+                      <button 
+                        onClick={handleUpdateApp}
+                        className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-500/20"
+                      >
+                        Lưu thay đổi
+                      </button>
+                    </div>
                   )}
                   <button 
                     onClick={() => {
@@ -3678,46 +4035,47 @@ export default function App() {
                       setIsEditing(false);
                       setEditApp(null);
                     }}
-                    className="p-2 hover:bg-slate-800 rounded-full transition-colors"
+                    className="p-3 hover:bg-slate-800 rounded-2xl transition-colors text-slate-500 border border-transparent hover:border-slate-700"
                   >
-                    <ArrowRight size={20} className="text-slate-400" />
+                    <X size={24} />
                   </button>
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
-                {/* Workflow Tracker */}
-                <section className="bg-slate-900/40 p-5 rounded-3xl border border-slate-800/50 relative overflow-hidden">
-                  <div className="flex items-center justify-between mb-6">
-                    <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                       Bản đồ quy trình
+              <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
+                {/* Workflow Tracker - Wider Display */}
+                <section className="bg-slate-900/40 p-8 rounded-[2.5rem] border border-slate-800/50 relative overflow-hidden backdrop-blur-md">
+                   <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-[100px] -mr-32 -mt-32"></div>
+                  <div className="flex items-center justify-between mb-8">
+                    <h4 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                       <Activity size={14} className="text-indigo-500" />
+                       Bản đồ quy trình thực hiện
                     </h4>
-                    <StatusBadge status={(editApp || selectedApp).status} />
                   </div>
                   
-                  <div className="relative pt-2 pb-8 px-2">
+                  <div className="relative pt-4 pb-12 px-6">
                     {/* Background Line */}
-                    <div className="absolute top-[18px] left-6 right-6 h-0.5 bg-slate-800"></div>
+                    <div className="absolute top-[26px] left-10 right-10 h-1 bg-slate-800 rounded-full"></div>
                     
-                    <div className="flex justify-between relative z-10 text-center">
+                    <div className="flex justify-between relative z-10">
                       {['GĐ1', 'GĐ2', 'GĐ3', 'GĐ4', 'GĐ5', 'GĐ6'].map((label, idx) => {
                         const currentPhase = getPhaseIndex((editApp || selectedApp).currentStep);
                         const isCompleted = idx < currentPhase || (editApp || selectedApp).currentStep === 'Hoan_Tat';
                         const isActive = idx === currentPhase && (editApp || selectedApp).currentStep !== 'Hoan_Tat';
                         
                         return (
-                          <div key={label} className="flex flex-col items-center gap-3">
+                          <div key={label} className="flex flex-col items-center gap-4">
                             <div className={cn(
-                              "w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500 text-[10px] font-bold border-2",
-                              isCompleted ? "bg-emerald-500 border-emerald-500 text-slate-900" : 
-                              isActive ? "bg-festive-gold border-festive-gold text-slate-900 shadow-lg shadow-festive-gold/30 scale-110" : 
-                              "bg-slate-900 border-slate-700 text-slate-500"
+                              "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-700 text-sm font-black border-2",
+                              isCompleted ? "bg-emerald-500 border-emerald-500 text-slate-900 rotate-12" : 
+                              isActive ? "bg-indigo-600 border-indigo-400 text-white shadow-[0_0_30px_rgba(99,102,241,0.4)] scale-125 -rotate-3" : 
+                              "bg-slate-900 border-slate-800 text-slate-700 hover:border-slate-700"
                             )}>
-                              {isCompleted ? <CheckCircle2 size={16} /> : label}
+                              {isCompleted ? <Check size={24} /> : label}
                             </div>
                             <span className={cn(
-                              "text-[8px] font-bold uppercase tracking-tighter absolute -bottom-1",
-                              isActive ? "text-festive-gold" : isCompleted ? "text-emerald-400" : "text-slate-500"
+                              "text-[10px] font-black uppercase tracking-widest absolute -bottom-2 whitespace-nowrap",
+                              isActive ? "text-indigo-400" : isCompleted ? "text-emerald-400" : "text-slate-600"
                             )}>
                               {label === 'GĐ1' && 'Chuẩn bị'}
                               {label === 'GĐ2' && 'Nộp VPĐK'}
@@ -3732,211 +4090,224 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="mt-6 flex items-start gap-4 p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/10">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-600/20 text-emerald-500 flex items-center justify-center shrink-0">
-                      <Clock size={20} />
+                  <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-start gap-4 p-5 bg-indigo-500/5 rounded-3xl border border-indigo-500/10">
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 text-indigo-500 flex items-center justify-center shrink-0">
+                        <Clock size={24} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1.5 opacity-70">Bước hiện tại:</p>
+                        <p className="text-base font-black text-slate-100 uppercase tracking-tight">
+                          {STEP_CONFIG[(editApp || selectedApp).currentStep]?.label}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mb-1">
-                        Đang ở bước:
-                      </p>
-                      <p className="text-sm font-bold text-slate-100 uppercase leading-none">
-                        {STEP_CONFIG[(editApp || selectedApp).currentStep]?.label}
-                      </p>
-                      <p className="text-[10px] text-slate-500 mt-2 font-bold uppercase tracking-widest">
-                        Chủ trì: <span className="text-slate-300">{STEP_CONFIG[(editApp || selectedApp).currentStep]?.dept}</span>
-                      </p>
+                    <div className="flex items-start gap-4 p-5 bg-slate-800/30 rounded-3xl border border-slate-700/30">
+                       <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-500 flex items-center justify-center shrink-0">
+                        <Users size={24} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5 opacity-70">Phòng chủ trì:</p>
+                        <p className="text-base font-black text-slate-300 uppercase tracking-tight">
+                          {STEP_CONFIG[(editApp || selectedApp).currentStep]?.dept}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </section>
 
-                {/* Section 1: Thông tin Master (Mandatory) */}
-                <section className="space-y-4 bg-slate-900/20 p-4 rounded-3xl border border-slate-800/30">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-1 h-4 bg-indigo-500 rounded-full"></div>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Thông tin Master (PTT chủ trì)</h4>
+                <div className="grid grid-cols-1 gap-10">
+                   {/* Row 1: Master Info */}
+                  <section className="space-y-6">
+                    <div className="flex items-center justify-between border-b border-slate-800/50 pb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-1 h-6 bg-indigo-500 rounded-full"></div>
+                        <h4 className="text-sm font-black text-white uppercase tracking-widest">Thông tin Khách hàng (PTT)</h4>
+                      </div>
+                      {userRole === 'PTT' && <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-3 py-1 rounded-full font-black uppercase border border-indigo-500/20">Cấp quyền chỉnh sửa</span>}
                     </div>
-                    {userRole === 'PTT' && <span className="text-[9px] bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-md font-bold uppercase">Bạn có quyền sửa</span>}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <DetailCard label="Mã lô/căn" value={(editApp || selectedApp).unitCode} />
-                    <DetailCard label="Dự án" value={(editApp || selectedApp).projectName} />
-                    <DetailCard 
-                      label="Tên khách hàng" 
-                      value={(editApp || selectedApp).customerName} 
-                      editable={isFieldEditable('customerName')}
-                      onChange={(val) => handleFieldChange('customerName', val)}
-                    />
-                    <DetailCard 
-                      label="Loại tài sản" 
-                      value={(editApp || selectedApp).propertyType === 'Dat_Nen' ? 'Quyền sử dụng đất (Nhà đất/Đất nền)' : 'Căn hộ'} 
-                      type="select"
-                      editable={isFieldEditable('propertyType')}
-                      options={['Quyền sử dụng đất (Nhà đất/Đất nền)', 'Căn hộ']}
-                      onChange={(val) => handleFieldChange('propertyType', val === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen')}
-                    />
-                    <DetailCard 
-                      label="Sử dụng gói vay" 
-                      value={(editApp || selectedApp).loanStatus === 'Co_Vay' ? 'Có vay ngân hàng' : 'Không vay'} 
-                      type="select"
-                      editable={isFieldEditable('loanStatus')}
-                      options={['Có vay ngân hàng', 'Không vay']}
-                      onChange={(val) => handleFieldChange('loanStatus', val === 'Có vay ngân hàng' ? 'Co_Vay' : 'Khong_Vay')}
-                    />
-                    {(editApp || selectedApp).loanStatus === 'Co_Vay' && (
-                      <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <DetailCard label="Mã lô/căn" value={(editApp || selectedApp).unitCode} isEditing={isEditing} />
+                      <DetailCard label="Dự án" value={(editApp || selectedApp).projectName} isEditing={isEditing} />
+                      <DetailCard 
+                        label="Tên khách hàng" 
+                        value={(editApp || selectedApp).customerName} 
+                        editable={isFieldEditable('customerName')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('customerName', val)}
+                      />
+                      <DetailCard 
+                        label="Số điện thoại" 
+                        value={(editApp || selectedApp).phoneNumber} 
+                        editable={isFieldEditable('phoneNumber')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('phoneNumber', val)}
+                      />
+                      <DetailCard 
+                        label="Loại tài sản" 
+                        value={(editApp || selectedApp).propertyType === 'Dat_Nen' ? 'Quyền sử dụng đất (Nhà đất/Đất nền)' : 'Căn hộ'} 
+                        type="select"
+                        editable={isFieldEditable('propertyType')}
+                        isEditing={isEditing}
+                        options={['Quyền sử dụng đất (Nhà đất/Đất nền)', 'Căn hộ']}
+                        onChange={(val) => handleFieldChange('propertyType', val === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen')}
+                      />
+                      <DetailCard 
+                        label="Sử dụng gói vay" 
+                        value={(editApp || selectedApp).loanStatus === 'Co_Vay' ? 'Có vay' : 'Không vay'} 
+                        type="select"
+                        editable={isFieldEditable('loanStatus')}
+                        isEditing={isEditing}
+                        options={['Có vay', 'Không vay']}
+                        onChange={(val) => handleFieldChange('loanStatus', val === 'Có vay' ? 'Co_Vay' : 'Khong_Vay')}
+                      />
+                      {(editApp || selectedApp).loanStatus === 'Co_Vay' && (
                         <DetailCard 
-                          label="Ngân hàng vay" 
-                          value={(editApp || selectedApp).bankName || 'Chưa cập nhật'} 
-                          editable={isFieldEditable('bankName')}
-                          onChange={(val) => handleFieldChange('bankName', val)}
+                          label="Cam kết Ngân hàng (Thời hạn GCN)" 
+                          value={(editApp || selectedApp).bankCommitmentDeadline} 
+                          type="date"
+                          editable={isFieldEditable('bankCommitmentDeadline')}
+                          isEditing={isEditing}
+                          onChange={(val) => handleFieldChange('bankCommitmentDeadline', val)}
                         />
-                        <DetailCard 
-                          label="Số HĐTD" 
-                          value={(editApp || selectedApp).loanAgreementNumber || 'Chưa cập nhật'} 
-                          editable={isFieldEditable('loanAgreementNumber')}
-                          onChange={(val) => handleFieldChange('loanAgreementNumber', val)}
-                        />
-                      </>
-                    )}
-                  </div>
-                </section>
-
-                {/* Section 2: Thủ tục & Hồ sơ (PTT) */}
-                <section className="space-y-4 bg-slate-900/20 p-4 rounded-3xl border border-slate-800/30">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-1 h-4 bg-amber-500 rounded-full"></div>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Quy trình Thủ tục (PTT)</h4>
+                      )}
                     </div>
-                    {userRole === 'PTT' && <span className="text-[9px] bg-amber-500/10 text-amber-500 px-2 py-0.5 rounded-md font-bold uppercase">Bạn có quyền sửa</span>}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <DetailCard 
-                      label="Ngày nhận hồ sơ KH" 
-                      value={(editApp || selectedApp).receivedDate} 
-                      type="date"
-                      editable={isFieldEditable('receivedDate')}
-                      onChange={(val) => handleFieldChange('receivedDate', val)}
-                    />
-                    <DetailCard 
-                      label="Ngày ký HĐCN/HĐMB" 
-                      value={(editApp || selectedApp).contractSigningDate} 
-                      type="date"
-                      editable={isFieldEditable('contractSigningDate')}
-                      onChange={(val) => handleFieldChange('contractSigningDate', val)}
-                    />
-                    <DetailCard 
-                      label="Ngày BG HS nội bộ" 
-                      value={(editApp || selectedApp).accountingHandoverDate} 
-                      type="date"
-                      editable={isFieldEditable('accountingHandoverDate')}
-                      onChange={(val) => handleFieldChange('accountingHandoverDate', val)}
-                    />
-                    <DetailCard 
-                      label="KH tự làm sổ" 
-                      value={(editApp || selectedApp).isSelfService ? 'Có' : 'Không'} 
-                      valueColor={(editApp || selectedApp).isSelfService ? 'text-amber-500' : 'text-slate-200'}
-                      editable={isFieldEditable('isSelfService')}
-                      type="select"
-                      options={['Có', 'Không']}
-                      onChange={(val) => handleFieldChange('isSelfService', val === 'Có')}
-                    />
-                    <DetailCard 
-                      label="Ngày BG GCN cho khách" 
-                      value={(editApp || selectedApp).customerHandoverDate} 
-                      type="date"
-                      editable={isFieldEditable('customerHandoverDate')}
-                      onChange={(val) => handleFieldChange('customerHandoverDate', val)}
-                    />
-                  </div>
-                </section>
+                  </section>
 
-                {/* Section 3: Pháp lý & Thuế (Kế toán/BTC Vùng) */}
-                <section className="space-y-4 bg-emerald-500/5 p-4 rounded-3xl border border-emerald-500/10">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-1 h-4 bg-emerald-500 rounded-full"></div>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Pháp lý & Thuế (KT)</h4>
+                  {/* Row 2: Procedural */}
+                  <section className="space-y-6">
+                    <div className="flex items-center justify-between border-b border-slate-800/50 pb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-1 h-6 bg-amber-500 rounded-full"></div>
+                        <h4 className="text-sm font-black text-white uppercase tracking-widest">Quy trình Thủ tục (PTT)</h4>
+                      </div>
+                      {userRole === 'PTT' && <span className="text-[10px] bg-amber-500/10 text-amber-500 px-3 py-1 rounded-full font-black uppercase border border-amber-500/20">Cấp quyền chỉnh sửa</span>}
                     </div>
-                    {userRole === 'KT' && <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-md font-bold uppercase">Bạn có quyền sửa</span>}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <DetailCard 
-                      label="Nơi nộp hồ sơ" 
-                      value={(editApp || selectedApp).submissionLocation === 'TP_DANANG' ? 'VPĐK TP Đà Nẵng' : (editApp || selectedApp).submissionLocation === 'PHUONG' ? 'VPĐK Phường' : '---'} 
-                      type="select"
-                      field="submissionLocation"
-                      editable={isFieldEditable('submissionLocation')}
-                      onChange={(val) => handleFieldChange('submissionLocation', val)}
-                    />
-                    <DetailCard 
-                      label="Mã HS / Số phiếu hẹn" 
-                      value={(editApp || selectedApp).vpdkCode} 
-                      editable={isFieldEditable('vpdkCode')}
-                      onChange={(val) => handleFieldChange('vpdkCode', val)}
-                    />
-                    <DetailCard 
-                      label="Ngày nộp VPĐK" 
-                      value={(editApp || selectedApp).submissionDate} 
-                      type="date"
-                      editable={isFieldEditable('submissionDate')}
-                      onChange={(val) => handleFieldChange('submissionDate', val)}
-                    />
-                    <DetailCard 
-                      label="Ngày ban hành TB Thuế" 
-                      value={(editApp || selectedApp).taxNotificationDate} 
-                      type="date"
-                      editable={isFieldEditable('taxNotificationDate')}
-                      onChange={(val) => handleFieldChange('taxNotificationDate', val)}
-                    />
-                    <DetailCard 
-                      label="Ngày nhận TB Thuế" 
-                      value={(editApp || selectedApp).taxNotificationReceivedDate} 
-                      type="date"
-                      editable={isFieldEditable('taxNotificationReceivedDate')}
-                      onChange={(val) => handleFieldChange('taxNotificationReceivedDate', val)}
-                    />
-                    <DetailCard 
-                      label="Ngày nhận Giấy nộp tiền" 
-                      value={(editApp || selectedApp).taxReceiptDate} 
-                      type="date"
-                      editable={isFieldEditable('taxReceiptDate')}
-                      onChange={(val) => handleFieldChange('taxReceiptDate', val)}
-                    />
-                    <DetailCard 
-                      label="Ngày nhận GCN" 
-                      value={(editApp || selectedApp).gcnReceivedDate} 
-                      type="date"
-                      editable={isFieldEditable('gcnReceivedDate')}
-                      onChange={(val) => handleFieldChange('gcnReceivedDate', val)}
-                    />
-                    <DetailCard 
-                      label="Ngày BG GCN PTT" 
-                      value={(editApp || selectedApp).ptdaHandoverDate} 
-                      type="date"
-                      editable={isFieldEditable('ptdaHandoverDate')}
-                      onChange={(val) => handleFieldChange('ptdaHandoverDate', val)}
-                    />
-                    <DetailCard 
-                      label="Trạng thái nộp thuế" 
-                      value={(editApp || selectedApp).taxPaymentStatus === 'Paid' ? 'Đã hoàn thành' : 'Chưa hoàn thành'} 
-                      valueColor={(editApp || selectedApp).taxPaymentStatus === 'Paid' ? 'text-emerald-500' : 'text-rose-500'} 
-                      editable={isFieldEditable('taxPaymentStatus')}
-                      type="select"
-                      field="taxPaymentStatus"
-                      onChange={(val) => handleFieldChange('taxPaymentStatus', val === 'Đã hoàn thành' ? 'Paid' : 'Unpaid')}
-                    />
-                  </div>
-                </section>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <DetailCard 
+                        label="Ngày nhận hồ sơ KH" 
+                        value={(editApp || selectedApp).receivedDate} 
+                        type="date"
+                        editable={isFieldEditable('receivedDate')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('receivedDate', val)}
+                      />
+                      <DetailCard 
+                        label="Ngày ký HĐCN/HĐMB" 
+                        value={(editApp || selectedApp).contractSigningDate} 
+                        type="date"
+                        editable={isFieldEditable('contractSigningDate')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('contractSigningDate', val)}
+                      />
+                      <DetailCard 
+                        label="Ngày BG HS nội bộ" 
+                        value={(editApp || selectedApp).accountingHandoverDate} 
+                        type="date"
+                        editable={isFieldEditable('accountingHandoverDate')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('accountingHandoverDate', val)}
+                      />
+                      <DetailCard 
+                        label="KH tự làm sổ" 
+                        value={(editApp || selectedApp).isSelfService ? 'Có' : 'Không'} 
+                        valueColor={(editApp || selectedApp).isSelfService ? 'text-amber-500' : 'text-slate-200'}
+                        editable={isFieldEditable('isSelfService')}
+                        isEditing={isEditing}
+                        type="select"
+                        options={['Có', 'Không']}
+                        onChange={(val) => handleFieldChange('isSelfService', val === 'Có')}
+                      />
+                      <DetailCard 
+                        label="Ngày BG GCN cho khách" 
+                        value={(editApp || selectedApp).customerHandoverDate} 
+                        type="date"
+                        editable={isFieldEditable('customerHandoverDate')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('customerHandoverDate', val)}
+                      />
+                    </div>
+                  </section>
+
+                  {/* Row 3: Accounting & Tax */}
+                  <section className="space-y-6">
+                    <div className="flex items-center justify-between border-b border-slate-800/50 pb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-1 h-6 bg-emerald-500 rounded-full"></div>
+                        <h4 className="text-sm font-black text-white uppercase tracking-widest">Thông tin xử lý hồ sơ theo chức năng (Kế toán)</h4>
+                      </div>
+                      {userRole === 'KT' && <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full font-black uppercase border border-emerald-500/20">Cấp quyền chỉnh sửa</span>}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <DetailCard 
+                        label="Nơi nộp hồ sơ" 
+                        value={(editApp || selectedApp).submissionLocation === 'TP_DANANG' ? 'Tỉnh/Thành phố' : (editApp || selectedApp).submissionLocation === 'PHUONG' ? 'Phường/Xã' : '---'} 
+                        type="select"
+                        field="submissionLocation"
+                        editable={isFieldEditable('submissionLocation')}
+                        isEditing={isEditing}
+                        options={['Phường/Xã', 'Tỉnh/Thành phố']}
+                        onChange={(val) => handleFieldChange('submissionLocation', val === 'Tỉnh/Thành phố' ? 'TP_DANANG' : 'PHUONG')}
+                      />
+                      <DetailCard 
+                        label="Mã HS / Số phiếu hẹn" 
+                        value={(editApp || selectedApp).vpdkCode} 
+                        editable={isFieldEditable('vpdkCode')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('vpdkCode', val)}
+                      />
+                      <DetailCard 
+                        label="Ngày nộp VPĐK" 
+                        value={(editApp || selectedApp).submissionDate} 
+                        type="date"
+                        editable={isFieldEditable('submissionDate')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('submissionDate', val)}
+                      />
+                      <DetailCard 
+                        label="Ngày TB Thuế" 
+                        value={(editApp || selectedApp).taxNotificationDate} 
+                        type="date"
+                        editable={isFieldEditable('taxNotificationDate')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('taxNotificationDate', val)}
+                      />
+                      <DetailCard 
+                        label="Ngày nhận TB Thuế" 
+                        value={(editApp || selectedApp).taxNotificationReceivedDate} 
+                        type="date"
+                        editable={isFieldEditable('taxNotificationReceivedDate')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('taxNotificationReceivedDate', val)}
+                      />
+                      <DetailCard 
+                        label="Ngày nhận NVTC" 
+                        value={(editApp || selectedApp).taxReceiptDate} 
+                        type="date"
+                        editable={isFieldEditable('taxReceiptDate')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('taxReceiptDate', val)}
+                      />
+                      <DetailCard 
+                        label="Trạng thái nộp thuế" 
+                        value={(editApp || selectedApp).taxPaymentStatus === 'Paid' ? 'Đã hoàn thành' : 'Chưa hoàn thành'} 
+                        valueColor={(editApp || selectedApp).taxPaymentStatus === 'Paid' ? 'text-emerald-500' : 'text-rose-500'} 
+                        editable={isFieldEditable('taxPaymentStatus')}
+                        isEditing={isEditing}
+                        type="select"
+                        field="taxPaymentStatus"
+                        onChange={(val) => handleFieldChange('taxPaymentStatus', val === 'Đã hoàn thành' ? 'Paid' : 'Unpaid')}
+                      />
+                    </div>
+                  </section>
+                </div>
 
                 {/* Section 4: PTDA & Milestone chuyên sâu */}
                 <section className="space-y-4 bg-fuchsia-500/5 p-4 rounded-3xl border border-fuchsia-500/10">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <div className="w-1 h-4 bg-fuchsia-500 rounded-full"></div>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">PTDA & Chỉnh lý GCN</h4>
+                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Thông tin ngày tháng xử lý hồ sơ (PTDA)</h4>
                     </div>
                     {userRole === 'PTDA' && <span className="text-[9px] bg-fuchsia-500/20 text-fuchsia-400 px-2 py-0.5 rounded-md font-bold uppercase">Bạn có quyền sửa</span>}
                   </div>
@@ -3946,6 +4317,7 @@ export default function App() {
                       value={(editApp || selectedApp).taxNoticeProvisionDate} 
                       type="date"
                       editable={isFieldEditable('taxNoticeProvisionDate')}
+                      isEditing={isEditing}
                       onChange={(val) => handleFieldChange('taxNoticeProvisionDate', val)}
                     />
                     <DetailCard 
@@ -3953,8 +4325,25 @@ export default function App() {
                       value={(editApp || selectedApp).gcnSignedDate} 
                       type="date"
                       editable={isFieldEditable('gcnSignedDate')}
+                      isEditing={isEditing}
                       onChange={(val) => handleFieldChange('gcnSignedDate', val)}
                     />
+                    <DetailCard 
+                        label="Ngày nhận GCN thực tế" 
+                        value={(editApp || selectedApp).gcnReceivedDate} 
+                        type="date"
+                        editable={isFieldEditable('gcnReceivedDate')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('gcnReceivedDate', val)}
+                      />
+                      <DetailCard 
+                        label="Ngày bàn giao GCN PTT" 
+                        value={(editApp || selectedApp).ptdaHandoverDate} 
+                        type="date"
+                        editable={isFieldEditable('ptdaHandoverDate')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('ptdaHandoverDate', val)}
+                      />
                   </div>
                 </section>
 
@@ -3979,6 +4368,7 @@ export default function App() {
                       } 
                       type="select"
                       editable={(userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'DIRECTOR') && isEditing}
+                      isEditing={isEditing}
                       options={['Chưa có vướng mắc', 'Hồ sơ pháp lý', 'Nghĩa vụ tài chính', 'Cơ quan nhà nước', 'Vướng mắc khác']}
                       onChange={(val) => {
                         const mapping: any = {
@@ -4001,6 +4391,7 @@ export default function App() {
                       type="select"
                       valueColor={(editApp || selectedApp).issueSeverity === 'Critical' ? 'text-rose-500 font-black' : (editApp || selectedApp).issueSeverity === 'Moderate' ? 'text-amber-500' : 'text-slate-400'}
                       editable={(userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'DIRECTOR') && isEditing}
+                      isEditing={isEditing}
                       options={['Chưa xác định', 'Thấp (Nhân viên tự xử lý)', 'Trung bình', 'Cao (Cần lãnh đạo can thiệp)']}
                       onChange={(val) => {
                         const mapping: any = {
@@ -4118,7 +4509,15 @@ export default function App() {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between mb-4">
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Danh mục tài liệu số</p>
-                        <button className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 rounded-lg text-[9px] font-black text-slate-400 hover:text-white transition-all">
+                        <button 
+                          onClick={() => {
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.onchange = () => alert('Đã tải tài liệu lên thành công. Hệ thống đang đồng bộ dữ liệu số...');
+                            input.click();
+                          }}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600/20 text-indigo-400 rounded-lg text-[9px] font-black uppercase hover:bg-indigo-600/30 transition-all border border-indigo-500/30"
+                        >
                           <Upload size={12} /> Tải tệp lên
                         </button>
                       </div>
@@ -4491,7 +4890,7 @@ export default function App() {
                     </div>
 
                     <div className="space-y-2">
-                       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Ngân hàng</label>
+                       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Sử dụng gói vay</label>
                        <div className="flex bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
                          <button 
                            onClick={() => setNewApp({...newApp, loanStatus: 'Co_Vay'})}
@@ -4506,65 +4905,25 @@ export default function App() {
                              "flex-1 py-2 text-[9px] font-black uppercase rounded-xl transition-all",
                              newApp.loanStatus === 'Khong_Vay' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-600 hover:text-slate-400"
                            )}
-                         >Tự có</button>
+                         >Không vay</button>
                        </div>
                     </div>
                   </div>
-
-                  {newApp.loanStatus === 'Co_Vay' && (
-                    <div className="grid grid-cols-2 gap-6 pt-2 animate-in fade-in slide-in-from-top-2">
-                       <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Tên ngân hàng</label>
-                          <input 
-                            type="text" 
-                            placeholder="VD: Vietcombank"
-                            className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-2xl text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500/20 transition-all outline-none"
-                            value={(newApp as any).bankName || ''}
-                            onChange={(e) => setNewApp({...newApp, [ 'bankName' as any]: e.target.value})}
-                          />
-                       </div>
-                       <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Số HĐ tín dụng</label>
-                          <input 
-                            type="text" 
-                            placeholder="VD: HĐ123/2024"
-                            className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-2xl text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500/20 transition-all outline-none"
-                            value={(newApp as any).loanAgreementNumber || ''}
-                            onChange={(e) => setNewApp({...newApp, [ 'loanAgreementNumber' as any]: e.target.value})}
-                          />
-                       </div>
-                    </div>
-                  )}
                 </div>
 
                 {/* Section 3: Quy trình */}
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-1 h-4 bg-indigo-500 rounded-full"></div>
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Quy trình thực hiện</h4>
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Cài đặt hình thức</h4>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Nơi nộp hồ sơ</label>
-                      <div className="relative group">
-                         <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none" />
-                         <select 
-                           className="w-full pl-4 pr-10 py-3 bg-slate-900 border border-slate-800 rounded-2xl text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500/20 transition-all outline-none appearance-none cursor-pointer"
-                           value={newApp.submissionLocation}
-                           onChange={(e) => setNewApp({...newApp, submissionLocation: e.target.value as any})}
-                         >
-                           <option value="PHUONG">VPĐK Phường</option>
-                           <option value="TP_DANANG">VPĐK TP Đà Nẵng</option>
-                         </select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5 flex flex-col justify-end">
+                  <div className="flex gap-6">
+                    <div className="flex-1">
                       <button 
                         onClick={() => setNewApp({...newApp, isSelfService: !newApp.isSelfService})}
                         className={cn(
-                          "w-full py-3 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all flex items-center justify-center gap-3",
+                          "w-full py-4 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all flex items-center justify-center gap-3",
                           newApp.isSelfService 
                             ? "bg-amber-600 border-amber-500 text-white shadow-lg shadow-amber-600/20" 
                             : "bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700 hover:text-slate-400"
@@ -4576,7 +4935,7 @@ export default function App() {
                         )}>
                           {newApp.isSelfService && <Check size={12} className="text-amber-600" />}
                         </div>
-                        Khách tự làm sổ
+                        Khách tự làm sổ (Self-service)
                       </button>
                     </div>
                   </div>
