@@ -4214,56 +4214,58 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className={cn(
-                  "backdrop-blur-xl rounded-3xl shadow-2xl border transition-all overflow-hidden",
-                  theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/20 shadow-2xl border-slate-800/50"
-                )}>
-                  <div className={cn("p-6 border-b flex items-center justify-between", theme === 'light' ? "border-slate-100 bg-slate-50" : "border-slate-800/50")}>
-                    <div className="flex items-center gap-4">
-                      <h3 className={cn("font-bold font-serif text-xl italic", theme === 'light' ? "text-slate-900" : "text-white")}>Hiệu suất Trách nhiệm Phòng ban theo ngày</h3>
-                      <div className="flex items-center gap-2 bg-slate-800/20 rounded-lg p-1 border border-slate-700/30">
-                        <Clock size={12} className="text-slate-500 ml-1" />
-                        <span className="text-[10px] font-black uppercase text-slate-400 px-2 italic">Thời gian xử lý trung bình</span>
+                {(userRole === 'ADMIN' || userRole === 'DIRECTOR') && (
+                  <div className={cn(
+                    "backdrop-blur-xl rounded-3xl shadow-2xl border transition-all overflow-hidden",
+                    theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/20 shadow-2xl border-slate-800/50"
+                  )}>
+                    <div className={cn("p-6 border-b flex items-center justify-between", theme === 'light' ? "border-slate-100 bg-slate-50" : "border-slate-800/50")}>
+                      <div className="flex items-center gap-4">
+                        <h3 className={cn("font-bold font-serif text-xl italic", theme === 'light' ? "text-slate-900" : "text-white")}>Hiệu suất Trách nhiệm Phòng ban theo ngày</h3>
+                        <div className="flex items-center gap-2 bg-slate-800/20 rounded-lg p-1 border border-slate-700/30">
+                          <Clock size={12} className="text-slate-500 ml-1" />
+                          <span className="text-[10px] font-black uppercase text-slate-400 px-2 italic">Thời gian xử lý trung bình</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-8">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        {roleKpis.admin.deptStats.map((dept, idx) => (
+                          <div key={dept.dept} className={cn(
+                            "p-6 rounded-[2.5rem] border transition-all hover:border-festive-gold/50 duration-300 relative overflow-hidden",
+                            theme === 'light' ? "bg-slate-50 border-slate-100 shadow-sm" : "bg-slate-800/40 border-slate-700/30 shadow-xl"
+                          )}>
+                            <div className="flex justify-between items-start mb-6">
+                              <div>
+                                 <p className={cn("text-[9px] font-black uppercase tracking-widest leading-none mb-1", theme === 'light' ? "text-slate-400" : "text-slate-500")}>Phòng ban</p>
+                                 <h4 className={cn("text-lg font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>{dept.label}</h4>
+                              </div>
+                              <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center", dept.color + " bg-opacity-10")}>
+                                 <Layers size={18} className={dept.color.replace('bg-', 'text-')} />
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-baseline gap-2 mb-4">
+                              <span className={cn("text-4xl font-black italic font-serif", theme === 'light' ? "text-slate-900" : "text-white")}>{dept.avgDays}</span>
+                              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Ngày / Hồ sơ</span>
+                            </div>
+
+                            <div className="h-2 w-full bg-slate-800/20 rounded-full overflow-hidden mb-4">
+                               <div className={cn("h-full rounded-full transition-all duration-1000", dept.color)} style={{ width: `${Math.min(100, (dept.avgDays / 15) * 100)}%` }} />
+                            </div>
+                            
+                            <div className="flex justify-between items-center text-[10px]">
+                               <span className="text-slate-500 font-bold uppercase tracking-tighter">Đang xử lý: {dept.count} căn</span>
+                               <span className={cn("font-black italic px-2 py-0.5 rounded-lg", dept.avgDays > 10 ? "text-rose-500 bg-rose-500/10" : "text-emerald-500 bg-emerald-500/10")}>
+                                 {dept.avgDays > 10 ? 'Cảnh báo chậm' : 'Tiến độ tốt'}
+                               </span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
-                  <div className="p-8">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                      {roleKpis.admin.deptStats.map((dept, idx) => (
-                        <div key={dept.dept} className={cn(
-                          "p-6 rounded-[2.5rem] border transition-all hover:border-festive-gold/50 duration-300 relative overflow-hidden",
-                          theme === 'light' ? "bg-slate-50 border-slate-100 shadow-sm" : "bg-slate-800/40 border-slate-700/30 shadow-xl"
-                        )}>
-                          <div className="flex justify-between items-start mb-6">
-                            <div>
-                               <p className={cn("text-[9px] font-black uppercase tracking-widest leading-none mb-1", theme === 'light' ? "text-slate-400" : "text-slate-500")}>Phòng ban</p>
-                               <h4 className={cn("text-lg font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>{dept.label}</h4>
-                            </div>
-                            <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center", dept.color + " bg-opacity-10")}>
-                               <Layers size={18} className={dept.color.replace('bg-', 'text-')} />
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-baseline gap-2 mb-4">
-                            <span className={cn("text-4xl font-black italic font-serif", theme === 'light' ? "text-slate-900" : "text-white")}>{dept.avgDays}</span>
-                            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Ngày / Hồ sơ</span>
-                          </div>
-
-                          <div className="h-2 w-full bg-slate-800/20 rounded-full overflow-hidden mb-4">
-                             <div className={cn("h-full rounded-full transition-all duration-1000", dept.color)} style={{ width: `${Math.min(100, (dept.avgDays / 15) * 100)}%` }} />
-                          </div>
-                          
-                          <div className="flex justify-between items-center text-[10px]">
-                             <span className="text-slate-500 font-bold uppercase tracking-tighter">Đang xử lý: {dept.count} căn</span>
-                             <span className={cn("font-black italic px-2 py-0.5 rounded-lg", dept.avgDays > 10 ? "text-rose-500 bg-rose-500/10" : "text-emerald-500 bg-emerald-500/10")}>
-                               {dept.avgDays > 10 ? 'Cảnh báo chậm' : 'Tiến độ tốt'}
-                             </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                )}
 
                 <div className={cn(
                   "backdrop-blur-xl rounded-3xl shadow-2xl border transition-all overflow-hidden",
