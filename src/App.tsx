@@ -2263,6 +2263,22 @@ export default function App() {
     alert('Đã cập nhật thông tin hồ sơ thành công!');
   };
 
+  const handleDeleteApp = (id: string, code: string) => {
+    if (userRole !== 'ADMIN') {
+      alert('Bạn không có quyền thực hiện thao tác này!');
+      return;
+    }
+    if (window.confirm(`Bạn có chắc chắn muốn xóa hồ sơ căn ${code}? Thao tác này không thể hoàn tác.`)) {
+      setApplications(prev => prev.filter(app => app.id !== id));
+      if (selectedApp?.id === id) {
+        setSelectedApp(null);
+        setIsEditing(false);
+        setEditApp(null);
+      }
+      alert('Đã xóa hồ sơ thành công');
+    }
+  };
+
   const handleStepTransition = (nextStep: StepName) => {
     const app = editApp || selectedApp;
     if (!app) return;
@@ -3638,11 +3654,11 @@ export default function App() {
                       </h3>
                       <div className="flex items-center gap-6">
                         <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full bg-indigo-500/80" />
+                          <div className="w-3 h-3 rounded-full bg-indigo-500" />
                           <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Bình thường</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full bg-rose-500" />
+                          <div className="w-3 h-3 rounded-full bg-red-500" />
                           <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Sai sót</span>
                         </div>
                         <p className="text-[10px] italic text-slate-500 font-bold ml-4">Hồ sơ</p>
@@ -3667,39 +3683,61 @@ export default function App() {
                           />
                           <ReTooltip 
                             cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                            contentStyle={{ 
-                              backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
-                              borderRadius: '16px', 
-                              border: 'none',
-                              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-                              fontSize: '11px',
-                              fontWeight: 800
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                const data = payload[0].payload;
+                                return (
+                                  <div className={cn(
+                                    "p-4 rounded-2xl shadow-2xl border-none outline-none",
+                                    theme === 'light' ? "bg-white text-slate-800" : "bg-slate-900 text-white"
+                                  )}>
+                                    <p className="font-black italic mb-2 uppercase text-[10px] tracking-widest border-b border-slate-700/30 pb-2">{data.name}</p>
+                                    <div className="space-y-1.5">
+                                      <div className="flex justify-between gap-8 items-center">
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                                          <span className="text-slate-500 font-bold uppercase text-[9px]">Bình thường:</span>
+                                        </div>
+                                        <span className={cn("font-black italic", theme === 'light' ? "text-slate-950" : "text-white")}>{data.normal} căn</span>
+                                      </div>
+                                      <div className="flex justify-between gap-8 items-center">
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-2 h-2 rounded-full bg-rose-500" />
+                                          <span className="text-slate-500 font-bold uppercase text-[9px]">Sai sót:</span>
+                                        </div>
+                                        <span className="font-black italic text-rose-500">{data.error} căn</span>
+                                      </div>
+                                      <div className="mt-1 pt-1 border-t border-slate-700/20 flex justify-between gap-8 items-center">
+                                        <span className="text-slate-500 font-bold uppercase text-[9px]">Tổng cộng:</span>
+                                        <span className={cn("font-black italic text-lg", theme === 'light' ? "text-indigo-600" : "text-indigo-400")}>{data.value}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
                             }}
                           />
-                          <Bar dataKey="normal" stackId="a" barSize={26} radius={[0, 0, 0, 0]}>
-                            {chartData.map((entry, index) => (
-                              <Cell key={`cell-normal-${index}`} fill={entry.color} />
-                            ))}
-                          </Bar>
+                          <Bar dataKey="normal" stackId="a" fill="#6366f1" barSize={38} radius={[0, 0, 0, 0]} />
                           <Bar 
                             dataKey="error" 
                             stackId="a" 
-                            fill="#f43f5e" 
-                            barSize={26} 
-                            radius={[4, 4, 0, 0]} 
+                            fill="#ef4444" 
+                            barSize={38} 
+                            radius={[6, 6, 0, 0]} 
                             label={(props: any) => {
-                              const { x, y, width, payload } = props;
-                              if (!payload || payload.value === 0) return null;
+                              const { x, y, width, value } = props;
+                              if (!value || value === 0) return null;
                               return (
                                 <text 
                                   x={x + width / 2} 
-                                  y={y - 8} 
-                                  fill={theme === 'light' ? '#475569' : '#cbd5e1'} 
+                                  y={y - 10} 
+                                  fill={theme === 'light' ? '#334155' : '#cbd5e1'}
                                   textAnchor="middle" 
-                                  fontSize={10} 
+                                  fontSize={11} 
                                   fontWeight="900"
                                 >
-                                  {payload.value}
+                                  {value}
                                 </text>
                               );
                             }} 
@@ -4288,15 +4326,30 @@ export default function App() {
                                 <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{app.customerHandoverDate || '---'}</span>
                               </td>
                               <td className="px-6 py-5 text-center">
-                                <button 
-                                  onClick={() => setSelectedApp(app)}
-                                  className={cn(
-                                    "p-2 rounded-lg transition-colors text-slate-500",
-                                    theme === 'light' ? "hover:bg-slate-100" : "hover:bg-slate-800"
+                                <div className="flex items-center justify-center gap-1">
+                                  <button 
+                                    onClick={() => setSelectedApp(app)}
+                                    className={cn(
+                                      "p-2 rounded-lg transition-colors text-slate-500",
+                                      theme === 'light' ? "hover:bg-slate-100" : "hover:bg-slate-800"
+                                    )}
+                                    title="Xem chi tiết"
+                                  >
+                                    <ChevronRight size={18} />
+                                  </button>
+                                  {userRole === 'ADMIN' && (
+                                    <button 
+                                      onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        handleDeleteApp(app.id, app.unitCode);
+                                      }}
+                                      className="p-2 rounded-lg text-slate-500 hover:text-rose-500 transition-colors"
+                                      title="Xóa hồ sơ (Chỉ Admin)"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
                                   )}
-                                >
-                                  <ChevronRight size={18} />
-                                </button>
+                                </div>
                               </td>
                           </tr>
                           );
@@ -4590,6 +4643,15 @@ export default function App() {
                         Lưu thay đổi
                       </button>
                     </div>
+                  )}
+                  {userRole === 'ADMIN' && (
+                    <button 
+                      onClick={() => handleDeleteApp((editApp || selectedApp).id, (editApp || selectedApp).unitCode)}
+                      className="p-3 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-2xl transition-all border border-rose-500/20"
+                      title="Xóa hồ sơ"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                   )}
                   <button 
                     onClick={() => {
