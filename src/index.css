@@ -23,23 +23,30 @@
   }
 
   .light {
-    --color-bg-primary: #f8fafc;
+    --color-bg-primary: #f1f5f9;
     --color-bg-secondary: #ffffff;
     --color-text-primary: #0f172a;
     --color-text-secondary: #475569;
   }
 }
 
+@layer base {
+  body {
+    @apply bg-bg-primary text-text-primary antialiased transition-colors duration-300 selection:bg-indigo-500/30;
+  }
+}
+
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
+  height: 5px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 215, 0, 0.1);
+  background: rgba(99, 102, 241, 0.1);
   border-radius: 10px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 215, 0, 0.2);
+  background: rgba(99, 102, 241, 0.3);
 }

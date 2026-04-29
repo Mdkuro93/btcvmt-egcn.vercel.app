@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, LabelList, Legend
+  PieChart, Pie, LabelList, Legend, AreaChart, Area
 } from 'recharts';
 import { 
   Building2, 
@@ -222,11 +222,11 @@ const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark',
     transition={{ delay }}
     onClick={onClick}
     className={cn(
-      "p-6 rounded-[2.5rem] shadow-2xl border flex flex-col gap-4 relative overflow-hidden transition-all group",
+      "p-6 rounded-[2.5rem] border flex flex-col gap-4 relative overflow-hidden transition-all group",
       onClick ? "cursor-pointer hover:scale-[1.02] active:scale-95" : "",
       theme === 'dark' 
-        ? "bg-slate-900/80 backdrop-blur-xl border-slate-700/50 hover:border-festive-gold/30" 
-        : "bg-white border-slate-200 hover:border-festive-gold/40 shadow-slate-200/50"
+        ? "bg-slate-900/80 backdrop-blur-xl border-slate-700/50 hover:border-festive-gold/30 shadow-2xl" 
+        : "bg-white border-slate-200/60 hover:border-festive-gold/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]"
     )}
   >
     <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/5 rounded-full blur-2xl"></div>
@@ -234,10 +234,10 @@ const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark',
       <Icon size={28} className="text-white" />
     </div>
     <div>
-      <p className={cn("text-[10px] font-black uppercase tracking-[0.2em] mb-1", theme === 'dark' ? "text-slate-500" : "text-slate-400")}>{title}</p>
+      <p className={cn("text-[10px] font-black uppercase tracking-[0.2em] mb-1", theme === 'dark' ? "text-slate-500" : "text-slate-600")}>{title}</p>
       <div className="flex items-center justify-between">
         <p className={cn("text-3xl font-black font-serif italic tracking-tighter", theme === 'dark' ? "text-white" : "text-slate-900")}>{value}</p>
-        {onClick && <ArrowRight size={16} className="text-slate-500 group-hover:text-festive-gold transition-all" />}
+        {onClick && <ArrowRight size={16} className={cn("transition-all", theme === 'dark' ? "text-slate-500 group-hover:text-festive-gold" : "text-slate-400 group-hover:text-festive-gold")} />}
       </div>
     </div>
   </motion.div>
@@ -263,21 +263,23 @@ const StatusBadge = ({ status }: { status: UnitStatus }) => {
   );
 };
 
-const DetailCard = ({ label, value, field, valueColor = 'text-white', editable = false, type = 'text', options, onChange, isEditing = false }: { label: string, value?: string, field?: keyof Application, valueColor?: string, editable?: boolean, type?: string, options?: string[], onChange?: (val: any) => void, isEditing?: boolean }) => {
+const DetailCard = ({ label, value, field, valueColor = 'text-white', editable = false, type = 'text', options, onChange, isEditing = false, theme = 'dark' }: { label: string, value?: string, field?: keyof Application, valueColor?: string, editable?: boolean, type?: string, options?: string[], onChange?: (val: any) => void, isEditing?: boolean, theme?: 'light' | 'dark' }) => {
   const active = editable && isEditing;
+  const darkValueColor = valueColor === 'text-white' ? 'text-white' : valueColor;
+  const lightValueColor = valueColor === 'text-white' ? 'text-slate-900' : valueColor;
   
   return (
     <div className={cn(
       "p-4 border rounded-2xl transition-all group backdrop-blur-sm relative overflow-hidden",
       active 
         ? "bg-emerald-500/5 border-emerald-500/30 ring-1 ring-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.05)]" 
-        : "bg-slate-950/40 border-slate-800"
+        : theme === 'dark' ? "bg-slate-950/40 border-slate-800" : "bg-slate-50/50 border-slate-200 shadow-sm"
     )}>
       {active && <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/5 blur-2xl -mr-8 -mt-8 rounded-full"></div>}
       
       <p className={cn(
         "text-[10px] font-black uppercase mb-1.5 tracking-[0.15em] transition-colors leading-tight",
-        active ? "text-emerald-400" : "text-slate-500"
+        active ? "text-emerald-400" : theme === 'dark' ? "text-slate-500" : "text-slate-500"
       )}>
         {label}
       </p>
@@ -287,7 +289,10 @@ const DetailCard = ({ label, value, field, valueColor = 'text-white', editable =
           {type === 'select' ? (
             <div className="relative">
               <select 
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-black text-emerald-400 outline-none focus:ring-2 focus:ring-emerald-500/30 appearance-none cursor-pointer"
+                className={cn(
+                  "w-full border rounded-xl px-3 py-2 text-xs font-black text-emerald-400 outline-none focus:ring-2 focus:ring-emerald-500/30 appearance-none cursor-pointer",
+                  theme === 'dark' ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
+                )}
                 value={value || ''}
                 onChange={(e) => onChange?.(e.target.value)}
               >
@@ -310,14 +315,17 @@ const DetailCard = ({ label, value, field, valueColor = 'text-white', editable =
           ) : (
             <input 
               type={type}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-black text-emerald-400 outline-none focus:ring-2 focus:ring-emerald-500/30"
+              className={cn(
+                "w-full border rounded-xl px-3 py-1.5 text-xs font-black text-emerald-400 outline-none focus:ring-2 focus:ring-emerald-500/30",
+                theme === 'dark' ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
+              )}
               value={value || ''}
               onChange={(e) => onChange?.(e.target.value)}
             />
           )}
         </div>
       ) : (
-        <p className={cn("text-xs font-bold truncate transition-colors", valueColor)}>
+        <p className={cn("text-xs font-bold truncate transition-colors", theme === 'dark' ? darkValueColor : lightValueColor)}>
           {type === 'date' ? formatDate(value) : (value || '---')}
         </p>
       )}
@@ -368,14 +376,16 @@ const SettingsView = ({
   checklistTemplates, 
   setChecklistTemplates,
   stepConfig,
-  setStepConfig
+  setStepConfig,
+  theme
 }: { 
   slaConfig: Record<string, number>, 
   setSlaConfig: any, 
   checklistTemplates: string[], 
   setChecklistTemplates: any,
   stepConfig: any,
-  setStepConfig: any
+  setStepConfig: any,
+  theme: 'light' | 'dark'
 }) => {
   const [newChecklistItem, setNewChecklistItem] = useState('');
 
@@ -383,27 +393,36 @@ const SettingsView = ({
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 text-left">
       <header className="flex justify-between items-end">
         <div>
-           <h2 className="text-3xl font-black text-white italic font-serif tracking-tight">Cấu hình hệ thống</h2>
+           <h2 className={cn("text-3xl font-black italic font-serif tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Cấu hình hệ thống</h2>
            <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em] mt-1">Quản lý SLA, Checklist & Quy trình</p>
         </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* SLA Config */}
-        <section className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-[2.5rem] overflow-hidden group">
-          <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+        <section className={cn(
+          "backdrop-blur-xl border rounded-[2.5rem] overflow-hidden group",
+          theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800"
+        )}>
+          <div className={cn(
+            "p-8 border-b flex items-center justify-between",
+            theme === 'light' ? "bg-slate-50/50 border-slate-100" : "bg-slate-900/50 border-slate-800"
+          )}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
                 <Clock className="text-amber-500" size={20} />
               </div>
-              <h3 className="text-base font-black text-white uppercase tracking-tight">Cấu hình SLA (Ngày)</h3>
+              <h3 className={cn("text-base font-black uppercase tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Cấu hình SLA (Ngày)</h3>
             </div>
             <Activity className="text-slate-700" size={20} />
           </div>
           <div className="p-8 space-y-4">
             {Object.entries(slaConfig).map(([step, days]) => (
-              <div key={step} className="flex items-center justify-between p-4 bg-slate-950 rounded-2xl border border-slate-800 group/item hover:border-amber-500/30 transition-all">
-                <span className="text-sm font-bold text-slate-300">{step}</span>
+              <div key={step} className={cn(
+                "flex items-center justify-between p-4 rounded-2xl border group/item hover:border-amber-500/30 transition-all",
+                theme === 'light' ? "bg-white border-slate-100 shadow-sm" : "bg-slate-950 border-slate-800"
+              )}>
+                <span className={cn("text-sm font-bold", theme === 'light' ? "text-slate-700" : "text-slate-300")}>{step}</span>
                 <div className="flex items-center gap-3">
                   <input 
                     type="number" 
@@ -419,13 +438,19 @@ const SettingsView = ({
         </section>
 
         {/* Checklist Config */}
-        <section className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-[2.5rem] overflow-hidden group">
-          <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+        <section className={cn(
+          "backdrop-blur-xl border rounded-[2.5rem] overflow-hidden group",
+          theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800"
+        )}>
+          <div className={cn(
+            "p-8 border-b flex items-center justify-between",
+            theme === 'light' ? "bg-slate-50/50 border-slate-100" : "bg-slate-900/50 border-slate-800"
+          )}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
                 <ClipboardList className="text-emerald-500" size={20} />
               </div>
-              <h3 className="text-base font-black text-white uppercase tracking-tight">Danh mục Hồ sơ</h3>
+              <h3 className={cn("text-base font-black uppercase tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Danh mục Hồ sơ</h3>
             </div>
             <Layers className="text-slate-700" size={20} />
           </div>
@@ -434,7 +459,10 @@ const SettingsView = ({
               <input 
                 type="text" 
                 placeholder="Thêm hạng mục mới..."
-                className="flex-1 bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-slate-300 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+                className={cn(
+                  "flex-1 border rounded-2xl px-4 py-3 text-sm focus:ring-2 outline-none transition-all",
+                  theme === 'light' ? "bg-white border-slate-200 text-slate-900 focus:ring-emerald-500/20" : "bg-slate-950 border-slate-800 text-slate-300 focus:ring-emerald-500/20"
+                )}
                 value={newChecklistItem}
                 onChange={(e) => setNewChecklistItem(e.target.value)}
               />
@@ -600,10 +628,10 @@ const ReportsView = ({
       roles: ["Giám đốc Vùng", "Lãnh đạo"]
     },
     LOAN: {
-      title: "Quản lý tiến độ cấp GCN (Cam kết tín dụng)",
-      desc: "Mục tiêu: Theo dõi tiến độ hoàn thành đăng ký biến động để hoàn trả GCN theo cam kết tín dụng ngân hàng.",
-      kpis: ["SLA Cam kết tín dụng", "Risk Score (Hạn chót trả GCN)", "Tỷ lệ hồ sơ vay đúng hạn"],
-      roles: ["Phòng Tài chính", "Lãnh đạo", "QL Vay vốn"]
+      title: "Tiến độ GCN bổ sung (Cam kết tín dụng)",
+      desc: "Mục tiêu: Quản lý tiến độ cấp GCN cho các căn vay bổ sung theo cam kết tín dụng ngân hàng.",
+      kpis: ["SLA Cam kết tín dụng", "Tỷ lệ hồ sơ vay đúng hạn", "Dư nợ rủi ro (Risk Score)"],
+      roles: ["Phòng Tài chính", "Phòng Vay vốn", "Lãnh đạo"]
     },
     SLA: {
       title: "Phân tích SLA & Điểm nghẽn",
@@ -612,10 +640,10 @@ const ReportsView = ({
       roles: ["QL Vận hành", "Trưởng phòng Thủ tục"]
     },
     PERFORMANCE: {
-      title: "Quản lý Hiệu suất cá nhân",
-      desc: "Mục tiêu: Thống kê số lượng xử lý công việc và thời gian xử lý của từng cá nhân.",
-      kpis: ["Tổng hồ sơ hoàn tất", "Avg. Time / Task", "Tỷ lệ xử lý đúng hạn"],
-      roles: ["MANAGER", "ADMIN", "DIRECTOR"]
+      title: "Quản trị Hiệu suất Chiến lược",
+      desc: "Mục tiêu: Đánh giá năng lực xử lý (Workload Capacity) và tốc độ đáp ứng của từng nhân sự.",
+      kpis: ["Tổng hồ sơ hoàn tất", "TAT Trung bình (Ngày)", "Biến động hiệu suất"],
+      roles: ["MANAGER", "DIRECTOR", "ADMIN"]
     }
   };
 
@@ -845,42 +873,58 @@ const ReportsView = ({
                 </div>
 
                 {/* Project Selection Multi-select equivalent */}
-                <div className="flex flex-wrap gap-2 p-4 bg-slate-950/20 rounded-2xl border border-slate-800/50">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest self-center mr-2">Dự án:</span>
-                  <button 
-                    onClick={() => {
-                      if (selectedLoanProjectIds.length === projects.length) setSelectedLoanProjectIds([]);
-                      else setSelectedLoanProjectIds(projects.map(p => p.id));
-                    }}
-                    className={cn(
-                      "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all border",
-                      selectedLoanProjectIds.length === projects.length 
-                        ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-400" 
-                        : "bg-slate-900 border-slate-800 text-slate-500"
-                    )}
-                  >
-                    TẤT CẢ
-                  </button>
-                  {projects.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => {
-                        if (selectedLoanProjectIds.includes(p.id)) {
-                          setSelectedLoanProjectIds(selectedLoanProjectIds.filter(id => id !== p.id));
-                        } else {
-                          setSelectedLoanProjectIds([...selectedLoanProjectIds, p.id]);
-                        }
-                      }}
-                      className={cn(
-                        "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all border",
-                        selectedLoanProjectIds.includes(p.id)
-                          ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-400"
-                          : "bg-slate-900 border-slate-800 text-slate-500"
-                      )}
-                    >
-                      {p.name}
-                    </button>
-                  ))}
+                <div className={cn(
+                  "p-5 rounded-3xl border transition-all",
+                  theme === 'light' ? "bg-slate-50 border-slate-200" : "bg-slate-950/20 border-slate-800/50"
+                )}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Filter size={14} className="text-indigo-500" />
+                      <span className={cn("text-[11px] font-black uppercase tracking-widest", theme === 'light' ? "text-slate-600" : "text-slate-400")}>Lựa chọn Dự án báo cáo:</span>
+                    </div>
+                    <div className="flex gap-2">
+                       <button 
+                         onClick={() => setSelectedLoanProjectIds(projects.map(p => p.id))}
+                         className="text-[9px] font-black text-indigo-500 hover:underline uppercase tracking-widest"
+                       >Chọn tất cả</button>
+                       <span className="text-slate-700">|</span>
+                       <button 
+                         onClick={() => setSelectedLoanProjectIds([])}
+                         className="text-[9px] font-black text-rose-500 hover:underline uppercase tracking-widest"
+                       >Bỏ chọn</button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {projects.map(p => {
+                      const isSelected = selectedLoanProjectIds.includes(p.id);
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedLoanProjectIds(selectedLoanProjectIds.filter(id => id !== p.id));
+                            } else {
+                              setSelectedLoanProjectIds([...selectedLoanProjectIds, p.id]);
+                            }
+                          }}
+                          className={cn(
+                            "px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all border flex items-center gap-2",
+                            isSelected
+                              ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20"
+                              : theme === 'light' ? "bg-white border-slate-200 text-slate-500 hover:border-slate-300" : "bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700"
+                          )}
+                        >
+                          <div className={cn("w-1.5 h-1.5 rounded-full", isSelected ? "bg-white" : "bg-slate-600")} />
+                          {p.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedLoanProjectIds.length === 0 && (
+                    <p className="text-[10px] text-rose-500 font-bold mt-3 italic animate-pulse flex items-center gap-2">
+                      <AlertTriangle size={12} /> Vui lòng chọn ít nhất một dự án để xem dữ liệu.
+                    </p>
+                  )}
                 </div>
 
                 {/* Progress Summary for Loan Customers */}
@@ -1009,7 +1053,7 @@ const ReportsView = ({
                           >
                             <td className="px-6 py-5">
                                <p className={cn("text-xs font-black", theme === 'light' ? "text-slate-900" : "text-white")}>{app.projectName}</p>
-                               <p className="text-[9px] font-mono text-slate-500 mt-0.5">{app.unitCode} • {app.customerName}</p>
+                               <p className={cn("text-[9px] font-mono mt-0.5", theme === 'light' ? "text-slate-600 font-bold" : "text-slate-500")}>{app.unitCode} • {app.customerName}</p>
                             </td>
                             <td className="px-6 py-5">
                                <div className="flex items-center gap-2">
@@ -1023,8 +1067,8 @@ const ReportsView = ({
                             </td>
                             <td className="px-6 py-5 text-center">
                                <span className={cn(
-                                 "text-xs font-black p-2 rounded-xl",
-                                 isHighRisk ? "bg-rose-500/10 text-rose-500" : isMediumRisk ? "bg-amber-500/10 text-amber-500" : "text-slate-500"
+                                 "text-xs font-black p-2 rounded-xl transition-all",
+                                 isHighRisk ? "bg-rose-500/10 text-rose-500 shadow-[inset_0_0_10px_rgba(244,63,94,0.1)]" : isMediumRisk ? "bg-amber-500/10 text-amber-500" : theme === 'light' ? "bg-slate-100 text-slate-500" : "bg-slate-900 text-slate-600"
                                )}>
                                  {days} Ngày {isHighRisk && "!!"}
                                </span>
@@ -1052,35 +1096,71 @@ const ReportsView = ({
                 </div>
               </div>
             ) : reportType === 'PERFORMANCE' ? (
-              <div className="space-y-8 text-left">
-                <div className="flex items-center justify-between">
+              <div className="space-y-8 text-left animate-in fade-in slide-in-from-right-4 duration-500">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <h3 className={cn("text-sm font-black uppercase tracking-widest", theme === 'light' ? "text-slate-800" : "text-slate-200")}>Bảng xếp hạng Hiệu suất Cá nhân (Real-time)</h3>
-                    <p className="text-[10px] text-slate-500 mt-1 italic">Dữ liệu được tổng hợp từ lịch sử thao tác trên từng hồ sơ.</p>
+                    <h3 className={cn("text-sm font-black uppercase tracking-widest", theme === 'light' ? "text-slate-800" : "text-slate-200")}>Bảng xếp hạng Hiệu suất Cá nhân (Năng lực xử lý)</h3>
+                    <p className="text-[10px] text-slate-500 mt-1 italic font-medium">Phân tích cường độ công việc và thời gian đáp ứng (TAT) trung bình.</p>
+                  </div>
+                  <div className="flex bg-slate-950/20 p-1 rounded-xl border border-slate-800/30">
+                     <button className="px-3 py-1.5 text-[9px] font-black uppercase rounded-lg bg-indigo-600 text-white shadow-lg">Tổng hợp</button>
+                     <button className="px-3 py-1.5 text-[9px] font-black uppercase rounded-lg text-slate-500 hover:text-slate-300 transition-colors">Theo tháng</button>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                   <div className="h-[400px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={stats} layout="vertical" margin={{ left: 20 }}>
-                          <XAxis type="number" hide />
-                          <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={10} width={100} axisLine={false} tickLine={false} />
-                          <ReTooltip 
-                            cursor={{ fill: 'rgba(99,102,241,0.05)' }}
-                            contentStyle={{ 
-                              backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
-                              border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #1e293b', 
-                              borderRadius: '16px' 
-                            }}
-                          />
-                          <Bar dataKey="total" name="Tổng thao tác" fill="#6366f1" radius={[0, 6, 6, 0]} barSize={24} />
-                          <Bar dataKey="completed" name="Hoàn tất" fill="#22c55e" radius={[0, 6, 6, 0]} barSize={24} />
-                        </BarChart>
-                      </ResponsiveContainer>
+                   <div className={cn(
+                     "p-6 rounded-[2rem] border overflow-hidden",
+                     theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950/40 border-slate-800"
+                   )}>
+                      <h4 className="text-[10px] font-black uppercase text-slate-500 mb-6 tracking-widest text-center">Biểu đồ Năng lực (Hồ sơ/Nhân viên)</h4>
+                      <div className="h-[350px] w-full">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={stats} layout="vertical" margin={{ left: 20 }}>
+                               <XAxis type="number" hide />
+                               <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={10} width={100} axisLine={false} tickLine={false} />
+                               <ReTooltip 
+                                 cursor={{ fill: 'rgba(99,102,241,0.05)' }}
+                                 contentStyle={{ 
+                                   backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
+                                   border: 'none', 
+                                   borderRadius: '16px' 
+                                 }}
+                               />
+                               <Bar dataKey="total" name="Khối lượng XL" fill="#6366f1" radius={[0, 6, 6, 0]} barSize={24} />
+                               <Bar dataKey="completed" name="Hoàn tất" fill="#22c55e" radius={[0, 6, 6, 0]} barSize={24} />
+                            </BarChart>
+                         </ResponsiveContainer>
+                      </div>
                    </div>
                    
-                   <div className="space-y-4">
+                   <div className={cn(
+                     "p-6 rounded-[2rem] border overflow-hidden",
+                     theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950/40 border-slate-800"
+                   )}>
+                      <h4 className="text-[10px] font-black uppercase text-slate-500 mb-6 tracking-widest text-center">Phân tích Tốc độ (TAT trung bình)</h4>
+                      <div className="h-[350px] w-full">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={stats.slice().sort((a:any, b:any) => a.avgTime - b.avgTime)}>
+                               <defs>
+                                 <linearGradient id="colorAvg" x1="0" y1="0" x2="0" y2="1">
+                                   <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.1}/>
+                                   <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                                 </linearGradient>
+                               </defs>
+                               <XAxis dataKey="name" stroke="#94a3b8" fontSize={8} axisLine={false} tickLine={false} />
+                               <YAxis stroke="#94a3b8" fontSize={8} axisLine={false} tickLine={false} />
+                               <ReTooltip 
+                                 contentStyle={{ backgroundColor: theme === 'light' ? '#fff' : '#0f172a', border: 'none', borderRadius: '12px' }}
+                               />
+                               <Area type="monotone" dataKey="avgTime" name="Số ngày xử lý TB" stroke="#f59e0b" fillOpacity={1} fill="url(#colorAvg)" />
+                            </AreaChart>
+                         </ResponsiveContainer>
+                      </div>
+                   </div>
+                </div>
+                   
+                <div className="space-y-4">
                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Thống kê chi tiết Nhân viên</p>
                       <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
                          {stats.length > 0 ? stats.sort((a:any, b:any) => b.total - a.total).map((user: any, i: number) => (
@@ -1095,14 +1175,14 @@ const ReportsView = ({
                                  <div>
                                    <p className={cn("text-sm font-black", theme === 'light' ? "text-slate-900" : "text-white group-hover:text-indigo-400 transition-colors")}>{user.name}</p>
                                    <div className="flex items-center gap-2 mt-0.5">
-                                      <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Hiệu suất:</span>
-                                      <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 text-[8px] font-black rounded-lg">{user.efficiency}%</span>
+                                      <span className={cn("text-[9px] font-black uppercase tracking-tighter", theme === 'light' ? "text-slate-400" : "text-slate-500")}>Hoàn tất:</span>
+                                      <span className={cn("px-2 py-0.5 text-[8px] font-black rounded-lg", theme === 'light' ? "bg-emerald-100 text-emerald-600" : "bg-emerald-500/10 text-emerald-500")}>{user.completed} hồ sơ</span>
                                    </div>
                                  </div>
                               </div>
                               <div className="text-right">
-                                 <p className="text-sm font-black italic text-slate-300">{user.avgTime} Ngày</p>
-                                 <p className="text-[8px] font-black text-slate-600 uppercase">TAT Trung bình</p>
+                                 <p className={cn("text-sm font-black italic", theme === 'light' ? "text-slate-900" : "text-slate-300")}>{user.avgTime} Ngày</p>
+                                 <p className={cn("text-[8px] font-black uppercase", theme === 'light' ? "text-slate-400" : "text-slate-600")}>TAT Trung bình</p>
                               </div>
                            </div>
                          )) : (
@@ -1112,7 +1192,6 @@ const ReportsView = ({
                          )}
                       </div>
                    </div>
-                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                    {stats.slice(0, 4).map((user: any, i: number) => (
@@ -3524,12 +3603,14 @@ export default function App() {
             <button 
               onClick={() => setSelectedProjectId(null)}
               className={cn(
-                "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-bold",
-                selectedProjectId === null ? "bg-slate-800/80 text-festive-gold ring-1 ring-slate-700" : "text-slate-400 hover:bg-slate-800/50"
+                "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-black uppercase tracking-tight",
+                selectedProjectId === null 
+                  ? (theme === 'light' ? "bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200" : "bg-slate-800/80 text-festive-gold ring-1 ring-slate-700")
+                  : (theme === 'light' ? "text-slate-500 hover:bg-slate-50" : "text-slate-400 hover:bg-slate-800/50")
               )}
             >
-              <Map size={16} />
-              <span className="truncate">Tất cả dự án</span>
+              <Map size={16} className={selectedProjectId === null ? (theme === 'light' ? "text-indigo-600" : "text-festive-gold") : "text-slate-500"} />
+              <span className="truncate whitespace-nowrap overflow-hidden">Tất cả dự án</span>
             </button>
             
             {(Object.entries(
@@ -3593,17 +3674,19 @@ export default function App() {
                           key={p.id} 
                           onClick={() => { setSelectedProjectId(p.id); setActiveTab('dashboard'); }}
                           className={cn(
-                            "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-bold group",
+                            "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-black group relative overflow-hidden",
                             selectedProjectId === p.id 
-                              ? "bg-slate-800/80 text-festive-gold ring-1 ring-slate-700" 
-                              : "text-slate-400 hover:bg-slate-800/50"
+                              ? (theme === 'light' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "bg-slate-800/80 text-festive-gold ring-1 ring-slate-700") 
+                              : (theme === 'light' ? "text-slate-500 hover:bg-white hover:shadow-sm" : "text-slate-400 hover:bg-slate-800/50")
                           )}
                         >
                           <div className={cn(
                             "w-1.5 h-1.5 rounded-full shrink-0 transition-transform group-hover:scale-125",
-                            selectedProjectId === p.id ? "bg-festive-gold" : "bg-slate-700"
+                            selectedProjectId === p.id 
+                              ? (theme === 'light' ? "bg-white" : "bg-festive-gold") 
+                              : (theme === 'light' ? "bg-slate-300" : "bg-slate-700")
                           )} />
-                          <span className="truncate">{p.name}</span>
+                          <span className="truncate max-w-[140px] uppercase tracking-tight">{p.name}</span>
                         </button>
                       ))}
                     </motion.div>
@@ -3856,13 +3939,13 @@ export default function App() {
                       onClick={() => { setActiveTab('applications'); setDashboardFilter('ERROR'); }}
                     />
                     <StatCard 
-                      title="Căn có vay" 
+                      title="Căn có vay bổ sung" 
                       value={applications.filter(a => a.loanStatus === 'Co_Vay').length} 
                       icon={CreditCard} 
                       colorClass="bg-indigo-600 shadow-indigo-900/40" 
                       delay={0.5} 
                       theme={theme} 
-                      onClick={() => { setActiveTab('reports'); }}
+                      onClick={() => { setActiveTab('reports'); setDashboardFilter('LOAN' as any); }}
                     />
                   </div>
                 )}
@@ -4169,7 +4252,7 @@ export default function App() {
                           <div key={d.name} className="flex items-center justify-between px-2">
                             <div className="flex items-center gap-3">
                               <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
-                              <span className="text-[10px] font-black text-slate-200 uppercase tracking-tight">{d.name}</span>
+                              <span className={cn("text-[10px] font-black uppercase tracking-tight", theme === 'light' ? "text-slate-500" : "text-slate-200")}>{d.name}</span>
                             </div>
                             <span className={cn("text-[10px] font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>{d.percentage}%</span>
                           </div>
@@ -4485,7 +4568,10 @@ export default function App() {
                             <div className="space-y-2">
                               <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1">Loại khách hàng</label>
                               <select 
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-festive-gold/20"
+                                className={cn(
+                                  "w-full rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
+                                  theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
+                                )}
                                 value={filterLoanStatus}
                                 onChange={(e) => setFilterLoanStatus(e.target.value as any)}
                               >
@@ -4498,7 +4584,10 @@ export default function App() {
                             <div className="space-y-2">
                               <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1">Tự làm sổ</label>
                               <select 
-                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-festive-gold/20"
+                                className={cn(
+                                  "w-full rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
+                                  theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
+                                )}
                                 value={filterSelfService}
                                 onChange={(e) => setFilterSelfService(e.target.value as any)}
                               >
@@ -4843,6 +4932,7 @@ export default function App() {
                   setChecklistTemplates={setChecklistTemplates}
                   stepConfig={stepConfig}
                   setStepConfig={setStepConfig}
+                  theme={theme}
                 />
               </motion.div>
             )}
@@ -4950,10 +5040,13 @@ export default function App() {
                           { name: 'Tờ khai thuế thu nhập cá nhân', format: 'PDF', size: '115KB' },
                           { name: 'Mẫu giấy ủy quyền nộp HS', format: 'DOCX', size: '32KB' }
                         ].map((doc, idx) => (
-                          <button key={idx} className="w-full flex items-center justify-between p-4 rounded-2xl bg-slate-950/30 border border-slate-800/30 hover:bg-slate-800/30 transition-all">
+                          <button key={idx} className={cn(
+                            "w-full flex items-center justify-between p-4 rounded-2xl border transition-all",
+                            theme === 'light' ? "bg-slate-50 border-slate-100 hover:bg-slate-100" : "bg-slate-950/30 border-slate-800/30 hover:bg-slate-800/30"
+                          )}>
                             <div className="flex items-center gap-3">
-                              <div className="text-[10px] font-black bg-slate-800 text-slate-400 px-2 py-1 rounded-md">{doc.format}</div>
-                              <span className="text-sm text-slate-300 font-medium">{doc.name}</span>
+                              <div className={cn("text-[10px] font-black px-2 py-1 rounded-md", theme === 'light' ? "bg-slate-200 text-slate-600" : "bg-slate-800 text-slate-400")}>{doc.format}</div>
+                              <span className={cn("text-sm font-medium", theme === 'light' ? "text-slate-700" : "text-slate-300")}>{doc.name}</span>
                             </div>
                             <Download size={16} className="text-slate-600" />
                           </button>
@@ -4961,13 +5054,16 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="bg-indigo-600/10 backdrop-blur-md p-8 rounded-[2.5rem] border border-indigo-500/20 shadow-2xl flex items-center gap-6">
+                    <div className={cn(
+                      "backdrop-blur-md p-8 rounded-[2.5rem] border shadow-2xl flex items-center gap-6",
+                      theme === 'light' ? "bg-white border-slate-200" : "bg-indigo-600/10 border-indigo-500/20"
+                    )}>
                       <div className="w-16 h-16 bg-indigo-600 rounded-3xl flex items-center justify-center shadow-lg shadow-indigo-600/30 flex-shrink-0">
                         <HelpCircle size={32} className="text-white" />
                       </div>
                       <div>
-                        <h3 className="text-lg font-bold text-white font-serif italic">Cần hỗ trợ?</h3>
-                        <p className="text-xs text-slate-400 leading-relaxed mt-1">Liên hệ phòng Công nghệ để được hướng dẫn sử dụng hoặc điều chỉnh phân quyền tài khoản của bạn.</p>
+                        <h3 className={cn("text-lg font-bold font-serif italic", theme === 'light' ? "text-slate-900" : "text-white")}>Cần hỗ trợ?</h3>
+                        <p className={cn("text-xs leading-relaxed mt-1", theme === 'light' ? "text-slate-500" : "text-slate-400")}>Liên hệ phòng Công nghệ để được hướng dẫn sử dụng hoặc điều chỉnh phân quyền tài khoản của bạn.</p>
                       </div>
                     </div>
                   </div>
@@ -5097,10 +5193,13 @@ export default function App() {
                 )}
 
                 {/* Workflow Tracker - Wider Display */}
-                <section className="bg-slate-900/40 p-8 rounded-[2.5rem] border border-slate-800/50 relative overflow-hidden backdrop-blur-md">
+                <section className={cn(
+                  "p-8 rounded-[2.5rem] border relative overflow-hidden backdrop-blur-md",
+                  theme === 'dark' ? "bg-slate-900/40 border-slate-800/50" : "bg-white border-slate-200 shadow-sm"
+                )}>
                    <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-[100px] -mr-32 -mt-32"></div>
                   <div className="flex items-center justify-between mb-8">
-                    <h4 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <h4 className={cn("text-xs font-black uppercase tracking-[0.2em] flex items-center gap-2", theme === 'dark' ? "text-slate-500" : "text-slate-400")}>
                        <Activity size={14} className="text-indigo-500" />
                        Bản đồ quy trình thực hiện
                     </h4>
@@ -5108,7 +5207,7 @@ export default function App() {
                   
                   <div className="relative pt-4 pb-12 px-6">
                     {/* Background Line */}
-                    <div className="absolute top-[26px] left-10 right-10 h-1 bg-slate-800 rounded-full"></div>
+                    <div className={cn("absolute top-[26px] left-10 right-10 h-1 rounded-full", theme === 'dark' ? "bg-slate-800" : "bg-slate-200")}></div>
                     
                     <div className="flex justify-between relative z-10">
                       {['GĐ1', 'GĐ2', 'GĐ3', 'GĐ4', 'GĐ5', 'GĐ6'].map((label, idx) => {
@@ -5122,13 +5221,13 @@ export default function App() {
                               "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-700 text-sm font-black border-2",
                               isCompleted ? "bg-emerald-500 border-emerald-500 text-slate-900 rotate-12" : 
                               isActive ? "bg-indigo-600 border-indigo-400 text-white shadow-[0_0_30px_rgba(99,102,241,0.4)] scale-125 -rotate-3" : 
-                              "bg-slate-900 border-slate-800 text-slate-700 hover:border-slate-700"
+                              theme === 'dark' ? "bg-slate-900 border-slate-800 text-slate-700 hover:border-slate-700" : "bg-slate-100 border-slate-200 text-slate-400 hover:border-slate-300"
                             )}>
                               {isCompleted ? <Check size={24} /> : label}
                             </div>
                             <span className={cn(
                               "text-[10px] font-black uppercase tracking-widest absolute -bottom-2 whitespace-nowrap",
-                              isActive ? "text-indigo-400" : isCompleted ? "text-emerald-400" : "text-slate-600"
+                              isActive ? "text-indigo-400" : isCompleted ? (theme === 'dark' ? "text-emerald-400" : "text-emerald-600") : (theme === 'dark' ? "text-slate-600" : "text-slate-400")
                             )}>
                               {label === 'GĐ1' && 'Chuẩn bị'}
                               {label === 'GĐ2' && 'Nộp VPĐK'}
@@ -5144,24 +5243,30 @@ export default function App() {
                   </div>
 
                   <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-start gap-4 p-5 bg-indigo-500/5 rounded-3xl border border-indigo-500/10">
+                    <div className={cn(
+                      "flex items-start gap-4 p-5 rounded-3xl border transition-colors",
+                      theme === 'dark' ? "bg-indigo-500/5 border-indigo-500/10" : "bg-indigo-50/50 border-indigo-100"
+                    )}>
                       <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 text-indigo-500 flex items-center justify-center shrink-0">
                         <Clock size={24} />
                       </div>
                       <div>
-                        <p className="text-[10px] text-indigo-400 font-black uppercase tracking-widest mb-1.5 opacity-70">Bước hiện tại:</p>
-                        <p className="text-base font-black text-slate-100 uppercase tracking-tight">
+                        <p className={cn("text-[10px] font-black uppercase tracking-widest mb-1.5 opacity-70", theme === 'dark' ? "text-indigo-400" : "text-indigo-600")}>Bước hiện tại:</p>
+                        <p className={cn("text-base font-black uppercase tracking-tight", theme === 'dark' ? "text-slate-100" : "text-slate-900")}>
                           {stepConfig[(editApp || selectedApp).currentStep]?.label}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-start gap-4 p-5 bg-slate-800/30 rounded-3xl border border-slate-700/30">
-                       <div className="w-12 h-12 rounded-2xl bg-slate-800 text-slate-500 flex items-center justify-center shrink-0">
+                    <div className={cn(
+                      "flex items-start gap-4 p-5 rounded-3xl border transition-colors",
+                      theme === 'dark' ? "bg-slate-800/30 border-slate-700/30" : "bg-slate-100/50 border-slate-200"
+                    )}>
+                       <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0", theme === 'dark' ? "bg-slate-800 text-slate-500" : "bg-slate-200 text-slate-500")}>
                         <Users size={24} />
                       </div>
                       <div>
-                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5 opacity-70">Phòng chủ trì:</p>
-                        <p className="text-base font-black text-slate-300 uppercase tracking-tight">
+                        <p className={cn("text-[10px] font-black uppercase tracking-widest mb-1.5 opacity-70", theme === 'dark' ? "text-slate-500" : "text-slate-400")}>Phòng chủ trì:</p>
+                        <p className={cn("text-base font-black uppercase tracking-tight", theme === 'dark' ? "text-slate-300" : "text-slate-700")}>
                           {stepConfig[(editApp || selectedApp).currentStep]?.dept}
                         </p>
                       </div>
@@ -5172,38 +5277,38 @@ export default function App() {
                 <div className="grid grid-cols-1 gap-10">
                    {/* Row 1: Master Info */}
                   <section className="space-y-6">
-                    <div className="flex items-center justify-between border-b border-slate-800/50 pb-4">
+                    <div className={cn("flex items-center justify-between border-b pb-4", theme === 'dark' ? "border-slate-800/50" : "border-slate-200")}>
                       <div className="flex items-center gap-3">
                         <div className="w-1 h-6 bg-indigo-500 rounded-full"></div>
-                        <h4 className="text-sm font-black text-white uppercase tracking-widest">Thông tin Khách hàng (PTT)</h4>
+                        <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-white" : "text-slate-900")}>Thông tin Khách hàng (PTT)</h4>
                       </div>
                       {userRole === 'PTT' && <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-3 py-1 rounded-full font-black uppercase border border-indigo-500/20">Cấp quyền chỉnh sửa</span>}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <DetailCard label="Mã lô/căn" value={(editApp || selectedApp).unitCode} isEditing={isEditing} />
-                      <DetailCard label="Dự án" value={(editApp || selectedApp).projectName} isEditing={isEditing} />
-                      <DetailCard 
+                      <DetailCard theme={theme} label="Mã lô/căn" value={(editApp || selectedApp).unitCode} isEditing={isEditing} />
+                      <DetailCard theme={theme} label="Dự án" value={(editApp || selectedApp).projectName} isEditing={isEditing} />
+                      <DetailCard theme={theme}
                         label="Tên khách hàng" 
                         value={(editApp || selectedApp).customerName} 
                         editable={isFieldEditable('customerName')}
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('customerName', val)}
                       />
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="Đối tượng ký HĐCN" 
                         value={(editApp || selectedApp).contractSignerType} 
                         editable={isFieldEditable('contractSignerType')}
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('contractSignerType', val)}
                       />
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="Số điện thoại" 
                         value={(editApp || selectedApp).phoneNumber} 
                         editable={isFieldEditable('phoneNumber')}
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('phoneNumber', val)}
                       />
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="Loại tài sản" 
                         value={(editApp || selectedApp).propertyType === 'Dat_Nen' ? 'Quyền sử dụng đất (Nhà đất/Đất nền)' : 'Căn hộ'} 
                         type="select"
@@ -5212,7 +5317,7 @@ export default function App() {
                         options={['Quyền sử dụng đất (Nhà đất/Đất nền)', 'Căn hộ']}
                         onChange={(val) => handleFieldChange('propertyType', val === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen')}
                       />
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="Sử dụng gói vay" 
                         value={(editApp || selectedApp).loanStatus === 'Co_Vay' ? 'Có vay' : 'Không vay'} 
                         type="select"
@@ -5222,7 +5327,7 @@ export default function App() {
                         onChange={(val) => handleFieldChange('loanStatus', val === 'Có vay' ? 'Co_Vay' : 'Khong_Vay')}
                       />
                       {(editApp || selectedApp).loanStatus === 'Co_Vay' && (
-                        <DetailCard 
+                        <DetailCard theme={theme}
                           label="Cam kết Ngân hàng (Thời hạn GCN)" 
                           value={(editApp || selectedApp).bankCommitmentDeadline} 
                           type="date"
@@ -5236,15 +5341,15 @@ export default function App() {
 
                   {/* Row 2: Procedural */}
                   <section className="space-y-6">
-                    <div className="flex items-center justify-between border-b border-slate-800/50 pb-4">
+                    <div className={cn("flex items-center justify-between border-b pb-4", theme === 'dark' ? "border-slate-800/50" : "border-slate-200")}>
                       <div className="flex items-center gap-3">
                         <div className="w-1 h-6 bg-amber-500 rounded-full"></div>
-                        <h4 className="text-sm font-black text-white uppercase tracking-widest">Quy trình Thủ tục (PTT)</h4>
+                        <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-white" : "text-slate-900")}>Quy trình Thủ tục (PTT)</h4>
                       </div>
                       {userRole === 'PTT' && <span className="text-[10px] bg-amber-500/10 text-amber-500 px-3 py-1 rounded-full font-black uppercase border border-amber-500/20">Cấp quyền chỉnh sửa</span>}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="Ngày nhận hồ sơ KH" 
                         value={(editApp || selectedApp).receivedDate} 
                         type="date"
@@ -5252,7 +5357,7 @@ export default function App() {
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('receivedDate', val)}
                       />
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="Ngày ký HĐCN/HĐMB" 
                         value={(editApp || selectedApp).contractSigningDate} 
                         type="date"
@@ -5260,7 +5365,7 @@ export default function App() {
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('contractSigningDate', val)}
                       />
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="Ngày BG HS nội bộ" 
                         value={(editApp || selectedApp).accountingHandoverDate} 
                         type="date"
@@ -5268,17 +5373,17 @@ export default function App() {
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('accountingHandoverDate', val)}
                       />
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="KH tự làm sổ" 
                         value={(editApp || selectedApp).isSelfService ? 'Có' : 'Không'} 
-                        valueColor={(editApp || selectedApp).isSelfService ? 'text-amber-500' : 'text-slate-200'}
+                        valueColor={(editApp || selectedApp).isSelfService ? 'text-amber-500' : theme === 'dark' ? 'text-slate-200' : 'text-slate-900'}
                         editable={isFieldEditable('isSelfService')}
                         isEditing={isEditing}
                         type="select"
                         options={['Có', 'Không']}
                         onChange={(val) => handleFieldChange('isSelfService', val === 'Có')}
                       />
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="Ngày BG GCN cho khách" 
                         value={(editApp || selectedApp).customerHandoverDate} 
                         type="date"
@@ -5291,15 +5396,15 @@ export default function App() {
 
                   {/* Row 3: Accounting & Tax */}
                   <section className="space-y-6">
-                    <div className="flex items-center justify-between border-b border-slate-800/50 pb-4">
+                    <div className={cn("flex items-center justify-between border-b pb-4", theme === 'dark' ? "border-slate-800/50" : "border-slate-200")}>
                       <div className="flex items-center gap-3">
                         <div className="w-1 h-6 bg-emerald-500 rounded-full"></div>
-                        <h4 className="text-sm font-black text-white uppercase tracking-widest">Thông tin xử lý hồ sơ theo chức năng (Kế toán)</h4>
+                        <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-white" : "text-slate-900")}>Thông tin xử lý hồ sơ theo chức năng (Kế toán)</h4>
                       </div>
                       {userRole === 'KT' && <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full font-black uppercase border border-emerald-500/20">Cấp quyền chỉnh sửa</span>}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="Nơi nộp hồ sơ" 
                         value={(editApp || selectedApp).submissionLocation === 'TP_DANANG' ? 'Tỉnh/Thành phố' : (editApp || selectedApp).submissionLocation === 'PHUONG' ? 'Phường/Xã' : '---'} 
                         type="select"
@@ -5309,14 +5414,14 @@ export default function App() {
                         options={['Phường/Xã', 'Tỉnh/Thành phố']}
                         onChange={(val) => handleFieldChange('submissionLocation', val === 'Tỉnh/Thành phố' ? 'TP_DANANG' : 'PHUONG')}
                       />
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="Mã HS / Số phiếu hẹn" 
                         value={(editApp || selectedApp).vpdkCode} 
                         editable={isFieldEditable('vpdkCode')}
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('vpdkCode', val)}
                       />
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="Ngày nộp VPĐK" 
                         value={(editApp || selectedApp).submissionDate} 
                         type="date"
@@ -5324,7 +5429,7 @@ export default function App() {
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('submissionDate', val)}
                       />
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="Ngày TB Thuế" 
                         value={(editApp || selectedApp).taxNotificationDate} 
                         type="date"
@@ -5332,7 +5437,7 @@ export default function App() {
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('taxNotificationDate', val)}
                       />
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="Ngày nhận TB Thuế" 
                         value={(editApp || selectedApp).taxNotificationReceivedDate} 
                         type="date"
@@ -5340,7 +5445,7 @@ export default function App() {
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('taxNotificationReceivedDate', val)}
                       />
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="Ngày nhận NVTC" 
                         value={(editApp || selectedApp).taxReceiptDate} 
                         type="date"
@@ -5348,7 +5453,7 @@ export default function App() {
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('taxReceiptDate', val)}
                       />
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="Trạng thái nộp thuế" 
                         value={(editApp || selectedApp).taxPaymentStatus === 'Paid' ? 'Đã hoàn thành' : 'Chưa hoàn thành'} 
                         valueColor={(editApp || selectedApp).taxPaymentStatus === 'Paid' ? 'text-emerald-500' : 'text-rose-500'} 
@@ -5358,7 +5463,7 @@ export default function App() {
                         field="taxPaymentStatus"
                         onChange={(val) => handleFieldChange('taxPaymentStatus', val === 'Đã hoàn thành' ? 'Paid' : 'Unpaid')}
                       />
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="Ngày nhận GCN thực tế" 
                         value={(editApp || selectedApp).gcnReceivedDate} 
                         type="date"
@@ -5366,7 +5471,7 @@ export default function App() {
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('gcnReceivedDate', val)}
                       />
-                      <DetailCard 
+                      <DetailCard theme={theme}
                         label="Ngày bàn giao GCN PTT" 
                         value={(editApp || selectedApp).ptdaHandoverDate} 
                         type="date"
@@ -5379,16 +5484,19 @@ export default function App() {
                 </div>
 
                 {/* Section 4: PTDA & Milestone chuyên sâu */}
-                <section className="space-y-4 bg-fuchsia-500/5 p-4 rounded-3xl border border-fuchsia-500/10">
+                <section className={cn(
+                  "space-y-4 p-4 rounded-3xl border",
+                  theme === 'dark' ? "bg-fuchsia-500/5 border-fuchsia-500/10" : "bg-fuchsia-50/50 border-fuchsia-100"
+                )}>
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <div className="w-1 h-4 bg-fuchsia-500 rounded-full"></div>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Thông tin ngày tháng xử lý hồ sơ (PTDA)</h4>
+                      <h4 className={cn("text-[10px] font-black uppercase tracking-[0.2em]", theme === 'dark' ? "text-slate-400" : "text-fuchsia-600")}>Thông tin ngày tháng xử lý hồ sơ (PTDA)</h4>
                     </div>
                     {userRole === 'PTDA' && <span className="text-[9px] bg-fuchsia-500/20 text-fuchsia-400 px-2 py-0.5 rounded-md font-bold uppercase">Bạn có quyền sửa</span>}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <DetailCard 
+                    <DetailCard theme={theme}
                       label="Ngày cung cấp TB Thuế" 
                       value={(editApp || selectedApp).taxNoticeProvisionDate} 
                       type="date"
@@ -5396,7 +5504,7 @@ export default function App() {
                       isEditing={isEditing}
                       onChange={(val) => handleFieldChange('taxNoticeProvisionDate', val)}
                     />
-                    <DetailCard 
+                    <DetailCard theme={theme}
                       label="Ngày trình ký/In GCN" 
                       value={(editApp || selectedApp).gcnSignedDate} 
                       type="date"
@@ -5871,11 +5979,20 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-0 m-auto w-full max-w-2xl h-fit max-h-[90vh] bg-[#1E293B] z-[70] rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-slate-700 flex flex-col overflow-hidden"
+              className={cn(
+                "fixed inset-0 m-auto w-full max-w-2xl h-fit max-h-[90vh] z-[70] rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] border flex flex-col overflow-hidden",
+                theme === 'light' ? "bg-white border-slate-200" : "bg-[#1E293B] border-slate-700"
+              )}
             >
-              <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+              <div className={cn(
+                "p-8 border-b flex items-center justify-between",
+                theme === 'light' ? "bg-slate-50/50 border-slate-100" : "bg-slate-900/50 border-slate-800"
+              )}>
                 <div>
-                  <h3 className="text-2xl font-black text-white italic font-serif tracking-tight">Tạo mới Hồ sơ GCN</h3>
+                  <h3 className={cn(
+                    "text-2xl font-black italic font-serif tracking-tight",
+                    theme === 'light' ? "text-slate-900" : "text-white"
+                  )}>Tạo mới Hồ sơ GCN</h3>
                   <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em] mt-1">Khởi tạo quy trình cấp sổ mới</p>
                 </div>
                 <button 
@@ -5891,7 +6008,7 @@ export default function App() {
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-1 h-4 bg-emerald-500 rounded-full"></div>
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Thông tin định danh</h4>
+                    <h4 className={cn("text-[10px] font-black uppercase tracking-[0.2em]", theme === 'light' ? "text-slate-500" : "text-slate-400")}>Thông tin định danh</h4>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-6">
@@ -5903,8 +6020,9 @@ export default function App() {
                           type="text" 
                           placeholder="VD: A1.1205"
                           className={cn(
-                            "w-full pl-10 pr-4 py-3 bg-slate-900 border rounded-2xl text-slate-200 text-sm focus:ring-2 transition-all outline-none",
-                            formErrors.unitCode ? "border-rose-500 ring-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.1)]" : "border-slate-800 focus:ring-emerald-500/20"
+                            "w-full pl-10 pr-4 py-3 border rounded-2xl text-sm focus:ring-2 transition-all outline-none",
+                            theme === 'light' ? "bg-white border-slate-200 text-slate-900 focus:bg-white" : "bg-slate-900 border-slate-800 text-slate-200",
+                            formErrors.unitCode ? "border-rose-500 ring-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.1)]" : "focus:ring-emerald-500/20"
                           )}
                           value={newApp.unitCode}
                           onChange={(e) => setNewApp({...newApp, unitCode: e.target.value})}
@@ -5918,7 +6036,10 @@ export default function App() {
                       <div className="relative group">
                         <Map size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-emerald-500 transition-colors" />
                         <select 
-                          className="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-800 rounded-2xl text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500/20 transition-all outline-none appearance-none cursor-pointer"
+                          className={cn(
+                            "w-full pl-10 pr-10 py-3 border rounded-2xl text-sm focus:ring-2 transition-all outline-none appearance-none cursor-pointer",
+                            theme === 'light' ? "bg-white border-slate-200 text-slate-900" : "bg-slate-900 border-slate-800 text-slate-200"
+                          )}
                           value={newApp.projectName}
                           onChange={(e) => setNewApp({...newApp, projectName: e.target.value})}
                         >
@@ -5940,8 +6061,9 @@ export default function App() {
                           type="text" 
                           placeholder="VD: Nguyễn Văn A"
                           className={cn(
-                            "w-full pl-10 pr-4 py-3 bg-slate-900 border rounded-2xl text-slate-200 text-sm focus:ring-2 transition-all outline-none",
-                            formErrors.customerName ? "border-rose-500 ring-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.1)]" : "border-slate-800 focus:ring-emerald-500/20"
+                            "w-full pl-10 pr-4 py-3 border rounded-2xl text-sm focus:ring-2 transition-all outline-none",
+                            theme === 'light' ? "bg-white border-slate-200 text-slate-900" : "bg-slate-900 border-slate-800 text-slate-200",
+                            formErrors.customerName ? "border-rose-500 ring-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.1)]" : "focus:ring-emerald-500/20"
                           )}
                           value={newApp.customerName}
                           onChange={(e) => setNewApp({...newApp, customerName: e.target.value})}
