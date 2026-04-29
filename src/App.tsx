@@ -33,6 +33,7 @@ import {
   Menu,
   Save,
   Trash2,
+  Printer,
   Key,
   ChevronLeft,
   PlusCircle,
@@ -70,7 +71,7 @@ import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { MOCK_APPLICATIONS, PROJECTS, STEP_CONFIG as INITIAL_STEP_CONFIG, MOCK_USERS } from './constants';
-import { Application, UnitStatus, KPI, Dept, UserProfile, PropertyType, StepName, AppNotification, Project, ApplicationStepHistory, AuditTrailEntry } from './types';
+import { Application, UnitStatus, KPI, Dept, UserProfile, UserPermission, PropertyType, StepName, AppNotification, Project, ApplicationStepHistory, AuditTrailEntry } from './types';
 
 type ApplicationHistory = {
   id: string;
@@ -96,6 +97,23 @@ const DOC_CHECKLIST_ITEMS = [
 ];
 
 const REGION_ORDER = ['Quảng Trị', 'Đà Nẵng', 'Quảng Ngãi', 'Khánh Hòa'];
+
+const formatDate = (val: string | Date | undefined) => {
+    if (!val) return '---';
+    // If it's already in dd/mm/yyyy format, return it
+    if (typeof val === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(val)) return val;
+    
+    const date = new Date(val);
+    if (isNaN(date.getTime())) {
+      // If it's a string that doesn't look like ISO but might be something else
+      return String(val);
+    }
+    
+    const d = date.getDate().toString().padStart(2, '0');
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const y = date.getFullYear();
+    return `${d}/${m}/${y}`;
+  };
 
 const LoginScreen = ({ onLogin, users, theme, onThemeToggle }: { onLogin: (user: UserProfile) => void, users: UserProfile[], theme: 'light' | 'dark', onThemeToggle: () => void }) => {
   const [username, setUsername] = useState('');
@@ -300,7 +318,7 @@ const DetailCard = ({ label, value, field, valueColor = 'text-white', editable =
         </div>
       ) : (
         <p className={cn("text-xs font-bold truncate transition-colors", valueColor)}>
-          {value || '---'}
+          {type === 'date' ? formatDate(value) : (value || '---')}
         </p>
       )}
     </div>
@@ -563,8 +581,9 @@ const ReportsView = ({
   setFilterLoanStatus: (filter: any) => void,
   stepConfig: any
 }) => {
-  const [reportType, setReportType] = useState<'PROJECT' | 'REGION' | 'LOAN' | 'SLA'>('LOAN');
+  const [reportType, setReportType] = useState<'PROJECT' | 'REGION' | 'LOAN' | 'SLA' | 'PERFORMANCE'>('LOAN');
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
+  const [selectedLoanProjectIds, setSelectedLoanProjectIds] = useState<string[]>(projects.map(p => p.id));
 
   // Management Objectives & KPIs mapping
   const reportConfig = {
@@ -591,6 +610,12 @@ const ReportsView = ({
       desc: "Mục tiêu: Phát hiện tắc nghẽn quy trình, tối ưu hóa nguồn lực nhân sự.",
       kpis: ["Avg. TAT theo bước", "Max Delay Step", "Hiệu suất Bộ phận (Dept Efficiency)"],
       roles: ["QL Vận hành", "Trưởng phòng Thủ tục"]
+    },
+    PERFORMANCE: {
+      title: "Quản lý Hiệu suất cá nhân",
+      desc: "Mục tiêu: Thống kê số lượng xử lý công việc và thời gian xử lý của từng cá nhân.",
+      kpis: ["Tổng hồ sơ hoàn tất", "Avg. Time / Task", "Tỷ lệ xử lý đúng hạn"],
+      roles: ["MANAGER", "ADMIN", "DIRECTOR"]
     }
   };
 
@@ -646,6 +671,38 @@ const ReportsView = ({
           efficiency: totalApps > 0 ? Math.round(((totalApps - delayedApps) / totalApps) * 100) : 100
         };
       });
+    } else if (reportType === 'PERFORMANCE') {
+       // Mock aggregation from history
+       const userStats: Record<string, { name: string, count: number, totalDays: number, completedCount: number }> = {};
+       
+       applications.forEach(app => {
+         app.history.forEach(hist => {
+           if (hist.performedBy && hist.performedByName) {
+             if (!userStats[hist.performedBy]) {
+               userStats[hist.performedBy] = { name: hist.performedByName, count: 0, totalDays: 0, completedCount: 0 };
+             }
+             userStats[hist.performedBy].count += 1;
+             
+             // Time calculation logic (simplified for mock data)
+             if (hist.completedDate && hist.receivedDate) {
+                const diff = calculateDaysBetweenDates(hist.receivedDate, hist.completedDate);
+                userStats[hist.performedBy].totalDays += Math.max(0, diff);
+             }
+             
+             if (hist.stepName.includes('Hoàn tất') || hist.stepName.includes('Bàn giao')) {
+                userStats[hist.performedBy].completedCount += 1;
+             }
+           }
+         });
+       });
+       
+       return Object.entries(userStats).map(([id, s]) => ({
+         name: s.name,
+         total: s.count,
+         completed: s.completedCount,
+         avgTime: s.count > 0 ? parseFloat((s.totalDays / s.count).toFixed(1)) : 0,
+         efficiency: s.count > 0 ? Math.round((s.completedCount / s.count) * 100) : 0
+       }));
     }
     return [];
   }, [applications, projects, reportType, stepConfig]);
@@ -669,7 +726,12 @@ const ReportsView = ({
     });
   }, [applications, stepConfig]);
 
-  const loanApps = applications.filter(a => a.loanStatus === 'Co_Vay');
+  const loanApps = useMemo(() => {
+    return applications.filter(a => 
+      a.loanStatus === 'Co_Vay' && 
+      selectedLoanProjectIds.includes(projects.find(p => p.name === a.projectName)?.id || '')
+    );
+  }, [applications, selectedLoanProjectIds, projects]);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 text-left">
@@ -762,10 +824,13 @@ const ReportsView = ({
              theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800"
           )}>
             {reportType === 'LOAN' ? (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className={cn("text-sm font-black uppercase tracking-widest", theme === 'light' ? "text-slate-800" : "text-slate-200")}>Ưu tiên: Theo dõi tiến độ GCN - Hồ sơ Cam kết Tín dụng</h3>
-                  <div className="flex gap-4 items-center">
+              <div className="space-y-6 text-left">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h3 className={cn("text-sm font-black uppercase tracking-widest", theme === 'light' ? "text-slate-800" : "text-slate-200")}>Ưu tiên: Theo dõi tiến độ GCN - Hồ sơ Cam kết Tín dụng</h3>
+                    <p className="text-[10px] text-slate-500 mt-1">Lọc theo dự án để theo dõi chi tiết điểm nóng.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-4 items-center">
                     <button 
                       onClick={() => alert('Đang xuất báo cáo chi tiết các căn có vay (Excel)...')}
                       className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-900/20"
@@ -777,6 +842,45 @@ const ReportsView = ({
                       <span className="text-[9px] font-black uppercase text-slate-500">{"Rủi ro trễ cam kết (SLA > 10 ngày)"}</span>
                     </div>
                   </div>
+                </div>
+
+                {/* Project Selection Multi-select equivalent */}
+                <div className="flex flex-wrap gap-2 p-4 bg-slate-950/20 rounded-2xl border border-slate-800/50">
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest self-center mr-2">Dự án:</span>
+                  <button 
+                    onClick={() => {
+                      if (selectedLoanProjectIds.length === projects.length) setSelectedLoanProjectIds([]);
+                      else setSelectedLoanProjectIds(projects.map(p => p.id));
+                    }}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all border",
+                      selectedLoanProjectIds.length === projects.length 
+                        ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-400" 
+                        : "bg-slate-900 border-slate-800 text-slate-500"
+                    )}
+                  >
+                    TẤT CẢ
+                  </button>
+                  {projects.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        if (selectedLoanProjectIds.includes(p.id)) {
+                          setSelectedLoanProjectIds(selectedLoanProjectIds.filter(id => id !== p.id));
+                        } else {
+                          setSelectedLoanProjectIds([...selectedLoanProjectIds, p.id]);
+                        }
+                      }}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all border",
+                        selectedLoanProjectIds.includes(p.id)
+                          ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-400"
+                          : "bg-slate-900 border-slate-800 text-slate-500"
+                      )}
+                    >
+                      {p.name}
+                    </button>
+                  ))}
                 </div>
 
                 {/* Progress Summary for Loan Customers */}
@@ -947,6 +1051,87 @@ const ReportsView = ({
                   </table>
                 </div>
               </div>
+            ) : reportType === 'PERFORMANCE' ? (
+              <div className="space-y-8 text-left">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className={cn("text-sm font-black uppercase tracking-widest", theme === 'light' ? "text-slate-800" : "text-slate-200")}>Bảng xếp hạng Hiệu suất Cá nhân (Real-time)</h3>
+                    <p className="text-[10px] text-slate-500 mt-1 italic">Dữ liệu được tổng hợp từ lịch sử thao tác trên từng hồ sơ.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                   <div className="h-[400px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={stats} layout="vertical" margin={{ left: 20 }}>
+                          <XAxis type="number" hide />
+                          <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={10} width={100} axisLine={false} tickLine={false} />
+                          <ReTooltip 
+                            cursor={{ fill: 'rgba(99,102,241,0.05)' }}
+                            contentStyle={{ 
+                              backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
+                              border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #1e293b', 
+                              borderRadius: '16px' 
+                            }}
+                          />
+                          <Bar dataKey="total" name="Tổng thao tác" fill="#6366f1" radius={[0, 6, 6, 0]} barSize={24} />
+                          <Bar dataKey="completed" name="Hoàn tất" fill="#22c55e" radius={[0, 6, 6, 0]} barSize={24} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                   </div>
+                   
+                   <div className="space-y-4">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Thống kê chi tiết Nhân viên</p>
+                      <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                         {stats.length > 0 ? stats.sort((a:any, b:any) => b.total - a.total).map((user: any, i: number) => (
+                           <div key={i} className={cn(
+                             "p-4 rounded-3xl border flex items-center justify-between transition-all group",
+                             theme === 'light' ? "bg-white border-slate-200" : "bg-slate-950/40 border-slate-800 hover:border-indigo-500/30"
+                           )}>
+                              <div className="flex items-center gap-4">
+                                 <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 font-black italic">
+                                   {user.name.charAt(0)}
+                                 </div>
+                                 <div>
+                                   <p className={cn("text-sm font-black", theme === 'light' ? "text-slate-900" : "text-white group-hover:text-indigo-400 transition-colors")}>{user.name}</p>
+                                   <div className="flex items-center gap-2 mt-0.5">
+                                      <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Hiệu suất:</span>
+                                      <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-500 text-[8px] font-black rounded-lg">{user.efficiency}%</span>
+                                   </div>
+                                 </div>
+                              </div>
+                              <div className="text-right">
+                                 <p className="text-sm font-black italic text-slate-300">{user.avgTime} Ngày</p>
+                                 <p className="text-[8px] font-black text-slate-600 uppercase">TAT Trung bình</p>
+                              </div>
+                           </div>
+                         )) : (
+                           <div className="h-full flex items-center justify-center py-20 border-2 border-dashed border-slate-800 rounded-[2rem]">
+                              <p className="text-xs text-slate-600 font-bold uppercase tracking-widest italic">Chưa có dữ liệu thao tác</p>
+                           </div>
+                         )}
+                      </div>
+                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                   {stats.slice(0, 4).map((user: any, i: number) => (
+                     <div key={i} className={cn(
+                       "p-5 rounded-[2rem] border relative overflow-hidden group",
+                       theme === 'light' ? "bg-slate-50" : "bg-slate-950/20 border-slate-800"
+                     )}>
+                        <div className="absolute top-0 right-0 p-3">
+                           <Zap size={14} className="text-amber-500 opacity-20 group-hover:opacity-100 transition-all" />
+                        </div>
+                        <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">{user.name}</p>
+                        <p className={cn("text-xl font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>{user.total} HS</p>
+                        <div className="w-full h-1 bg-slate-800 rounded-full mt-3 overflow-hidden">
+                           <div className="h-full bg-indigo-500" style={{ width: `${user.efficiency}%` }} />
+                        </div>
+                     </div>
+                   ))}
+                </div>
+              </div>
             ) : reportType === 'SLA' ? (
               <div className="space-y-8">
                 <div className="flex items-center justify-between">
@@ -1014,10 +1199,10 @@ const ReportsView = ({
                 </div>
               </div>
             ) : (
-              <div className="h-[450px] w-full">
+              <div className="h-[400px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stats} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? "#e2e8f0" : "#1e293b"} vertical={false} />
+                  <BarChart data={stats} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? "#e2e8f0" : "#ffffff10"} vertical={false} />
                     <XAxis dataKey="name" stroke="#475569" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
                     <YAxis stroke="#475569" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
                     <ReTooltip 
@@ -1031,9 +1216,9 @@ const ReportsView = ({
                       itemStyle={{ fontSize: '12px', fontWeight: 'bold', color: theme === 'light' ? '#334155' : '#fff' }}
                     />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '30px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.1em' }} />
-                    <Bar dataKey="processing" name="Đang xử lý" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="completed" name="Hoàn tất" stackId="a" fill="#10b981" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="overdue" name="Chậm trễ" fill="#ef4444" radius={[6, 6, 6, 6]} barSize={12} />
+                    <Bar dataKey="processing" name="Đang xử lý" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} barSize={24} />
+                    <Bar dataKey="completed" name="Hoàn tất" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} barSize={24} />
+                    <Bar dataKey="overdue" name="Chậm trễ" fill="#ef4444" radius={[4, 4, 4, 4]} barSize={10} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1723,6 +1908,13 @@ const calculateDaysDiff = (dateStr: string) => {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 };
 
+const calculateDaysBetweenDates = (start: string, end: string) => {
+  const d1 = new Date(start);
+  const d2 = new Date(end);
+  const diffTime = d2.getTime() - d1.getTime();
+  return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+};
+
 const getPhaseIndex = (step: StepName) => {
   if (['GD1_ChuanBi', 'GD1_Cho_KT_TiepNhan'].includes(step)) return 0;
   if (['GD2_Cho_Nop_VPDK', 'GD2_Cho_PTDA_TiepNhan'].includes(step)) return 1;
@@ -1797,6 +1989,7 @@ const UserManagementView = ({ users, onEdit, onDelete, onCreate, onResetPassword
             )}>
               <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Nhân sự</th>
               <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Phòng ban</th>
+              <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic text-center">Quyền hạn</th>
               <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic text-center">Dự án quản lý</th>
               <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic text-center">Trạng thái</th>
               <th className="px-8 py-6 text-right"></th>
@@ -1833,6 +2026,16 @@ const UserManagementView = ({ users, onEdit, onDelete, onCreate, onResetPassword
                     user.dept === 'PTDA' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-slate-700 text-slate-400 border-slate-600'
                   )}>
                     {user.dept}
+                  </span>
+                </td>
+                <td className="px-8 py-5 text-center">
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border",
+                    user.permission === 'FULL' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
+                    user.permission === 'EDIT' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                    'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                  )}>
+                    {user.permission === 'FULL' ? 'Toàn quyền' : user.permission === 'EDIT' ? 'Được sửa' : 'Chỉ xem'}
                   </span>
                 </td>
                 <td className="px-8 py-5 text-center">
@@ -1876,6 +2079,112 @@ const UserManagementView = ({ users, onEdit, onDelete, onCreate, onResetPassword
   </div>
 );
 
+const PrintStyles = () => (
+  <style>{`
+    @media print {
+      @page { size: A4; margin: 20mm; }
+      body * { visibility: hidden; }
+      #print-section, #print-section * { visibility: visible; }
+      #print-section {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: white !important;
+        color: black !important;
+        font-family: "Times New Roman", serif;
+      }
+      .no-print { display: none !important; }
+    }
+  `}</style>
+);
+
+const HandoverRecord = ({ apps, user }: { apps: Application[], user: UserProfile | null }) => {
+  const today = new Date();
+  return (
+    <div id="print-section" className="p-10 text-black bg-white min-h-screen">
+      <div className="flex justify-between items-start mb-8 border-b-2 border-black pb-4">
+        <div>
+          <h1 className="text-xl font-bold uppercase">Tập đoàn Sun Group</h1>
+          <p className="text-xs italic">Vùng Đà Nẵng</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs font-bold">Mẫu HC-09-BM04</p>
+          <p className="text-xs">Số: ....................</p>
+        </div>
+      </div>
+
+      <div className="text-center mb-10">
+        <h2 className="text-2xl font-bold uppercase mt-4">Biên bản bàn giao</h2>
+        <h3 className="text-xl font-bold uppercase">Giấy chứng nhận QSD đất</h3>
+        <p className="italic mt-2">Ngày {formatDate(today)}</p>
+      </div>
+
+      <div className="mb-6 space-y-2">
+        <p><strong>Người giao:</strong> {user?.name || '................................'}</p>
+        <p><strong>Bộ phận:</strong> {user?.dept || '................................'}</p>
+        <p><strong>Địa chỉ:</strong> Tòa nhà Novotel, 36 Bạch Đẳng, Đà Nẵng</p>
+      </div>
+
+      <div className="mb-8">
+        <table className="w-full border-collapse border border-black text-sm">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="border border-black px-2 py-2 w-12 text-center">STT</th>
+              <th className="border border-black px-2 py-2 text-center">Mã lô/Căn</th>
+              <th className="border border-black px-2 py-2 text-center">Chủ tài sản</th>
+              <th className="border border-black px-2 py-2 text-center">Đối tượng</th>
+              <th className="border border-black px-2 py-2 text-center">Dự án</th>
+              <th className="border border-black px-2 py-2 text-center">Tình trạng</th>
+              <th className="border border-black px-2 py-2 text-center">Ghi chú</th>
+            </tr>
+          </thead>
+          <tbody>
+            {apps.map((app, idx) => (
+              <tr key={app.id}>
+                <td className="border border-black px-2 py-2 text-center">{idx + 1}</td>
+                <td className="border border-black px-2 py-2 font-bold">{app.unitCode}</td>
+                <td className="border border-black px-2 py-2">{app.customerName}</td>
+                <td className="border border-black px-2 py-2 text-center text-xs">{app.contractSignerType || 'Cá nhân'}</td>
+                <td className="border border-black px-2 py-2 text-xs">{app.projectName}</td>
+                <td className="border border-black px-2 py-2 text-center text-xs">Đã có GCN</td>
+                <td className="border border-black px-2 py-2"></td>
+              </tr>
+            ))}
+            {apps.length === 0 && Array.from({length: 5}).map((_, i) => (
+              <tr key={i}>
+                <td className="border border-black px-2 py-2 h-8"></td>
+                <td className="border border-black px-2 py-2"></td>
+                <td className="border border-black px-2 py-2"></td>
+                <td className="border border-black px-2 py-2"></td>
+                <td className="border border-black px-2 py-2"></td>
+                <td className="border border-black px-2 py-2"></td>
+                <td className="border border-black px-2 py-2"></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="grid grid-cols-2 mt-16 text-center">
+        <div>
+          <p className="font-bold uppercase mb-20 text-sm">Người giao</p>
+          <p className="font-bold italic">{user?.name}</p>
+        </div>
+        <div>
+          <p className="font-bold uppercase mb-20 text-sm">Người nhận</p>
+          <p className="italic">(Ký và ghi rõ họ tên)</p>
+        </div>
+      </div>
+
+      <div className="mt-20 pt-10 text-[10px] italic border-t border-gray-200">
+        <p>* Biên bản được lập thành 02 bản, mỗi bên giữ 01 bản để làm căn cứ.</p>
+        <p>* Vui lòng kiểm tra kỹ thông tin trên GCN trước khi ký nhận bàn giao.</p>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -1884,12 +2193,14 @@ export default function App() {
     { id: '2', title: 'Cập nhật trạng thái', message: 'Căn hộ B2.0504 đã hoàn tất nộp thuế', time: '1 giờ trước', type: 'Success', isRead: false },
   ]);
   const [isNotiOpen, setIsNotiOpen] = useState(false);
+  const [isPrintingHandover, setIsPrintingHandover] = useState(false);
+  const [printHandoverApps, setPrintHandoverApps] = useState<Application[]>([]);
   const [users, setUsers] = useState<UserProfile[]>(MOCK_USERS);
   const [stepConfig, setStepConfig] = useState<Record<string, { label: string, dept: Dept, status: UnitStatus, slaDays?: number }>>(INITIAL_STEP_CONFIG);
   const [projects, setProjects] = useState<Project[]>(PROJECTS);
   const [applications, setApplications] = useState<Application[]>(MOCK_APPLICATIONS);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'applications' | 'users' | 'resources' | 'reports' | 'settings'>('dashboard');
-  const [userRole, setUserRole] = useState<Dept>('PTT');
+  const userRole = useMemo(() => currentUser?.dept || 'PTT', [currentUser]);
   const [isEditing, setIsEditing] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editUser, setEditUser] = useState<UserProfile | null>(null);
@@ -1900,6 +2211,7 @@ export default function App() {
     dept: 'PTT' as Dept,
     email: '',
     status: 'Active' as 'Active' | 'Inactive',
+    permission: 'VIEW' as UserPermission,
     assignedProjectIds: [] as string[]
   });
   const [editApp, setEditApp] = useState<Application | null>(null);
@@ -1956,6 +2268,7 @@ export default function App() {
   const [newApp, setNewApp] = useState({
     unitCode: '',
     customerName: '',
+    contractSignerType: '',
     projectName: projects[0].name,
     propertyType: 'Dat_Nen' as PropertyType,
     loanStatus: 'Khong_Vay' as 'Co_Vay' | 'Khong_Vay',
@@ -2238,6 +2551,16 @@ export default function App() {
     e.target.value = ''; 
   };
 
+  const handleBulkPrint = () => {
+    if (selectedAppIds.length === 0) return;
+    const appsToPrint = applications.filter(a => selectedAppIds.includes(a.id));
+    setPrintHandoverApps(appsToPrint);
+    setIsPrintingHandover(true);
+    setTimeout(() => {
+      window.print();
+    }, 500);
+  };
+
   const handleUpdateApp = () => {
     if (!editApp || !selectedApp) return;
     
@@ -2294,18 +2617,24 @@ export default function App() {
       targetStep = 'GD6_Cho_BG_Khach';
     }
 
+    const nowStr = new Date().toISOString().split('T')[0];
+    const prevHistory = [...app.history];
+    if (prevHistory.length > 0) {
+      prevHistory[0] = { ...prevHistory[0], completedDate: nowStr };
+    }
+
     const newHistory = [
       {
         id: `hist-${Date.now()}`,
         stepName: stepConfig[targetStep].label,
         dept: stepConfig[targetStep].dept,
-        receivedDate: new Date().toISOString().split('T')[0]
+        receivedDate: nowStr,
+        performedBy: currentUser?.id,
+        performedByName: currentUser?.name
       },
-      ...app.history
+      ...prevHistory
     ];
 
-    const nowStr = new Date().toISOString().split('T')[0];
-    
     // Auto-populate dates based on transition if not already set
     const autoDates: Partial<Application> = {};
     if (targetStep === 'GD1_Cho_KT_TiepNhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
@@ -2350,15 +2679,22 @@ export default function App() {
         targetStep = 'GD6_Cho_BG_Khach';
       }
       
+      const prevHistory = [...app.history];
+      if (prevHistory.length > 0) {
+        prevHistory[0] = { ...prevHistory[0], completedDate: nowStr };
+      }
+      
       const newHistory = [
         {
           id: `hist-${Date.now()}-${app.id}`,
           stepName: stepConfig[targetStep].label,
           dept: stepConfig[targetStep].dept,
           receivedDate: nowStr,
-          note: 'Chuyển hàng loạt'
+          note: 'Chuyển hàng loạt',
+          performedBy: currentUser?.id,
+          performedByName: currentUser?.name
         },
-        ...app.history
+        ...prevHistory
       ];
       
       // Auto-populate dates based on transition if not already set
@@ -2391,9 +2727,11 @@ export default function App() {
       {
         id: `hist-${Date.now()}`,
         stepName: 'Báo lỗi/Sai sót',
-        dept: userRole,
+        dept: userRole as Dept,
         receivedDate: new Date().toISOString().split('T')[0],
-        note
+        note,
+        performedBy: currentUser?.id,
+        performedByName: currentUser?.name
       },
       ...app.history
     ];
@@ -2420,9 +2758,11 @@ export default function App() {
       {
         id: `hist-${Date.now()}`,
         stepName: 'Khắc phục lỗi',
-        dept: userRole,
+        dept: userRole as Dept,
         receivedDate: new Date().toISOString().split('T')[0],
-        note: 'Đã xử lý xong các sai sót/vướng mắc.'
+        note: 'Đã xử lý xong các sai sót/vướng mắc.',
+        performedBy: currentUser?.id,
+        performedByName: currentUser?.name
       },
       ...app.history
     ];
@@ -2446,9 +2786,11 @@ export default function App() {
       {
         id: `hist-${Date.now()}`,
         stepName: 'Yêu cầu chỉnh sửa / Bổ sung',
-        dept: userRole,
+        dept: userRole as Dept,
         receivedDate: new Date().toISOString().split('T')[0],
-        note: `Hồ sơ sai sót/cần bổ sung: ${reason}`
+        note: `Hồ sơ sai sót/cần bổ sung: ${reason}`,
+        performedBy: currentUser?.id,
+        performedByName: currentUser?.name
       },
       ...app.history
     ];
@@ -2487,7 +2829,7 @@ export default function App() {
 
     // Master & Procedural: PTT responsible for initial collection and master data
     const pttFields = [
-      'customerName', 'phoneNumber', 'loanStatus', 'bankCommitmentDeadline', 'propertyType', 
+      'customerName', 'contractSignerType', 'phoneNumber', 'loanStatus', 'bankCommitmentDeadline', 'propertyType', 
       'contractSigningDate', 'receivedDate', 'isSelfService'
     ];
 
@@ -2594,6 +2936,7 @@ export default function App() {
       id: `app-${Date.now()}`,
       unitCode: newApp.unitCode,
       customerName: newApp.customerName,
+      contractSignerType: newApp.contractSignerType,
       projectName: newApp.projectName,
       propertyType: newApp.propertyType,
       loanStatus: newApp.loanStatus,
@@ -2619,6 +2962,7 @@ export default function App() {
     setNewApp({ 
       unitCode: '', 
       customerName: '', 
+      contractSignerType: '',
       projectName: projects[0].name,
       propertyType: 'Dat_Nen',
       loanStatus: 'Khong_Vay',
@@ -2641,7 +2985,7 @@ export default function App() {
     };
     setUsers(prev => [...prev, userToAdd]);
     setIsUserModalOpen(false);
-    setNewUser({ username: '', password: '', name: '', dept: 'PTT', email: '', status: 'Active', assignedProjectIds: [] });
+    setNewUser({ username: '', password: '', name: '', dept: 'PTT', email: '', status: 'Active', permission: 'VIEW', assignedProjectIds: [] });
   };
 
   const handleUpdateUser = () => {
@@ -2883,42 +3227,42 @@ export default function App() {
         value: processing.total, 
         normal: processing.normal, 
         error: processing.error, 
-        color: '#d97706' 
+        color: '#f59e0b' // Amber
       },
       { 
         name: 'Đã nộp VPĐK', 
         value: submitted.total, 
         normal: submitted.normal, 
         error: submitted.error, 
-        color: '#4f46e5' 
+        color: '#6366f1' // Indigo
       },
       { 
         name: 'Chờ thuế', 
         value: taxPending.total, 
         normal: taxPending.normal, 
         error: taxPending.error, 
-        color: '#c2410c' 
+        color: '#f43f5e' // Rose
       },
       { 
         name: 'Xong thuế', 
         value: taxCompleted.total, 
         normal: taxCompleted.normal, 
         error: taxCompleted.error, 
-        color: '#10b981' 
+        color: '#fbbf24' // Yellow (Fixed color name overlap if any)
       },
       { 
         name: 'Đã có GCN', 
         value: gcnIssued.total, 
         normal: gcnIssued.normal, 
         error: gcnIssued.error, 
-        color: '#0ea5e9' 
+        color: '#0ea5e9' // Sky
       },
       { 
         name: 'Hoàn tất', 
         value: completed.total, 
         normal: completed.normal, 
         error: completed.error, 
-        color: '#059669' 
+        color: '#10b981' // Emerald
       },
     ];
   }, [filteredByProjectApps, stepConfig]);
@@ -2930,7 +3274,7 @@ export default function App() {
       value: d.value,
       percentage: Math.round((d.value / totalApps) * 100),
       color: d.color
-    })).filter(d => d.value > 0);
+    }));
   }, [chartData, filteredByProjectApps.length]);
 
   const filteredApps = filteredByProjectApps.filter(app => {
@@ -2967,7 +3311,6 @@ export default function App() {
   if (!currentUser) {
     return <LoginScreen users={users} theme={theme} onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} onLogin={(user) => {
       setCurrentUser(user);
-      setUserRole(user.dept);
     }} />;
   }
 
@@ -3001,6 +3344,13 @@ export default function App() {
       "flex h-screen w-full overflow-hidden font-sans relative transition-colors duration-500",
       theme === 'light' ? 'light bg-slate-50 text-slate-900' : 'bg-slate-950 text-slate-200'
     )}>
+      <PrintStyles />
+      <div className="hidden">
+        <HandoverRecord 
+          apps={applications.filter(a => selectedAppIds.includes(a.id))} 
+          user={currentUser} 
+        />
+      </div>
       {/* Background Image Container */}
       <div className="absolute inset-0 z-0 overflow-hidden">
         <img 
@@ -3661,91 +4011,107 @@ export default function App() {
                           <div className="w-3 h-3 rounded-full bg-red-500" />
                           <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Sai sót</span>
                         </div>
-                        <p className="text-[10px] italic text-slate-500 font-bold ml-4">Hồ sơ</p>
                       </div>
                     </div>
-                    <div className="h-[380px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? "#f1f5f9" : "#1e293b"} />
-                          <XAxis 
-                            dataKey="name" 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tick={{ fontSize: 9, fill: '#94a3b8', fontWeight: 800 }} 
-                            dy={10}
-                          />
-                          <YAxis 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tick={{ fontSize: 10, fill: '#64748b', fontWeight: 800 }} 
-                            allowDecimals={false}
-                          />
-                          <ReTooltip 
-                            cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                            content={({ active, payload }) => {
-                              if (active && payload && payload.length) {
-                                const data = payload[0].payload;
+                      <div className="h-[450px] w-full mt-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart 
+                            data={chartData} 
+                            margin={{ top: 30, right: 10, left: -20, bottom: 30 }}
+                            barGap={8}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? "#f1f5f9" : "#ffffff08"} />
+                            <XAxis 
+                              dataKey="name" 
+                              axisLine={false} 
+                              tickLine={false} 
+                              interval={0}
+                              tick={(props: any) => {
+                                const { x, y, payload } = props;
                                 return (
-                                  <div className={cn(
-                                    "p-4 rounded-2xl shadow-2xl border-none outline-none",
-                                    theme === 'light' ? "bg-white text-slate-800" : "bg-slate-900 text-white"
-                                  )}>
-                                    <p className="font-black italic mb-2 uppercase text-[10px] tracking-widest border-b border-slate-700/30 pb-2">{data.name}</p>
-                                    <div className="space-y-1.5">
-                                      <div className="flex justify-between gap-8 items-center">
-                                        <div className="flex items-center gap-2">
-                                          <div className="w-2 h-2 rounded-full bg-indigo-500" />
-                                          <span className="text-slate-500 font-bold uppercase text-[9px]">Bình thường:</span>
-                                        </div>
-                                        <span className={cn("font-black italic", theme === 'light' ? "text-slate-950" : "text-white")}>{data.normal} căn</span>
+                                  <g transform={`translate(${x},${y})`}>
+                                    <text x={0} y={0} dy={16} textAnchor="middle" fill="#94a3b8" fontSize={9} fontWeight={900} className="uppercase tracking-tighter">
+                                      {payload.value}
+                                    </text>
+                                  </g>
+                                );
+                              }}
+                            />
+                            <YAxis 
+                              axisLine={false} 
+                              tickLine={false} 
+                              tick={{ fontSize: 10, fill: '#64748b', fontWeight: 800 }} 
+                              allowDecimals={false}
+                            />
+                            <ReTooltip 
+                              cursor={{ fill: theme === 'light' ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.05)' }}
+                              content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                  const data = payload[0].payload;
+                                  return (
+                                    <div className={cn(
+                                      "p-5 rounded-3xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] border-none outline-none backdrop-blur-xl",
+                                      theme === 'light' ? "bg-white/95 text-slate-800" : "bg-slate-900/95 text-white"
+                                    )}>
+                                      <div className="font-black italic mb-3 uppercase text-[11px] tracking-[0.2em] border-b border-indigo-500/20 pb-2 flex items-center gap-2">
+                                        <div className="w-1.5 h-4 bg-indigo-500 rounded-full" />
+                                        {data.name}
                                       </div>
-                                      <div className="flex justify-between gap-8 items-center">
-                                        <div className="flex items-center gap-2">
-                                          <div className="w-2 h-2 rounded-full bg-rose-500" />
-                                          <span className="text-slate-500 font-bold uppercase text-[9px]">Sai sót:</span>
+                                      <div className="space-y-2.5">
+                                        <div className="flex justify-between gap-12 items-center">
+                                          <div className="flex items-center gap-2.5">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-lg shadow-indigo-500/20" />
+                                            <span className="text-slate-500 font-bold uppercase text-[10px] tracking-tight">Bình thường:</span>
+                                          </div>
+                                          <span className={cn("font-black italic text-sm", theme === 'light' ? "text-slate-950" : "text-white")}>{data.normal} căn</span>
                                         </div>
-                                        <span className="font-black italic text-rose-500">{data.error} căn</span>
-                                      </div>
-                                      <div className="mt-1 pt-1 border-t border-slate-700/20 flex justify-between gap-8 items-center">
-                                        <span className="text-slate-500 font-bold uppercase text-[9px]">Tổng cộng:</span>
-                                        <span className={cn("font-black italic text-lg", theme === 'light' ? "text-indigo-600" : "text-indigo-400")}>{data.value}</span>
+                                        <div className="flex justify-between gap-12 items-center">
+                                          <div className="flex items-center gap-2.5">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-lg shadow-rose-500/20" />
+                                            <span className="text-slate-500 font-bold uppercase text-[10px] tracking-tight">Sai sót:</span>
+                                          </div>
+                                          <span className="font-black italic text-sm text-rose-500">{data.error} căn</span>
+                                        </div>
+                                        <div className="mt-2 pt-2 border-t border-slate-700/20 flex justify-between gap-12 items-center">
+                                          <span className="text-slate-500 font-black uppercase text-[10px] tracking-widest">Tổng cộng:</span>
+                                          <span className={cn("font-black italic text-xl", theme === 'light' ? "text-indigo-600" : "text-indigo-400")}>{data.value}</span>
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
+                                  );
+                                }
+                                return null;
+                              }}
+                            />
+                            <Bar dataKey="normal" stackId="a" fill="#4f46e5" barSize={32} radius={[0, 0, 0, 0]} />
+                            <Bar 
+                              dataKey="error" 
+                              stackId="a" 
+                              fill="#ef4444" 
+                              barSize={32} 
+                              radius={[6, 6, 0, 0]} 
+                              label={(props: any) => {
+                                const { x, y, width, value } = props;
+                                if (!value || value === 0) return null;
+                                return (
+                                  <text 
+                                    x={x + width / 2} 
+                                    y={y - 12} 
+                                    fill={theme === 'light' ? '#334155' : '#cbd5e1'}
+                                    textAnchor="middle" 
+                                    fontSize={10} 
+                                    fontWeight="900"
+                                    className="font-mono"
+                                  >
+                                    {value}
+                                  </text>
                                 );
-                              }
-                              return null;
-                            }}
-                          />
-                          <Bar dataKey="normal" stackId="a" fill="#6366f1" barSize={38} radius={[0, 0, 0, 0]} />
-                          <Bar 
-                            dataKey="error" 
-                            stackId="a" 
-                            fill="#ef4444" 
-                            barSize={38} 
-                            radius={[6, 6, 0, 0]} 
-                            label={(props: any) => {
-                              const { x, y, width, value } = props;
-                              if (!value || value === 0) return null;
-                              return (
-                                <text 
-                                  x={x + width / 2} 
-                                  y={y - 10} 
-                                  fill={theme === 'light' ? '#334155' : '#cbd5e1'}
-                                  textAnchor="middle" 
-                                  fontSize={11} 
-                                  fontWeight="900"
-                                >
-                                  {value}
-                                </text>
-                              );
-                            }} 
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
+                              }} 
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
-                  </div>
 
                   <div className={cn(
                     "backdrop-blur-md p-8 rounded-[3rem] border transition-all duration-500 flex flex-col group divide-y divide-slate-800/10",
@@ -4022,6 +4388,15 @@ export default function App() {
                   <div className={cn("p-6 border-b", theme === 'light' ? "border-slate-100 shadow-inner bg-slate-50/50" : "border-slate-800/50")}>
                     <div className="flex items-center justify-between gap-4 mb-4">
                       <div className="flex items-center gap-4">
+                        {selectedAppIds.length > 0 && (
+                          <button 
+                            onClick={handleBulkPrint}
+                            className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 active:scale-95 transition-all"
+                          >
+                            <Printer size={14} />
+                            In phiếu ({selectedAppIds.length})
+                          </button>
+                        )}
                         <button 
                           onClick={() => setIsShowFilters(!isShowFilters)}
                           className={cn(
@@ -4196,6 +4571,16 @@ export default function App() {
                             </button>
                           )}
                           <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPrintHandoverApps(filteredApps.filter(a => selectedAppIds.includes(a.id)));
+                              setIsPrintingHandover(true);
+                            }}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-indigo-500 transition-all flex items-center gap-2"
+                          >
+                            <FileText size={14} /> In biên bản bàn giao
+                          </button>
+                          <button 
                             onClick={() => setSelectedAppIds([])}
                             className="px-4 py-2 bg-slate-800/10 text-slate-800 border border-slate-900/10 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800/20 transition-all"
                           >
@@ -4226,6 +4611,7 @@ export default function App() {
                           </th>
                           <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Mã lô/căn</th>
                           <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Khách hàng</th>
+                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Đối tượng ký</th>
                           <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Trạng thái</th>
                           {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                             <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nộp VPĐK</th>
@@ -4294,7 +4680,8 @@ export default function App() {
                                   </div>
                                   <div className="flex flex-col">
                                     <span className={cn("text-sm font-medium", theme === 'light' ? "text-slate-700" : "text-slate-300")}>{app.customerName}</span>
-                                    <div className="flex gap-1 mt-1">
+                                    <div className="flex gap-2 mt-1 items-center">
+                                      <span className="text-[10px] text-slate-500 font-mono italic">{formatDate(app.receivedDate)}</span>
                                       {app.loanStatus === 'Co_Vay' && <span className="text-[8px] bg-indigo-500/20 text-indigo-400 px-1 rounded font-bold uppercase">Có vay</span>}
                                       {app.isSelfService && <span className="text-[8px] bg-amber-500/20 text-amber-500 px-1 rounded font-bold uppercase">Tự làm</span>}
                                     </div>
@@ -4302,28 +4689,33 @@ export default function App() {
                                 </div>
                               </td>
                               <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
+                                <span className={cn("text-xs font-medium", theme === 'light' ? "text-slate-600" : "text-slate-400")}>
+                                  {app.contractSignerType || '---'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
                                 <StatusBadge status={app.status} />
                               </td>
                               {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                                 <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
-                                  <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{app.submissionDate || '---'}</span>
+                                  <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.submissionDate)}</span>
                                 </td>
                               )}
                               {(userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                                 <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
                                   <div className="flex flex-col items-center">
-                                    <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{app.taxReceiptDate || '---'}</span>
+                                    <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.taxReceiptDate)}</span>
                                     {app.taxPaymentStatus === 'Paid' && <span className="text-[8px] text-emerald-500 font-bold">DONE</span>}
                                   </div>
                                 </td>
                               )}
                               {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                                 <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
-                                  <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{app.gcnReceivedDate || '---'}</span>
+                                  <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.gcnReceivedDate)}</span>
                                 </td>
                               )}
                               <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
-                                <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{app.customerHandoverDate || '---'}</span>
+                                <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.customerHandoverDate)}</span>
                               </td>
                               <td className="px-6 py-5 text-center">
                                 <div className="flex items-center justify-center gap-1">
@@ -4615,16 +5007,18 @@ export default function App() {
                 </div>
                 <div className="flex items-center gap-3">
                   {!isEditing ? (
-                    <button 
-                      onClick={() => {
-                        setIsEditing(true);
-                        setEditApp(selectedApp);
-                      }}
-                      className="flex items-center gap-2 px-6 py-3 bg-festive-gold hover:bg-amber-400 text-slate-900 text-xs font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-festive-gold/10"
-                    >
-                      <Edit3 size={16} />
-                      Sửa hồ sơ
-                    </button>
+                    currentUser?.permission !== 'VIEW' && (
+                      <button 
+                        onClick={() => {
+                          setIsEditing(true);
+                          setEditApp(selectedApp);
+                        }}
+                        className="flex items-center gap-2 px-6 py-3 bg-festive-gold hover:bg-amber-400 text-slate-900 text-xs font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-festive-gold/10"
+                      >
+                        <Edit3 size={16} />
+                        Sửa hồ sơ
+                      </button>
+                    )
                   ) : (
                     <div className="flex items-center gap-2">
                        <button 
@@ -4644,6 +5038,19 @@ export default function App() {
                       </button>
                     </div>
                   )}
+
+                  <button 
+                    onClick={() => {
+                      setPrintHandoverApps([editApp || selectedApp]);
+                      setIsPrintingHandover(true);
+                      setTimeout(() => window.print(), 500);
+                    }}
+                    className="p-3 bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white rounded-2xl transition-all border border-indigo-500/20"
+                    title="In phiếu bàn giao"
+                  >
+                    <Printer size={18} />
+                  </button>
+                  
                   {userRole === 'ADMIN' && (
                     <button 
                       onClick={() => handleDeleteApp((editApp || selectedApp).id, (editApp || selectedApp).unitCode)}
@@ -4779,6 +5186,13 @@ export default function App() {
                         editable={isFieldEditable('customerName')}
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('customerName', val)}
+                      />
+                      <DetailCard 
+                        label="Đối tượng ký HĐCN" 
+                        value={(editApp || selectedApp).contractSignerType} 
+                        editable={isFieldEditable('contractSignerType')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('contractSignerType', val)}
                       />
                       <DetailCard 
                         label="Số điện thoại" 
@@ -5111,7 +5525,7 @@ export default function App() {
                           )} />
                           <div className="flex justify-between items-start mb-1">
                             <p className="text-sm font-bold text-slate-200">{h.stepName}</p>
-                            <span className="text-[10px] font-mono text-slate-500">{h.receivedDate}</span>
+                            <span className="text-[10px] font-mono text-slate-500">{formatDate(h.receivedDate)}</span>
                           </div>
                           <p className="text-xs text-slate-400 italic mb-1">Phòng chịu trách nhiệm: {h.dept}</p>
                           {h.note && (
@@ -5515,22 +5929,38 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="space-y-1.5 w-full">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Tên khách hàng <span className="text-rose-500">*</span></label>
-                    <div className="relative group">
-                      <User size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-emerald-500 transition-colors" />
-                      <input 
-                        type="text" 
-                        placeholder="VD: Nguyễn Văn A"
-                        className={cn(
-                          "w-full pl-10 pr-4 py-3 bg-slate-900 border rounded-2xl text-slate-200 text-sm focus:ring-2 transition-all outline-none",
-                          formErrors.customerName ? "border-rose-500 ring-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.1)]" : "border-slate-800 focus:ring-emerald-500/20"
-                        )}
-                        value={newApp.customerName}
-                        onChange={(e) => setNewApp({...newApp, customerName: e.target.value})}
-                      />
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-1.5 flex-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Tên khách hàng <span className="text-rose-500">*</span></label>
+                      <div className="relative group">
+                        <User size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-emerald-500 transition-colors" />
+                        <input 
+                          type="text" 
+                          placeholder="VD: Nguyễn Văn A"
+                          className={cn(
+                            "w-full pl-10 pr-4 py-3 bg-slate-900 border rounded-2xl text-slate-200 text-sm focus:ring-2 transition-all outline-none",
+                            formErrors.customerName ? "border-rose-500 ring-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.1)]" : "border-slate-800 focus:ring-emerald-500/20"
+                          )}
+                          value={newApp.customerName}
+                          onChange={(e) => setNewApp({...newApp, customerName: e.target.value})}
+                        />
+                      </div>
+                      {formErrors.customerName && <p className="text-[10px] text-rose-500 font-bold pl-1 italic">{formErrors.customerName}</p>}
                     </div>
-                    {formErrors.customerName && <p className="text-[10px] text-rose-500 font-bold pl-1 italic">{formErrors.customerName}</p>}
+
+                    <div className="space-y-1.5 flex-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Đối tượng ký HĐCN</label>
+                      <div className="relative group">
+                        <Key size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-emerald-500 transition-colors" />
+                        <input 
+                          type="text" 
+                          placeholder="VD: Công ty A / Cá nhân B"
+                          className="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-800 rounded-2xl text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500/20 transition-all outline-none"
+                          value={newApp.contractSignerType}
+                          onChange={(e) => setNewApp({...newApp, contractSignerType: e.target.value})}
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -5668,6 +6098,31 @@ export default function App() {
               </div>
 
               <div className="space-y-4">
+                <div className="space-y-1.5">
+                   <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1">Quyền hạn truy cập</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { val: 'VIEW', label: 'Chỉ xem', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+                        { val: 'EDIT', label: 'Được sửa', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+                        { val: 'FULL', label: 'Toàn quyền', color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' }
+                      ].map(p => (
+                        <button 
+                          key={p.val}
+                          type="button"
+                          onClick={() => editUser ? setEditUser({...editUser, permission: p.val as UserPermission}) : setNewUser({...newUser, permission: p.val as UserPermission})}
+                          className={cn(
+                            "py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all",
+                            (editUser ? editUser.permission : newUser.permission) === p.val 
+                              ? p.color + " ring-2 ring-offset-2 ring-offset-slate-900 ring-indigo-500/50" 
+                              : "bg-slate-950 border-slate-800 text-slate-500"
+                          )}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1">Họ và tên</label>

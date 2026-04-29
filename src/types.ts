@@ -20,12 +20,15 @@ export type StepName =
 
 export type Dept = 'PTT' | 'KT' | 'PTDA' | 'MANAGER' | 'DIRECTOR' | 'ADMIN';
 
+export type UserPermission = 'VIEW' | 'EDIT' | 'FULL';
+
 export type UserProfile = {
   id: string;
   username: string;
   password?: string;
   name: string;
   dept: Dept;
+  permission: UserPermission;
   assignedProjectIds?: string[];
   email?: string;
   phoneNumber?: string;
@@ -49,6 +52,8 @@ export type ApplicationStepHistory = {
   receivedDate: string;
   completedDate?: string;
   note?: string;
+  performedBy?: string; // ID of the user who performed the action
+  performedByName?: string; // Name of the user who performed the action
 };
 
 export type PropertyType = 'Dat_Nen' | 'Can_Ho';
@@ -77,6 +82,7 @@ export type Application = {
   unitCode: string; // Mã lô/căn
   projectName: string;
   customerName: string;
+  contractSignerType?: string; // Đối tượng ký HĐCN
   phoneNumber?: string;
   propertyType: PropertyType; // Loại tài sản
   loanStatus: 'Co_Vay' | 'Khong_Vay'; // Trạng thái vay

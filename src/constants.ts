@@ -13,12 +13,12 @@ export const PROJECTS: Project[] = [
 ];
 
 export const MOCK_USERS: UserProfile[] = [
-  { id: 'u1', username: 'admin', name: 'Hệ thống Admin', dept: 'ADMIN', email: 'admin@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p9', 'p10', 'p12', 'p13', 'p14'] },
-  { id: 'u2', username: 'ptt_user', name: 'Nguyễn Thu Thủ Tục', dept: 'PTT', email: 'thutuc@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p12', 'p13'] },
-  { id: 'u3', username: 'kt_user', name: 'Trần Kế Toán', dept: 'KT', email: 'ketoan@sunshine.vn', status: 'Active', assignedProjectIds: ['p3', 'p4', 'p14'] },
-  { id: 'u4', username: 'ptda_user', name: 'Lê Phát Triển', dept: 'PTDA', email: 'ptda@sunshine.vn', status: 'Active', assignedProjectIds: ['p9', 'p10'] },
-  { id: 'u5', username: 'manager', name: 'Phạm Trưởng Phòng', dept: 'MANAGER', email: 'manager@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p12'] },
-  { id: 'u6', username: 'director', name: 'Lãnh đạo Sunshine', dept: 'DIRECTOR', email: 'director@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p9', 'p10', 'p12', 'p13', 'p14'] },
+  { id: 'u1', username: 'admin', name: 'Hệ thống Admin', dept: 'ADMIN', permission: 'FULL', email: 'admin@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p9', 'p10', 'p12', 'p13', 'p14'] },
+  { id: 'u2', username: 'ptt_user', name: 'Nguyễn Thu Thủ Tục', dept: 'PTT', permission: 'EDIT', email: 'thutuc@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p12', 'p13'] },
+  { id: 'u3', username: 'kt_user', name: 'Trần Kế Toán', dept: 'KT', permission: 'EDIT', email: 'ketoan@sunshine.vn', status: 'Active', assignedProjectIds: ['p3', 'p4', 'p14'] },
+  { id: 'u4', username: 'ptda_user', name: 'Lê Phát Triển', dept: 'PTDA', permission: 'EDIT', email: 'ptda@sunshine.vn', status: 'Active', assignedProjectIds: ['p9', 'p10'] },
+  { id: 'u5', username: 'manager', name: 'Phạm Trưởng Phòng', dept: 'MANAGER', permission: 'VIEW', email: 'manager@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p12'] },
+  { id: 'u6', username: 'director', name: 'Lãnh đạo Sunshine', dept: 'DIRECTOR', permission: 'VIEW', email: 'director@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p9', 'p10', 'p12', 'p13', 'p14'] },
 ];
 
 export const MOCK_APPLICATIONS: Application[] = [
@@ -27,6 +27,7 @@ export const MOCK_APPLICATIONS: Application[] = [
     unitCode: 'HX-A1-0501',
     projectName: 'Dự án Hòa Xuân',
     customerName: 'Nguyễn Văn A (Tự làm sổ)',
+    contractSignerType: 'Cá nhân',
     phoneNumber: '0901234567',
     propertyType: 'Dat_Nen',
     loanStatus: 'Khong_Vay',
@@ -37,7 +38,7 @@ export const MOCK_APPLICATIONS: Application[] = [
     status: 'Processing',
     receivedDate: '2026-03-15',
     taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h1', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-03-15' }],
+    history: [{ id: 'h1', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-03-15', performedBy: 'u2', performedByName: 'Nguyễn Thu Thủ Tục' }],
     auditTrail: [
       { id: 'at1', userId: 'u1', userName: 'Admin', action: 'Khởi tạo hồ sơ', timestamp: '2026-03-15 08:00' },
       { id: 'at2', userId: 'u2', userName: 'Nguyễn Thu Thủ Tục', action: 'Cập nhật Ngày ký HĐCN', timestamp: '2026-03-15 09:30', changes: 'Ngày ký HĐCN -> 2026-03-10' }
@@ -48,6 +49,7 @@ export const MOCK_APPLICATIONS: Application[] = [
     unitCode: 'HQDN-C2-1210',
     projectName: 'Dự án Hòa Quý - Đồng Nò',
     customerName: 'Trần Thị B',
+    contractSignerType: 'Cá nhân',
     phoneNumber: '0987654321',
     propertyType: 'Dat_Nen',
     loanStatus: 'Co_Vay',
@@ -55,7 +57,7 @@ export const MOCK_APPLICATIONS: Application[] = [
     status: 'TaxPending',
     receivedDate: '2026-02-10',
     taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h2', stepName: 'GĐ3: Chờ Thông báo thuế', dept: 'PTDA', receivedDate: '2026-02-15' }],
+    history: [{ id: 'h2', stepName: 'GĐ3: Chờ Thông báo thuế', dept: 'PTDA', receivedDate: '2026-02-15', performedBy: 'u4', performedByName: 'Lê Phát Triển' }],
     auditTrail: [
       { id: 'at3', userId: 'u1', userName: 'Admin', action: 'Khởi tạo hồ sơ', timestamp: '2026-02-10 10:00' },
       { id: 'at4', userId: 'u3', userName: 'Trần Kế Toán', action: 'Chuyển giai đoạn sang PTDA', timestamp: '2026-02-15 14:00' }
@@ -66,6 +68,7 @@ export const MOCK_APPLICATIONS: Application[] = [
     unitCode: 'HQMR-S5-0220',
     projectName: 'Dự án Hòa Quý Mở rộng',
     customerName: 'Lê Văn C',
+    contractSignerType: 'Cá nhân',
     phoneNumber: '0912334455',
     propertyType: 'Can_Ho',
     loanStatus: 'Khong_Vay',
@@ -73,13 +76,14 @@ export const MOCK_APPLICATIONS: Application[] = [
     status: 'Completed',
     receivedDate: '2026-01-05',
     taxPaymentStatus: 'Paid',
-    history: [{ id: 'h4', stepName: 'GĐ6: Đang bàn giao khách hàng', dept: 'PTT', receivedDate: '2026-03-15' }]
+    history: [{ id: 'h4', stepName: 'GĐ6: Đang bàn giao khách hàng', dept: 'PTT', receivedDate: '2026-03-15', completedDate: '2026-03-20', performedBy: 'u2', performedByName: 'Nguyễn Thu Thủ Tục' }]
   },
   {
     id: 'app4',
     unitCode: 'HX-B2-0805',
     projectName: 'Dự án Hòa Xuân',
     customerName: 'Phạm Minh D',
+    contractSignerType: 'Công ty',
     phoneNumber: '0944556677',
     propertyType: 'Can_Ho',
     loanStatus: 'Co_Vay',
@@ -90,7 +94,7 @@ export const MOCK_APPLICATIONS: Application[] = [
     issueNotes: 'Thiếu CMND bản sao công chứng của chủ sở hữu, đã yêu cầu bổ sung 3 lần.',
     receivedDate: '2026-02-01',
     taxPaymentStatus: 'Paid',
-    history: [{ id: 'h6', stepName: 'Đang xử lý sai sót/vướng', dept: 'KT', receivedDate: '2026-02-20' }],
+    history: [{ id: 'h6', stepName: 'Đang xử lý sai sót/vướng', dept: 'KT', receivedDate: '2026-02-20', performedBy: 'u3', performedByName: 'Trần Kế Toán' }],
     auditTrail: [
       { id: 'at_err_1', userId: 'u3', userName: 'Trần Kế Toán', action: 'Báo cáo sai sót hồ sơ', timestamp: '2026-02-20 11:00', changes: 'Status -> Error, Issue -> Paperwork' }
     ]
@@ -109,7 +113,7 @@ export const MOCK_APPLICATIONS: Application[] = [
     receivedDate: '2026-03-01',
     submissionDate: '2026-03-05',
     taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h7', stepName: 'GĐ2: Chờ nộp VPĐK', dept: 'KT', receivedDate: '2026-03-05' }]
+    history: [{ id: 'h7', stepName: 'GĐ2: Chờ nộp VPĐK', dept: 'KT', receivedDate: '2026-03-05', performedBy: 'u3', performedByName: 'Trần Kế Toán' }]
   },
   {
     id: 'app6',
@@ -123,7 +127,7 @@ export const MOCK_APPLICATIONS: Application[] = [
     status: 'Processing',
     receivedDate: '2026-04-15',
     taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h10', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-04-15' }]
+    history: [{ id: 'h10', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-04-15', performedBy: 'u2', performedByName: 'Nguyễn Thu Thủ Tục' }]
   },
   {
     id: 'app7',
@@ -137,7 +141,7 @@ export const MOCK_APPLICATIONS: Application[] = [
     status: 'Processing',
     receivedDate: '2026-04-20',
     taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h11', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-04-20' }]
+    history: [{ id: 'h11', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-04-20', performedBy: 'u2', performedByName: 'Nguyễn Thu Thủ Tục' }]
   },
   {
     id: 'app8',
@@ -153,7 +157,7 @@ export const MOCK_APPLICATIONS: Application[] = [
     taxPaymentStatus: 'Paid',
     taxNotificationDate: '2026-02-10',
     taxReceiptDate: '2026-02-15',
-    history: [{ id: 'h12', stepName: 'GĐ4: Chờ hoàn thành NVTC', dept: 'PTT', receivedDate: '2026-01-15' }]
+    history: [{ id: 'h12', stepName: 'GĐ4: Chờ hoàn thành NVTC', dept: 'PTT', receivedDate: '2026-01-15', performedBy: 'u2', performedByName: 'Nguyễn Thu Thủ Tục' }]
   }
 ];
 
