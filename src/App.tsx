@@ -2368,14 +2368,44 @@ export default function App() {
     unitCode: '',
     customerName: '',
     contractSignerType: '',
-    projectName: projects[0].name,
+    projectName: '',
     propertyType: 'Dat_Nen' as PropertyType,
     loanStatus: 'Khong_Vay' as 'Co_Vay' | 'Khong_Vay',
     submissionLocation: 'PHUONG' as 'PHUONG' | 'TP_DANANG',
     currentStep: 'GD1_ChuanBi' as StepName,
     isSelfService: false
   });
+
+  // Ensure newApp.projectName is set to a valid project the user has access to
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  const selectedProject = useMemo(() => 
+    projects.find(p => p.id === selectedProjectId), 
+  [projects, selectedProjectId]);
+
+  const visibleProjects = useMemo(() => {
+    let baseProjects = projects;
+    if (userRole !== 'ADMIN' && userRole !== 'DIRECTOR') {
+      baseProjects = projects.filter(p => currentUser?.assignedProjectIds?.includes(p.id));
+    }
+    
+    return [...baseProjects].sort((a, b) => {
+      const idxA = REGION_ORDER.indexOf(a.region || '');
+      const idxB = REGION_ORDER.indexOf(b.region || '');
+      if (idxA === -1 && idxB === -1) return (a.region || '').localeCompare(b.region || '');
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      if (idxA !== idxB) return idxA - idxB;
+      return a.name.localeCompare(b.name);
+    });
+  }, [projects, currentUser, userRole]);
+
+  // Ensure newApp.projectName is set to a valid project the user has access to
+  useEffect(() => {
+    if (isCreateModalOpen && !newApp.projectName && visibleProjects.length > 0) {
+      setNewApp(prev => ({ ...prev, projectName: visibleProjects[0].name }));
+    }
+  }, [isCreateModalOpen, visibleProjects, newApp.projectName]);
 
   const validatePhone = (phone: string) => {
     const phoneRegex = /(84|0[3|5|7|8|9])+([0-9]{8})\b/g;
@@ -3089,7 +3119,7 @@ export default function App() {
         unitCode: '', 
         customerName: '', 
         contractSignerType: '',
-        projectName: projects[0].name,
+        projectName: visibleProjects[0]?.name || '',
         propertyType: 'Dat_Nen',
         loanStatus: 'Khong_Vay',
         submissionLocation: 'PHUONG',
@@ -3123,34 +3153,13 @@ export default function App() {
     setIsUserModalOpen(false);
   };
 
-  const selectedProject = useMemo(() => 
-    projects.find(p => p.id === selectedProjectId), 
-  [projects, selectedProjectId]);
-
-  const visibleProjects = useMemo(() => {
-    let baseProjects = projects;
-    if (userRole !== 'ADMIN' && userRole !== 'DIRECTOR') {
-      baseProjects = projects.filter(p => currentUser?.assignedProjectIds?.includes(p.id));
-    }
-    
-    return [...baseProjects].sort((a, b) => {
-      const idxA = REGION_ORDER.indexOf(a.region || '');
-      const idxB = REGION_ORDER.indexOf(b.region || '');
-      if (idxA === -1 && idxB === -1) return (a.region || '').localeCompare(b.region || '');
-      if (idxA === -1) return 1;
-      if (idxB === -1) return -1;
-      if (idxA !== idxB) return idxA - idxB;
-      return a.name.localeCompare(b.name);
-    });
-  }, [projects, currentUser, userRole]);
-
   const filteredByProjectApps = useMemo(() => {
     const baseApps = ((userRole === 'ADMIN' || userRole === 'DIRECTOR') 
       ? applications 
       : applications.filter(app => {
           const project = projects.find(p => p.name === app.projectName);
           return project && (currentUser?.assignedProjectIds || []).includes(project.id);
-        })).filter(a => a.status !== 'Completed');
+        }));
 
     if (!selectedProjectId) return baseApps;
     return baseApps.filter(app => app.projectName === selectedProject?.name);
