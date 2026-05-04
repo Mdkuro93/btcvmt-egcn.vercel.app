@@ -120,6 +120,7 @@ export type Application = {
   rejectionCount?: number; // Số lần hồ sơ bị trả về
   isRejected?: boolean; // Trạng thái đang bị trả về chờ sửa
   rejectionReason?: string; // Lý do trả hồ sơ
+  commitmentDate?: string;
   scannedFiles?: ScannedFile[];
 
   taxPaymentStatus: 'Unpaid' | 'Paid';
@@ -135,8 +136,9 @@ export type AppNotification = {
   title: string;
   message: string;
   time: string;
-  type: 'Urgent' | 'Info' | 'Success';
+  type: 'Urgent' | 'Info' | 'Success' | 'Warning';
   isRead: boolean;
+  appId?: string;
 };
 
 export type KPI = {

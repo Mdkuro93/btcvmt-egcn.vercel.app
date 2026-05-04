@@ -63,7 +63,9 @@ import {
   Moon,
   Camera,
   Wallet,
-  Zap
+  Zap,
+  ClipboardCheck,
+  MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -1568,8 +1570,8 @@ const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: {
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   
   const filteredApps = applications.filter(a => 
-    a.unitCode.toLowerCase().includes(search.toLowerCase()) || 
-    a.customerName.toLowerCase().includes(search.toLowerCase())
+    String(a.unitCode || '').toLowerCase().includes(search.toLowerCase()) || 
+    String(a.customerName || '').toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -1735,6 +1737,7 @@ const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: {
              </motion.div>
           )}
        </AnimatePresence>
+
     </div>
   );
 };
@@ -1744,7 +1747,7 @@ const ProjectManagementView = ({ projects, onCreate, onEdit, onDelete, theme }: 
 
   const groupedProjects = useMemo(() => {
     return projects
-      .filter(p => p.name.toLowerCase().includes(pSearch.toLowerCase()) || (p.region || '').toLowerCase().includes(pSearch.toLowerCase()))
+      .filter(p => String(p.name || '').toLowerCase().includes(pSearch.toLowerCase()) || String(p.region || '').toLowerCase().includes(pSearch.toLowerCase()))
       .reduce((acc, p) => {
         const region = p.region || 'Các Dự án khác';
         if (!acc[region]) acc[region] = [];
@@ -2497,7 +2500,32 @@ export default function App() {
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [detailTab, setDetailTab] = useState<'Workflow' | 'Audit' | 'Documents'>('Workflow');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [quickEditId, setQuickEditId] = useState<string | null>(null);
+  const [quickEditData, setQuickEditData] = useState<Partial<Application>>({});
+
+  const handleQuickSave = (id: string) => {
+    const editData = quickEditData;
+    if (!id || Object.keys(editData).length === 0) {
+      setQuickEditId(null);
+      setQuickEditData({});
+      return;
+    }
+
+    setApplications(prev => prev.map(app => {
+      if (app.id === id) {
+        return { ...app, ...editData };
+      }
+      return app;
+    }));
+
+    showToast('Cập nhật nhanh thành công!', 'success');
+    setQuickEditId(null);
+    setQuickEditData({});
+  };
+
   const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
+  const [isBulkNoteOpen, setIsBulkNoteOpen] = useState(false);
+  const [bulkNoteText, setBulkNoteText] = useState('');
   const [filterStep, setFilterStep] = useState<StepName | 'ALL'>('ALL');
   const [filterStatus, setFilterStatus] = useState<UnitStatus | 'ALL'>('ALL');
   const [filterLoanStatus, setFilterLoanStatus] = useState<'Co_Vay' | 'Khong_Vay' | 'ALL'>('ALL');
@@ -2513,7 +2541,8 @@ export default function App() {
     loanStatus: 'Khong_Vay' as 'Co_Vay' | 'Khong_Vay',
     submissionLocation: 'PHUONG' as 'PHUONG' | 'TP_DANANG',
     currentStep: 'GD1_ChuanBi' as StepName,
-    isSelfService: false
+    isSelfService: false,
+    commitmentDate: ''
   });
 
   // Ensure newApp.projectName is set to a valid project the user has access to
@@ -3016,6 +3045,22 @@ export default function App() {
     showToast(`Đã xóa ${count} hồ sơ thành công.`, 'success');
   };
 
+  const handleBulkUpdateNote = () => {
+    if (selectedAppIds.length === 0 || !bulkNoteText.trim()) return;
+    
+    setApplications(prev => prev.map(app => {
+      if (selectedAppIds.includes(app.id)) {
+        return { ...app, note: bulkNoteText };
+      }
+      return app;
+    }));
+    
+    showToast(`Đã cập nhật ghi chú cho ${selectedAppIds.length} hồ sơ thành công.`, 'success');
+    setIsBulkNoteOpen(false);
+    setBulkNoteText('');
+    setSelectedAppIds([]);
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     const app = editApp || selectedApp;
@@ -3330,7 +3375,7 @@ export default function App() {
     }
 
     const isDuplicate = applications.some(a => 
-      a.unitCode.toLowerCase() === newApp.unitCode.toLowerCase() && 
+      String(a.unitCode || '').toLowerCase() === String(newApp.unitCode || '').toLowerCase() && 
       a.projectName === newApp.projectName
     );
 
@@ -3354,6 +3399,7 @@ export default function App() {
         loanStatus: newApp.loanStatus,
         submissionLocation: newApp.submissionLocation,
         isSelfService: newApp.isSelfService,
+        commitmentDate: newApp.commitmentDate,
         currentStep: 'GD1_ChuanBi',
         status: 'Processing',
         receivedDate: new Date().toISOString().split('T')[0],
@@ -3381,7 +3427,8 @@ export default function App() {
         loanStatus: 'Khong_Vay',
         submissionLocation: 'PHUONG',
         currentStep: 'GD1_ChuanBi',
-        isSelfService: false
+        isSelfService: false,
+        commitmentDate: ''
       });
       setFormErrors({});
       showToast(`Hồ sơ ${appToAdd.unitCode} đã được khởi tạo thành công!`, 'success');
@@ -3447,8 +3494,8 @@ export default function App() {
     const pttTotal = apps.length;
     const pttProcessing = apps.filter(a => a.status === 'Processing').length;
     const pttIssues = apps.filter(a => a.isRejected || a.status === 'Error').length;
-    // PTT Tax Pending: Has tax notification received (PTT received) but not yet completed payment (no receipt date)
-    const pttTaxPending = apps.filter(a => !!a.taxNotificationReceivedDate && !a.taxReceiptDate).length;
+    // PTT Tax Pending: Has tax notification (from PTDA) but not yet completed payment (no receipt date)
+    const pttTaxPending = apps.filter(a => !!a.taxNotificationDate && !a.taxReceiptDate).length;
     const pttSlowest = apps.filter(a => stepConfig[a.currentStep]?.dept === 'PTT')
         .map(a => ({ ...a, overdue: getOverdueInfo(a) }))
         .filter(a => a.overdue.isOverdue)
@@ -3469,6 +3516,7 @@ export default function App() {
     const ptdaWithTax = apps.filter(a => !!a.taxNotificationDate && !a.taxReceiptDate).length;
     // PTDA GCN Waiting: Tax paid (NVTC) but not yet signed/printed GCN
     const ptdaGcnWaiting = apps.filter(a => !!a.taxReceiptDate && !a.gcnSignedDate).length;
+    const ptdaIssues = apps.filter(a => (a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None')) && stepConfig[a.currentStep]?.dept === 'PTDA').length;
     
     const ptdaAppsWithTax = apps.filter(a => a.submissionDate && a.taxNotificationDate);
     const avgTaxWait = ptdaAppsWithTax.length > 0 
@@ -3593,10 +3641,74 @@ export default function App() {
         loanStatusStats,
         ptt: { total: pttTotal, processing: pttProcessing, issues: pttIssues, taxPending: pttTaxPending, slowest: pttSlowest },
         kt: { received: ktTotal, submitted: ktSubmitted, taxPaid: ktTaxDone, gcnReceived: ktGcnReceived },
-        ptda: { noTax: ptdaNoTax, withTax: ptdaWithTax, gcnWaiting: ptdaGcnWaiting, avgTaxWait: Math.round(avgTaxWait) },
+        ptda: { noTax: ptdaNoTax, withTax: ptdaWithTax, gcnWaiting: ptdaGcnWaiting, issues: ptdaIssues },
         admin: { slaStats: adminSlaStats, warnings: adminWarnings, deptStats }
     };
   }, [filteredByProjectApps, selectedProjectId, selectedProject]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl + S (Save)
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (quickEditId) {
+          handleQuickSave(quickEditId);
+        } else if (isEditing && editApp) {
+          handleUpdateApp();
+        } else if (isCreateModalOpen) {
+          handleCreateApp();
+        }
+      }
+      // Ctrl + N (New)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        if (!isCreateModalOpen) {
+          const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
+          setNewApp(prev => ({ ...prev, projectName: defaultProj }));
+          setIsCreateModalOpen(true);
+        }
+      }
+      // Ctrl + A (Select All)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a' && activeTab === 'applications') {
+        // Only trigger if not typing in an input
+        const target = e.target as HTMLElement;
+        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
+          e.preventDefault();
+          if (selectedAppIds.length === filteredApps.length) {
+            setSelectedAppIds([]);
+          } else {
+            setSelectedAppIds(filteredApps.map(a => a.id));
+          }
+        }
+      }
+      // Ctrl + P (Print)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+        e.preventDefault();
+        if (selectedApp) {
+          window.print();
+        } else {
+          showToast('Vui lòng chọn hồ sơ để in.', 'warning');
+        }
+      }
+      // Esc (Close/Cancel)
+      if (e.key === 'Escape') {
+        if (quickEditId) {
+          setQuickEditId(null);
+          setQuickEditData({});
+        } else if (isEditing) {
+          setIsEditing(false);
+          setEditApp(null);
+        } else if (isCreateModalOpen) {
+          setIsCreateModalOpen(false);
+        } else if (selectedApp) {
+          setSelectedApp(null);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [quickEditId, quickEditData, isEditing, editApp, isCreateModalOpen, selectedApp, applications]);
 
   const chartData = useMemo(() => {
     const getStageStats = (status: UnitStatus) => {
@@ -3672,9 +3784,9 @@ export default function App() {
   }, [chartData, filteredByProjectApps.length]);
 
   const filteredApps = filteredByProjectApps.filter(app => {
-    const matchesSearch = app.unitCode.toLowerCase().includes(search.toLowerCase()) ||
-      app.customerName.toLowerCase().includes(search.toLowerCase()) ||
-      app.projectName.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = String(app.unitCode || '').toLowerCase().includes(search.toLowerCase()) ||
+      String(app.customerName || '').toLowerCase().includes(search.toLowerCase()) ||
+      String(app.projectName || '').toLowerCase().includes(search.toLowerCase());
     
     const matchesStep = filterStep === 'ALL' || app.currentStep === filterStep;
     const matchesStatus = filterStatus === 'ALL' || app.status === filterStatus;
@@ -3690,14 +3802,15 @@ export default function App() {
       (dashboardFilter === 'PTT_PROCESSING' && app.status === 'Processing') ||
       (dashboardFilter === 'PTT_HOLDING' && stepConfig[app.currentStep]?.dept === 'PTT') ||
       (dashboardFilter === 'PTT_ISSUES' && (app.isRejected || app.status === 'Error')) ||
-      (dashboardFilter === 'PTT_TAX_UNPAID' && !!app.taxNotificationReceivedDate && !app.taxReceiptDate) ||
+      (dashboardFilter === 'PTT_TAX_UNPAID' && !!app.taxNotificationDate && !app.taxReceiptDate) ||
       (dashboardFilter === 'KT_RECEIVED' && (stepConfig[app.currentStep]?.dept === 'KT' || app.currentStep === 'GD1_Cho_KT_TiepNhan')) ||
       (dashboardFilter === 'KT_SUBMITTED_DONE' && !!app.submissionDate) ||
       (dashboardFilter === 'KT_TAX_SUBMITTED' && (!!app.taxReceiptDate || app.taxPaymentStatus === 'Paid')) ||
       (dashboardFilter === 'KT_GCN_RECEIVED' && !!app.gcnReceivedDate) ||
       (dashboardFilter === 'PTDA_NO_TAX' && app.currentStep === 'GD3_Cho_TBThue' && !app.taxNotificationDate) ||
       (dashboardFilter === 'PTDA_TAX_RECEIVED' && !!app.taxNotificationDate && !app.taxReceiptDate) ||
-      (dashboardFilter === 'PTDA_GCN_WAITING' && !!app.taxReceiptDate && !app.gcnSignedDate);
+      (dashboardFilter === 'PTDA_GCN_WAITING' && !!app.taxReceiptDate && !app.gcnSignedDate) ||
+      (dashboardFilter === 'PTDA_ISSUES' && (app.isRejected || app.status === 'Error' || (app.issueType && app.issueType !== 'None')) && stepConfig[app.currentStep]?.dept === 'PTDA');
 
     return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService && matchesDashboardFilter;
   });
@@ -3931,8 +4044,8 @@ export default function App() {
             {(Object.entries(
               (visibleProjects || [])
                 .filter(p => {
-                  const matchesSearch = p.name.toLowerCase().includes(projectSearch.toLowerCase()) || 
-                                      (p.region && p.region.toLowerCase().includes(projectSearch.toLowerCase()));
+                  const matchesSearch = String(p.name || '').toLowerCase().includes(projectSearch.toLowerCase()) || 
+                                      String(p.region || '').toLowerCase().includes(projectSearch.toLowerCase());
                   return matchesSearch;
                 })
                 .reduce((acc, p) => {
@@ -4229,7 +4342,7 @@ export default function App() {
                     <StatCard title="Chưa có TB thuế" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-rose-500 shadow-rose-900/40" delay={0.1} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_NO_TAX'); }} />
                     <StatCard title="Hồ sơ đã nhận TB thuế" value={roleKpis.ptda.withTax} icon={CheckCircle2} colorClass="bg-emerald-500 shadow-emerald-900/40" delay={0.2} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_TAX_RECEIVED'); }} />
                     <StatCard title="Hồ sơ chờ In/trình ký GCN" value={roleKpis.ptda.gcnWaiting} icon={FileText} colorClass="bg-indigo-500 shadow-indigo-900/40" delay={0.3} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_GCN_WAITING'); }} />
-                    <StatCard title="Thời gian chờ TB Thuế TB" value={`${roleKpis.ptda.avgTaxWait} ngày`} icon={History} colorClass="bg-blue-500 shadow-blue-900/40" delay={0.4} theme={theme} />
+                    <StatCard title="Hồ sơ sai sót/vướng mắc" value={roleKpis.ptda.issues} icon={AlertCircle} colorClass="bg-rose-500 shadow-rose-900/40" delay={0.4} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_ISSUES'); }} />
                   </div>
                 )}
 
@@ -4941,91 +5054,99 @@ export default function App() {
                     </AnimatePresence>
                   </div>
 
-                  {/* Bulk Actions Bar */}
+                  {/* Bulk Actions Bar (Floating) */}
                   <AnimatePresence>
                     {selectedAppIds.length > 0 && (
                       <motion.div 
-                        initial={{ opacity: 0, y: 10 }}
+                        initial={{ opacity: 0, y: 100 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 10 }}
-                        className="mb-4 p-4 bg-festive-gold rounded-2xl flex items-center justify-between shadow-lg shadow-festive-gold/20"
+                        exit={{ opacity: 0, y: 100 }}
+                        className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-1 p-2 bg-slate-950 border border-slate-800 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-xl ring-1 ring-white/10"
                       >
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center text-festive-gold font-black">
+                        <div className="flex items-center gap-3 px-4 mr-2 border-r border-slate-800">
+                          <div className="w-8 h-8 rounded-full bg-festive-gold flex items-center justify-center text-slate-950 font-black text-xs">
                             {selectedAppIds.length}
                           </div>
-                          <div>
-                            <p className="text-slate-900 font-bold text-sm uppercase tracking-tight">Hồ sơ đang chọn</p>
-                            <p className="text-slate-800 text-[10px] font-bold uppercase">Bạn có thể thực hiện chuyển giai đoạn nhanh</p>
-                          </div>
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Đã chọn</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {/* Logic to show relevant bulk buttons based on user role */}
+
+                        <div className="flex items-center gap-1">
                           {userRole === 'PTT' && (
                             <button 
                               onClick={() => handleBulkStepTransition('GD1_Cho_KT_TiepNhan')}
-                              className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-2"
+                              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
                             >
-                              Gửi hồ sơ sang KT &rarr;
+                              Gửi KT &rarr;
                             </button>
                           )}
                           {userRole === 'KT' && (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
                               <button 
                                 onClick={() => handleBulkStepTransition('GD2_Cho_Nop_VPDK')}
-                                className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-2"
+                                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
                               >
                                 KT Tiếp nhận
                               </button>
                               <button 
                                 onClick={() => handleBulkStepTransition('GD2_Cho_PTDA_TiepNhan')}
-                                className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-indigo-500 transition-all flex items-center gap-2"
+                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
                               >
-                                Chuyển PTDA nhận HS &rarr;
+                                Chuyển PTDA &rarr;
                               </button>
                             </div>
                           )}
                           {userRole === 'PTDA' && (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
                               <button 
                                 onClick={() => handleBulkStepTransition('GD3_Cho_TBThue')}
-                                className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-500 transition-all flex items-center gap-2"
+                                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
                               >
-                                PTDA Tiếp nhận HS
+                                PTDA Tiếp nhận
                               </button>
                               <button 
                                 onClick={() => handleBulkStepTransition('GD4_Cho_Nop_NVTC')}
-                                className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-2"
+                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
                               >
-                                Có TB Thuế &rarr; PTT
+                                Có TB Thuế &rarr;
                               </button>
                             </div>
                           )}
+                          
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
                               setPrintHandoverApps(filteredApps.filter(a => selectedAppIds.includes(a.id)));
                               setIsPrintingHandover(true);
                             }}
-                            className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-indigo-500 transition-all flex items-center gap-2"
+                            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
                           >
-                            <FileText size={14} /> In biên bản bàn giao
+                            <FileText size={14} /> Bàn giao
                           </button>
-                          
+
+                          <button 
+                            onClick={() => setIsBulkNoteOpen(true)}
+                            className="w-10 h-10 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full transition-all flex items-center justify-center border border-slate-700/50"
+                            title="Ghi chú hàng loạt"
+                          >
+                            <MessageSquare size={16} />
+                          </button>
+
                           {(userRole === 'ADMIN' || userRole === 'DIRECTOR' || userRole === 'PTT') && (
                             <button 
                               onClick={handleBulkDelete}
-                              className="px-4 py-2 bg-rose-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-rose-500 transition-all flex items-center gap-2"
+                              className="w-10 h-10 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-full transition-all flex items-center justify-center border border-rose-500/20"
+                              title="Xóa đã chọn"
                             >
-                              <Trash2 size={14} /> Xóa đã chọn
+                              <Trash2 size={16} />
                             </button>
                           )}
 
                           <button 
                             onClick={() => setSelectedAppIds([])}
-                            className="px-4 py-2 bg-slate-800/10 text-slate-800 border border-slate-900/10 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800/20 transition-all"
+                            className="w-10 h-10 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full transition-all flex items-center justify-center border border-slate-700/50 ml-2"
+                            title="Hủy chọn"
                           >
-                            Hủy lệnh
+                            <X size={16} />
                           </button>
                         </div>
                       </motion.div>
@@ -5094,16 +5215,45 @@ export default function App() {
                                   }}
                                 />
                               </td>
-                              <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
+                              <td 
+                                className="px-6 py-5" 
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  setQuickEditId(app.id);
+                                  setQuickEditData({ unitCode: app.unitCode, customerName: app.customerName });
+                                }}
+                                onClick={() => quickEditId !== app.id && setSelectedApp(app)}
+                              >
                                 <div className="flex flex-col">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm font-black text-festive-gold font-mono tracking-tight">{app.unitCode}</span>
-                                    {app.isRejected && app.currentStep === 'GD1_ChuanBi' && (
-                                      <span className="animate-pulse flex items-center gap-1 text-[8px] bg-rose-500 text-white px-1.5 py-0.5 rounded-full font-black uppercase tracking-tighter">
-                                        <RotateCcw size={8} /> Trả về
-                                      </span>
-                                    )}
-                                  </div>
+                                  {quickEditId === app.id ? (
+                                    <input 
+                                      autoFocus
+                                      className={cn(
+                                        "px-2 py-1 text-sm font-black font-mono rounded border outline-none focus:ring-1 focus:ring-festive-gold/50 w-full",
+                                        theme === 'light' ? "bg-white border-slate-300 text-slate-900" : "bg-slate-900 border-slate-700 text-festive-gold"
+                                      )}
+                                      value={quickEditData.unitCode ?? app.unitCode}
+                                      onChange={(e) => setQuickEditData(prev => ({ ...prev, unitCode: e.target.value }))}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onBlur={() => handleQuickSave(app.id)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleQuickSave(app.id);
+                                        if (e.key === 'Escape') {
+                                          setQuickEditId(null);
+                                          setQuickEditData({});
+                                        }
+                                      }}
+                                    />
+                                  ) : (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm font-black text-festive-gold font-mono tracking-tight">{app.unitCode}</span>
+                                      {app.isRejected && app.currentStep === 'GD1_ChuanBi' && (
+                                        <span className="animate-pulse flex items-center gap-1 text-[8px] bg-rose-500 text-white px-1.5 py-0.5 rounded-full font-black uppercase tracking-tighter">
+                                          <RotateCcw size={8} /> Trả về
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
                                   {overdue.isOverdue && (
                                     <span className="text-[9px] text-amber-500 font-bold uppercase tracking-tighter flex items-center gap-1 mt-1">
                                       <AlertTriangle size={10} /> {overdue.label} ({overdue.daysLate} ngày)
@@ -5111,16 +5261,44 @@ export default function App() {
                                   )}
                                 </div>
                               </td>
-                              <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
+                              <td 
+                                className="px-6 py-5" 
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  setQuickEditId(app.id);
+                                  setQuickEditData({ unitCode: app.unitCode, customerName: app.customerName });
+                                }}
+                                onClick={() => quickEditId !== app.id && setSelectedApp(app)}
+                              >
                                 <div className="flex items-center gap-3">
                                   <div className={cn(
-                                    "w-8 h-8 rounded-full flex items-center justify-center transition-all",
+                                    "w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0",
                                     theme === 'light' ? "bg-slate-100 text-slate-400" : "bg-slate-800 text-slate-500"
                                   )}>
                                     <User size={14} />
                                   </div>
-                                  <div className="flex flex-col">
-                                    <span className={cn("text-sm font-medium", theme === 'light' ? "text-slate-700" : "text-slate-300")}>{app.customerName}</span>
+                                  <div className="flex flex-col flex-1 min-w-0">
+                                    {quickEditId === app.id ? (
+                                      <input 
+                                        className={cn(
+                                          "px-2 py-1 text-sm font-medium rounded border outline-none focus:ring-1 focus:ring-indigo-500/50 w-full",
+                                          theme === 'light' ? "bg-white border-slate-300 text-slate-900" : "bg-slate-900 border-slate-700 text-white"
+                                        )}
+                                        value={quickEditData.customerName ?? app.customerName}
+                                        onChange={(e) => setQuickEditData(prev => ({ ...prev, customerName: e.target.value }))}
+                                        onBlur={() => handleQuickSave(app.id)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') handleQuickSave(app.id);
+                                          if (e.key === 'Escape') {
+                                            setQuickEditId(null);
+                                            setQuickEditData({});
+                                          }
+                                        }}
+                                      />
+                                    ) : (
+                                      <span className={cn("text-sm font-medium truncate", theme === 'light' ? "text-slate-700" : "text-slate-300")}>{app.customerName}</span>
+                                    )}
                                     <div className="flex gap-2 mt-1 items-center">
                                       <span className="text-[10px] text-slate-500 font-mono italic">{formatDate(app.receivedDate)}</span>
                                       {app.loanStatus === 'Co_Vay' && <span className="text-[8px] bg-indigo-500/20 text-indigo-400 px-1 rounded font-bold uppercase">Có vay</span>}
@@ -6522,6 +6700,28 @@ export default function App() {
                          >Không vay</button>
                        </div>
                     </div>
+
+                    {newApp.loanStatus === 'Co_Vay' && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="space-y-1.5 flex-1 col-span-2 pt-2"
+                      >
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Ngày cam kết hoàn thành (Ngân hàng)</label>
+                        <div className="relative group">
+                          <Clock size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-indigo-500 transition-colors" />
+                          <input 
+                            type="date" 
+                            className={cn(
+                              "w-full pl-10 pr-4 py-3 border rounded-2xl text-sm focus:ring-2 transition-all outline-none",
+                              theme === 'light' ? "bg-white border-slate-200 text-slate-900 focus:ring-indigo-500/20" : "bg-slate-900 border-slate-800 text-slate-200 focus:ring-indigo-500/20"
+                            )}
+                            value={newApp.commitmentDate}
+                            onChange={(e) => setNewApp({...newApp, commitmentDate: e.target.value})}
+                          />
+                        </div>
+                      </motion.div>
+                    )}
                   </div>
                 </div>
 
@@ -6799,6 +6999,55 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Bulk Note Modal */}
+      <AnimatePresence>
+        {isBulkNoteOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800"
+            >
+              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950/20">
+                <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">Ghi chú hàng loạt ({selectedAppIds.length})</h3>
+                <button 
+                  onClick={() => setIsBulkNoteOpen(false)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="p-6">
+                <p className="text-[10px] text-slate-500 font-bold uppercase mb-3 tracking-widest pl-1">Nội dung ghi chú mới</p>
+                <textarea 
+                  autoFocus
+                  className="w-full h-32 px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all resize-none dark:text-slate-200"
+                  placeholder="Nhập nội dung ghi chú cho tất cả hồ sơ đã chọn..."
+                  value={bulkNoteText}
+                  onChange={(e) => setBulkNoteText(e.target.value)}
+                />
+                <div className="mt-6 flex gap-3">
+                  <button 
+                    onClick={() => setIsBulkNoteOpen(false)}
+                    className="flex-1 py-3 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-slate-200 dark:border-slate-800"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button 
+                    onClick={handleBulkUpdateNote}
+                    disabled={!bulkNoteText.trim()}
+                    className="flex-[2] py-3 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20"
+                  >
+                    Cập nhật ngay
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Toast Notification */}
       <AnimatePresence>
