@@ -2287,10 +2287,48 @@ export default function App() {
   const [isNotiOpen, setIsNotiOpen] = useState(false);
   const [isPrintingHandover, setIsPrintingHandover] = useState(false);
   const [printHandoverApps, setPrintHandoverApps] = useState<Application[]>([]);
-  const [users, setUsers] = useState<UserProfile[]>(MOCK_USERS);
+  const [users, setUsers] = useState<UserProfile[]>(() => {
+    const saved = localStorage.getItem('procedural_users');
+    return saved ? JSON.parse(saved) : MOCK_USERS;
+  });
   const [stepConfig, setStepConfig] = useState<Record<string, { label: string, dept: Dept, status: UnitStatus, slaDays?: number }>>(INITIAL_STEP_CONFIG);
-  const [projects, setProjects] = useState<Project[]>(PROJECTS);
-  const [applications, setApplications] = useState<Application[]>(MOCK_APPLICATIONS);
+  const [projects, setProjects] = useState<Project[]>(() => {
+    const saved = localStorage.getItem('procedural_projects');
+    return saved ? JSON.parse(saved) : PROJECTS;
+  });
+  const [applications, setApplications] = useState<Application[]>(() => {
+    const saved = localStorage.getItem('procedural_apps');
+    return saved ? JSON.parse(saved) : MOCK_APPLICATIONS;
+  });
+
+  // Persistence effects
+  useEffect(() => {
+    localStorage.setItem('procedural_apps', JSON.stringify(applications));
+  }, [applications]);
+
+  useEffect(() => {
+    localStorage.setItem('procedural_users', JSON.stringify(users));
+  }, [users]);
+
+  useEffect(() => {
+    localStorage.setItem('procedural_projects', JSON.stringify(projects));
+  }, [projects]);
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('procedural_current_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('procedural_current_user');
+    }
+  }, [currentUser]);
+
+  // Load current user on boot
+  useEffect(() => {
+    const saved = localStorage.getItem('procedural_current_user');
+    if (saved) {
+      setCurrentUser(JSON.parse(saved));
+    }
+  }, []);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'applications' | 'users' | 'resources' | 'reports' | 'settings'>('dashboard');
   const userRole = useMemo(() => currentUser?.dept || 'PTT', [currentUser]);
   const [isEditing, setIsEditing] = useState(false);
@@ -2858,6 +2896,19 @@ export default function App() {
     
     setSelectedAppIds([]);
     showToast(`Đã xử lý hàng loạt ${updatedCount} hồ sơ thành công.`, 'success');
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedAppIds.length === 0) return;
+    
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa ${selectedAppIds.length} hồ sơ đã chọn? Hành động này không thể hoàn tác.`)) {
+      return;
+    }
+
+    const count = selectedAppIds.length;
+    setApplications(prev => prev.filter(app => !selectedAppIds.includes(app.id)));
+    setSelectedAppIds([]);
+    showToast(`Đã xóa ${count} hồ sơ thành công.`, 'success');
   };
 
   const handleReportError = (note: string) => {
@@ -4729,6 +4780,16 @@ export default function App() {
                           >
                             <FileText size={14} /> In biên bản bàn giao
                           </button>
+                          
+                          {(userRole === 'ADMIN' || userRole === 'DIRECTOR' || userRole === 'PTT') && (
+                            <button 
+                              onClick={handleBulkDelete}
+                              className="px-4 py-2 bg-rose-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-rose-500 transition-all flex items-center gap-2"
+                            >
+                              <Trash2 size={14} /> Xóa đã chọn
+                            </button>
+                          )}
+
                           <button 
                             onClick={() => setSelectedAppIds([])}
                             className="px-4 py-2 bg-slate-800/10 text-slate-800 border border-slate-900/10 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800/20 transition-all"
