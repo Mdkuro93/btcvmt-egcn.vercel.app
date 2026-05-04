@@ -1867,13 +1867,19 @@ const ProjectModal = ({
 
   useEffect(() => {
     if (project) {
-      setFormData(project);
-    } else {
-      setFormData({
-        name: '',
-        region: 'Quảng Trị',
-        totalUnits: 0
-      });
+      // Deep check or just name check to avoid loop if parent re-renders and passes "new" project
+      if (formData.name !== project.name || formData.region !== project.region || formData.totalUnits !== project.totalUnits) {
+        setFormData(project);
+      }
+    } else if (isOpen) {
+      // Only reset if it's not already reset
+      if (formData.name !== '' || formData.totalUnits !== 0) {
+        setFormData({
+          name: '',
+          region: 'Quảng Trị',
+          totalUnits: 0
+        });
+      }
     }
   }, [project, isOpen]);
 
@@ -2002,6 +2008,13 @@ const getPhaseIndex = (step: StepName) => {
   if (['GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG'].includes(step)) return 4;
   if (['GD6_Cho_BG_Khach', 'Hoan_Tat'].includes(step)) return 5;
   return -1;
+};
+
+const getTaxStatus = (app: Application) => {
+  if (app.status === 'Error') return { label: 'Sai sót/Vướng mắc', color: 'text-rose-500' };
+  if (!app.taxNotificationReceivedDate) return { label: 'Chưa có TB thuế', color: 'text-slate-500' };
+  if (!app.taxReceiptDate) return { label: 'Chưa hoàn thành', color: 'text-amber-500' };
+  return { label: 'Hoàn thành', color: 'text-emerald-500' };
 };
 
 const getOverdueInfo = (app: Application) => {
@@ -2297,6 +2310,13 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [projectSearch, setProjectSearch] = useState('');
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'warning' } | null>(null);
+  const [isSavingApp, setIsSavingApp] = useState(false);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'warning' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [expandedSidebarRegions, setExpandedSidebarRegions] = useState<Record<string, boolean>>({});
   const [dashboardFilter, setDashboardFilter] = useState<'ALL' | 'OVERDUE' | 'ERROR' | 'COMPLETED' | 'PTT_PROCESSING' | 'PTT_HOLDING' | 'PTT_ISSUES' | 'PTT_TAX_UNPAID' | 'KT_RECEIVED' | 'KT_SUBMITTED_DONE' | 'KT_TAX_SUBMITTED' | 'KT_GCN_RECEIVED' | 'PTDA_NO_TAX' | 'PTDA_TAX_RECEIVED' | 'PTDA_GCN_WAITING'>('ALL');
@@ -2399,25 +2419,32 @@ export default function App() {
     } else if (userRole === 'PTT') {
       headers = [
         "Dự án", "Mã lô/căn", "Khách hàng", "Sử dụng gói vay", "Loại tài sản", 
-        "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Cam kết Ngân hàng (Vay)", "Tự làm sổ", "Ngày BG GCN Khách"
+        "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Cam kết Ngân hàng (Vay)", "Tự làm sổ", "Ngày BG GCN Khách",
+        "Tình trạng nộp NVTC", "Ngày nhận TB Thuế", "Ngày nhận Giấy nộp tiền"
       ];
-      data = sourceApps.map(app => [
-        app.projectName,
-        app.unitCode,
-        app.customerName,
-        app.loanStatus === 'Co_Vay' ? 'Có vay' : 'Không vay',
-        app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
-        app.receivedDate || '',
-        app.contractSigningDate || '',
-        app.bankCommitmentDeadline || '',
-        app.isSelfService ? 'Có' : 'Không',
-        app.customerHandoverDate || ''
-      ]);
+      data = sourceApps.map(app => {
+        const taxStatus = getTaxStatus(app);
+        return [
+          app.projectName,
+          app.unitCode,
+          app.customerName,
+          app.loanStatus === 'Co_Vay' ? 'Có vay' : 'Không vay',
+          app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
+          app.receivedDate || '',
+          app.contractSigningDate || '',
+          app.bankCommitmentDeadline || '',
+          app.isSelfService ? 'Có' : 'Không',
+          app.customerHandoverDate || '',
+          taxStatus.label,
+          app.taxNotificationReceivedDate || '',
+          app.taxReceiptDate || ''
+        ];
+      });
     } else if (userRole === 'KT') {
       headers = [
         "Dự án", "Mã lô/căn", "Khách hàng", "Nơi nộp", "Mã HS/Số phiếu hẹn VPĐK", "Ngày nộp VPĐK", 
-        "Ngày ban hành TB Thuế", "Ngày nhận TB Thuế", "Ngày nhận Giấy nộp tiền", "Ngày nhận GCN", "Ngày BG GCN PTT",
-        "Trạng thái nộp thuế", "Sai sót vướng mắc"
+        "Ngày nhận TB Thuế", "Ngày nhận Giấy nộp tiền", "Ngày nhận GCN", "Ngày BG GCN PTT",
+        "Tình trạng nộp NVTC", "Sai sót vướng mắc"
       ];
       data = sourceApps.map(app => [
         app.projectName,
@@ -2426,12 +2453,11 @@ export default function App() {
         app.submissionLocation === 'PHUONG' ? 'Phường/Xã' : app.submissionLocation === 'TINH' ? 'Tỉnh/Thành phố' : '',
         app.vpdkCode || '',
         app.submissionDate || '',
-        app.taxNotificationDate || '',
         app.taxNotificationReceivedDate || '',
         app.taxReceiptDate || '',
         app.gcnReceivedDate || '',
         app.ptdaHandoverDate || '',
-        app.taxPaymentStatus === 'Paid' ? 'Đã nộp' : 'Chưa nộp',
+        getTaxStatus(app).label,
         app.issueNotes ? `[${app.issueType || 'Other'}] ${app.issueNotes}` : ''
       ]);
     } else if (userRole === 'PTDA') {
@@ -2624,7 +2650,8 @@ export default function App() {
       });
 
       setApplications(newApplications);
-      alert(`Hoàn tất nhập liệu: Cập nhật ${updatedCount} hồ sơ, Tạo mới ${createdCount} hồ sơ. (Lưu ý: Chỉ các cột thuộc quyền hạn ${userRole} mới được ghi đè)`);
+      showToast(`Hoàn tất nhập liệu: Cập nhật ${updatedCount} hồ sơ, Tạo mới ${createdCount} hồ sơ.`);
+      setActiveTab('applications');
     };
     reader.readAsBinaryString(file);
     e.target.value = ''; 
@@ -2642,32 +2669,37 @@ export default function App() {
 
   const handleUpdateApp = () => {
     if (!editApp || !selectedApp) return;
+    setIsSavingApp(true);
     
-    // Add audit trail for manual update
-    const auditEntry: AuditTrailEntry = {
-      id: `audit-${Date.now()}`,
-      userId: currentUser?.id || 'admin',
-      userName: currentUser?.name || 'Admin',
-      timestamp: new Date().toLocaleString('vi-VN'),
-      action: 'Cập nhật thông tin hồ sơ thủ công',
-      changes: 'Chỉnh sửa bởi Admin/Quản lý'
-    };
+    // Simulate slight loading for better UX
+    setTimeout(() => {
+      // Add audit trail for manual update
+      const auditEntry: AuditTrailEntry = {
+        id: `audit-${Date.now()}`,
+        userId: currentUser?.id || 'admin',
+        userName: currentUser?.name || 'Admin',
+        timestamp: new Date().toLocaleString('vi-VN'),
+        action: 'Cập nhật thông tin hồ sơ thủ công',
+        changes: 'Chỉnh sửa bởi Admin/Quản lý'
+      };
 
-    const updatedApp = {
-      ...editApp,
-      auditTrail: [auditEntry, ...(editApp.auditTrail || [])]
-    };
+      const updatedApp = {
+        ...editApp,
+        auditTrail: [auditEntry, ...(editApp.auditTrail || [])]
+      };
 
-    setApplications(prev => prev.map(app => app.id === updatedApp.id ? updatedApp : app));
-    setSelectedApp(updatedApp);
-    setEditApp(null);
-    setIsEditing(false);
-    alert('Đã cập nhật thông tin hồ sơ thành công!');
+      setApplications(prev => prev.map(app => app.id === updatedApp.id ? updatedApp : app));
+      setSelectedApp(updatedApp);
+      setEditApp(null);
+      setIsEditing(false);
+      setIsSavingApp(false);
+      showToast('Đã cập nhật thông tin hồ sơ thành công!', 'success');
+    }, 600);
   };
 
   const handleDeleteApp = (id: string, code: string) => {
     if (userRole !== 'ADMIN') {
-      alert('Bạn không có quyền thực hiện thao tác này!');
+      showToast('Bạn không có quyền thực hiện thao tác này!', 'error');
       return;
     }
     if (window.confirm(`Bạn có chắc chắn muốn xóa hồ sơ căn ${code}? Thao tác này không thể hoàn tác.`)) {
@@ -2677,7 +2709,7 @@ export default function App() {
         setIsEditing(false);
         setEditApp(null);
       }
-      alert('Đã xóa hồ sơ thành công');
+      showToast('Đã xóa hồ sơ thành công', 'success');
     }
   };
 
@@ -2795,7 +2827,7 @@ export default function App() {
     }));
     
     setSelectedAppIds([]);
-    alert(`Đã xử lý hàng loạt ${updatedCount} hồ sơ.`);
+    showToast(`Đã xử lý hàng loạt ${updatedCount} hồ sơ thành công.`, 'success');
   };
 
   const handleReportError = (note: string) => {
@@ -2915,15 +2947,14 @@ export default function App() {
     // Financial & Tax & Authority Submission: KT responsible for processing according to function (Tax/Accounting)
     const ktFields = [
       'submissionLocation', 'vpdkCode', 'submissionDate',
-      'taxNotificationDate', 'taxNotificationReceivedDate', 
-      'taxReceiptDate', 'taxPaymentStatus', 
+      'taxNotificationReceivedDate', 'taxReceiptDate', 'taxPaymentStatus',
       'gcnReceivedDate', 'ptdaHandoverDate',
       'issueType', 'issueNotes'
     ];
 
     // Project/Authority: PTDA responsible for processing dates (GCN milestones)
     const ptdaFields = [
-      'taxNoticeProvisionDate', 'gcnSignedDate',
+      'taxNotificationDate', 'taxNoticeProvisionDate', 'gcnSignedDate',
       'customerHandoverDate', 'issueType', 'issueNotes'
     ];
 
@@ -3011,46 +3042,64 @@ export default function App() {
       return;
     }
 
-    const appToAdd: Application = {
-      id: `app-${Date.now()}`,
-      unitCode: newApp.unitCode,
-      customerName: newApp.customerName,
-      contractSignerType: newApp.contractSignerType,
-      projectName: newApp.projectName,
-      propertyType: newApp.propertyType,
-      loanStatus: newApp.loanStatus,
-      submissionLocation: newApp.submissionLocation,
-      isSelfService: newApp.isSelfService,
-      currentStep: 'GD1_ChuanBi',
-      status: 'Processing',
-      receivedDate: new Date().toISOString().split('T')[0],
-      taxPaymentStatus: 'Unpaid',
-      history: [
-        {
-          id: `hist-${Date.now()}`,
-          stepName: 'GĐ1: Đang chuẩn bị hồ sơ',
-          dept: 'PTT',
-          receivedDate: new Date().toISOString().split('T')[0],
-          note: 'Khởi tạo hồ sơ mới'
-        }
-      ]
-    };
+    const isDuplicate = applications.some(a => 
+      a.unitCode.toLowerCase() === newApp.unitCode.toLowerCase() && 
+      a.projectName === newApp.projectName
+    );
 
-    setApplications(prev => [appToAdd, ...prev]);
-    setIsCreateModalOpen(false);
-    setNewApp({ 
-      unitCode: '', 
-      customerName: '', 
-      contractSignerType: '',
-      projectName: projects[0].name,
-      propertyType: 'Dat_Nen',
-      loanStatus: 'Khong_Vay',
-      submissionLocation: 'PHUONG',
-      currentStep: 'GD1_ChuanBi',
-      isSelfService: false
-    });
-    setFormErrors({});
-    alert('Hồ sơ mới đã được khởi tạo thành công!');
+    if (isDuplicate) {
+      showToast(`Hồ sơ ${newApp.unitCode} đã tồn tại trong dự án ${newApp.projectName}`, 'error');
+      setFormErrors({ unitCode: 'Mã lô/căn đã tồn tại trong dự án này' });
+      return;
+    }
+
+    setIsSavingApp(true);
+    
+    // Simulate loading
+    setTimeout(() => {
+      const appToAdd: Application = {
+        id: `app-${Date.now()}`,
+        unitCode: newApp.unitCode,
+        customerName: newApp.customerName,
+        contractSignerType: newApp.contractSignerType,
+        projectName: newApp.projectName,
+        propertyType: newApp.propertyType,
+        loanStatus: newApp.loanStatus,
+        submissionLocation: newApp.submissionLocation,
+        isSelfService: newApp.isSelfService,
+        currentStep: 'GD1_ChuanBi',
+        status: 'Processing',
+        receivedDate: new Date().toISOString().split('T')[0],
+        taxPaymentStatus: 'Unpaid',
+        history: [
+          {
+            id: `hist-${Date.now()}`,
+            stepName: 'GĐ1: Đang chuẩn bị hồ sơ',
+            dept: 'PTT',
+            receivedDate: new Date().toISOString().split('T')[0],
+            note: 'Khởi tạo hồ sơ mới'
+          }
+        ]
+      };
+
+      setApplications(prev => [appToAdd, ...prev]);
+      setIsCreateModalOpen(false);
+      setIsSavingApp(false);
+      setNewApp({ 
+        unitCode: '', 
+        customerName: '', 
+        contractSignerType: '',
+        projectName: projects[0].name,
+        propertyType: 'Dat_Nen',
+        loanStatus: 'Khong_Vay',
+        submissionLocation: 'PHUONG',
+        currentStep: 'GD1_ChuanBi',
+        isSelfService: false
+      });
+      setFormErrors({});
+      showToast(`Hồ sơ ${appToAdd.unitCode} đã được khởi tạo thành công!`, 'success');
+      setActiveTab('applications');
+    }, 800);
   };
 
   const handleCreateUser = () => {
@@ -3132,8 +3181,8 @@ export default function App() {
     const pttTotal = apps.length;
     const pttProcessing = apps.filter(a => a.status === 'Processing').length;
     const pttIssues = apps.filter(a => a.isRejected || a.status === 'Error').length;
-    // PTT Tax Pending: Has tax notification but not handed over for NVTC yet
-    const pttTaxPending = apps.filter(a => !!a.taxNotificationDate && !a.taxNoticeProvisionDate).length;
+    // PTT Tax Pending: Has tax notification received but not yet completed payment (no receipt date)
+    const pttTaxPending = apps.filter(a => !!a.taxNotificationReceivedDate && !a.taxReceiptDate).length;
     const pttSlowest = apps.filter(a => stepConfig[a.currentStep]?.dept === 'PTT')
         .map(a => ({ ...a, overdue: getOverdueInfo(a) }))
         .filter(a => a.overdue.isOverdue)
@@ -3144,16 +3193,16 @@ export default function App() {
     // Hồ sơ đã/cần tiếp nhận: at KT or waiting at GD1_Cho_KT_TiepNhan
     const ktTotal = apps.filter(a => stepConfig[a.currentStep]?.dept === 'KT' || a.currentStep === 'GD1_Cho_KT_TiepNhan').length;
     const ktSubmitted = apps.filter(a => !!a.submissionDate).length;
-    // Hồ sơ đã nộp NVTC: at step 4 (NVTC) and has received handover date
-    const ktTaxDone = apps.filter(a => !!a.taxNoticeProvisionDate && (a.taxPaymentStatus === 'Paid' || !!a.taxReceiptDate)).length;
+    // Hồ sơ đã nộp NVTC: Has received tax receipt date
+    const ktTaxDone = apps.filter(a => !!a.taxReceiptDate || a.taxPaymentStatus === 'Paid').length;
     const ktGcnReceived = apps.filter(a => !!a.gcnReceivedDate).length;
 
     // PTDA
     const ptdaNoTax = apps.filter(a => a.currentStep === 'GD3_Cho_TBThue' && !a.taxNotificationDate).length;
     // PTDA Tax Received: Has notification but tax not paid yet (waiting for PTT handover/KT payment)
-    const ptdaWithTax = apps.filter(a => !!a.taxNotificationDate && !(a.taxPaymentStatus === 'Paid' || !!a.taxReceiptDate)).length;
+    const ptdaWithTax = apps.filter(a => !!a.taxNotificationDate && !a.taxReceiptDate).length;
     // PTDA GCN Waiting: Tax paid, waiting for GCN collection/printing
-    const ptdaGcnWaiting = apps.filter(a => (a.taxPaymentStatus === 'Paid' || !!a.taxReceiptDate) && !a.gcnReceivedDate).length;
+    const ptdaGcnWaiting = apps.filter(a => !!a.taxReceiptDate && !a.gcnReceivedDate).length;
     
     const ptdaAppsWithTax = apps.filter(a => a.submissionDate && a.taxNotificationDate);
     const avgTaxWait = ptdaAppsWithTax.length > 0 
@@ -3375,14 +3424,14 @@ export default function App() {
       (dashboardFilter === 'PTT_PROCESSING' && app.status === 'Processing') ||
       (dashboardFilter === 'PTT_HOLDING' && stepConfig[app.currentStep]?.dept === 'PTT') ||
       (dashboardFilter === 'PTT_ISSUES' && (app.isRejected || app.status === 'Error')) ||
-      (dashboardFilter === 'PTT_TAX_UNPAID' && !!app.taxNotificationDate && !app.taxNoticeProvisionDate) ||
+      (dashboardFilter === 'PTT_TAX_UNPAID' && !!app.taxNotificationReceivedDate && !app.taxReceiptDate) ||
       (dashboardFilter === 'KT_RECEIVED' && (stepConfig[app.currentStep]?.dept === 'KT' || app.currentStep === 'GD1_Cho_KT_TiepNhan')) ||
       (dashboardFilter === 'KT_SUBMITTED_DONE' && !!app.submissionDate) ||
-      (dashboardFilter === 'KT_TAX_SUBMITTED' && !!app.taxNoticeProvisionDate && (app.taxPaymentStatus === 'Paid' || !!app.taxReceiptDate)) ||
+      (dashboardFilter === 'KT_TAX_SUBMITTED' && (!!app.taxReceiptDate || app.taxPaymentStatus === 'Paid')) ||
       (dashboardFilter === 'KT_GCN_RECEIVED' && !!app.gcnReceivedDate) ||
       (dashboardFilter === 'PTDA_NO_TAX' && app.currentStep === 'GD3_Cho_TBThue' && !app.taxNotificationDate) ||
-      (dashboardFilter === 'PTDA_TAX_RECEIVED' && !!app.taxNotificationDate && !(app.taxPaymentStatus === 'Paid' || !!app.taxReceiptDate)) ||
-      (dashboardFilter === 'PTDA_GCN_WAITING' && (app.taxPaymentStatus === 'Paid' || !!app.taxReceiptDate) && !app.gcnReceivedDate);
+      (dashboardFilter === 'PTDA_TAX_RECEIVED' && !!app.taxNotificationDate && !app.taxReceiptDate) ||
+      (dashboardFilter === 'PTDA_GCN_WAITING' && !!app.taxReceiptDate && !app.gcnReceivedDate);
 
     return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService && matchesDashboardFilter;
   });
@@ -3880,7 +3929,7 @@ export default function App() {
                       onClick={() => { setActiveTab('applications'); setDashboardFilter('PTT_ISSUES'); }}
                     />
                     <StatCard 
-                      title="Chưa hoàn thành NVTC" 
+                      title="Tình trạng nộp NVTC (Chưa nộp)" 
                       value={roleKpis.ptt.taxPending} 
                       icon={Clock} 
                       colorClass="bg-amber-500 shadow-amber-900/40" 
@@ -4707,8 +4756,8 @@ export default function App() {
                           {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                             <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nộp VPĐK</th>
                           )}
-                          {(userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                            <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nộp tiền</th>
+                          {(userRole === 'PTT' || userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
+                            <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nộp thuế</th>
                           )}
                           {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                             <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nhận sổ</th>
@@ -4792,11 +4841,15 @@ export default function App() {
                                   <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.submissionDate)}</span>
                                 </td>
                               )}
-                              {(userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
+                              {(userRole === 'PTT' || userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                                 <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
                                   <div className="flex flex-col items-center">
-                                    <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.taxReceiptDate)}</span>
-                                    {app.taxPaymentStatus === 'Paid' && <span className="text-[8px] text-emerald-500 font-bold">DONE</span>}
+                                    <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>
+                                      {app.taxReceiptDate ? formatDate(app.taxReceiptDate) : (app.taxNotificationReceivedDate ? 'Chờ nộp' : '---')}
+                                    </span>
+                                    <span className={cn("text-[9px] font-bold uppercase", getTaxStatus(app).color)}>
+                                      {getTaxStatus(app).label}
+                                    </span>
                                   </div>
                                 </td>
                               )}
@@ -5391,6 +5444,13 @@ export default function App() {
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('customerHandoverDate', val)}
                       />
+                      <DetailCard theme={theme}
+                        label="Tình trạng nộp NVTC" 
+                        value={getTaxStatus(editApp || selectedApp).label} 
+                        valueColor={getTaxStatus(editApp || selectedApp).color} 
+                        editable={false}
+                        isEditing={isEditing}
+                      />
                     </div>
                   </section>
 
@@ -5430,14 +5490,6 @@ export default function App() {
                         onChange={(val) => handleFieldChange('submissionDate', val)}
                       />
                       <DetailCard theme={theme}
-                        label="Ngày TB Thuế" 
-                        value={(editApp || selectedApp).taxNotificationDate} 
-                        type="date"
-                        editable={isFieldEditable('taxNotificationDate')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('taxNotificationDate', val)}
-                      />
-                      <DetailCard theme={theme}
                         label="Ngày nhận TB Thuế" 
                         value={(editApp || selectedApp).taxNotificationReceivedDate} 
                         type="date"
@@ -5452,16 +5504,6 @@ export default function App() {
                         editable={isFieldEditable('taxReceiptDate')}
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('taxReceiptDate', val)}
-                      />
-                      <DetailCard theme={theme}
-                        label="Trạng thái nộp thuế" 
-                        value={(editApp || selectedApp).taxPaymentStatus === 'Paid' ? 'Đã hoàn thành' : 'Chưa hoàn thành'} 
-                        valueColor={(editApp || selectedApp).taxPaymentStatus === 'Paid' ? 'text-emerald-500' : 'text-rose-500'} 
-                        editable={isFieldEditable('taxPaymentStatus')}
-                        isEditing={isEditing}
-                        type="select"
-                        field="taxPaymentStatus"
-                        onChange={(val) => handleFieldChange('taxPaymentStatus', val === 'Đã hoàn thành' ? 'Paid' : 'Unpaid')}
                       />
                       <DetailCard theme={theme}
                         label="Ngày nhận GCN thực tế" 
@@ -5495,7 +5537,15 @@ export default function App() {
                     </div>
                     {userRole === 'PTDA' && <span className="text-[9px] bg-fuchsia-500/20 text-fuchsia-400 px-2 py-0.5 rounded-md font-bold uppercase">Bạn có quyền sửa</span>}
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                    <DetailCard theme={theme}
+                      label="Ngày TB Thuế" 
+                      value={(editApp || selectedApp).taxNotificationDate} 
+                      type="date"
+                      editable={isFieldEditable('taxNotificationDate')}
+                      isEditing={isEditing}
+                      onChange={(val) => handleFieldChange('taxNotificationDate', val)}
+                    />
                     <DetailCard theme={theme}
                       label="Ngày cung cấp TB Thuế" 
                       value={(editApp || selectedApp).taxNoticeProvisionDate} 
@@ -5954,7 +6004,7 @@ export default function App() {
                       }}
                       className="w-full py-3 bg-festive-gold text-slate-900 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-amber-400 shadow-lg shadow-festive-gold/10 transition-all font-serif"
                     >
-                      Sửa hồ sơ
+                      {(userRole === 'PTT' || userRole === 'KT' || userRole === 'PTDA') ? 'Sửa/Nhập thông tin' : 'Sửa hồ sơ'}
                     </button>
                   )}
                 </div>
@@ -6171,16 +6221,25 @@ export default function App() {
 
               <div className="p-8 border-t border-slate-800 bg-slate-900/50 flex gap-4">
                 <button 
+                  disabled={isSavingApp}
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="flex-1 py-4 bg-slate-800 text-slate-400 hover:bg-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+                  className="flex-1 py-4 bg-slate-800 text-slate-400 hover:bg-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
                 >
                   Hủy bỏ
                 </button>
                 <button 
+                  disabled={isSavingApp}
                   onClick={handleCreateApp}
-                  className="flex-1 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:from-emerald-500 hover:to-emerald-400 transition-all"
+                  className="flex-1 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:from-emerald-500 hover:to-emerald-400 transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:scale-100"
                 >
-                  Khởi tạo hồ sơ
+                  {isSavingApp ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Đang lưu...
+                    </>
+                  ) : (
+                    'Khởi tạo hồ sơ'
+                  )}
                 </button>
               </div>
             </motion.div>
@@ -6403,6 +6462,28 @@ export default function App() {
           }}
         />
       )}
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: 50, x: '-50%' }}
+            className={cn(
+              "fixed bottom-24 left-1/2 z-[200] px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 backdrop-blur-md border min-w-[320px] justify-center",
+              toast.type === 'success' ? "bg-emerald-500/90 border-emerald-400 text-white" : 
+              toast.type === 'error' ? "bg-rose-500/90 border-rose-400 text-white" : 
+              "bg-amber-500/90 border-amber-400 text-white"
+            )}
+          >
+            {toast.type === 'success' && <CheckCircle2 size={18} />}
+            {toast.type === 'error' && <AlertTriangle size={18} />}
+            {toast.type === 'warning' && <AlertCircle size={18} />}
+            <span className="text-sm font-black uppercase tracking-tight">{toast.message}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
