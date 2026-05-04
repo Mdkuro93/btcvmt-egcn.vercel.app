@@ -71,7 +71,7 @@ import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { MOCK_APPLICATIONS, PROJECTS, STEP_CONFIG as INITIAL_STEP_CONFIG, MOCK_USERS } from './constants';
-import { Application, UnitStatus, KPI, Dept, UserProfile, UserPermission, PropertyType, StepName, AppNotification, Project, ApplicationStepHistory, AuditTrailEntry } from './types';
+import { Application, UnitStatus, KPI, Dept, UserProfile, UserPermission, PropertyType, StepName, AppNotification, Project, ApplicationStepHistory, AuditTrailEntry, ScannedFile } from './types';
 
 type ApplicationHistory = {
   id: string;
@@ -1375,8 +1375,14 @@ const ReportsView = ({
   );
 };
 
-
-const NotificationPanel = ({ notifications, onClose, onRead, theme }: { notifications: AppNotification[], onClose: () => void, onRead: (id: string) => void, theme: 'light' | 'dark' }) => {
+const NotificationPanel = ({ notifications, taskReminders, onClose, onRead, onAction, theme }: { 
+  notifications: AppNotification[], 
+  taskReminders: AppNotification[],
+  onClose: () => void, 
+  onRead: (id: string) => void, 
+  onAction: (appId?: string) => void,
+  theme: 'light' | 'dark' 
+}) => {
   const [filterUnreadOnly, setFilterUnreadOnly] = useState(false);
 
   const displayedNotifications = filterUnreadOnly 
@@ -1389,7 +1395,7 @@ const NotificationPanel = ({ notifications, onClose, onRead, theme }: { notifica
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 10, scale: 0.95 }}
       className={cn(
-        "absolute right-0 top-full mt-4 w-96 border rounded-[2.5rem] shadow-[0_30px_80px_rgba(0,0,0,0.4)] z-[100] overflow-hidden text-left transition-all",
+        "absolute right-0 top-full mt-4 w-[420px] border rounded-[2.5rem] shadow-[0_30px_80px_rgba(0,0,0,0.4)] z-[100] overflow-hidden text-left transition-all",
         theme === 'dark' ? "bg-slate-950/95 border-slate-800 backdrop-blur-xl" : "bg-white/95 border-slate-200 shadow-2xl backdrop-blur-xl"
       )}
     >
@@ -1399,7 +1405,7 @@ const NotificationPanel = ({ notifications, onClose, onRead, theme }: { notifica
       )}>
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h4 className="text-sm font-black uppercase tracking-widest">Thông báo</h4>
+            <h4 className="text-sm font-black uppercase tracking-widest">Trung tâm Thông tin</h4>
             <div className="flex items-center gap-3 mt-1">
               <button 
                 onClick={(e) => {
@@ -1428,9 +1434,9 @@ const NotificationPanel = ({ notifications, onClose, onRead, theme }: { notifica
           <div className="flex items-center gap-3">
             <span className={cn(
               "text-[10px] px-2 py-0.5 rounded-full font-bold",
-              notifications.filter(n => !n.isRead).length > 0 ? "bg-rose-500 text-white" : "bg-slate-500/20 text-slate-500"
+              (notifications.filter(n => !n.isRead).length + taskReminders.length) > 0 ? "bg-rose-500 text-white" : "bg-slate-500/20 text-slate-500"
             )}>
-              {notifications.filter(n => !n.isRead).length} Mới
+              {notifications.filter(n => !n.isRead).length + taskReminders.length} Mới
             </span>
             <button onClick={onClose} className="p-2 hover:bg-slate-500/10 rounded-xl transition-all">
               <X size={18} className="text-slate-400" />
@@ -1438,58 +1444,111 @@ const NotificationPanel = ({ notifications, onClose, onRead, theme }: { notifica
           </div>
         </div>
       </div>
-      <div className="max-h-[450px] overflow-y-auto custom-scrollbar">
-        {displayedNotifications.length > 0 ? (
-          displayedNotifications.map(n => (
-            <div 
-              key={n.id} 
-              onClick={() => onRead(n.id)}
-              className={cn(
-                "p-5 border-b transition-all relative group cursor-pointer",
-                theme === 'dark' 
-                  ? "border-slate-900/50 hover:bg-white/5" 
-                  : "border-slate-100 hover:bg-slate-50",
-                !n.isRead && (theme === 'dark' ? "bg-indigo-500/5" : "bg-indigo-50/30")
-              )}
-            >
-              <div className="flex gap-4">
-                <div className={cn(
-                  "w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 transition-all",
-                  n.isRead ? "bg-slate-300 dark:bg-slate-700 scale-75 opacity-50" : (n.type === 'Urgent' ? "bg-rose-500 shadow-lg shadow-rose-500/30" : n.type === 'Success' ? "bg-emerald-500" : "bg-indigo-500")
-                )} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start gap-2">
-                    <p className={cn("text-sm font-bold leading-tight mb-1", theme === 'dark' ? (n.isRead ? "text-slate-500" : "text-slate-100") : (n.isRead ? "text-slate-400" : "text-slate-900"))}>{n.title}</p>
+
+      <div className="max-h-[500px] overflow-y-auto custom-scrollbar">
+        {/* Urgent Task Reminders Section */}
+        {taskReminders.length > 0 && (
+          <div className={cn(
+            "p-2 bg-rose-500/[0.03] border-b",
+            theme === 'dark' ? "border-slate-800" : "border-slate-100"
+          )}>
+            <div className="px-4 py-2 flex items-center gap-2">
+              <AlertTriangle size={12} className="text-rose-500" />
+              <span className="text-[9px] font-black uppercase tracking-widest text-rose-500">Việc cần làm ({taskReminders.length})</span>
+            </div>
+            <div className="space-y-1">
+              {taskReminders.map(rem => (
+                <div 
+                  key={rem.id}
+                  onClick={() => onAction(rem.appId)}
+                  className={cn(
+                    "p-4 rounded-3xl transition-all cursor-pointer group border mx-2 mb-1",
+                    theme === 'dark' 
+                      ? "bg-slate-900/40 border-slate-800 hover:bg-slate-900 hover:border-rose-500/30" 
+                      : "bg-white border-slate-100 hover:border-rose-500/30 shadow-sm"
+                  )}
+                >
+                  <div className="flex gap-4">
+                    <div className={cn(
+                      "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border",
+                      rem.type === 'Urgent' ? "bg-rose-500/10 text-rose-500 border-rose-500/20" : "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                    )}>
+                      {rem.type === 'Urgent' ? <RotateCcw size={18} /> : <ClipboardCheck size={18} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start mb-0.5">
+                        <p className={cn("text-xs font-black", theme === 'dark' ? "text-slate-200" : "text-slate-900")}>{rem.title}</p>
+                        <span className="text-[8px] font-black uppercase text-rose-500">Xử lý ngay</span>
+                      </div>
+                      <p className={cn("text-[11px] leading-snug line-clamp-2", theme === 'dark' ? "text-slate-500" : "text-slate-400")}>{rem.message}</p>
+                      <div className="mt-2 flex items-center gap-2">
+                         <span className="text-[10px] font-black text-rose-500 group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                           Tiến hành xử lý <ChevronRight size={10} />
+                         </span>
+                      </div>
+                    </div>
                   </div>
-                  <p className={cn("text-xs leading-relaxed line-clamp-2", theme === 'dark' ? (n.isRead ? "text-slate-600" : "text-slate-400") : (n.isRead ? "text-slate-400" : "text-slate-600"))}>{n.message}</p>
-                  <div className="flex items-center justify-between mt-3">
-                    <p className={cn("text-[10px] font-black uppercase tracking-tighter", theme === 'dark' ? "text-slate-600" : "text-slate-400")}>{n.time}</p>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onRead(n.id);
-                      }}
-                      className={cn(
-                        "p-1.5 rounded-lg transition-all shadow-sm",
-                        theme === 'dark' ? "hover:bg-slate-800 bg-slate-950 border border-slate-800" : "hover:bg-white bg-slate-100 border border-slate-200"
-                      )}
-                      title={n.isRead ? "Đánh dấu chưa đọc" : "Đánh dấu đã đọc"}
-                    >
-                      {n.isRead ? <EyeOff size={14} className="text-slate-500" /> : <Check size={14} className="text-indigo-500" />}
-                    </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="p-2">
+          {displayedNotifications.length > 0 ? (
+            displayedNotifications.map(n => (
+              <div 
+                key={n.id} 
+                onClick={() => onRead(n.id)}
+                className={cn(
+                  "p-5 rounded-[1.5rem] transition-all relative group cursor-pointer",
+                  theme === 'dark' 
+                    ? "hover:bg-white/5" 
+                    : "hover:bg-slate-50",
+                  !n.isRead && (theme === 'dark' ? "bg-indigo-500/5" : "bg-indigo-50/30")
+                )}
+              >
+                <div className="flex gap-4">
+                  <div className={cn(
+                    "w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 transition-all",
+                    n.isRead ? "bg-slate-300 dark:bg-slate-700 scale-75 opacity-50" : (n.type === 'Urgent' ? "bg-rose-500 shadow-lg shadow-rose-500/30" : n.type === 'Success' ? "bg-emerald-500" : "bg-indigo-500")
+                  )} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start gap-2">
+                      <p className={cn("text-sm font-bold leading-tight mb-1", theme === 'dark' ? (n.isRead ? "text-slate-500" : "text-slate-100") : (n.isRead ? "text-slate-400" : "text-slate-900"))}>{n.title}</p>
+                    </div>
+                    <p className={cn("text-xs leading-relaxed line-clamp-2", theme === 'dark' ? (n.isRead ? "text-slate-600" : "text-slate-400") : (n.isRead ? "text-slate-400" : "text-slate-600"))}>{n.message}</p>
+                    <div className="flex items-center justify-between mt-3">
+                      <p className={cn("text-[10px] font-black uppercase tracking-tighter", theme === 'dark' ? "text-slate-600" : "text-slate-400")}>{n.time}</p>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRead(n.id);
+                        }}
+                        className={cn(
+                          "p-1.5 rounded-lg transition-all shadow-sm",
+                          theme === 'dark' ? "hover:bg-slate-800 bg-slate-950 border border-slate-800" : "hover:bg-white bg-slate-100 border border-slate-200"
+                        )}
+                        title={n.isRead ? "Đánh dấu chưa đọc" : "Đánh dấu đã đọc"}
+                      >
+                        {n.isRead ? <EyeOff size={14} className="text-slate-500" /> : <Check size={14} className="text-indigo-500" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))
-        ) : (
-          <div className="p-16 text-center">
-            <div className="w-20 h-20 bg-slate-500/5 rounded-[2rem] flex items-center justify-center mx-auto mb-6">
-              <BellOff size={32} className="text-slate-500 opacity-20" />
-            </div>
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">{filterUnreadOnly ? "Không có thông báo chưa đọc" : "Hộp thư trống"}</p>
-          </div>
-        )}
+            ))
+          ) : (
+            !taskReminders.length && (
+              <div className="p-16 text-center">
+                <div className="w-20 h-20 bg-slate-500/5 rounded-[2rem] flex items-center justify-center mx-auto mb-6">
+                  <BellOff size={32} className="text-slate-500 opacity-20" />
+                </div>
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic">{filterUnreadOnly ? "Không có thông báo chưa đọc" : "Hộp thư trống"}</p>
+              </div>
+            )
+          )}
+        </div>
       </div>
       <button className={cn(
         "w-full py-6 text-[10px] font-black uppercase tracking-[0.3em] transition-all border-t",
@@ -2285,6 +2344,7 @@ export default function App() {
     { id: '2', title: 'Cập nhật trạng thái', message: 'Căn hộ B2.0504 đã hoàn tất nộp thuế', time: '1 giờ trước', type: 'Success', isRead: false },
   ]);
   const [isNotiOpen, setIsNotiOpen] = useState(false);
+  const [taskReminders, setTaskReminders] = useState<AppNotification[]>([]);
   const [isPrintingHandover, setIsPrintingHandover] = useState(false);
   const [printHandoverApps, setPrintHandoverApps] = useState<Application[]>([]);
   const [users, setUsers] = useState<UserProfile[]>(() => {
@@ -2329,6 +2389,48 @@ export default function App() {
       setCurrentUser(JSON.parse(saved));
     }
   }, []);
+  // Automated Task Reminders
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    const role = currentUser.dept;
+    const reminders: AppNotification[] = [];
+
+    applications.forEach(app => {
+      const step = stepConfig[app.currentStep];
+      if (!step) return;
+
+      // 1. New apps needing attention (Step dept matches user dept)
+      if (step.dept === role && app.status !== 'Completed') {
+        const isNew = !app.history.find(h => h.performedBy === currentUser.id);
+        
+        if (app.status === 'Error' || app.isRejected) {
+          reminders.push({
+            id: `rem-err-${app.id}`,
+            title: 'Khắc phục sai sót',
+            message: `Lô ${app.unitCode} đang có lỗi hoặc bị trả về. Cần xử lý ngay.`,
+            time: 'Yêu cầu ưu tiên',
+            type: 'Urgent',
+            isRead: false,
+            appId: app.id
+          });
+        } else if (isNew) {
+          reminders.push({
+            id: `rem-new-${app.id}`,
+            title: 'Tiếp nhận hồ sơ mới',
+            message: `Bạn có hồ sơ ${app.unitCode} mới chuyển đến giai đoạn ${step.label}.`,
+            time: 'Chờ tiếp nhận',
+            type: 'Warning',
+            isRead: false,
+            appId: app.id
+          });
+        }
+      }
+    });
+
+    setTaskReminders(reminders);
+  }, [applications, currentUser, stepConfig]);
+
   const [activeTab, setActiveTab] = useState<'dashboard' | 'applications' | 'users' | 'resources' | 'reports' | 'settings'>('dashboard');
   const userRole = useMemo(() => currentUser?.dept || 'PTT', [currentUser]);
   const [isEditing, setIsEditing] = useState(false);
@@ -2914,6 +3016,96 @@ export default function App() {
     showToast(`Đã xóa ${count} hồ sơ thành công.`, 'success');
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const app = editApp || selectedApp;
+    if (!file || !app) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const base64 = evt.target?.result as string;
+      const newFile: ScannedFile = {
+        id: `file-${Date.now()}`,
+        name: file.name,
+        type: file.type,
+        url: base64, // In a real app, this would be a URL from a storage service
+        uploadDate: new Date().toISOString().split('T')[0]
+      };
+
+      const updatedApps = applications.map(a => {
+        if (a.id === app.id) {
+          return {
+            ...a,
+            scannedFiles: [...(a.scannedFiles || []), newFile]
+          };
+        }
+        return a;
+      });
+      
+      setApplications(updatedApps);
+      if (editApp && editApp.id === app.id) {
+        setEditApp({
+          ...editApp,
+          scannedFiles: [...(editApp.scannedFiles || []), newFile]
+        });
+      }
+      showToast(`Đã tải tài liệu "${file.name}" lên thành công.`, 'success');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleFileDelete = (fileId: string) => {
+    const app = editApp || selectedApp;
+    if (!app || !window.confirm('Bạn có chắc chắn muốn xóa tài liệu này?')) return;
+
+    const updatedApps = applications.map(a => {
+      if (a.id === app.id) {
+        return {
+          ...a,
+          scannedFiles: (a.scannedFiles || []).filter(f => f.id !== fileId)
+        };
+      }
+      return a;
+    });
+
+    setApplications(updatedApps);
+    if (editApp && editApp.id === app.id) {
+      setEditApp({
+        ...editApp,
+        scannedFiles: (editApp.scannedFiles || []).filter(f => f.id !== fileId)
+      });
+    }
+    showToast('Đã xóa tài liệu thành công.', 'success');
+  };
+
+  const [previewFile, setPreviewFile] = useState<ScannedFile | null>(null);
+
+  useEffect(() => {
+    setPreviewFile(null);
+  }, [selectedApp]);
+
+  const renderFilePreview = (file: ScannedFile) => {
+    if (file.type.startsWith('image/')) {
+      return (
+        <img src={file.url} alt={file.name} className="max-w-full max-h-full object-contain" />
+      );
+    } else if (file.type === 'application/pdf') {
+      return (
+        <iframe src={file.url} className="w-full h-full border-none" title={file.name} />
+      );
+    }
+    return (
+      <div className="flex flex-col items-center gap-4 text-slate-500">
+        <FileText size={48} />
+        <p className="text-sm font-bold">Không thể xem trước định dạng này</p>
+        <a href={file.url} download={file.name} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">
+          Tải xuống để xem
+        </a>
+      </div>
+    );
+  };
+
   const handleReportError = (note: string) => {
     const app = editApp || selectedApp;
     if (!app) return;
@@ -2942,7 +3134,7 @@ export default function App() {
     setSelectedApp(updatedApp);
     setEditApp(null);
     setIsEditing(false);
-    alert('Đã ghi nhận sai sót tại bước này.');
+    showToast('Đã ghi nhận sai sót tại bước này.', 'warning');
   };
 
   const handleResolveError = () => {
@@ -3906,19 +4098,28 @@ export default function App() {
                   )}
                   title="Thông báo"
                 >
-                  <Bell size={20} className={notifications.some(n => !n.isRead) ? "text-rose-500" : ""} />
-                  {notifications.some(n => !n.isRead) && (
+                  <Bell size={20} className={cn((notifications.some(n => !n.isRead) || taskReminders.length > 0) && "text-rose-500")} />
+                  {(notifications.some(n => !n.isRead) || taskReminders.length > 0) && (
                     <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white dark:ring-slate-900"></span>
                   )}
                 </button>
                 <AnimatePresence>
                   {isNotiOpen && (
-                    <div className="absolute right-0 mt-3 w-80 z-50">
+                    <div className="absolute right-0 mt-3 z-50">
                       <NotificationPanel 
                         notifications={notifications} 
+                        taskReminders={taskReminders}
+                        theme={theme}
                         onClose={() => setIsNotiOpen(false)} 
                         onRead={(id) => setNotifications(prev => prev.map(n => n.id === id ? {...n, isRead: true} : n))}
-                        theme={theme}
+                        onAction={(appId) => {
+                          if (appId) {
+                            const app = applications.find(a => a.id === appId);
+                            if (app) setSelectedApp(app);
+                            setActiveTab('applications');
+                          }
+                          setIsNotiOpen(false);
+                        }}
                       />
                     </div>
                   )}
@@ -5827,62 +6028,98 @@ export default function App() {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between mb-4">
                         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Danh mục tài liệu số</p>
-                        <button 
-                          onClick={() => {
-                            const input = document.createElement('input');
-                            input.type = 'file';
-                            input.onchange = () => alert('Đã tải tài liệu lên thành công. Hệ thống đang đồng bộ dữ liệu số...');
-                            input.click();
-                          }}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600/20 text-indigo-400 rounded-lg text-[9px] font-black uppercase hover:bg-indigo-600/30 transition-all border border-indigo-500/30"
-                        >
-                          <Upload size={12} /> Tải tệp lên
-                        </button>
+                        <div className="relative">
+                          <input 
+                            type="file" 
+                            id="doc-upload" 
+                            className="hidden" 
+                            onChange={handleFileUpload}
+                            accept="image/*,.pdf"
+                          />
+                          <label 
+                            htmlFor="doc-upload"
+                            className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600/20 text-indigo-400 rounded-lg text-[9px] font-black uppercase hover:bg-indigo-600/30 transition-all border border-indigo-500/30 cursor-pointer"
+                          >
+                            <Upload size={12} /> Tải tệp lên
+                          </label>
+                        </div>
                       </div>
+                      
                       <div className="grid grid-cols-2 gap-4">
-                        {[
-                          { name: 'Hợp đồng chuyển nhượng.pdf', size: '2.4 MB', date: '2026-03-15' },
-                          { name: 'CCCD_Sao_Y.jpg', size: '1.1 MB', date: '2026-03-15' },
-                          { name: 'GCN_Goc_Scan.pdf', size: '5.8 MB', date: '2026-03-16' },
-                          { name: 'Bien_Ban_Ban_Giao.pdf', size: '0.8 MB', date: '2026-03-18' }
-                        ].map((file, i) => (
-                          <div key={i} className="group/file p-3 bg-slate-900 rounded-2xl border border-slate-800 hover:border-festive-gold/30 transition-all cursor-pointer">
-                            <div className="flex items-center gap-3 mb-2">
-                              <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-indigo-400">
-                                <FileText size={18} />
+                        {((editApp || selectedApp).scannedFiles || []).length > 0 ? (
+                          (editApp || selectedApp).scannedFiles?.map((file) => (
+                            <div 
+                              key={file.id} 
+                              className={cn(
+                                "group/file p-3 bg-slate-900 rounded-2xl border transition-all cursor-pointer",
+                                previewFile?.id === file.id ? "border-festive-gold ring-1 ring-festive-gold/20" : "border-slate-800 hover:border-festive-gold/30"
+                              )}
+                              onClick={() => setPreviewFile(file)}
+                            >
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className={cn(
+                                  "w-10 h-10 rounded-xl flex items-center justify-center",
+                                  file.type.startsWith('image/') ? "bg-emerald-500/10 text-emerald-400" : "bg-indigo-500/10 text-indigo-400"
+                                )}>
+                                  {file.type.startsWith('image/') ? <Camera size={18} /> : <FileText size={18} />}
+                                </div>
+                                <div className="flex-1 overflow-hidden">
+                                  <p className="text-[10px] font-bold text-slate-200 truncate">{file.name}</p>
+                                  <p className="text-[8px] text-slate-600 font-black">{file.uploadDate}</p>
+                                </div>
                               </div>
-                              <div className="flex-1 overflow-hidden">
-                                <p className="text-[10px] font-bold text-slate-200 truncate">{file.name}</p>
-                                <p className="text-[8px] text-slate-600 font-black">{file.size} • {file.date}</p>
+                              <div className="flex justify-between items-center">
+                                <span className="text-[9px] font-black text-festive-gold flex items-center gap-1 group-hover/file:translate-x-1 transition-transform">
+                                  <Search size={10} /> Xem nhanh
+                                </span>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleFileDelete(file.id);
+                                  }}
+                                  className="p-1.5 text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
                               </div>
                             </div>
-                            <div className="flex justify-between items-center opacity-0 group-hover/file:opacity-100 transition-opacity">
-                              <button className="text-[9px] font-black text-festive-gold flex items-center gap-1">
-                                <Search size={10} /> Xem nhanh
-                              </button>
-                              <button className="text-slate-500 hover:text-white transition-colors">
-                                <Download size={12} />
-                              </button>
-                            </div>
+                          ))
+                        ) : (
+                          <div className="col-span-2 py-12 text-center bg-slate-900/40 rounded-[2rem] border-2 border-dashed border-slate-800">
+                            <Folder size={32} className="mx-auto text-slate-700 mb-3" />
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Chưa có tài liệu số nào được tải lên</p>
                           </div>
-                        ))}
+                        )}
                       </div>
-                      <div className="mt-4 p-4 rounded-2xl border border-slate-800 bg-slate-900/40 relative overflow-hidden h-[300px] flex items-center justify-center">
-                         <div className="absolute inset-0 bg-slate-950/20 backdrop-blur-[2px] flex items-center justify-center flex-col gap-4 text-center p-6 z-10 transition-all hover:backdrop-blur-0 hover:bg-transparent group/preview cursor-pointer">
-                            <div className="p-4 rounded-full bg-slate-800 text-slate-500 group-hover/preview:scale-110 transition-transform">
-                               <Map size={32} />
-                            </div>
-                            <div>
-                               <p className="text-xs font-bold text-slate-300">Nhấn để xem trước tài liệu</p>
-                               <p className="text-[9px] text-slate-500 mt-1 uppercase font-black">Hợp đồng chuyển nhượng.pdf</p>
-                            </div>
-                         </div>
-                         <img 
-                           src="https://images.unsplash.com/photo-1568605114967-8130f3a36994?q=80&w=2070&auto=format&fit=crop" 
-                           alt="Mock Doc" 
-                           className="w-full h-full object-cover opacity-20 grayscale"
-                         />
-                      </div>
+
+                      {previewFile && (
+                        <div className="mt-4 p-4 rounded-[2rem] border border-slate-800 bg-slate-950 relative overflow-hidden h-[450px] flex items-center justify-center group/preview">
+                          <div className="absolute top-4 right-4 z-20 flex gap-2">
+                             <a 
+                               href={previewFile.url} 
+                               download={previewFile.name}
+                               className="p-2 bg-slate-900/80 backdrop-blur-md rounded-xl text-slate-400 hover:text-white transition-all border border-slate-800"
+                             >
+                                <Download size={16} />
+                             </a>
+                             <button 
+                               onClick={() => setPreviewFile(null)}
+                               className="p-2 bg-slate-900/80 backdrop-blur-md rounded-xl text-slate-400 hover:text-rose-500 transition-all border border-slate-800"
+                             >
+                                <X size={16} />
+                             </button>
+                          </div>
+                          
+                          <div className="w-full h-full flex items-center justify-center overflow-auto p-4">
+                            {renderFilePreview(previewFile)}
+                          </div>
+
+                          <div className="absolute bottom-4 left-4 right-4 z-20 p-3 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 flex justify-between items-center opacity-0 group-hover/preview:opacity-100 transition-opacity">
+                             <p className="text-[10px] font-bold text-slate-300">{previewFile.name}</p>
+                             <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{previewFile.uploadDate}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </section>
