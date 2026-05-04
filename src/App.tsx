@@ -2540,16 +2540,33 @@ export default function App() {
         app.issueNotes ? `[${app.issueType || 'Other'}] ${app.issueNotes}` : ''
       ]);
     } else {
-      // Default / Admin
+      // Default / Admin: Full Template for complete control
       headers = [
-        "Dự án", "Mã lô/căn", "Khách hàng", "Ngày nộp VPĐK", "Ngày nhận sổ", "BG Khách"
+        "Dự án", "Mã lô/căn", "Khách hàng", "Số điện thoại", "Vay ngân hàng", "Loại tài sản", 
+        "Hạn cam kết vay", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Tự làm sổ",
+        "Nơi nộp", "Mã HS VPĐK", "Ngày nộp VPĐK", "Ngày TB Thuế", "Ngày nhận TB Thuế", 
+        "Ngày nhận NVTC", "Ngày trình ký GCN", "Ngày nhận GCN thực tế", "Ngày BG Pkt", "Ngày BG Khách"
       ];
       data = sourceApps.map(app => [
         app.projectName,
         app.unitCode,
         app.customerName,
+        app.phoneNumber || '',
+        app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
+        app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
+        app.bankCommitmentDeadline || '',
+        app.receivedDate || '',
+        app.contractSigningDate || '',
+        app.isSelfService ? 'Có' : 'Không',
+        app.submissionLocation === 'PHUONG' ? 'Phường/Xã' : app.submissionLocation === 'TINH' ? 'Tỉnh/Thành phố' : '',
+        app.vpdkCode || '',
         app.submissionDate || '',
+        app.taxNotificationDate || '',
+        app.taxNotificationReceivedDate || '',
+        app.taxReceiptDate || '',
+        app.gcnSignedDate || '',
         app.gcnReceivedDate || '',
+        app.accountingHandoverDate || '',
         app.customerHandoverDate || ''
       ]);
     }
@@ -2569,15 +2586,11 @@ export default function App() {
 
     const reader = new FileReader();
     reader.onload = (evt) => {
-      const bstr = evt.target?.result;
-      const workbook = XLSX.read(bstr, { type: 'binary' });
+      const data = evt.target?.result;
+      const workbook = XLSX.read(data, { type: 'array' });
       const worksheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[worksheetName];
       const excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
-
-      const pttFields = ['customerName', 'phoneNumber', 'loanStatus', 'bankCommitmentDeadline', 'propertyType', 'contractSigningDate', 'receivedDate', 'isSelfService'];
-      const ktFields = ['submissionLocation', 'vpdkCode', 'submissionDate', 'taxNotificationDate', 'taxNotificationReceivedDate', 'taxReceiptDate', 'taxPaymentStatus'];
-      const ptdaFields = ['taxNoticeProvisionDate', 'gcnSignedDate', 'gcnReceivedDate', 'ptdaHandoverDate', 'accountingHandoverDate', 'customerHandoverDate'];
 
       let updatedCount = 0;
       let createdCount = 0;
@@ -2585,41 +2598,30 @@ export default function App() {
       const newApplications = [...applications];
 
       excelData.slice(1).forEach((row) => {
+        if (!row || row.length < 2) return;
+        const unitCode = row[1];
+        if (!unitCode) return;
+
         if (userRole === 'ADMIN' || userRole === 'DIRECTOR') {
-          const unitCode = row[1];
-          if (!unitCode) return;
           const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
           
           const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
              id: `admin-imp-${Date.now()}-${Math.random()}`,
              unitCode: unitCode,
-             projectName: row[0] || projects[0].name,
-             customerName: row[2] || '---',
-             phoneNumber: row[3] || '',
-             loanStatus: row[4] === 'Có' ? 'Co_Vay' : 'Khong_Vay',
-             propertyType: row[5] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen',
-             bankCommitmentDeadline: row[6] || '',
-             receivedDate: row[7] || new Date().toISOString().split('T')[0],
-             contractSigningDate: row[8],
-             isSelfService: row[9] === 'Có',
-             status: 'Processing',
-             currentStep: 'GD1_ChuanBi',
              history: [{ id: `hist-${Date.now()}`, stepName: 'Quản trị viên Import', dept: 'ADMIN', receivedDate: new Date().toISOString().split('T')[0] }]
           } as Application;
 
-          // Update Admin fields (Entire process)
-          app.projectName = row[0] || app.projectName;
-          app.customerName = row[2] || app.customerName;
-          app.phoneNumber = row[3] || app.phoneNumber;
+          app.projectName = row[0] || app.projectName || projects[0].name;
+          app.customerName = row[2] || app.customerName || '---';
+          app.phoneNumber = row[3] || app.phoneNumber || '';
           app.loanStatus = row[4] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
           app.propertyType = row[5] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
           app.bankCommitmentDeadline = row[6] || app.bankCommitmentDeadline;
-          app.receivedDate = row[7] || app.receivedDate;
+          app.receivedDate = row[7] || app.receivedDate || new Date().toISOString().split('T')[0];
           app.contractSigningDate = row[8] || app.contractSigningDate;
           app.isSelfService = row[9] === 'Có';
           
-          // Phase 2-4 fields
-          if (row[10]) app.submissionLocation = row[10] === 'Phường' ? 'PHUONG' : 'TP_DANANG';
+          if (row[10]) app.submissionLocation = (row[10] as string).includes('Phường') ? 'PHUONG' : 'TP_DANANG';
           if (row[11]) app.vpdkCode = row[11];
           if (row[12]) app.submissionDate = row[12];
           if (row[13]) app.taxNotificationDate = row[13];
@@ -2634,39 +2636,34 @@ export default function App() {
             newApplications[existingIndex] = app;
             updatedCount++;
           } else {
+            app.status = 'Processing';
+            app.currentStep = 'GD1_ChuanBi';
             newApplications.push(app);
             createdCount++;
           }
         } else if (userRole === 'PTT') {
-          const unitCode = row[1];
-          if (!unitCode) return;
           const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
           const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
-             id: `imported-${Date.now()}-${Math.random()}`,
+             id: `ptt-imp-${Date.now()}-${Math.random()}`,
              unitCode: unitCode,
-             customerName: row[2] || '---',
-             projectName: row[0] || projects[0].name,
-             loanStatus: row[3] === 'Có' ? 'Co_Vay' : 'Khong_Vay',
-             propertyType: row[4] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen',
-             currentStep: 'GD1_ChuanBi',
              status: 'Processing',
-             receivedDate: row[5] || new Date().toISOString().split('T')[0],
-             contractSigningDate: row[6],
-             bankCommitmentDeadline: row[7] || '',
-             isSelfService: row[8] === 'Có',
-             taxPaymentStatus: 'Unpaid' as any,
-             history: [{ id: `hist-${Date.now()}`, stepName: 'Khởi tạo (Import)', dept: 'PTT', receivedDate: new Date().toISOString().split('T')[0] }]
+             currentStep: 'GD1_ChuanBi',
+             history: [{ id: `hist-${Date.now()}`, stepName: 'PTT Import', dept: 'PTT', receivedDate: new Date().toISOString().split('T')[0] }]
           } as Application;
 
+          app.projectName = row[0] || app.projectName || projects[0].name;
+          app.customerName = row[2] || app.customerName || '---';
+          app.loanStatus = row[3] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
+          app.propertyType = row[4] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
+          app.receivedDate = row[5] || app.receivedDate || new Date().toISOString().split('T')[0];
+          app.contractSigningDate = row[6] || app.contractSigningDate;
+          app.bankCommitmentDeadline = row[7] || app.bankCommitmentDeadline;
+          app.isSelfService = row[8] === 'Có';
+          if (row[9]) app.customerHandoverDate = row[9];
+          if (row[11]) app.taxNotificationReceivedDate = row[11];
+          if (row[12]) app.taxReceiptDate = row[12];
+
           if (existingIndex > -1) {
-            app.projectName = row[0] || app.projectName;
-            app.customerName = row[2] || app.customerName;
-            app.loanStatus = row[3] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
-            app.propertyType = row[4] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
-            app.receivedDate = row[5] || app.receivedDate;
-            app.contractSigningDate = row[6] || app.contractSigningDate;
-            app.bankCommitmentDeadline = row[7] || app.bankCommitmentDeadline;
-            app.isSelfService = row[8] === 'Có';
             newApplications[existingIndex] = app;
             updatedCount++;
           } else {
@@ -2675,23 +2672,19 @@ export default function App() {
           }
         } 
         else if (userRole === 'KT') {
-          const unitCode = row[1];
-          if (!unitCode) return;
           const idx = newApplications.findIndex(a => a.unitCode === unitCode);
           if (idx > -1) {
             const app = { ...newApplications[idx] };
             app.projectName = row[0] || app.projectName;
-            app.submissionLocation = row[3] === 'Phường' ? 'PHUONG' : 'TP_DANANG';
-            app.vpdkCode = row[4] || app.vpdkCode;
-            app.submissionDate = row[5] || app.submissionDate;
-            app.taxNotificationDate = row[6] || app.taxNotificationDate;
-            app.taxNotificationReceivedDate = row[7] || app.taxNotificationReceivedDate;
-            app.taxReceiptDate = row[8] || app.taxReceiptDate;
-            app.gcnReceivedDate = row[9] || app.gcnReceivedDate;
-            app.ptdaHandoverDate = row[10] || app.ptdaHandoverDate;
-            app.taxPaymentStatus = row[11] === 'Đã nộp' ? 'Paid' : 'Unpaid';
-            if (row[12]) {
-              app.issueNotes = row[12];
+            if (row[3]) app.submissionLocation = (row[3] as string).includes('Phường') ? 'PHUONG' : 'TP_DANANG';
+            if (row[4]) app.vpdkCode = row[4];
+            if (row[5]) app.submissionDate = row[5];
+            if (row[6]) app.taxNotificationReceivedDate = row[6];
+            if (row[7]) app.taxReceiptDate = row[7];
+            if (row[8]) app.gcnReceivedDate = row[8];
+            if (row[9]) app.ptdaHandoverDate = row[9];
+            if (row[11]) {
+              app.issueNotes = row[11];
               app.issueType = 'Other';
             }
             newApplications[idx] = app;
@@ -2699,14 +2692,12 @@ export default function App() {
           }
         }
         else if (userRole === 'PTDA') {
-          const unitCode = row[1];
-          if (!unitCode) return;
           const idx = newApplications.findIndex(a => a.unitCode === unitCode);
           if (idx > -1) {
             const app = { ...newApplications[idx] };
             app.projectName = row[0] || app.projectName;
-            app.taxNoticeProvisionDate = row[2] || app.taxNoticeProvisionDate;
-            app.gcnSignedDate = row[3] || app.gcnSignedDate;
+            if (row[2]) app.taxNoticeProvisionDate = row[2];
+            if (row[3]) app.gcnSignedDate = row[3];
             if (row[4]) {
               app.issueNotes = row[4];
               app.issueType = 'Other';
@@ -2721,7 +2712,7 @@ export default function App() {
       showToast(`Hoàn tất nhập liệu: Cập nhật ${updatedCount} hồ sơ, Tạo mới ${createdCount} hồ sơ.`);
       setActiveTab('applications');
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
     e.target.value = ''; 
   };
 
@@ -2817,15 +2808,21 @@ export default function App() {
     // Auto-populate dates based on transition if not already set
     const autoDates: Partial<Application> = {};
     if (targetStep === 'GD1_Cho_KT_TiepNhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
+    if (targetStep === 'GD2_Cho_PTDA_TiepNhan' && !app.submissionDate) autoDates.submissionDate = nowStr;
     if (targetStep === 'GD4_Cho_Nop_NVTC' && !app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
     if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
     if (targetStep === 'GD6_Cho_BG_Khach' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
+
+    let targetStatus = stepConfig[targetStep].status;
+    if (targetStatus === 'TaxCompleted' && !app.taxReceiptDate && !autoDates.taxReceiptDate) {
+      targetStatus = 'TaxPending'; // Fallback if no receipt date yet
+    }
 
     const updatedApp = {
       ...app,
       ...autoDates,
       currentStep: targetStep,
-      status: targetStep === 'GD1_ChuanBi' ? 'Error' : stepConfig[targetStep].status,
+      status: targetStep === 'GD1_ChuanBi' ? 'Error' : targetStatus,
       isRejected: targetStep === 'GD1_ChuanBi' ? app.isRejected : false,
       rejectionReason: targetStep === 'GD1_ChuanBi' ? app.rejectionReason : '',
       history: newHistory
@@ -2879,15 +2876,21 @@ export default function App() {
       // Auto-populate dates based on transition if not already set
       const autoDates: Partial<Application> = {};
       if (targetStep === 'GD1_Cho_KT_TiepNhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
+      if (targetStep === 'GD2_Cho_PTDA_TiepNhan' && !app.submissionDate) autoDates.submissionDate = nowStr;
       if (targetStep === 'GD4_Cho_Nop_NVTC' && !app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
       if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
       if (targetStep === 'GD6_Cho_BG_Khach' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
+
+      let targetStatus = stepConfig[targetStep].status;
+      if (targetStatus === 'TaxCompleted' && !app.taxReceiptDate && !autoDates.taxReceiptDate) {
+        targetStatus = 'TaxPending';
+      }
 
       return {
         ...app,
         ...autoDates,
         currentStep: targetStep,
-        status: targetStep === 'GD1_ChuanBi' ? 'Error' : stepConfig[targetStep].status,
+        status: targetStep === 'GD1_ChuanBi' ? 'Error' : targetStatus,
         isRejected: targetStep === 'GD1_ChuanBi' ? app.isRejected : false,
         rejectionReason: targetStep === 'GD1_ChuanBi' ? app.rejectionReason : '',
         history: newHistory
@@ -3022,7 +3025,7 @@ export default function App() {
     // Master & Procedural: PTT responsible for initial collection and master data
     const pttFields = [
       'customerName', 'contractSignerType', 'phoneNumber', 'loanStatus', 'bankCommitmentDeadline', 'propertyType', 
-      'contractSigningDate', 'receivedDate', 'isSelfService'
+      'contractSigningDate', 'receivedDate', 'isSelfService', 'customerHandoverDate'
     ];
 
     // Financial & Tax & Authority Submission: KT responsible for processing according to function (Tax/Accounting)
@@ -3035,8 +3038,8 @@ export default function App() {
 
     // Project/Authority: PTDA responsible for processing dates (GCN milestones)
     const ptdaFields = [
-      'taxNotificationDate', 'taxNoticeProvisionDate', 'gcnSignedDate',
-      'customerHandoverDate', 'issueType', 'issueNotes'
+      'vpdkCode', 'taxNotificationDate', 'taxNoticeProvisionDate', 'gcnSignedDate',
+      'issueType', 'issueNotes'
     ];
 
     if (userRole === 'PTT') return pttFields.includes(fieldName);
@@ -3065,6 +3068,11 @@ export default function App() {
     if (editApp) {
       const nextApp = { ...editApp, [field]: value };
       
+      // Auto-promote status to TaxCompleted if taxReceiptDate is added and current step expects it
+      if (field === 'taxReceiptDate' && value && stepConfig[editApp.currentStep]?.status === 'TaxCompleted') {
+        nextApp.status = 'TaxCompleted';
+      }
+
       // Auto-update issue type if notes are added
       if (field === 'issueNotes' && value) {
         if (!editApp.issueType || editApp.issueType === 'None') {
@@ -3088,6 +3096,12 @@ export default function App() {
       setApplications(prev => prev.map(app => {
         if (app.id === selectedApp.id) {
           const nextApp = { ...app, [field]: value };
+          
+          // Auto-promote status to TaxCompleted if taxReceiptDate is added and current step expects it
+          if (field === 'taxReceiptDate' && value && stepConfig[app.currentStep]?.status === 'TaxCompleted') {
+            nextApp.status = 'TaxCompleted';
+          }
+
           if (field === 'issueNotes' && value) {
             if (!app.issueType || app.issueType === 'None') {
               nextApp.issueType = 'Other';
@@ -3241,7 +3255,7 @@ export default function App() {
     const pttTotal = apps.length;
     const pttProcessing = apps.filter(a => a.status === 'Processing').length;
     const pttIssues = apps.filter(a => a.isRejected || a.status === 'Error').length;
-    // PTT Tax Pending: Has tax notification received but not yet completed payment (no receipt date)
+    // PTT Tax Pending: Has tax notification received (PTT received) but not yet completed payment (no receipt date)
     const pttTaxPending = apps.filter(a => !!a.taxNotificationReceivedDate && !a.taxReceiptDate).length;
     const pttSlowest = apps.filter(a => stepConfig[a.currentStep]?.dept === 'PTT')
         .map(a => ({ ...a, overdue: getOverdueInfo(a) }))
@@ -3261,8 +3275,8 @@ export default function App() {
     const ptdaNoTax = apps.filter(a => a.currentStep === 'GD3_Cho_TBThue' && !a.taxNotificationDate).length;
     // PTDA Tax Received: Has notification but tax not paid yet (waiting for PTT handover/KT payment)
     const ptdaWithTax = apps.filter(a => !!a.taxNotificationDate && !a.taxReceiptDate).length;
-    // PTDA GCN Waiting: Tax paid, waiting for GCN collection/printing
-    const ptdaGcnWaiting = apps.filter(a => !!a.taxReceiptDate && !a.gcnReceivedDate).length;
+    // PTDA GCN Waiting: Tax paid (NVTC) but not yet signed/printed GCN
+    const ptdaGcnWaiting = apps.filter(a => !!a.taxReceiptDate && !a.gcnSignedDate).length;
     
     const ptdaAppsWithTax = apps.filter(a => a.submissionDate && a.taxNotificationDate);
     const avgTaxWait = ptdaAppsWithTax.length > 0 
@@ -3491,7 +3505,7 @@ export default function App() {
       (dashboardFilter === 'KT_GCN_RECEIVED' && !!app.gcnReceivedDate) ||
       (dashboardFilter === 'PTDA_NO_TAX' && app.currentStep === 'GD3_Cho_TBThue' && !app.taxNotificationDate) ||
       (dashboardFilter === 'PTDA_TAX_RECEIVED' && !!app.taxNotificationDate && !app.taxReceiptDate) ||
-      (dashboardFilter === 'PTDA_GCN_WAITING' && !!app.taxReceiptDate && !app.gcnReceivedDate);
+      (dashboardFilter === 'PTDA_GCN_WAITING' && !!app.taxReceiptDate && !app.gcnSignedDate);
 
     return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService && matchesDashboardFilter;
   });
@@ -4755,20 +4769,36 @@ export default function App() {
                             </button>
                           )}
                           {userRole === 'KT' && (
-                            <button 
-                              onClick={() => handleBulkStepTransition('GD2_Cho_Nop_VPDK')}
-                              className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-2"
-                            >
-                              Xác nhận tiếp nhận hàng loạt
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button 
+                                onClick={() => handleBulkStepTransition('GD2_Cho_Nop_VPDK')}
+                                className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-2"
+                              >
+                                KT Tiếp nhận
+                              </button>
+                              <button 
+                                onClick={() => handleBulkStepTransition('GD2_Cho_PTDA_TiepNhan')}
+                                className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-indigo-500 transition-all flex items-center gap-2"
+                              >
+                                Chuyển PTDA nhận HS &rarr;
+                              </button>
+                            </div>
                           )}
                           {userRole === 'PTDA' && (
-                            <button 
-                              onClick={() => handleBulkStepTransition('GD3_Cho_TBThue')}
-                              className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-2"
-                            >
-                              Xác nhận tiếp nhận hàng loạt
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button 
+                                onClick={() => handleBulkStepTransition('GD3_Cho_TBThue')}
+                                className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-500 transition-all flex items-center gap-2"
+                              >
+                                PTDA Tiếp nhận HS
+                              </button>
+                              <button 
+                                onClick={() => handleBulkStepTransition('GD4_Cho_Nop_NVTC')}
+                                className="px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-2"
+                              >
+                                Có TB Thuế &rarr; PTT
+                              </button>
+                            </div>
                           )}
                           <button 
                             onClick={(e) => {
