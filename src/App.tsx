@@ -2673,7 +2673,7 @@ export default function App() {
       ]);
     } else if (userRole === 'PTT') {
       headers = [
-        "Dự án", "Mã lô/căn", "Tên khách hàng", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản", 
+        "Dự án", "Mã lô/căn", "Tên khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản", 
         "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Hạn cam kết Ngân hàng", "Tự làm sổ (Có/Không)", "Ngày BG GCN Khách"
       ];
       data = sourceApps.map(app => {
@@ -2681,6 +2681,7 @@ export default function App() {
           app.projectName,
           app.unitCode,
           app.customerName,
+          app.contractSignerType || '',
           app.phoneNumber || '',
           app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
           app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
@@ -2835,14 +2836,15 @@ export default function App() {
 
           app.projectName = row[0] || app.projectName || projects[0].name;
           app.customerName = row[2] || app.customerName || '---';
-          app.phoneNumber = row[3] || app.phoneNumber || '';
-          app.loanStatus = row[4] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
-          app.propertyType = row[5] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
-          app.receivedDate = parseExcelDate(row[6]) || app.receivedDate || new Date().toISOString().split('T')[0];
-          app.contractSigningDate = parseExcelDate(row[7]) || app.contractSigningDate;
-          app.bankCommitmentDeadline = parseExcelDate(row[8]) || app.bankCommitmentDeadline;
-          app.isSelfService = row[9] === 'Có';
-          if (row[10]) app.customerHandoverDate = parseExcelDate(row[10]);
+          app.contractSignerType = row[3] || app.contractSignerType || '';
+          app.phoneNumber = row[4] || app.phoneNumber || '';
+          app.loanStatus = row[5] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
+          app.propertyType = row[6] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
+          app.receivedDate = parseExcelDate(row[7]) || app.receivedDate || new Date().toISOString().split('T')[0];
+          app.contractSigningDate = parseExcelDate(row[8]) || app.contractSigningDate;
+          app.bankCommitmentDeadline = parseExcelDate(row[9]) || app.bankCommitmentDeadline;
+          app.isSelfService = row[10] === 'Có';
+          if (row[11]) app.customerHandoverDate = parseExcelDate(row[11]);
 
           if (existingIndex > -1) {
             newApplications[existingIndex] = app;
@@ -3713,10 +3715,22 @@ export default function App() {
       // Ctrl + N (New)
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
         e.preventDefault();
-        if (!isCreateModalOpen) {
+        const canCreate = userRole === 'ADMIN' || userRole === 'PTT';
+        if (!isCreateModalOpen && canCreate) {
           const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
           setNewApp(prev => ({ ...prev, projectName: defaultProj }));
           setIsCreateModalOpen(true);
+        } else if (!canCreate) {
+          showToast('Bạn không có quyền tạo mới hồ sơ.', 'error');
+        }
+      }
+      // F2 (Edit Toggle)
+      if (e.key === 'F2') {
+        e.preventDefault();
+        if (selectedApp) {
+          setIsEditing(!isEditing);
+        } else {
+          showToast('Vui lòng chọn hồ sơ để chỉnh sửa.', 'warning');
         }
       }
       // Ctrl + A (Select All)
@@ -4237,16 +4251,18 @@ export default function App() {
                 </button>
               </div>
 
-              <button 
-                onClick={() => {
-                  const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
-                  setNewApp(prev => ({ ...prev, projectName: defaultProj }));
-                  setIsCreateModalOpen(true);
-                }}
-                className="bg-festive-gold hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-festive-gold/10 transition-all active:scale-95"
-              >
-                + Hồ sơ
-              </button>
+              {(userRole === 'ADMIN' || userRole === 'PTT') && (
+                <button 
+                  onClick={() => {
+                    const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
+                    setNewApp(prev => ({ ...prev, projectName: defaultProj }));
+                    setIsCreateModalOpen(true);
+                  }}
+                  className="bg-festive-gold hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-festive-gold/10 transition-all active:scale-95"
+                >
+                  + Hồ sơ
+                </button>
+              )}
             </div>
 
             <div className="flex items-center gap-3">
