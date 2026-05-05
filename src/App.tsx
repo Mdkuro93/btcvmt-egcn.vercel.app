@@ -107,6 +107,86 @@ const SUPABASE_URL = 'https://eewikwqwtgmrlvyrfgit.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_gKFEW2pn_2PAif9UkvMqGA_58E2Gj6z';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+
+const mapToSnakeCase = (app: Application) => {
+  return {
+    id: app.id,
+    unit_code: app.unitCode,
+    project_name: app.projectName,
+    customer_name: app.customerName,
+    contract_signer_type: app.contractSignerType,
+    phone_number: app.phoneNumber,
+    property_type: app.propertyType,
+    loan_status: app.loanStatus,
+    bank_commitment_deadline: app.bankCommitmentDeadline,
+    report_update_date: app.reportUpdateDate,
+    contract_signing_date: app.contractSigningDate,
+    assignor_gcn_number: app.assignorGcnNumber,
+    assignor_gcn_date: app.assignorGcnDate,
+    is_self_service: app.isSelfService,
+    submission_location: app.submissionLocation,
+    vpdk_code: app.vpdkCode,
+    current_step: app.currentStep,
+    status: app.status,
+    received_date: app.receivedDate,
+    tax_notification_date: app.taxNotificationDate,
+    tax_notification_received_date: app.taxNotificationReceivedDate,
+    tax_receipt_date: app.taxReceiptDate,
+    accounting_handover_date: app.accountingHandoverDate,
+    submission_date: app.submissionDate,
+    gcn_received_date: app.gcnReceivedDate,
+    ptda_handover_date: app.ptdaHandoverDate,
+    customer_handover_date: app.customerHandoverDate,
+    tax_notice_provision_date: app.taxNoticeProvisionDate,
+    gcn_signed_date: app.gcnSignedDate,
+    issue_type: app.issueType,
+    issue_severity: app.issueSeverity,
+    issue_notes: app.issueNotes,
+    estimated_completion_date: app.estimatedCompletionDate,
+    rejection_count: app.rejectionCount,
+    is_rejected: app.isRejected,
+    rejection_reason: app.rejectionReason,
+    commitment_date: app.commitmentDate,
+    tax_payment_status: app.taxPaymentStatus,
+    history: app.history || [],
+    checklist: app.checklist || {},
+    scanned_files: app.scannedFiles || [],
+    audit_trail: app.auditTrail || [],
+    updated_at: new Date().toISOString()
+  };
+};
+
+const mapUserToSnakeCase = (user: UserProfile) => {
+  return {
+    id: user.id,
+    username: user.username,
+    password: user.password,
+    name: user.name,
+    dept: user.dept,
+    permission: user.permission,
+    assigned_project_ids: user.assignedProjectIds,
+    email: user.email,
+    phone_number: user.phoneNumber,
+    status: user.status
+  };
+};
+
+const mapProjectToSnakeCase = (project: Project) => {
+  return {
+    id: project.id,
+    name: project.name,
+    region: project.region,
+    total_units: project.totalUnits
+  };
+};
+
+const syncRecordToSupabase = async (app: Application) => {
+  const snakeData = mapToSnakeCase(app);
+  const { error } = await supabase.from('records').upsert(snakeData);
+  if (error) throw error;
+  return true;
+};
+
 const formatDate = (val: string | Date | undefined) => {
     if (!val) return '---';
     // If it's already in dd/mm/yyyy format, return it
@@ -2692,6 +2772,7 @@ export default function App() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [isLoadingApps, setIsLoadingApps] = useState(true);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [storageStats, setStorageStats] = useState<{ totalSize: number, fileCount: number, folders: string[] }>({ totalSize: 0, fileCount: 0, folders: [] });
   const [isFetchingStorage, setIsFetchingStorage] = useState(false);
 
@@ -2740,6 +2821,7 @@ export default function App() {
   // Fetch all data from Supabase
   useEffect(() => {
     const fetchInitialData = async () => {
+      setIsInitialLoading(true);
       setIsLoadingApps(true);
       setIsLoadingConfig(true);
       try {
@@ -2756,6 +2838,48 @@ export default function App() {
           supabase.from('system_configs').select('*')
         ]);
 
+        // Process Configs first to check for "First Run" flag
+        let isFirstRun = false;
+        if (!configError && configData) {
+          const configMap: any = {};
+          configData.forEach(c => {
+            configMap[c.key] = typeof c.value === 'string' ? JSON.parse(c.value) : c.value;
+          });
+          
+          if (configData.length === 0) {
+            isFirstRun = true;
+            // Bootstrap initial configs to Supabase
+            const initialConfigs = [
+              { key: 'slaConfig', value: INITIAL_STEP_CONFIG.reduce((acc: any, s: any) => ({ ...acc, [s.label]: 10 }), {}) },
+              { key: 'checklistTemplates', value: DOC_CHECKLIST_ITEMS },
+              { key: 'stepConfig', value: INITIAL_STEP_CONFIG },
+              { key: 'handoverTemplate', value: {} }
+            ];
+            
+            for (const conf of initialConfigs) {
+              await supabase.from('system_configs').upsert({ 
+                key: conf.key, 
+                value: conf.value, 
+                updated_at: new Date().toISOString() 
+              });
+            }
+            
+            setSlaConfig(initialConfigs[0].value);
+            setChecklistTemplates(initialConfigs[1].value);
+            setStepConfig(initialConfigs[2].value);
+
+            // Populate mocks to Supabase on first run
+            await supabase.from('users').upsert(MOCK_USERS.map(mapUserToSnakeCase));
+            await supabase.from('projects').upsert(PROJECTS.map(mapProjectToSnakeCase));
+            await supabase.from('records').upsert(MOCK_APPLICATIONS.map(mapToSnakeCase));
+          } else {
+            if (configMap.slaConfig) setSlaConfig(configMap.slaConfig);
+            if (configMap.checklistTemplates) setChecklistTemplates(configMap.checklistTemplates);
+            if (configMap.handoverTemplate) setHandoverTemplate(configMap.handoverTemplate);
+            if (configMap.stepConfig) setStepConfig(configMap.stepConfig);
+          }
+        }
+
         // Process Applications
         if (!appsError && appsData) {
           if (appsData.length > 0) {
@@ -2770,59 +2894,40 @@ export default function App() {
                 ? JSON.parse(item.audit_trail || item.auditTrail) 
                 : (item.audit_trail || item.auditTrail || [])
             })));
+          } else if (isFirstRun) {
+            setApplications(MOCK_APPLICATIONS);
           } else {
-            // If Supabase is empty, respect the empty state instead of forcing mocks
-            // unless this is the absolute first run (you could check for a local flag if you want)
             setApplications([]);
           }
-        } else if (appsError) {
-          // Only fallback to mocks if there is an actual error (e.g. table doesn't exist yet)
-          const saved = localStorage.getItem('procedural_apps');
-          setApplications(saved ? JSON.parse(saved) : MOCK_APPLICATIONS);
         }
 
         // Process Users
         if (!usersError && usersData) {
           if (usersData.length > 0) {
             setUsers(usersData);
-          } else {
-            // If no users at all, provide mocks so someone can login
+          } else if (isFirstRun) {
             setUsers(MOCK_USERS);
+          } else {
+            setUsers([]);
           }
-        } else if (usersError) {
-          const saved = localStorage.getItem('procedural_users');
-          setUsers(saved ? JSON.parse(saved) : MOCK_USERS);
         }
 
         // Process Projects
         if (!projectsError && projectsData) {
           if (projectsData.length > 0) {
             setProjects(projectsData);
+          } else if (isFirstRun) {
+            setProjects(PROJECTS);
           } else {
             setProjects([]);
           }
-        } else if (projectsError) {
-          const saved = localStorage.getItem('procedural_projects');
-          setProjects(saved ? JSON.parse(saved) : PROJECTS);
-        }
-
-        // Process Configs
-        if (!configError && configData && configData.length > 0) {
-          const configMap: any = {};
-          configData.forEach(c => {
-            configMap[c.key] = typeof c.value === 'string' ? JSON.parse(c.value) : c.value;
-          });
-
-          if (configMap.slaConfig) setSlaConfig(configMap.slaConfig);
-          if (configMap.checklistTemplates) setChecklistTemplates(configMap.checklistTemplates);
-          if (configMap.handoverTemplate) setHandoverTemplate(configMap.handoverTemplate);
-          if (configMap.stepConfig) setStepConfig(configMap.stepConfig);
         }
       } catch (err) {
         console.error('Unexpected error fetching initial data:', err);
       } finally {
         setIsLoadingApps(false);
         setIsLoadingConfig(false);
+        setIsInitialLoading(false);
       }
     };
 
@@ -2966,7 +3071,7 @@ export default function App() {
     try {
       const { error } = await supabase
         .from('system_configs')
-        .upsert({ key, value: JSON.stringify(value), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
       
       if (error) throw error;
       showToast(`Đã lưu cấu hình ${key} lên Supabase thành công!`, 'success');
@@ -2986,7 +3091,7 @@ export default function App() {
   const [quickEditId, setQuickEditId] = useState<string | null>(null);
   const [quickEditData, setQuickEditData] = useState<Partial<Application>>({});
 
-  const handleQuickSave = (id: string) => {
+  const handleQuickSave = async (id: string) => {
     const editData = quickEditData;
     if (!id || Object.keys(editData).length === 0) {
       setQuickEditId(null);
@@ -2994,16 +3099,27 @@ export default function App() {
       return;
     }
 
-    setApplications(prev => prev.map(app => {
-      if (app.id === id) {
-        return { ...app, ...editData };
-      }
-      return app;
-    }));
+    const app = applications.find(a => a.id === id);
+    if (!app) return;
 
-    showToast('Cập nhật nhanh thành công!', 'success');
-    setQuickEditId(null);
-    setQuickEditData({});
+    const updatedApp = { ...app, ...editData };
+
+    setIsSavingApp(true);
+    try {
+      await syncRecordToSupabase(updatedApp);
+      
+      setApplications(prev => prev.map(a => a.id === id ? updatedApp : a));
+      if (selectedApp?.id === id) setSelectedApp(updatedApp);
+
+      showToast('Cập nhật nhanh và đồng bộ Supabase thành công!', 'success');
+      setQuickEditId(null);
+      setQuickEditData({});
+    } catch (error) {
+      console.error('Quick save error:', error);
+      showToast('Lỗi khi cập nhật nhanh lên Supabase.', 'error');
+    } finally {
+      setIsSavingApp(false);
+    }
   };
 
   const [handoverTemplate, setHandoverTemplate] = useState(() => {
@@ -3365,7 +3481,7 @@ export default function App() {
         userId: currentUser?.id || 'admin',
         userName: currentUser?.name || 'Admin',
         timestamp: new Date().toLocaleString('vi-VN'),
-        action: 'Cập nhật thông tin hồ sơ thủ công',
+        action: 'Cập nhật thông tin hồ sơ',
         changes: 'Chỉnh sửa bởi Admin/Quản lý'
       };
 
@@ -3374,28 +3490,13 @@ export default function App() {
         auditTrail: [auditEntry, ...(editApp.auditTrail || [])]
       };
 
-      // Clean up object for Supabase
-      const { scannedFiles, auditTrail, ...cleanApp } = updatedApp;
-
-      // Save to Supabase
-      const { error } = await supabase
-        .from('records')
-        .upsert({
-          ...cleanApp,
-          history: JSON.stringify(updatedApp.history),
-          checklist: JSON.stringify(updatedApp.checklist),
-          scanned_files: JSON.stringify(updatedApp.scannedFiles || []),
-          audit_trail: JSON.stringify(updatedApp.auditTrail || []),
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) throw error;
+      await syncRecordToSupabase(updatedApp);
 
       setApplications(prev => prev.map(app => app.id === updatedApp.id ? updatedApp : app));
       setSelectedApp(updatedApp);
       setEditApp(null);
       setIsEditing(false);
-      showToast('Đã cập nhật thông tin hồ sơ lên Supabase thành công!', 'success');
+      showToast('Đã cập nhật thông tin hồ sơ và đồng bộ Supabase thành công!', 'success');
     } catch (error: any) {
       console.error('Supabase update error:', error);
       showToast(`Lỗi khi lưu dữ liệu lên Supabase: ${error.message || 'Vui lòng kiểm tra cấu hình.'}`, 'error');
@@ -3489,24 +3590,13 @@ export default function App() {
     };
 
     try {
-      const { error } = await supabase
-        .from('records')
-        .upsert({
-          ...updatedApp,
-          history: JSON.stringify(updatedApp.history),
-          checklist: JSON.stringify(updatedApp.checklist || {}),
-          scanned_files: JSON.stringify(updatedApp.scannedFiles || []),
-          audit_trail: JSON.stringify(updatedApp.auditTrail || []),
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) throw error;
+      await syncRecordToSupabase(updatedApp);
 
       setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
       setSelectedApp(updatedApp);
       setEditApp(null);
       setIsEditing(false);
-      showToast(`Đã chuyển hồ sơ sang bước: ${stepConfig[targetStep].label} và lưu Supabase`, 'success');
+      showToast(`Đã chuyển hồ sơ sang bước: ${stepConfig[targetStep].label} (Đã đồng bộ Supabase)`, 'success');
     } catch (error) {
       console.error('Supabase transition error:', error);
       showToast('Lỗi khi cập nhật trạng thái lên Supabase.', 'error');
@@ -3580,14 +3670,7 @@ export default function App() {
       // Perform bulk upsert to Supabase
       const { error } = await supabase
         .from('records')
-        .upsert(appsToSync.map(app => ({
-          ...app,
-          history: JSON.stringify(app.history),
-          checklist: JSON.stringify(app.checklist || {}),
-          scanned_files: JSON.stringify(app.scannedFiles || []),
-          audit_trail: JSON.stringify(app.auditTrail || []),
-          updated_at: new Date().toISOString()
-        })));
+        .upsert(appsToSync.map(app => mapToSnakeCase(app)));
 
       if (error) throw error;
 
@@ -3645,21 +3728,15 @@ export default function App() {
 
       const appsToSync = updatedApps.filter(app => selectedAppIds.includes(app.id));
 
+      // Perform bulk upsert to Supabase
       const { error } = await supabase
         .from('records')
-        .upsert(appsToSync.map(app => ({
-          ...app,
-          history: JSON.stringify(app.history),
-          checklist: JSON.stringify(app.checklist || {}),
-          scanned_files: JSON.stringify(app.scannedFiles || []),
-          audit_trail: JSON.stringify(app.auditTrail || []),
-          updated_at: new Date().toISOString()
-        })));
+        .upsert(appsToSync.map(app => mapToSnakeCase(app)));
 
       if (error) throw error;
 
       setApplications(updatedApps);
-      showToast(`Đã cập nhật ghi chú cho ${selectedAppIds.length} hồ sơ lên Supabase thành công.`, 'success');
+      showToast(`Đã cập nhật ghi chú cho ${selectedAppIds.length} hồ sơ và đồng bộ Supabase thành công.`, 'success');
       setIsBulkNoteOpen(false);
       setBulkNoteText('');
       setSelectedAppIds([]);
@@ -3714,18 +3791,7 @@ export default function App() {
         };
 
         // 3. Update record in Database
-        const { error: dbError } = await supabase
-          .from('records')
-          .upsert({
-            ...updatedApp,
-            history: JSON.stringify(updatedApp.history),
-            checklist: JSON.stringify(updatedApp.checklist || {}),
-            scanned_files: JSON.stringify(updatedApp.scannedFiles || []),
-            audit_trail: JSON.stringify(updatedApp.auditTrail || []),
-            updated_at: new Date().toISOString()
-          });
-
-        if (dbError) throw dbError;
+        await syncRecordToSupabase(updatedApp);
 
         const updatedApps = applications.map(a => a.id === app.id ? updatedApp : a);
         setApplications(updatedApps);
@@ -3769,18 +3835,7 @@ export default function App() {
       }
 
       // 2. Update DB record
-      const { error } = await supabase
-        .from('records')
-        .upsert({
-          ...updatedApp,
-          history: JSON.stringify(updatedApp.history),
-          checklist: JSON.stringify(updatedApp.checklist || {}),
-          scanned_files: JSON.stringify(updatedApp.scannedFiles || []),
-          audit_trail: JSON.stringify(updatedApp.auditTrail || []),
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) throw error;
+      await syncRecordToSupabase(updatedApp);
 
       const updatedApps = applications.map(a => a.id === app.id ? updatedApp : a);
       setApplications(updatedApps);
@@ -3854,24 +3909,13 @@ export default function App() {
 
     setIsSavingApp(true);
     try {
-      const { error } = await supabase
-        .from('records')
-        .upsert({
-          ...updatedApp,
-          history: JSON.stringify(updatedApp.history),
-          checklist: JSON.stringify(updatedApp.checklist || {}),
-          scanned_files: JSON.stringify(updatedApp.scannedFiles || []),
-          audit_trail: JSON.stringify(updatedApp.auditTrail || []),
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) throw error;
+      await syncRecordToSupabase(updatedApp);
 
       setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
       setSelectedApp(updatedApp);
       setEditApp(null);
       setIsEditing(false);
-      showToast('Đã ghi nhận sai sót và lưu lên Supabase.', 'warning');
+      showToast('Đã ghi nhận sai sót và đồng bộ Supabase thành công.', 'warning');
     } catch (error) {
       console.error('Supabase report error:', error);
       showToast('Lỗi khi ghi nhận sai sót lên Supabase.', 'error');
@@ -3905,22 +3949,11 @@ export default function App() {
 
     setIsSavingApp(true);
     try {
-      const { error } = await supabase
-        .from('records')
-        .upsert({
-          ...updatedApp,
-          history: JSON.stringify(updatedApp.history),
-          checklist: JSON.stringify(updatedApp.checklist || {}),
-          scanned_files: JSON.stringify(updatedApp.scannedFiles || []),
-          audit_trail: JSON.stringify(updatedApp.auditTrail || []),
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) throw error;
+      await syncRecordToSupabase(updatedApp);
 
       setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
       setSelectedApp(updatedApp);
-      showToast('Đã phục hồi trạng thái và lưu lên Supabase.', 'success');
+      showToast('Đã phục hồi trạng thái và đồng bộ Supabase thành công.', 'success');
     } catch (error) {
       console.error('Supabase resolve error:', error);
       showToast('Lỗi khi lưu trạng thái phục hồi lên Supabase.', 'error');
@@ -3977,14 +4010,7 @@ export default function App() {
 
       const { error } = await supabase
         .from('records')
-        .upsert({
-          ...updatedApp,
-          history: JSON.stringify(updatedApp.history),
-          checklist: JSON.stringify(updatedApp.checklist || {}),
-          scanned_files: JSON.stringify(updatedApp.scannedFiles || []),
-          audit_trail: JSON.stringify(updatedApp.auditTrail || []),
-          updated_at: new Date().toISOString()
-        });
+        .upsert(mapToSnakeCase(updatedApp));
 
       if (error) throw error;
 
@@ -3993,7 +4019,7 @@ export default function App() {
       setSelectedApp(updatedApp);
       setEditApp(null);
       setIsEditing(false);
-      showToast('Hồ sơ đã được trả về giai đoạn 1 và cập nhật Supabase.', 'warning');
+      showToast('Hồ sơ đã được trả về giai đoạn 1 và cập nhật Supabase thành công.', 'warning');
     } catch (error) {
       console.error('Supabase reject error:', error);
       showToast('Lỗi khi lưu yêu cầu bổ sung lên Supabase.', 'error');
@@ -4161,22 +4187,8 @@ export default function App() {
         ]
       };
       
-      // Clean up object for Supabase
-      const { scannedFiles, auditTrail, ...cleanApp } = appToAdd;
-
       // Save to Supabase
-      const { error } = await supabase
-        .from('records')
-        .insert({
-          ...cleanApp,
-          history: JSON.stringify(appToAdd.history),
-          checklist: JSON.stringify(appToAdd.checklist || {}),
-          scanned_files: JSON.stringify(appToAdd.scannedFiles || []),
-          audit_trail: JSON.stringify(appToAdd.auditTrail || []),
-          created_at: new Date().toISOString()
-        });
-
-      if (error) throw error;
+      await syncRecordToSupabase(appToAdd);
 
       setApplications(prev => [appToAdd, ...prev]);
       setIsCreateModalOpen(false);
@@ -4193,7 +4205,7 @@ export default function App() {
         commitmentDate: ''
       });
       setFormErrors({});
-      showToast(`Hồ sơ ${appToAdd.unitCode} đã được khởi tạo và lưu lên Supabase!`, 'success');
+      showToast(`Hồ sơ ${appToAdd.unitCode} đã được khởi tạo và đồng bộ Supabase!`, 'success');
       setActiveTab('applications');
     } catch (error: any) {
       console.error('Supabase insert error:', error);
@@ -4215,13 +4227,13 @@ export default function App() {
     
     setIsSavingApp(true);
     try {
-      const { error } = await supabase.from('users').insert([userToAdd]);
+      const { error } = await supabase.from('users').upsert(mapUserToSnakeCase(userToAdd));
       if (error) throw error;
       
       setUsers(prev => [...prev, userToAdd]);
       setIsUserModalOpen(false);
       setNewUser({ username: '', password: '', name: '', dept: 'PTT', email: '', status: 'Active', permission: 'VIEW', assignedProjectIds: [] });
-      showToast('Đã thêm người dùng mới lên Supabase!', 'success');
+      showToast('Đã thêm người dùng mới và đồng bộ Supabase thành công!', 'success');
     } catch (error) {
       console.error('Supabase create user error:', error);
       showToast('Lỗi khi tạo người dùng lên Supabase.', 'error');
@@ -4234,13 +4246,13 @@ export default function App() {
     if (!editUser) return;
     setIsSavingApp(true);
     try {
-      const { error } = await supabase.from('users').update(editUser).eq('id', editUser.id);
+      const { error } = await supabase.from('users').upsert(mapUserToSnakeCase(editUser));
       if (error) throw error;
       
       setUsers(prev => prev.map(u => u.id === editUser.id ? editUser : u));
       setEditUser(null);
       setIsUserModalOpen(false);
-      showToast('Đã cập nhật người dùng trên Supabase!', 'success');
+      showToast('Đã cập nhật thông tin người dùng lên Supabase thành công!', 'success');
     } catch (error) {
       console.error('Supabase update user error:', error);
       showToast('Lỗi khi cập nhật người dùng.', 'error');
@@ -4653,19 +4665,26 @@ export default function App() {
     return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService && matchesDashboardFilter && matchesSLA;
   });
 
-  if (isLoadingApps || isLoadingConfig) {
+  if (isInitialLoading) {
     return (
       <div className={cn(
         "min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-500",
         theme === 'dark' ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-900"
       )}>
         <div className="relative">
-          <div className="w-20 h-20 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
+          <div className="w-24 h-24 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
           <div className="absolute inset-0 flex items-center justify-center">
-            <RefreshCcw className="text-indigo-500 animate-pulse" size={30} />
+            <RefreshCcw className="text-indigo-500 animate-pulse" size={40} />
           </div>
         </div>
-        <p className="mt-6 text-sm font-black uppercase tracking-widest animate-pulse opacity-50">Đang khởi tạo hệ thống dữ liệu...</p>
+        <div className="mt-8 text-center space-y-2">
+          <p className="text-sm font-black uppercase tracking-[0.2em] text-indigo-500 animate-pulse">
+            Hệ thống đang khởi tạo
+          </p>
+          <p className="text-[10px] uppercase tracking-widest opacity-40 font-bold">
+            Đang đồng bộ dữ liệu từ Supabase...
+          </p>
+        </div>
       </div>
     );
   }
@@ -7891,10 +7910,10 @@ export default function App() {
             try {
               if (editingProject) {
                 const updated = { ...editingProject, ...p };
-                const { error } = await supabase.from('projects').update(updated).eq('id', editingProject.id);
+                const { error } = await supabase.from('projects').upsert(mapProjectToSnakeCase(updated as Project));
                 if (error) throw error;
                 setProjects(prev => prev.map(proj => proj.id === editingProject.id ? updated as Project : proj));
-                showToast('Đã cập nhật dự án trên Supabase!', 'success');
+                showToast('Đã cập nhật dự án và đồng bộ Supabase thành công!', 'success');
               } else {
                 const newP: Project = { 
                   id: `PJ-${Math.random().toString(36).substr(2, 5).toUpperCase()}`, 
@@ -7902,13 +7921,13 @@ export default function App() {
                   region: p.region || 'TP. Đà Nẵng',
                   totalUnits: p.totalUnits || 0
                 };
-                const { error } = await supabase.from('projects').insert([newP]);
+                const { error } = await supabase.from('projects').upsert(mapProjectToSnakeCase(newP));
                 if (error) throw error;
                 setProjects(prev => [...prev, newP]);
                 if (newP.region) {
                   setExpandedSidebarRegions(prev => ({ ...prev, [newP.region as string]: true }));
                 }
-                showToast('Đã thêm dự án mới lên Supabase!', 'success');
+                showToast('Đã thêm dự án mới và đồng bộ Supabase thành công!', 'success');
               }
             } catch (error) {
               console.error('Supabase save project error:', error);
