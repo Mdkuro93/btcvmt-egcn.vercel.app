@@ -73,6 +73,7 @@ export type ScannedFile = {
   id: string;
   name: string;
   url: string;
+  path?: string;
   type: string;
   uploadDate: string;
 };

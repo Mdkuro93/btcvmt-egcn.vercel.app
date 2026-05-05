@@ -4,6 +4,7 @@ import {
   PieChart, Pie, LabelList, Legend, AreaChart, Area
 } from 'recharts';
 import { 
+  RefreshCcw,
   Building2, 
   Files, 
   Clock, 
@@ -443,7 +444,12 @@ const SettingsView = ({
   setStepConfig,
   handoverTemplate,
   setHandoverTemplate,
-  theme
+  theme,
+  onSaveConfig,
+  isLoading,
+  storageStats,
+  isFetchingStorage,
+  onRefreshStorage
 }: { 
   slaConfig: Record<string, number>, 
   setSlaConfig: any, 
@@ -453,9 +459,24 @@ const SettingsView = ({
   setStepConfig: any,
   handoverTemplate: any,
   setHandoverTemplate: any,
-  theme: 'light' | 'dark'
+  theme: 'light' | 'dark',
+  onSaveConfig: (key: string, value: any) => Promise<void>,
+  isLoading: boolean,
+  storageStats: { totalSize: number, fileCount: number, folders: string[] },
+  isFetchingStorage: boolean,
+  onRefreshStorage: () => void
 }) => {
   const [newChecklistItem, setNewChecklistItem] = useState('');
+
+  const formatSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const storagePercentage = Math.min((storageStats.totalSize / (1024 * 1024 * 1024)) * 100, 100); // Assume 1GB limit for display logic
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 text-left">
@@ -464,6 +485,12 @@ const SettingsView = ({
            <h2 className={cn("text-3xl font-black italic font-serif tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Cấu hình hệ thống</h2>
            <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em] mt-1">Quản lý SLA, Checklist & Quy trình</p>
         </div>
+        {isLoading && (
+          <div className="flex items-center gap-2 text-indigo-400 text-[10px] font-black uppercase tracking-widest animate-pulse">
+            <RefreshCcw size={14} className="animate-spin" />
+            Đang tải cấu hình...
+          </div>
+        )}
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -482,7 +509,12 @@ const SettingsView = ({
               </div>
               <h3 className={cn("text-base font-black uppercase tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Cấu hình SLA (Ngày)</h3>
             </div>
-            <Activity className="text-slate-700" size={20} />
+            <button 
+              onClick={() => onSaveConfig('slaConfig', slaConfig)}
+              className="px-4 py-2 bg-amber-600/10 text-amber-500 hover:bg-amber-600/20 border border-amber-600/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+            >
+              Lưu SLA
+            </button>
           </div>
           <div className="p-8 space-y-4">
             {Object.entries(slaConfig).map(([step, days]) => (
@@ -520,7 +552,12 @@ const SettingsView = ({
               </div>
               <h3 className={cn("text-base font-black uppercase tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Danh mục Hồ sơ</h3>
             </div>
-            <Layers className="text-slate-700" size={20} />
+            <button 
+              onClick={() => onSaveConfig('checklistTemplates', checklistTemplates)}
+              className="px-4 py-2 bg-emerald-600/10 text-emerald-500 hover:bg-emerald-600/20 border border-emerald-600/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+            >
+              Lưu Checklist
+            </button>
           </div>
           <div className="p-8 space-y-6">
             <div className="flex gap-2">
@@ -577,7 +614,12 @@ const SettingsView = ({
               </div>
               <h3 className={cn("text-base font-black uppercase tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Cấu hình Mẫu Biên bản bàn giao</h3>
             </div>
-            <FileText className="text-slate-700" size={20} />
+            <button 
+              onClick={() => onSaveConfig('handoverTemplate', handoverTemplate)}
+              className="px-4 py-2 bg-indigo-600/10 text-indigo-500 hover:bg-indigo-600/20 border border-indigo-600/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+            >
+              Lưu Mẫu Biên bản
+            </button>
           </div>
           <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="space-y-6">
@@ -684,6 +726,84 @@ const SettingsView = ({
         </section>
       </div>
 
+      {/* Storage Management Section */}
+      <section className={cn(
+        "bg-slate-900/40 backdrop-blur-xl border rounded-[2.5rem] overflow-hidden group",
+        theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800"
+      )}>
+        <div className={cn(
+          "p-8 border-b flex items-center justify-between",
+          theme === 'light' ? "bg-slate-50/50 border-slate-100" : "bg-slate-900/50 border-slate-800"
+        )}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20">
+              <FolderArchive className="text-orange-500" size={20} />
+            </div>
+            <h3 className={cn("text-base font-black uppercase tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Quản lý dung lượng Storage</h3>
+          </div>
+          <button 
+            onClick={onRefreshStorage}
+            disabled={isFetchingStorage}
+            className={cn(
+              "p-2 rounded-xl transition-all",
+              theme === 'light' ? "hover:bg-slate-100" : "hover:bg-slate-800",
+              isFetchingStorage && "animate-spin"
+            )}
+          >
+            <RefreshCcw size={18} className={theme === 'light' ? "text-slate-600" : "text-slate-400"} />
+          </button>
+        </div>
+        <div className="p-8 space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className={cn(
+              "p-6 rounded-3xl border",
+              theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950 border-slate-800"
+            )}>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Tổng dung lượng</p>
+              <p className="text-2xl font-black text-orange-500 font-mono tracking-tighter">
+                {formatSize(storageStats.totalSize)}
+              </p>
+            </div>
+            <div className={cn(
+              "p-6 rounded-3xl border",
+              theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950 border-slate-800"
+            )}>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Số lượng tài liệu</p>
+              <p className="text-2xl font-black text-orange-500 font-mono tracking-tighter">
+                {storageStats.fileCount} <span className="text-xs uppercase">Files</span>
+              </p>
+            </div>
+            <div className={cn(
+              "p-6 rounded-3xl border",
+              theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950 border-slate-800"
+            )}>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Số thư mục dự án</p>
+              <p className="text-2xl font-black text-orange-500 font-mono tracking-tighter">
+                {storageStats.folders.length} <span className="text-xs uppercase">Folders</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex justify-between items-end">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Mức độ sử dụng (Ước tính)</span>
+              <span className="text-xs font-black text-orange-400">{storagePercentage.toFixed(1)}% / 1GB (Spark Plan)</span>
+            </div>
+            <div className="h-4 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${storagePercentage}%` }}
+                className="h-full bg-linear-to-r from-orange-600 to-amber-400"
+              />
+            </div>
+            <div className="flex gap-2 items-center text-[10px] text-slate-500 italic">
+              <Info size={12} />
+              <span>Lưu ý: Supabase Spark Plan cung cấp 1GB dung lượng Storage miễn phí.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Workflow Configuration */}
       <section className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-[2.5rem] overflow-hidden group">
         <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
@@ -767,10 +887,10 @@ const SettingsView = ({
                 </p>
              </div>
              <button 
-               onClick={() => alert('Cấu hình đã được lưu tạm thời vào trạng thái ứng dụng.')}
+               onClick={() => onSaveConfig('stepConfig', stepConfig)}
                className="px-6 py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-600/20"
              >
-               Lưu cấu trình
+               Lưu quy trình lên Supabase
              </button>
           </div>
         </div>
@@ -2482,15 +2602,43 @@ const HandoverRecord = ({ apps, user, template }: { apps: Application[], user: U
           </thead>
           <tbody>
             {apps.map((app, idx) => (
-              <tr key={app.id}>
-                <td className="border border-black px-2 py-2 text-center">{idx + 1}</td>
-                <td className="border border-black px-2 py-2 font-bold">{app.unitCode}</td>
-                <td className="border border-black px-2 py-2">{app.customerName}</td>
-                <td className="border border-black px-2 py-2 text-center text-xs">{app.contractSignerType || 'Cá nhân'}</td>
-                <td className="border border-black px-2 py-2 text-xs">{app.projectName}</td>
-                <td className="border border-black px-2 py-2 text-center text-xs">Đã có GCN</td>
-                <td className="border border-black px-2 py-2"></td>
-              </tr>
+              <React.Fragment key={app.id}>
+                <tr className="border-b border-black">
+                  <td className="border border-black px-2 py-2 text-center">{idx + 1}</td>
+                  <td className="border border-black px-2 py-2 font-bold">{app.unitCode}</td>
+                  <td className="border border-black px-2 py-2">{app.customerName}</td>
+                  <td className="border border-black px-2 py-2 text-center text-xs">{app.contractSignerType || 'Cá nhân'}</td>
+                  <td className="border border-black px-2 py-2 text-xs">{app.projectName}</td>
+                  <td className="border border-black px-2 py-2 text-center text-xs">Đã có GCN</td>
+                  <td className="border border-black px-2 py-2 whitespace-nowrap">
+                    {app.scannedFiles && app.scannedFiles.length > 0 && (
+                      <div className="flex flex-col gap-0.5 text-[8px] italic">
+                        {app.scannedFiles.map(f => (
+                          <span key={f.id} className="truncate max-w-[100px]">• {f.name}</span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+                {app.scannedFiles && app.scannedFiles.length > 0 && (
+                  <tr className="no-print bg-slate-50 border-x border-black">
+                    <td colSpan={7} className="px-10 py-1 text-[9px] text-blue-600">
+                      <span className="font-bold text-gray-500 mr-2 italic">Liên kết tài liệu Số:</span>
+                      {app.scannedFiles.map((f, fIdx) => (
+                        <a 
+                          key={f.id} 
+                          href={f.url} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="hover:underline mr-4 inline-flex items-center gap-1"
+                        >
+                          [{fIdx + 1}] {f.name}
+                        </a>
+                      ))}
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             ))}
             {apps.length === 0 && Array.from({length: 5}).map((_, i) => (
               <tr key={i}>
@@ -2537,71 +2685,134 @@ export default function App() {
   const [taskReminders, setTaskReminders] = useState<AppNotification[]>([]);
   const [isPrintingHandover, setIsPrintingHandover] = useState(false);
   const [printHandoverApps, setPrintHandoverApps] = useState<Application[]>([]);
-  const [users, setUsers] = useState<UserProfile[]>(() => {
-    const saved = localStorage.getItem('procedural_users');
-    return saved ? JSON.parse(saved) : MOCK_USERS;
-  });
+  const [users, setUsers] = useState<UserProfile[]>([]);
   const [stepConfig, setStepConfig] = useState<Record<string, { label: string, dept: Dept, status: UnitStatus, slaDays?: number }>>(INITIAL_STEP_CONFIG);
-  const [projects, setProjects] = useState<Project[]>(() => {
-    const saved = localStorage.getItem('procedural_projects');
-    return saved ? JSON.parse(saved) : PROJECTS;
-  });
+  const [projects, setProjects] = useState<Project[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [isLoadingApps, setIsLoadingApps] = useState(true);
+  const [isLoadingConfig, setIsLoadingConfig] = useState(true);
+  const [storageStats, setStorageStats] = useState<{ totalSize: number, fileCount: number, folders: string[] }>({ totalSize: 0, fileCount: 0, folders: [] });
+  const [isFetchingStorage, setIsFetchingStorage] = useState(false);
 
-  // Fetch applications from Supabase
+  const fetchStorageUsage = async () => {
+    setIsFetchingStorage(true);
+    try {
+      const { data: rootItems, error: rootError } = await supabase.storage.from('Documents-GCN').list();
+      if (rootError) throw rootError;
+
+      let totalSize = 0;
+      let totalFiles = 0;
+      const folderNames: string[] = [];
+
+      for (const item of rootItems) {
+        if (item.id) { // It's a file in the root
+          if (item.metadata) {
+            totalSize += item.metadata.size;
+            totalFiles += 1;
+          }
+        } else { // It's a folder
+          folderNames.push(item.name);
+          const { data: folderFiles, error: folderError } = await supabase.storage.from('Documents-GCN').list(item.name);
+          if (!folderError && folderFiles) {
+            folderFiles.forEach(f => {
+              if (f.metadata) {
+                totalSize += f.metadata.size;
+                totalFiles += 1;
+              }
+            });
+          }
+        }
+      }
+
+      setStorageStats({
+        totalSize,
+        fileCount: totalFiles,
+        folders: folderNames
+      });
+    } catch (error) {
+      console.error('Error fetching storage stats:', error);
+    } finally {
+      setIsFetchingStorage(false);
+    }
+  };
+
+  // Fetch all data from Supabase
   useEffect(() => {
-    const fetchApps = async () => {
+    const fetchInitialData = async () => {
       setIsLoadingApps(true);
+      setIsLoadingConfig(true);
       try {
-        const { data, error } = await supabase
+        // 1. Fetch Applications
+        const { data: appsData, error: appsError } = await supabase
           .from('records')
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (error) {
-          console.error('Error fetching data from Supabase:', error);
-          // Fallback to mock data if table doesn't exist or error
-          const saved = localStorage.getItem('procedural_apps');
-          setApplications(saved ? JSON.parse(saved) : MOCK_APPLICATIONS);
-        } else if (data && data.length > 0) {
-          // Map stored data back to Application type if necessary (handling JSON fields)
-          const mappedData = data.map(item => ({
+        if (appsData && appsData.length > 0) {
+          setApplications(appsData.map(item => ({
             ...item,
             history: typeof item.history === 'string' ? JSON.parse(item.history) : (item.history || []),
             checklist: typeof item.checklist === 'string' ? JSON.parse(item.checklist) : (item.checklist || {}),
             scannedFiles: typeof item.scannedFiles === 'string' ? JSON.parse(item.scannedFiles) : (item.scannedFiles || []),
             auditTrail: typeof item.auditTrail === 'string' ? JSON.parse(item.auditTrail) : (item.auditTrail || [])
-          }));
-          setApplications(mappedData);
+          })));
         } else {
-          // If table is empty, use mock data
           const saved = localStorage.getItem('procedural_apps');
           setApplications(saved ? JSON.parse(saved) : MOCK_APPLICATIONS);
         }
+
+        // 2. Fetch Users
+        const { data: usersData } = await supabase.from('users').select('*');
+        if (usersData && usersData.length > 0) {
+          setUsers(usersData);
+        } else {
+          const saved = localStorage.getItem('procedural_users');
+          setUsers(saved ? JSON.parse(saved) : MOCK_USERS);
+        }
+
+        // 3. Fetch Projects
+        const { data: projectsData } = await supabase.from('projects').select('*');
+        if (projectsData && projectsData.length > 0) {
+          setProjects(projectsData);
+        } else {
+          const saved = localStorage.getItem('procedural_projects');
+          setProjects(saved ? JSON.parse(saved) : PROJECTS);
+        }
+
+        // 4. Fetch Configs
+        const { data: configData } = await supabase.from('configs').select('*');
+        if (configData && configData.length > 0) {
+          const configMap: any = {};
+          configData.forEach(c => {
+            configMap[c.key] = typeof c.value === 'string' ? JSON.parse(c.value) : c.value;
+          });
+
+          if (configMap.slaConfig) setSlaConfig(configMap.slaConfig);
+          if (configMap.checklistTemplates) setChecklistTemplates(configMap.checklistTemplates);
+          if (configMap.handoverTemplate) setHandoverTemplate(configMap.handoverTemplate);
+          if (configMap.stepConfig) setStepConfig(configMap.stepConfig);
+        }
       } catch (err) {
-        console.error('Unexpected error:', err);
+        console.error('Unexpected error fetching initial data:', err);
       } finally {
         setIsLoadingApps(false);
+        setIsLoadingConfig(false);
       }
     };
 
-    fetchApps();
+    fetchInitialData();
   }, []);
 
-  // Sync to localStorage as fallback/cache (optional)
   useEffect(() => {
-    if (applications.length > 0) {
-      localStorage.setItem('procedural_apps', JSON.stringify(applications));
-    }
+    if (applications.length > 0) localStorage.setItem('procedural_apps', JSON.stringify(applications));
   }, [applications]);
 
   useEffect(() => {
-    localStorage.setItem('procedural_users', JSON.stringify(users));
+    if (users.length > 0) localStorage.setItem('procedural_users', JSON.stringify(users));
   }, [users]);
 
   useEffect(() => {
-    localStorage.setItem('procedural_projects', JSON.stringify(projects));
+    if (projects.length > 0) localStorage.setItem('procedural_projects', JSON.stringify(projects));
   }, [projects]);
 
   useEffect(() => {
@@ -2662,6 +2873,12 @@ export default function App() {
   }, [applications, currentUser, stepConfig]);
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'applications' | 'users' | 'resources' | 'reports' | 'settings'>('dashboard');
+
+  useEffect(() => {
+    if (activeTab === 'settings') {
+      fetchStorageUsage();
+    }
+  }, [activeTab]);
   const userRole = useMemo(() => currentUser?.dept || 'PTT', [currentUser]);
   const [isEditing, setIsEditing] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -2715,27 +2932,25 @@ export default function App() {
   };
   
   // System Configuration States
-  const [slaConfig, setSlaConfig] = useState<Record<string, number>>({
-    'Kiểm tra hồ sơ': 2,
-    'Trình ký Văn bản': 3,
-    'Nộp hồ sơ VPĐK': 1,
-    'Chờ TB Thuế': 15,
-    'Nộp tiền thuế': 3,
-    'Chỉnh lý & In GCN': 5,
-    'Hoàn tất bàn giao': 1
-  });
+  const [slaConfig, setSlaConfig] = useState<Record<string, number>>({});
+  const [checklistTemplates, setChecklistTemplates] = useState<string[]>([]);
 
-  const [checklistTemplates, setChecklistTemplates] = useState<string[]>([
-    'Đơn đăng ký biến động đất đai',
-    'Hợp đồng chuyển nhượng',
-    'Sổ đỏ gốc',
-    'Căn cước công dân (sao y)',
-    'Giấy xác nhận tình trạng hôn nhân/ĐKKH',
-    'Tờ khai lệ phí trước bạ',
-    'Tờ khai thuế thu nhập cá nhân'
-  ]);
-
-  const [selectedRegion, setSelectedRegion] = useState<string>('ALL');
+  const handleSaveConfig = async (key: string, value: any) => {
+    setIsSavingApp(true);
+    try {
+      const { error } = await supabase
+        .from('configs')
+        .upsert({ key, value: JSON.stringify(value), updated_at: new Date().toISOString() });
+      
+      if (error) throw error;
+      showToast(`Đã lưu cấu hình ${key} lên Supabase thành công!`, 'success');
+    } catch (error) {
+      console.error(`Supabase config save error (${key}):`, error);
+      showToast(`Lỗi khi lưu cấu hình ${key} lên Supabase.`, 'error');
+    } finally {
+      setIsSavingApp(false);
+    }
+  };
 
   const regions = useMemo(() => {
     return ["VPĐK Phường", "VPĐK TP Đà Nẵng", "VPĐK Quận Liên Chiểu"];
@@ -3435,23 +3650,43 @@ export default function App() {
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
-      const base64 = evt.target?.result as string;
-      const newFile: ScannedFile = {
-        id: `file-${Date.now()}`,
-        name: file.name,
-        type: file.type,
-        url: base64, // In a real app, this would be a URL from a storage service
-        uploadDate: new Date().toISOString().split('T')[0]
-      };
-
-      const updatedApp = {
-        ...app,
-        scannedFiles: [...(app.scannedFiles || []), newFile]
-      };
-
       setIsSavingApp(true);
       try {
-        const { error } = await supabase
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${app.id}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `${app.unitCode}/${fileName}`;
+
+        // 1. Upload file to Supabase Storage
+        const { error: uploadError } = await supabase.storage
+          .from('Documents-GCN')
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (uploadError) throw uploadError;
+
+        // 2. Get Public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('Documents-GCN')
+          .getPublicUrl(filePath);
+
+        const newFile: ScannedFile = {
+          id: `file-${Date.now()}`,
+          name: file.name,
+          type: file.type,
+          url: publicUrl,
+          path: filePath,
+          uploadDate: new Date().toISOString().split('T')[0]
+        };
+
+        const updatedApp = {
+          ...app,
+          scannedFiles: [...(app.scannedFiles || []), newFile]
+        };
+
+        // 3. Update record in Database
+        const { error: dbError } = await supabase
           .from('records')
           .upsert({
             ...updatedApp,
@@ -3462,22 +3697,22 @@ export default function App() {
             updated_at: new Date().toISOString()
           });
 
-        if (error) throw error;
+        if (dbError) throw dbError;
 
         const updatedApps = applications.map(a => a.id === app.id ? updatedApp : a);
         setApplications(updatedApps);
         if (editApp && editApp.id === app.id) setEditApp(updatedApp);
         if (selectedApp && selectedApp.id === app.id) setSelectedApp(updatedApp);
         
-        showToast(`Đã tải tài liệu "${file.name}" lên Supabase thành công.`, 'success');
+        showToast(`Đã tải tài liệu "${file.name}" lên Supabase Storage thành công.`, 'success');
       } catch (error) {
         console.error('Supabase file upload error:', error);
-        showToast('Lỗi khi lưu tài liệu lên Supabase.', 'error');
+        showToast('Lỗi khi tải tài liệu lên Supabase. Vui lòng kiểm tra quyền và bucket "Documents-GCN".', 'error');
       } finally {
         setIsSavingApp(false);
       }
     };
-    reader.readAsDataURL(file);
+    reader.readAsArrayBuffer(file); // Changed from readAsDataURL since we are uploading the file object directly
     e.target.value = '';
   };
 
@@ -3485,6 +3720,7 @@ export default function App() {
     const app = editApp || selectedApp;
     if (!app || !window.confirm('Bạn có chắc chắn muốn xóa tài liệu này?')) return;
 
+    const fileToDelete = (app.scannedFiles || []).find(f => f.id === fileId);
     const updatedApp = {
       ...app,
       scannedFiles: (app.scannedFiles || []).filter(f => f.id !== fileId)
@@ -3492,6 +3728,19 @@ export default function App() {
 
     setIsSavingApp(true);
     try {
+      // 1. Delete from Supabase Storage if path exists
+      if (fileToDelete?.path) {
+        const { error: storageError } = await supabase.storage
+          .from('Documents-GCN')
+          .remove([fileToDelete.path]);
+        
+        if (storageError) {
+          console.warn('Storage delete warning:', storageError);
+          // We continue anyway to update the record even if storage delete failed
+        }
+      }
+
+      // 2. Update DB record
       const { error } = await supabase
         .from('records')
         .upsert({
@@ -3509,10 +3758,10 @@ export default function App() {
       setApplications(updatedApps);
       if (editApp && editApp.id === app.id) setEditApp(updatedApp);
       if (selectedApp && selectedApp.id === app.id) setSelectedApp(updatedApp);
-      showToast('Đã xóa tài liệu khỏi Supabase thành công.', 'success');
+      showToast('Đã xóa tài liệu khỏi hệ thống thành công.', 'success');
     } catch (error) {
       console.error('Supabase file delete error:', error);
-      showToast('Lỗi khi xóa tài liệu trên Supabase.', 'error');
+      showToast('Lỗi khi xóa tài liệu.', 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -3909,7 +4158,7 @@ export default function App() {
     }
   };
 
-  const handleCreateUser = () => {
+  const handleCreateUser = async () => {
     if (!newUser.username || !newUser.name) {
       alert('Vui lòng điền đầy đủ thông tin');
       return;
@@ -3918,16 +4167,74 @@ export default function App() {
       id: `user-${Date.now()}`,
       ...newUser,
     };
-    setUsers(prev => [...prev, userToAdd]);
-    setIsUserModalOpen(false);
-    setNewUser({ username: '', password: '', name: '', dept: 'PTT', email: '', status: 'Active', permission: 'VIEW', assignedProjectIds: [] });
+    
+    setIsSavingApp(true);
+    try {
+      const { error } = await supabase.from('users').insert([userToAdd]);
+      if (error) throw error;
+      
+      setUsers(prev => [...prev, userToAdd]);
+      setIsUserModalOpen(false);
+      setNewUser({ username: '', password: '', name: '', dept: 'PTT', email: '', status: 'Active', permission: 'VIEW', assignedProjectIds: [] });
+      showToast('Đã thêm người dùng mới lên Supabase!', 'success');
+    } catch (error) {
+      console.error('Supabase create user error:', error);
+      showToast('Lỗi khi tạo người dùng lên Supabase.', 'error');
+    } finally {
+      setIsSavingApp(false);
+    }
   };
 
-  const handleUpdateUser = () => {
+  const handleUpdateUser = async () => {
     if (!editUser) return;
-    setUsers(prev => prev.map(u => u.id === editUser.id ? editUser : u));
-    setEditUser(null);
-    setIsUserModalOpen(false);
+    setIsSavingApp(true);
+    try {
+      const { error } = await supabase.from('users').update(editUser).eq('id', editUser.id);
+      if (error) throw error;
+      
+      setUsers(prev => prev.map(u => u.id === editUser.id ? editUser : u));
+      setEditUser(null);
+      setIsUserModalOpen(false);
+      showToast('Đã cập nhật người dùng trên Supabase!', 'success');
+    } catch (error) {
+      console.error('Supabase update user error:', error);
+      showToast('Lỗi khi cập nhật người dùng.', 'error');
+    } finally {
+      setIsSavingApp(false);
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    if (!confirm('Bạn có chắc muốn xóa người dùng này?')) return;
+    setIsSavingApp(true);
+    try {
+      const { error } = await supabase.from('users').delete().eq('id', id);
+      if (error) throw error;
+      setUsers(prev => prev.filter(u => u.id !== id));
+      showToast('Đã xóa người dùng khỏi Supabase!', 'success');
+    } catch (error) {
+      console.error('Supabase delete user error:', error);
+      showToast('Lỗi khi xóa người dùng.', 'error');
+    } finally {
+      setIsSavingApp(false);
+    }
+  };
+
+  const handleResetUserPassword = async (u: UserProfile) => {
+    if (!confirm(`Bạn có chắc muốn reset mật khẩu cho tài khoản @${u.username}? Mật khẩu mặc định sẽ là '123456'.`)) return;
+    setIsSavingApp(true);
+    try {
+      const updatedUser = { ...u, password: '123456' };
+      const { error } = await supabase.from('users').update({ password: '123456' }).eq('id', u.id);
+      if (error) throw error;
+      setUsers(prev => prev.map(usr => usr.id === u.id ? updatedUser : usr));
+      showToast(`Đã reset mật khẩu cho @${u.username} thành 123456`, 'success');
+    } catch (error) {
+      console.error('Supabase reset password error:', error);
+      showToast('Lỗi khi reset mật khẩu.', 'error');
+    } finally {
+      setIsSavingApp(false);
+    }
   };
 
   const filteredByProjectApps = useMemo(() => {
@@ -5690,6 +5997,7 @@ export default function App() {
                             <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nhận sổ</th>
                           )}
                           <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">BG Khách</th>
+                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center text-indigo-400">Tài liệu</th>
                           <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Hành động</th>
                         </tr>
                       </thead>
@@ -5845,6 +6153,18 @@ export default function App() {
                               <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
                                 <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.customerHandoverDate)}</span>
                               </td>
+                              <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
+                                {app.scannedFiles && app.scannedFiles.length > 0 ? (
+                                  <div className="flex flex-col items-center gap-1 group/doc">
+                                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover/doc:bg-indigo-500 group-hover/doc:text-white transition-all">
+                                      <FileText size={14} />
+                                    </div>
+                                    <span className="text-[9px] font-black">{app.scannedFiles.length} file</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] text-slate-700 font-black opacity-20 italic">Trống</span>
+                                )}
+                              </td>
                               <td className="px-6 py-5 text-center">
                                 <div className="flex items-center justify-center gap-1">
                                   <button 
@@ -5892,14 +6212,9 @@ export default function App() {
                 <UserManagementView 
                   users={users} 
                   onEdit={(u) => { setEditUser(u); setIsUserModalOpen(true); }} 
-                  onDelete={(id) => setUsers(prev => prev.filter(u => u.id !== id))} 
+                  onDelete={handleDeleteUser} 
                   onCreate={() => { setEditUser(null); setIsUserModalOpen(true); }} 
-                  onResetPassword={(u) => {
-                    if (confirm(`Bạn có chắc muốn reset mật khẩu cho tài khoản @${u.username}? Mật khẩu mặc định sẽ là '123456'.`)) {
-                      setUsers(prev => prev.map(usr => usr.id === u.id ? { ...usr, password: '123456' } : usr));
-                      alert(`Đã reset mật khẩu cho @${u.username} thành 123456`);
-                    }
-                  }}
+                  onResetPassword={handleResetUserPassword}
                   theme={theme}
                 />
               </motion.div>
@@ -5923,9 +6238,17 @@ export default function App() {
                     setEditingProject(p);
                     setIsProjectModalOpen(true);
                   }}
-                  onDelete={(id) => {
+                  onDelete={async (id) => {
                     if (confirm("Bạn có chắc muốn xóa dự án này? Tất cả hồ sơ liên quan sẽ bị ảnh hưởng.")) {
-                      setProjects(prev => prev.filter(p => p.id !== id));
+                      try {
+                        const { error } = await supabase.from('projects').delete().eq('id', id);
+                        if (error) throw error;
+                        setProjects(prev => prev.filter(p => p.id !== id));
+                        showToast('Đã xóa dự án khỏi Supabase!', 'success');
+                      } catch (error) {
+                        console.error('Supabase delete project error:', error);
+                        showToast('Lỗi khi xóa dự án.', 'error');
+                      }
                     }
                   }}
                   theme={theme}
@@ -5972,6 +6295,11 @@ export default function App() {
                   handoverTemplate={handoverTemplate}
                   setHandoverTemplate={setHandoverTemplate}
                   theme={theme}
+                  onSaveConfig={handleSaveConfig}
+                  isLoading={isLoadingConfig}
+                  storageStats={storageStats}
+                  isFetchingStorage={isFetchingStorage}
+                  onRefreshStorage={fetchStorageUsage}
                 />
               </motion.div>
             )}
@@ -7492,23 +7820,37 @@ export default function App() {
           onClose={() => setIsProjectModalOpen(false)}
           project={editingProject}
           theme={theme}
-          onSave={(p) => {
-            if (editingProject) {
-              setProjects(prev => prev.map(proj => proj.id === editingProject.id ? { ...proj, ...p } as Project : proj));
-            } else {
-              const newP: Project = { 
-                id: `PJ-${Math.random().toString(36).substr(2, 5).toUpperCase()}`, 
-                name: p.name || '', 
-                region: p.region || 'TP. Đà Nẵng',
-                totalUnits: p.totalUnits || 0
-              };
-              setProjects(prev => [...prev, newP]);
-              // Add to sidebar regions if needed
-              if (newP.region) {
-                setExpandedSidebarRegions(prev => ({ ...prev, [newP.region as string]: true }));
+          onSave={async (p) => {
+            setIsSavingApp(true);
+            try {
+              if (editingProject) {
+                const updated = { ...editingProject, ...p };
+                const { error } = await supabase.from('projects').update(updated).eq('id', editingProject.id);
+                if (error) throw error;
+                setProjects(prev => prev.map(proj => proj.id === editingProject.id ? updated as Project : proj));
+                showToast('Đã cập nhật dự án trên Supabase!', 'success');
+              } else {
+                const newP: Project = { 
+                  id: `PJ-${Math.random().toString(36).substr(2, 5).toUpperCase()}`, 
+                  name: p.name || '', 
+                  region: p.region || 'TP. Đà Nẵng',
+                  totalUnits: p.totalUnits || 0
+                };
+                const { error } = await supabase.from('projects').insert([newP]);
+                if (error) throw error;
+                setProjects(prev => [...prev, newP]);
+                if (newP.region) {
+                  setExpandedSidebarRegions(prev => ({ ...prev, [newP.region as string]: true }));
+                }
+                showToast('Đã thêm dự án mới lên Supabase!', 'success');
               }
+            } catch (error) {
+              console.error('Supabase save project error:', error);
+              showToast('Lỗi khi lưu dự án lên Supabase.', 'error');
+            } finally {
+              setIsSavingApp(false);
+              setIsProjectModalOpen(false);
             }
-            setIsProjectModalOpen(false);
           }}
         />
       )}
