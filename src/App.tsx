@@ -2771,10 +2771,12 @@ export default function App() {
                 : (item.audit_trail || item.auditTrail || [])
             })));
           } else {
-            const saved = localStorage.getItem('procedural_apps');
-            setApplications(saved ? JSON.parse(saved) : MOCK_APPLICATIONS);
+            // If Supabase is empty, respect the empty state instead of forcing mocks
+            // unless this is the absolute first run (you could check for a local flag if you want)
+            setApplications([]);
           }
         } else if (appsError) {
+          // Only fallback to mocks if there is an actual error (e.g. table doesn't exist yet)
           const saved = localStorage.getItem('procedural_apps');
           setApplications(saved ? JSON.parse(saved) : MOCK_APPLICATIONS);
         }
@@ -2784,8 +2786,8 @@ export default function App() {
           if (usersData.length > 0) {
             setUsers(usersData);
           } else {
-            const saved = localStorage.getItem('procedural_users');
-            setUsers(saved ? JSON.parse(saved) : MOCK_USERS);
+            // If no users at all, provide mocks so someone can login
+            setUsers(MOCK_USERS);
           }
         } else if (usersError) {
           const saved = localStorage.getItem('procedural_users');
@@ -2797,8 +2799,7 @@ export default function App() {
           if (projectsData.length > 0) {
             setProjects(projectsData);
           } else {
-            const saved = localStorage.getItem('procedural_projects');
-            setProjects(saved ? JSON.parse(saved) : PROJECTS);
+            setProjects([]);
           }
         } else if (projectsError) {
           const saved = localStorage.getItem('procedural_projects');
@@ -3373,15 +3374,18 @@ export default function App() {
         auditTrail: [auditEntry, ...(editApp.auditTrail || [])]
       };
 
+      // Clean up object for Supabase
+      const { scannedFiles, auditTrail, ...cleanApp } = updatedApp;
+
       // Save to Supabase
       const { error } = await supabase
         .from('records')
         .upsert({
-          ...updatedApp,
+          ...cleanApp,
           history: JSON.stringify(updatedApp.history),
           checklist: JSON.stringify(updatedApp.checklist),
-          scanned_files: JSON.stringify(updatedApp.scannedFiles),
-          auditTrail: JSON.stringify(updatedApp.auditTrail),
+          scanned_files: JSON.stringify(updatedApp.scannedFiles || []),
+          audit_trail: JSON.stringify(updatedApp.auditTrail || []),
           updated_at: new Date().toISOString()
         });
 
@@ -3392,9 +3396,9 @@ export default function App() {
       setEditApp(null);
       setIsEditing(false);
       showToast('Đã cập nhật thông tin hồ sơ lên Supabase thành công!', 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Supabase update error:', error);
-      showToast('Lỗi khi lưu dữ liệu lên Supabase. Vui lòng kiểm tra cấu hình.', 'error');
+      showToast(`Lỗi khi lưu dữ liệu lên Supabase: ${error.message || 'Vui lòng kiểm tra cấu hình.'}`, 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -3491,8 +3495,8 @@ export default function App() {
           ...updatedApp,
           history: JSON.stringify(updatedApp.history),
           checklist: JSON.stringify(updatedApp.checklist || {}),
-          scannedFiles: JSON.stringify(updatedApp.scannedFiles || []),
-          auditTrail: JSON.stringify(updatedApp.auditTrail || []),
+          scanned_files: JSON.stringify(updatedApp.scannedFiles || []),
+          audit_trail: JSON.stringify(updatedApp.auditTrail || []),
           updated_at: new Date().toISOString()
         });
 
@@ -3580,8 +3584,8 @@ export default function App() {
           ...app,
           history: JSON.stringify(app.history),
           checklist: JSON.stringify(app.checklist || {}),
-          scannedFiles: JSON.stringify(app.scannedFiles || []),
-          auditTrail: JSON.stringify(app.auditTrail || []),
+          scanned_files: JSON.stringify(app.scannedFiles || []),
+          audit_trail: JSON.stringify(app.auditTrail || []),
           updated_at: new Date().toISOString()
         })));
 
@@ -3647,8 +3651,8 @@ export default function App() {
           ...app,
           history: JSON.stringify(app.history),
           checklist: JSON.stringify(app.checklist || {}),
-          scannedFiles: JSON.stringify(app.scannedFiles || []),
-          auditTrail: JSON.stringify(app.auditTrail || []),
+          scanned_files: JSON.stringify(app.scannedFiles || []),
+          audit_trail: JSON.stringify(app.auditTrail || []),
           updated_at: new Date().toISOString()
         })));
 
@@ -3771,8 +3775,8 @@ export default function App() {
           ...updatedApp,
           history: JSON.stringify(updatedApp.history),
           checklist: JSON.stringify(updatedApp.checklist || {}),
-          scannedFiles: JSON.stringify(updatedApp.scannedFiles || []),
-          auditTrail: JSON.stringify(updatedApp.auditTrail || []),
+          scanned_files: JSON.stringify(updatedApp.scannedFiles || []),
+          audit_trail: JSON.stringify(updatedApp.auditTrail || []),
           updated_at: new Date().toISOString()
         });
 
@@ -3856,8 +3860,8 @@ export default function App() {
           ...updatedApp,
           history: JSON.stringify(updatedApp.history),
           checklist: JSON.stringify(updatedApp.checklist || {}),
-          scannedFiles: JSON.stringify(updatedApp.scannedFiles || []),
-          auditTrail: JSON.stringify(updatedApp.auditTrail || []),
+          scanned_files: JSON.stringify(updatedApp.scannedFiles || []),
+          audit_trail: JSON.stringify(updatedApp.auditTrail || []),
           updated_at: new Date().toISOString()
         });
 
@@ -3907,8 +3911,8 @@ export default function App() {
           ...updatedApp,
           history: JSON.stringify(updatedApp.history),
           checklist: JSON.stringify(updatedApp.checklist || {}),
-          scannedFiles: JSON.stringify(updatedApp.scannedFiles || []),
-          auditTrail: JSON.stringify(updatedApp.auditTrail || []),
+          scanned_files: JSON.stringify(updatedApp.scannedFiles || []),
+          audit_trail: JSON.stringify(updatedApp.auditTrail || []),
           updated_at: new Date().toISOString()
         });
 
@@ -3977,8 +3981,8 @@ export default function App() {
           ...updatedApp,
           history: JSON.stringify(updatedApp.history),
           checklist: JSON.stringify(updatedApp.checklist || {}),
-          scannedFiles: JSON.stringify(updatedApp.scannedFiles || []),
-          auditTrail: JSON.stringify(updatedApp.auditTrail || []),
+          scanned_files: JSON.stringify(updatedApp.scannedFiles || []),
+          audit_trail: JSON.stringify(updatedApp.auditTrail || []),
           updated_at: new Date().toISOString()
         });
 
@@ -4156,12 +4160,15 @@ export default function App() {
           }
         ]
       };
+      
+      // Clean up object for Supabase
+      const { scannedFiles, auditTrail, ...cleanApp } = appToAdd;
 
       // Save to Supabase
       const { error } = await supabase
         .from('records')
         .insert({
-          ...appToAdd,
+          ...cleanApp,
           history: JSON.stringify(appToAdd.history),
           checklist: JSON.stringify(appToAdd.checklist || {}),
           scanned_files: JSON.stringify(appToAdd.scannedFiles || []),
@@ -4188,9 +4195,9 @@ export default function App() {
       setFormErrors({});
       showToast(`Hồ sơ ${appToAdd.unitCode} đã được khởi tạo và lưu lên Supabase!`, 'success');
       setActiveTab('applications');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Supabase insert error:', error);
-      showToast('Lỗi khi lưu hồ sơ mới lên Supabase.', 'error');
+      showToast(`Lỗi khi lưu hồ sơ mới lên Supabase: ${error.message || ''}`, 'error');
     } finally {
       setIsSavingApp(false);
     }
