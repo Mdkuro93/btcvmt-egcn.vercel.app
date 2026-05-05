@@ -1,24 +1,24 @@
 import { Application, Project, Dept, UnitStatus, UserProfile } from './types';
 
 export const PROJECTS: Project[] = [
-  { id: 'p12', name: 'Dự án trung tâm thành phố Đồng Hới', region: 'Quảng Trị', totalUnits: 150 },
-  { id: 'p1', name: 'Dự án Hòa Xuân', region: 'Đà Nẵng', totalUnits: 120 },
-  { id: 'p2', name: 'Dự án Hòa Quý - Đồng Nò', region: 'Đà Nẵng', totalUnits: 450 },
-  { id: 'p3', name: 'Dự án Hòa Quý Mở rộng', region: 'Đà Nẵng', totalUnits: 300 },
-  { id: 'p4', name: 'Dự án Panoma', region: 'Đà Nẵng', totalUnits: 250 },
-  { id: 'p9', name: 'Dự án Sunneva Island', region: 'Đà Nẵng', totalUnits: 387 },
-  { id: 'p10', name: 'Dự án Nam Hòa Xuân', region: 'Đà Nẵng', totalUnits: 1000 },
-  { id: 'p13', name: 'Dự án Đảo Ngọc', region: 'Quảng Ngãi', totalUnits: 400 },
-  { id: 'p14', name: 'Nam Nha Trang', region: 'Khánh Hòa', totalUnits: 300 },
+  { id: 'p12', projectName: 'Dự án trung tâm thành phố Đồng Hới', region: 'Quảng Trị', totalUnits: 150 },
+  { id: 'p1', projectName: 'Dự án Hòa Xuân', region: 'Đà Nẵng', totalUnits: 120 },
+  { id: 'p2', projectName: 'Dự án Hòa Quý - Đồng Nò', region: 'Đà Nẵng', totalUnits: 450 },
+  { id: 'p3', projectName: 'Dự án Hòa Quý Mở rộng', region: 'Đà Nẵng', totalUnits: 300 },
+  { id: 'p4', projectName: 'Dự án Panoma', region: 'Đà Nẵng', totalUnits: 250 },
+  { id: 'p9', projectName: 'Dự án Sunneva Island', region: 'Đà Nẵng', totalUnits: 387 },
+  { id: 'p10', projectName: 'Dự án Nam Hòa Xuân', region: 'Đà Nẵng', totalUnits: 1000 },
+  { id: 'p13', projectName: 'Dự án Đảo Ngọc', region: 'Quảng Ngãi', totalUnits: 400 },
+  { id: 'p14', projectName: 'Nam Nha Trang', region: 'Khánh Hòa', totalUnits: 300 },
 ];
 
 export const MOCK_USERS: UserProfile[] = [
-  { id: 'u1', username: 'admin', name: 'Hệ thống Admin', dept: 'ADMIN', permission: 'FULL', email: 'admin@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p9', 'p10', 'p12', 'p13', 'p14'] },
-  { id: 'u2', username: 'ptt_user', name: 'Nguyễn Thu Thủ Tục', dept: 'PTT', permission: 'EDIT', email: 'thutuc@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p12', 'p13'] },
-  { id: 'u3', username: 'kt_user', name: 'Trần Kế Toán', dept: 'KT', permission: 'EDIT', email: 'ketoan@sunshine.vn', status: 'Active', assignedProjectIds: ['p3', 'p4', 'p14'] },
-  { id: 'u4', username: 'ptda_user', name: 'Lê Phát Triển', dept: 'PTDA', permission: 'EDIT', email: 'ptda@sunshine.vn', status: 'Active', assignedProjectIds: ['p9', 'p10'] },
-  { id: 'u5', username: 'manager', name: 'Phạm Trưởng Phòng', dept: 'MANAGER', permission: 'VIEW', email: 'manager@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p12'] },
-  { id: 'u6', username: 'director', name: 'Lãnh đạo Sunshine', dept: 'DIRECTOR', permission: 'VIEW', email: 'director@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p9', 'p10', 'p12', 'p13', 'p14'] },
+  { id: 'u1', username: 'admin', fullName: 'Hệ thống Admin', dept: 'ADMIN', role: 'admin', email: 'admin@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p9', 'p10', 'p12', 'p13', 'p14'] },
+  { id: 'u2', username: 'ptt_user', fullName: 'Nguyễn Thu Thủ Tục', dept: 'PTT', role: 'staff', email: 'thutuc@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p12', 'p13'] },
+  { id: 'u3', username: 'kt_user', fullName: 'Trần Kế Toán', dept: 'KT', role: 'staff', email: 'ketoan@sunshine.vn', status: 'Active', assignedProjectIds: ['p3', 'p4', 'p14'] },
+  { id: 'u4', username: 'ptda_user', fullName: 'Lê Phát Triển', dept: 'PTDA', role: 'staff', email: 'ptda@sunshine.vn', status: 'Active', assignedProjectIds: ['p9', 'p10'] },
+  { id: 'u5', username: 'manager', fullName: 'Phạm Trưởng Phòng', dept: 'MANAGER', role: 'staff', email: 'manager@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p12'] },
+  { id: 'u6', username: 'director', fullName: 'Lãnh đạo Sunshine', dept: 'DIRECTOR', role: 'staff', email: 'director@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p9', 'p10', 'p12', 'p13', 'p14'] },
 ];
 
 export const MOCK_APPLICATIONS: Application[] = [

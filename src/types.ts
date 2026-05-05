@@ -1,6 +1,6 @@
 export type Project = {
   id: string;
-  name: string;
+  projectName: string;
   region: string;
   totalUnits: number;
 };
@@ -20,15 +20,15 @@ export type StepName =
 
 export type Dept = 'PTT' | 'KT' | 'PTDA' | 'MANAGER' | 'DIRECTOR' | 'ADMIN';
 
-export type UserPermission = 'VIEW' | 'EDIT' | 'FULL';
+export type UserRole = 'admin' | 'staff';
 
 export type UserProfile = {
   id: string;
   username: string;
   password?: string;
-  name: string;
+  fullName: string;
   dept: Dept;
-  permission: UserPermission;
+  role: UserRole;
   assignedProjectIds?: string[];
   email?: string;
   phoneNumber?: string;
