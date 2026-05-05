@@ -75,7 +75,7 @@ import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { MOCK_APPLICATIONS, PROJECTS, STEP_CONFIG as INITIAL_STEP_CONFIG, MOCK_USERS } from './constants';
-import { Application, UnitStatus, KPI, Dept, UserProfile, UserRole, PropertyType, StepName, AppNotification, Project, ApplicationStepHistory, AuditTrailEntry, ScannedFile } from './types';
+import { Application, UnitStatus, KPI, Dept, UserProfile, UserPermission, PropertyType, StepName, AppNotification, Project, ApplicationStepHistory, AuditTrailEntry, ScannedFile } from './types';
 
 type ApplicationHistory = {
   id: string;
@@ -212,15 +212,13 @@ const mapUserFromSnakeCase = (item: any): UserProfile => {
     id: item.id,
     username: item.username,
     password: item.password,
-    fullName: item.full_name,
+    name: item.name,
     dept: item.dept,
-    role: item.role,
+    permission: item.permission,
     assignedProjectIds: item.assigned_project_ids || [],
     email: item.email,
     phoneNumber: item.phone_number,
-    status: item.status,
-    updatedAt: item.updated_at,
-    updatedBy: item.updated_by
+    status: item.status
   };
 };
 
@@ -229,22 +227,20 @@ const mapUserToSnakeCase = (user: UserProfile) => {
     id: user.id,
     username: user.username,
     password: user.password,
-    full_name: user.fullName,
+    name: user.name,
     dept: user.dept,
-    role: user.role,
+    permission: user.permission,
     assigned_project_ids: user.assignedProjectIds,
     email: user.email,
     phone_number: user.phoneNumber,
-    status: user.status,
-    updated_at: user.updatedAt,
-    updated_by: user.updatedBy
+    status: user.status
   };
 };
 
 const mapProjectFromSnakeCase = (item: any): Project => {
   return {
     id: item.id,
-    projectName: item.project_name,
+    name: item.name,
     region: item.region,
     totalUnits: item.total_units || 0
   };
@@ -253,7 +249,7 @@ const mapProjectFromSnakeCase = (item: any): Project => {
 const mapProjectToSnakeCase = (project: Project) => {
   return {
     id: project.id,
-    project_name: project.projectName,
+    name: project.name,
     region: project.region,
     total_units: project.totalUnits
   };
@@ -1120,9 +1116,9 @@ const ReportsView = ({
   const stats = useMemo(() => {
     if (reportType === 'PROJECT') {
       return projects.map(p => {
-        const apps = applications.filter(a => a.projectName === p.projectName);
+        const apps = applications.filter(a => a.projectName === p.name);
         return {
-          name: p.projectName,
+          name: p.name,
           total: apps.length,
           completed: apps.filter(a => a.currentStep === 'Hoan_Tat').length,
           processing: apps.filter(a => a.currentStep !== 'Hoan_Tat').length,
@@ -1227,7 +1223,7 @@ const ReportsView = ({
   const loanApps = useMemo(() => {
     return applications.filter(a => 
       a.loanStatus === 'Co_Vay' && 
-      selectedLoanProjectIds.includes(projects.find(p => p.projectName === a.projectName)?.id || '')
+      selectedLoanProjectIds.includes(projects.find(p => p.name === a.projectName)?.id || '')
     );
   }, [applications, selectedLoanProjectIds, projects]);
 
@@ -1385,7 +1381,7 @@ const ReportsView = ({
                           )}
                         >
                           <div className={cn("w-1.5 h-1.5 rounded-full", isSelected ? "bg-white" : "bg-slate-600")} />
-                          {p.projectName}
+                          {p.name}
                         </button>
                       );
                     })}
@@ -1672,7 +1668,7 @@ const ReportsView = ({
                         <div className="absolute top-0 right-0 p-3">
                            <Zap size={14} className="text-amber-500 opacity-20 group-hover:opacity-100 transition-all" />
                         </div>
-                        <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">{user.fullName}</p>
+                        <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">{user.name}</p>
                         <p className={cn("text-xl font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>{user.total} HS</p>
                         <div className="w-full h-1 bg-slate-800 rounded-full mt-3 overflow-hidden">
                            <div className="h-full bg-indigo-500" style={{ width: `${user.efficiency}%` }} />
@@ -2215,7 +2211,7 @@ const ProjectManagementView = ({ projects, onCreate, onEdit, onDelete, theme }: 
 
   const groupedProjects = useMemo(() => {
     return projects
-      .filter(p => String(p.projectName || '').toLowerCase().includes(pSearch.toLowerCase()) || String(p.region || '').toLowerCase().includes(pSearch.toLowerCase()))
+      .filter(p => String(p.name || '').toLowerCase().includes(pSearch.toLowerCase()) || String(p.region || '').toLowerCase().includes(pSearch.toLowerCase()))
       .reduce((acc, p) => {
         const region = p.region || 'Các Dự án khác';
         if (!acc[region]) acc[region] = [];
@@ -2352,7 +2348,7 @@ const ProjectManagementView = ({ projects, onCreate, onEdit, onDelete, theme }: 
                           </div>
                         </div>
                         
-                        <h3 className={cn("text-xl font-bold mb-2", theme === 'light' ? "text-slate-900" : "text-white")}>{project.projectName}</h3>
+                        <h3 className={cn("text-xl font-bold mb-2", theme === 'light' ? "text-slate-900" : "text-white")}>{project.name}</h3>
                         <div className="flex items-center gap-6 pt-6 border-t border-slate-800/30">
                            <div>
                              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Mã dự án</p>
@@ -2398,7 +2394,7 @@ const ProjectModal = ({
   useEffect(() => {
     if (project) {
       // Deep check or just name check to avoid loop if parent re-renders and passes "new" project
-      if (formData.projectName !== project.projectName || formData.region !== project.region || formData.totalUnits !== project.totalUnits) {
+      if (formData.name !== project.name || formData.region !== project.region || formData.totalUnits !== project.totalUnits) {
         setFormData(project);
       }
     } else if (isOpen) {
@@ -2629,10 +2625,10 @@ const UserManagementView = ({ users, onEdit, onDelete, onCreate, onResetPassword
                 <td className="px-8 py-5 text-left">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 border border-slate-600 flex items-center justify-center text-sm font-black text-white italic shadow-inner">
-                      {user.fullName.split(' ').pop()?.charAt(0)}
+                      {user.name.split(' ').pop()?.charAt(0)}
                     </div>
                     <div>
-                      <p className={cn("text-sm font-bold", theme === 'light' ? "text-slate-800" : "text-slate-100")}>{user.fullName}</p>
+                      <p className={cn("text-sm font-bold", theme === 'light' ? "text-slate-800" : "text-slate-100")}>{user.name}</p>
                       <p className="text-[10px] text-slate-500 font-mono italic">@{user.username}</p>
                     </div>
                   </div>
@@ -2653,10 +2649,11 @@ const UserManagementView = ({ users, onEdit, onDelete, onCreate, onResetPassword
                 <td className="px-8 py-5 text-center">
                   <span className={cn(
                     "px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border",
-                    user.role === 'admin' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
+                    user.permission === 'FULL' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
+                    user.permission === 'EDIT' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
                     'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                   )}>
-                    {user.role === 'admin' ? 'Quản trị' : 'Nhân viên'}
+                    {user.permission === 'FULL' ? 'Toàn quyền' : user.permission === 'EDIT' ? 'Được sửa' : 'Chỉ xem'}
                   </span>
                 </td>
                 <td className="px-8 py-5 text-center">
@@ -2742,7 +2739,7 @@ const HandoverRecord = ({ apps, user, template }: { apps: Application[], user: U
       </div>
 
       <div className="mb-6 space-y-2">
-        <p><strong>Người giao:</strong> {user?.fullName || '................................'}</p>
+        <p><strong>Người giao:</strong> {user?.name || '................................'}</p>
         <p><strong>Bộ phận:</strong> {user?.dept || '................................'}</p>
         <p><strong>Địa chỉ:</strong> {template.address}</p>
       </div>
@@ -2818,7 +2815,7 @@ const HandoverRecord = ({ apps, user, template }: { apps: Application[], user: U
       <div className="grid grid-cols-2 mt-16 text-center">
         <div>
           <p className="font-bold uppercase mb-20 text-sm">Người giao</p>
-          <p className="font-bold italic">{user?.fullName}</p>
+          <p className="font-bold italic">{user?.name}</p>
         </div>
         <div>
           <p className="font-bold uppercase mb-20 text-sm">Người nhận</p>
@@ -2971,25 +2968,11 @@ export default function App() {
 
         // Process Users
         if (usersData && usersData.length > 0) {
-          const fetchedUsers = usersData.map(mapUserFromSnakeCase);
-          // Safety: Ensure admin exists
-          const adminExists = fetchedUsers.some(u => u.username === 'admin');
-          if (!adminExists) {
-            const defaultAdmin = MOCK_USERS.find(u => u.username === 'admin');
-            if (defaultAdmin) {
-              const adminToUpsert = { ...defaultAdmin, updatedAt: new Date().toISOString(), updatedBy: 'system' };
-              await supabase.from('users').upsert(mapUserToSnakeCase(adminToUpsert));
-              setUsers([...fetchedUsers, adminToUpsert]);
-            } else {
-              setUsers(fetchedUsers);
-            }
-          } else {
-            setUsers(fetchedUsers);
-          }
+          setUsers(usersData.map(mapUserFromSnakeCase));
         } else {
           setUsers(MOCK_USERS);
           if (usersData && usersData.length === 0) {
-            await supabase.from('users').upsert(MOCK_USERS.map(u => mapUserToSnakeCase({ ...u, updatedAt: new Date().toISOString(), updatedBy: 'system' })));
+            await supabase.from('users').upsert(MOCK_USERS.map(mapUserToSnakeCase));
           }
         }
       } catch (err) {
@@ -3091,11 +3074,11 @@ export default function App() {
   const [newUser, setNewUser] = useState({
     username: '',
     password: '',
-    fullName: '',
+    name: '',
     dept: 'PTT' as Dept,
     email: '',
     status: 'Active' as 'Active' | 'Inactive',
-    role: 'staff' as UserRole,
+    permission: 'VIEW' as UserPermission,
     assignedProjectIds: [] as string[]
   });
   const [editApp, setEditApp] = useState<Application | null>(null);
@@ -3110,7 +3093,7 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'F2') {
-        if (selectedApp && !isEditing && currentUser?.role !== 'staff') {
+        if (selectedApp && !isEditing && currentUser?.permission !== 'VIEW') {
           e.preventDefault();
           setIsEditing(true);
           setEditApp(selectedApp);
@@ -3553,7 +3536,7 @@ export default function App() {
       const auditEntry: AuditTrailEntry = {
         id: `audit-${Date.now()}`,
         userId: currentUser?.id || 'admin',
-        userName: currentUser?.fullName || 'Admin',
+        userName: currentUser?.name || 'Admin',
         timestamp: new Date().toLocaleString('vi-VN'),
         action: 'Cập nhật thông tin hồ sơ',
         changes: 'Chỉnh sửa bởi Admin/Quản lý'
@@ -3635,7 +3618,7 @@ export default function App() {
         dept: stepConfig[targetStep].dept,
         receivedDate: nowStr,
         performedBy: currentUser?.id,
-        performedByName: currentUser?.fullName
+        performedByName: currentUser?.name
       },
       ...prevHistory
     ];
@@ -3711,7 +3694,7 @@ export default function App() {
             receivedDate: nowStr,
             note: 'Chuyển hàng loạt',
             performedBy: currentUser?.id,
-            performedByName: currentUser?.fullName
+            performedByName: currentUser?.name
           },
           ...prevHistory
         ];
@@ -3970,7 +3953,7 @@ export default function App() {
         receivedDate: new Date().toISOString().split('T')[0],
         note,
         performedBy: currentUser?.id,
-        performedByName: currentUser?.fullName
+        performedByName: currentUser?.name
       },
       ...app.history
     ];
@@ -4010,7 +3993,7 @@ export default function App() {
         receivedDate: new Date().toISOString().split('T')[0],
         note: 'Đã xử lý xong các sai sót/vướng mắc.',
         performedBy: currentUser?.id,
-        performedByName: currentUser?.fullName
+        performedByName: currentUser?.name
       },
       ...app.history
     ];
@@ -4055,7 +4038,7 @@ export default function App() {
         receivedDate: new Date().toISOString().split('T')[0],
         note: `Hồ sơ sai sót/cần bổ sung: ${reason}`,
         performedBy: currentUser?.id,
-        performedByName: currentUser?.fullName
+        performedByName: currentUser?.name
       },
       ...app.history
     ];
@@ -4270,7 +4253,7 @@ export default function App() {
         unitCode: '', 
         customerName: '', 
         contractSignerType: '',
-        projectName: visibleProjects[0]?.projectName || '',
+        projectName: visibleProjects[0]?.name || '',
         propertyType: 'Dat_Nen',
         loanStatus: 'Khong_Vay',
         submissionLocation: 'PHUONG',
@@ -4290,15 +4273,13 @@ export default function App() {
   };
 
   const handleCreateUser = async () => {
-    if (!newUser.username || !newUser.fullName) {
+    if (!newUser.username || !newUser.name) {
       alert('Vui lòng điền đầy đủ thông tin');
       return;
     }
     const userToAdd: UserProfile = {
       id: `user-${Date.now()}`,
       ...newUser,
-      updatedAt: new Date().toISOString(),
-      updatedBy: currentUser?.fullName || 'system'
     };
     
     setIsSavingApp(true);
@@ -4308,7 +4289,7 @@ export default function App() {
       
       setUsers(prev => [...prev, userToAdd]);
       setIsUserModalOpen(false);
-      setNewUser({ username: '', password: '', fullName: '', dept: 'PTT', email: '', status: 'Active', role: 'staff', assignedProjectIds: [] });
+      setNewUser({ username: '', password: '', name: '', dept: 'PTT', email: '', status: 'Active', permission: 'VIEW', assignedProjectIds: [] });
       showToast('Đã thêm người dùng mới và đồng bộ Supabase thành công!', 'success');
     } catch (error) {
       console.error('Supabase create user error:', error);
@@ -4320,18 +4301,12 @@ export default function App() {
 
   const handleUpdateUser = async () => {
     if (!editUser) return;
-    const updatedUser = {
-      ...editUser,
-      updatedAt: new Date().toISOString(),
-      updatedBy: currentUser?.fullName || 'system'
-    };
-
     setIsSavingApp(true);
     try {
-      const { error } = await supabase.from('users').upsert(mapUserToSnakeCase(updatedUser));
+      const { error } = await supabase.from('users').upsert(mapUserToSnakeCase(editUser));
       if (error) throw error;
       
-      setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+      setUsers(prev => prev.map(u => u.id === editUser.id ? editUser : u));
       setEditUser(null);
       setIsUserModalOpen(false);
       showToast('Đã cập nhật thông tin người dùng lên Supabase thành công!', 'success');
@@ -4363,13 +4338,8 @@ export default function App() {
     if (!confirm(`Bạn có chắc muốn reset mật khẩu cho tài khoản @${u.username}? Mật khẩu mặc định sẽ là '123456'.`)) return;
     setIsSavingApp(true);
     try {
-      const updatedUser = { 
-        ...u, 
-        password: '123456',
-        updatedAt: new Date().toISOString(),
-        updatedBy: currentUser?.fullName || 'system'
-      };
-      const { error } = await supabase.from('users').upsert(mapUserToSnakeCase(updatedUser));
+      const updatedUser = { ...u, password: '123456' };
+      const { error } = await supabase.from('users').update({ password: '123456' }).eq('id', u.id);
       if (error) throw error;
       setUsers(prev => prev.map(usr => usr.id === u.id ? updatedUser : usr));
       showToast(`Đã reset mật khẩu cho @${u.username} thành 123456`, 'success');
@@ -4385,12 +4355,12 @@ export default function App() {
     const baseApps = ((userRole === 'ADMIN' || userRole === 'DIRECTOR') 
       ? applications 
       : applications.filter(app => {
-      const project = projects.find(p => p.projectName === app.projectName);
+          const project = projects.find(p => p.name === app.projectName);
           return project && (currentUser?.assignedProjectIds || []).includes(project.id);
         }));
 
     if (!selectedProjectId) return baseApps;
-    return baseApps.filter(app => app.projectName === selectedProject?.projectName);
+    return baseApps.filter(app => app.projectName === selectedProject?.name);
   }, [selectedProjectId, selectedProject, applications, currentUser, userRole, projects]);
 
   const kpis: KPI = useMemo(() => {
@@ -5076,7 +5046,7 @@ export default function App() {
                               ? (theme === 'light' ? "bg-white" : "bg-festive-gold") 
                               : (theme === 'light' ? "bg-slate-300" : "bg-slate-700")
                           )} />
-                          <span className="truncate max-w-[140px] uppercase tracking-tight">{p.projectName}</span>
+                          <span className="truncate max-w-[140px] uppercase tracking-tight">{p.name}</span>
                         </button>
                       ))}
                     </motion.div>
@@ -5219,11 +5189,11 @@ export default function App() {
             {/* User Profile */}
             <div className="flex items-center gap-4 pl-6 border-l border-slate-800/20">
               <div className="text-right hidden sm:block overflow-hidden max-w-[150px]">
-                <p className={cn("text-xs font-black uppercase tracking-widest truncate", theme === 'light' ? "text-slate-900" : "text-white")}>{currentUser?.fullName}</p>
+                <p className={cn("text-xs font-black uppercase tracking-widest truncate", theme === 'light' ? "text-slate-900" : "text-white")}>{currentUser?.name}</p>
                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter truncate">Dept: {currentUser?.dept}</p>
               </div>
               <div className="w-10 h-10 rounded-xl bg-festive-gold/10 border border-festive-gold/20 flex items-center justify-center text-festive-gold font-black text-xs shadow-lg shadow-festive-gold/5">
-                {currentUser?.fullName?.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                {currentUser?.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
               </div>
               <button 
                 onClick={() => setCurrentUser(null)}
@@ -6639,7 +6609,7 @@ export default function App() {
                 </div>
                 <div className="flex items-center gap-3">
                   {!isEditing ? (
-                    (currentUser?.role === 'admin' || currentUser?.role === 'staff') && (
+                    currentUser?.permission !== 'VIEW' && (
                       <button 
                         onClick={() => {
                           setIsEditing(true);
@@ -7831,19 +7801,20 @@ export default function App() {
 
               <div className="space-y-4">
                 <div className="space-y-1.5">
-                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1">Quyền hạn truy cập</label>
-                    <div className="grid grid-cols-2 gap-2">
+                   <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1">Quyền hạn truy cập</label>
+                    <div className="grid grid-cols-3 gap-2">
                       {[
-                        { val: 'staff', label: 'Nhân viên (Staff)', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-                        { val: 'admin', label: 'Quản trị (Admin)', color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' }
+                        { val: 'VIEW', label: 'Chỉ xem', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+                        { val: 'EDIT', label: 'Được sửa', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+                        { val: 'FULL', label: 'Toàn quyền', color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' }
                       ].map(p => (
                         <button 
                           key={p.val}
                           type="button"
-                          onClick={() => editUser ? setEditUser({...editUser, role: p.val as any}) : setNewUser({...newUser, role: p.val as any})}
+                          onClick={() => editUser ? setEditUser({...editUser, permission: p.val as UserPermission}) : setNewUser({...newUser, permission: p.val as UserPermission})}
                           className={cn(
                             "py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all",
-                            (editUser ? editUser.role : newUser.role) === p.val 
+                            (editUser ? editUser.permission : newUser.permission) === p.val 
                               ? p.color + " ring-2 ring-offset-2 ring-offset-slate-900 ring-indigo-500/50" 
                               : "bg-slate-950 border-slate-800 text-slate-500"
                           )}
@@ -7860,8 +7831,8 @@ export default function App() {
                     <input 
                       type="text" 
                       className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
-                      value={editUser ? editUser.fullName : newUser.fullName}
-                      onChange={(e) => editUser ? setEditUser({...editUser, fullName: e.target.value}) : setNewUser({...newUser, fullName: e.target.value})}
+                      value={editUser ? editUser.name : newUser.name}
+                      onChange={(e) => editUser ? setEditUser({...editUser, name: e.target.value}) : setNewUser({...newUser, name: e.target.value})}
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -7957,7 +7928,7 @@ export default function App() {
                               }
                             }}
                           />
-                          <span className="text-xs text-slate-300 truncate">{project.projectName}</span>
+                          <span className="text-xs text-slate-300 truncate">{project.name}</span>
                         </label>
                       );
                     })}
@@ -8000,7 +7971,7 @@ export default function App() {
               } else {
                 const newP: Project = { 
                   id: `PJ-${Math.random().toString(36).substr(2, 5).toUpperCase()}`, 
-                  projectName: p.projectName || '', 
+                  name: p.name || '', 
                   region: p.region || 'TP. Đà Nẵng',
                   totalUnits: p.totalUnits || 0
                 };
