@@ -2742,46 +2742,76 @@ export default function App() {
       setIsLoadingApps(true);
       setIsLoadingConfig(true);
       try {
-        // 1. Fetch Applications
-        const { data: appsData, error: appsError } = await supabase
-          .from('records')
-          .select('*')
-          .order('created_at', { ascending: false });
+        // 1. Fetch data in parallel
+        const [
+          { data: appsData, error: appsError },
+          { data: usersData, error: usersError },
+          { data: projectsData, error: projectsError },
+          { data: configData, error: configError }
+        ] = await Promise.all([
+          supabase.from('records').select('*').order('created_at', { ascending: false }),
+          supabase.from('users').select('*'),
+          supabase.from('projects').select('*'),
+          supabase.from('system_configs').select('*')
+        ]);
 
-        if (appsData && appsData.length > 0) {
-          setApplications(appsData.map(item => ({
-            ...item,
-            history: typeof item.history === 'string' ? JSON.parse(item.history) : (item.history || []),
-            checklist: typeof item.checklist === 'string' ? JSON.parse(item.checklist) : (item.checklist || {}),
-            scannedFiles: typeof item.scannedFiles === 'string' ? JSON.parse(item.scannedFiles) : (item.scannedFiles || []),
-            auditTrail: typeof item.auditTrail === 'string' ? JSON.parse(item.auditTrail) : (item.auditTrail || [])
-          })));
-        } else {
-          const saved = localStorage.getItem('procedural_apps');
-          setApplications(saved ? JSON.parse(saved) : MOCK_APPLICATIONS);
+        // Heuristic to check if this is a "Fresh Install"
+        // If everything is completely empty and no errors, we might want to load mocks
+        const isFreshInstall = !appsError && !usersError && !projectsError && 
+                               (!appsData || appsData.length === 0) && 
+                               (!usersData || usersData.length === 0) && 
+                               (!projectsData || projectsData.length === 0) &&
+                               (!configData || configData.length === 0);
+
+        // Process Applications
+        if (!appsError && appsData) {
+          if (appsData.length > 0) {
+            setApplications(appsData.map(item => ({
+              ...item,
+              history: typeof item.history === 'string' ? JSON.parse(item.history) : (item.history || []),
+              checklist: typeof item.checklist === 'string' ? JSON.parse(item.checklist) : (item.checklist || {}),
+              scannedFiles: typeof (item.scanned_files || item.scannedFiles) === 'string' 
+                ? JSON.parse(item.scanned_files || item.scannedFiles) 
+                : (item.scanned_files || item.scannedFiles || []),
+              auditTrail: typeof (item.audit_trail || item.auditTrail) === 'string' 
+                ? JSON.parse(item.audit_trail || item.auditTrail) 
+                : (item.audit_trail || item.auditTrail || [])
+            })));
+          } else if (isFreshInstall) {
+            const saved = localStorage.getItem('procedural_apps');
+            setApplications(saved ? JSON.parse(saved) : MOCK_APPLICATIONS);
+          } else {
+            // It's empty because user deleted or it's just not populated
+            setApplications([]);
+          }
         }
 
-        // 2. Fetch Users
-        const { data: usersData } = await supabase.from('users').select('*');
-        if (usersData && usersData.length > 0) {
-          setUsers(usersData);
-        } else {
-          const saved = localStorage.getItem('procedural_users');
-          setUsers(saved ? JSON.parse(saved) : MOCK_USERS);
+        // Process Users
+        if (!usersError && usersData) {
+          if (usersData.length > 0) {
+            setUsers(usersData);
+          } else if (isFreshInstall) {
+            const saved = localStorage.getItem('procedural_users');
+            setUsers(saved ? JSON.parse(saved) : MOCK_USERS);
+          } else {
+            setUsers([]);
+          }
         }
 
-        // 3. Fetch Projects
-        const { data: projectsData } = await supabase.from('projects').select('*');
-        if (projectsData && projectsData.length > 0) {
-          setProjects(projectsData);
-        } else {
-          const saved = localStorage.getItem('procedural_projects');
-          setProjects(saved ? JSON.parse(saved) : PROJECTS);
+        // Process Projects
+        if (!projectsError && projectsData) {
+          if (projectsData.length > 0) {
+            setProjects(projectsData);
+          } else if (isFreshInstall) {
+            const saved = localStorage.getItem('procedural_projects');
+            setProjects(saved ? JSON.parse(saved) : PROJECTS);
+          } else {
+            setProjects([]);
+          }
         }
 
-        // 4. Fetch Configs
-        const { data: configData } = await supabase.from('configs').select('*');
-        if (configData && configData.length > 0) {
+        // Process Configs
+        if (!configError && configData && configData.length > 0) {
           const configMap: any = {};
           configData.forEach(c => {
             configMap[c.key] = typeof c.value === 'string' ? JSON.parse(c.value) : c.value;
@@ -2939,8 +2969,8 @@ export default function App() {
     setIsSavingApp(true);
     try {
       const { error } = await supabase
-        .from('configs')
-        .upsert({ key, value: JSON.stringify(value), updated_at: new Date().toISOString() });
+        .from('system_configs')
+        .upsert({ key, value: JSON.stringify(value), updated_at: new Date().toISOString() }, { onConflict: 'key' });
       
       if (error) throw error;
       showToast(`Đã lưu cấu hình ${key} lên Supabase thành công!`, 'success');
@@ -3353,10 +3383,9 @@ export default function App() {
         .from('records')
         .upsert({
           ...updatedApp,
-          // Stringify JSON fields for storage if Supabase table columns are text/json
           history: JSON.stringify(updatedApp.history),
           checklist: JSON.stringify(updatedApp.checklist),
-          scannedFiles: JSON.stringify(updatedApp.scannedFiles),
+          scanned_files: JSON.stringify(updatedApp.scannedFiles),
           auditTrail: JSON.stringify(updatedApp.auditTrail),
           updated_at: new Date().toISOString()
         });
@@ -3692,8 +3721,8 @@ export default function App() {
             ...updatedApp,
             history: JSON.stringify(updatedApp.history),
             checklist: JSON.stringify(updatedApp.checklist || {}),
-            scannedFiles: JSON.stringify(updatedApp.scannedFiles || []),
-            auditTrail: JSON.stringify(updatedApp.auditTrail || []),
+            scanned_files: JSON.stringify(updatedApp.scannedFiles || []),
+            audit_trail: JSON.stringify(updatedApp.auditTrail || []),
             updated_at: new Date().toISOString()
           });
 
@@ -4126,8 +4155,8 @@ export default function App() {
           ...appToAdd,
           history: JSON.stringify(appToAdd.history),
           checklist: JSON.stringify(appToAdd.checklist || {}),
-          scannedFiles: JSON.stringify(appToAdd.scannedFiles || []),
-          auditTrail: JSON.stringify(appToAdd.auditTrail || []),
+          scanned_files: JSON.stringify(appToAdd.scannedFiles || []),
+          audit_trail: JSON.stringify(appToAdd.auditTrail || []),
           created_at: new Date().toISOString()
         });
 
