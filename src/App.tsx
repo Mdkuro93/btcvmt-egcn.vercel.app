@@ -108,6 +108,57 @@ const SUPABASE_KEY = 'sb_publishable_gKFEW2pn_2PAif9UkvMqGA_58E2Gj6z';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 
+const mapFromSnakeCase = (item: any): Application => {
+  return {
+    id: item.id,
+    unitCode: item.unit_code,
+    projectName: item.project_name,
+    customerName: item.customer_name,
+    contractSignerType: item.contract_signer_type,
+    phoneNumber: item.phone_number,
+    propertyType: item.property_type,
+    loanStatus: item.loan_status,
+    bankCommitmentDeadline: item.bank_commitment_deadline,
+    reportUpdateDate: item.report_update_date,
+    contractSigningDate: item.contract_signing_date,
+    assignorGcnNumber: item.assignor_gcn_number,
+    assignorGcnDate: item.assignor_gcn_date,
+    isSelfService: item.is_self_service,
+    submissionLocation: item.submission_location,
+    vpdkCode: item.vpdk_code,
+    currentStep: item.current_step,
+    status: item.status,
+    receivedDate: item.received_date,
+    taxNotificationDate: item.tax_notification_date,
+    taxNotificationReceivedDate: item.tax_notification_received_date,
+    taxReceiptDate: item.tax_receipt_date,
+    accountingHandoverDate: item.accounting_handover_date,
+    submissionDate: item.submission_date,
+    gcnReceivedDate: item.gcn_received_date,
+    ptdaHandoverDate: item.ptda_handover_date,
+    customerHandoverDate: item.customer_handover_date,
+    taxNoticeProvisionDate: item.tax_notice_provision_date,
+    gcnSignedDate: item.gcn_signed_date,
+    issueType: item.issue_type,
+    issueSeverity: item.issue_severity,
+    issueNotes: item.issue_notes,
+    estimatedCompletionDate: item.estimated_completion_date,
+    rejectionCount: item.rejection_count,
+    isRejected: item.is_rejected,
+    rejectionReason: item.rejection_reason,
+    commitmentDate: item.commitment_date,
+    taxPaymentStatus: item.tax_payment_status,
+    history: typeof item.history === 'string' ? JSON.parse(item.history) : (item.history || []),
+    checklist: typeof item.checklist === 'string' ? JSON.parse(item.checklist) : (item.checklist || {}),
+    scannedFiles: typeof (item.scanned_files || item.scannedFiles) === 'string' 
+      ? JSON.parse(item.scanned_files || item.scannedFiles) 
+      : (item.scanned_files || item.scannedFiles || []),
+    auditTrail: typeof (item.audit_trail || item.auditTrail) === 'string' 
+      ? JSON.parse(item.audit_trail || item.auditTrail) 
+      : (item.audit_trail || item.auditTrail || [])
+  };
+};
+
 const mapToSnakeCase = (app: Application) => {
   return {
     id: app.id,
@@ -156,6 +207,21 @@ const mapToSnakeCase = (app: Application) => {
   };
 };
 
+const mapUserFromSnakeCase = (item: any): UserProfile => {
+  return {
+    id: item.id,
+    username: item.username,
+    password: item.password,
+    name: item.name,
+    dept: item.dept,
+    permission: item.permission,
+    assignedProjectIds: item.assigned_project_ids || [],
+    email: item.email,
+    phoneNumber: item.phone_number,
+    status: item.status
+  };
+};
+
 const mapUserToSnakeCase = (user: UserProfile) => {
   return {
     id: user.id,
@@ -168,6 +234,15 @@ const mapUserToSnakeCase = (user: UserProfile) => {
     email: user.email,
     phone_number: user.phoneNumber,
     status: user.status
+  };
+};
+
+const mapProjectFromSnakeCase = (item: any): Project => {
+  return {
+    id: item.id,
+    name: item.name,
+    region: item.region,
+    totalUnits: item.total_units || 0
   };
 };
 
@@ -2826,21 +2901,27 @@ export default function App() {
       setIsLoadingConfig(true);
       try {
         // 1. Fetch data in parallel
-        const [
-          { data: appsData, error: appsError },
-          { data: usersData, error: usersError },
-          { data: projectsData, error: projectsError },
-          { data: configData, error: configError }
-        ] = await Promise.all([
+        const responses = await Promise.all([
           supabase.from('records').select('*').order('created_at', { ascending: false }),
           supabase.from('users').select('*'),
-          supabase.from('projects').select('*'),
           supabase.from('system_configs').select('*')
         ]);
 
-        // Process Configs first to check for "First Run" flag
+        const appsRes = responses[0];
+        const usersRes = responses[1];
+        const configRes = responses[2];
+
+        if (appsRes.error) console.error('Error fetching records:', appsRes.error);
+        if (usersRes.error) console.error('Error fetching users:', usersRes.error);
+        if (configRes.error) console.error('Error fetching config:', configRes.error);
+
+        const appsData = appsRes.data;
+        const usersData = usersRes.data;
+        const configData = configRes.data;
+
+        // Process Configs first
         let isFirstRun = false;
-        if (!configError && configData) {
+        if (configData) {
           const configMap: any = {};
           configData.forEach(c => {
             configMap[c.key] = typeof c.value === 'string' ? JSON.parse(c.value) : c.value;
@@ -2850,10 +2931,11 @@ export default function App() {
             isFirstRun = true;
             // Bootstrap initial configs to Supabase
             const initialConfigs = [
-              { key: 'slaConfig', value: INITIAL_STEP_CONFIG.reduce((acc: any, s: any) => ({ ...acc, [s.label]: 10 }), {}) },
+              { key: 'slaConfig', value: Object.values(INITIAL_STEP_CONFIG).reduce((acc: any, s: any) => ({ ...acc, [s.label]: 10 }), {}) },
               { key: 'checklistTemplates', value: DOC_CHECKLIST_ITEMS },
               { key: 'stepConfig', value: INITIAL_STEP_CONFIG },
-              { key: 'handoverTemplate', value: {} }
+              { key: 'handoverTemplate', value: {} },
+              { key: 'projects', value: PROJECTS }
             ];
             
             for (const conf of initialConfigs) {
@@ -2861,69 +2943,50 @@ export default function App() {
                 key: conf.key, 
                 value: conf.value, 
                 updated_at: new Date().toISOString() 
-              });
+              }, { onConflict: 'key' });
             }
             
             setSlaConfig(initialConfigs[0].value);
             setChecklistTemplates(initialConfigs[1].value);
             setStepConfig(initialConfigs[2].value);
+            setProjects(PROJECTS);
 
             // Populate mocks to Supabase on first run
-            await supabase.from('users').upsert(MOCK_USERS.map(mapUserToSnakeCase));
-            await supabase.from('projects').upsert(PROJECTS.map(mapProjectToSnakeCase));
-            await supabase.from('records').upsert(MOCK_APPLICATIONS.map(mapToSnakeCase));
+            if (usersData && usersData.length === 0) {
+              await supabase.from('users').upsert(MOCK_USERS.map(mapUserToSnakeCase));
+            }
+            if (appsData && appsData.length === 0) {
+              await supabase.from('records').upsert(MOCK_APPLICATIONS.map(mapToSnakeCase));
+            }
           } else {
             if (configMap.slaConfig) setSlaConfig(configMap.slaConfig);
             if (configMap.checklistTemplates) setChecklistTemplates(configMap.checklistTemplates);
             if (configMap.handoverTemplate) setHandoverTemplate(configMap.handoverTemplate);
             if (configMap.stepConfig) setStepConfig(configMap.stepConfig);
+            if (configMap.projects) setProjects(configMap.projects);
           }
         }
 
         // Process Applications
-        if (!appsError && appsData) {
+        if (appsData) {
           if (appsData.length > 0) {
-            setApplications(appsData.map(item => ({
-              ...item,
-              history: typeof item.history === 'string' ? JSON.parse(item.history) : (item.history || []),
-              checklist: typeof item.checklist === 'string' ? JSON.parse(item.checklist) : (item.checklist || {}),
-              scannedFiles: typeof (item.scanned_files || item.scannedFiles) === 'string' 
-                ? JSON.parse(item.scanned_files || item.scannedFiles) 
-                : (item.scanned_files || item.scannedFiles || []),
-              auditTrail: typeof (item.audit_trail || item.auditTrail) === 'string' 
-                ? JSON.parse(item.audit_trail || item.auditTrail) 
-                : (item.audit_trail || item.auditTrail || [])
-            })));
+            setApplications(appsData.map(mapFromSnakeCase));
           } else if (isFirstRun) {
             setApplications(MOCK_APPLICATIONS);
-          } else {
-            setApplications([]);
           }
         }
 
         // Process Users
-        if (!usersError && usersData) {
+        if (usersData) {
           if (usersData.length > 0) {
-            setUsers(usersData);
+            setUsers(usersData.map(mapUserFromSnakeCase));
           } else if (isFirstRun) {
             setUsers(MOCK_USERS);
-          } else {
-            setUsers([]);
-          }
-        }
-
-        // Process Projects
-        if (!projectsError && projectsData) {
-          if (projectsData.length > 0) {
-            setProjects(projectsData);
-          } else if (isFirstRun) {
-            setProjects(PROJECTS);
-          } else {
-            setProjects([]);
           }
         }
       } catch (err) {
         console.error('Unexpected error fetching initial data:', err);
+        showToast('Không thể kết nối đến Supabase. Vui lòng kiểm tra lại cấu hình.', 'error');
       } finally {
         setIsLoadingApps(false);
         setIsLoadingConfig(false);
@@ -6322,12 +6385,11 @@ export default function App() {
                   onDelete={async (id) => {
                     if (confirm("Bạn có chắc muốn xóa dự án này? Tất cả hồ sơ liên quan sẽ bị ảnh hưởng.")) {
                       try {
-                        const { error } = await supabase.from('projects').delete().eq('id', id);
-                        if (error) throw error;
-                        setProjects(prev => prev.filter(p => p.id !== id));
-                        showToast('Đã xóa dự án khỏi Supabase!', 'success');
+                        const updatedProjects = projects.filter(p => p.id !== id);
+                        await handleSaveConfig('projects', updatedProjects);
+                        setProjects(updatedProjects);
                       } catch (error) {
-                        console.error('Supabase delete project error:', error);
+                        console.error('Delete project error:', error);
                         showToast('Lỗi khi xóa dự án.', 'error');
                       }
                     }
@@ -7908,12 +7970,10 @@ export default function App() {
           onSave={async (p) => {
             setIsSavingApp(true);
             try {
+              let updatedProjects: Project[];
               if (editingProject) {
                 const updated = { ...editingProject, ...p };
-                const { error } = await supabase.from('projects').upsert(mapProjectToSnakeCase(updated as Project));
-                if (error) throw error;
-                setProjects(prev => prev.map(proj => proj.id === editingProject.id ? updated as Project : proj));
-                showToast('Đã cập nhật dự án và đồng bộ Supabase thành công!', 'success');
+                updatedProjects = projects.map(proj => proj.id === editingProject.id ? updated as Project : proj);
               } else {
                 const newP: Project = { 
                   id: `PJ-${Math.random().toString(36).substr(2, 5).toUpperCase()}`, 
@@ -7921,16 +7981,17 @@ export default function App() {
                   region: p.region || 'TP. Đà Nẵng',
                   totalUnits: p.totalUnits || 0
                 };
-                const { error } = await supabase.from('projects').upsert(mapProjectToSnakeCase(newP));
-                if (error) throw error;
-                setProjects(prev => [...prev, newP]);
+                updatedProjects = [...projects, newP];
                 if (newP.region) {
                   setExpandedSidebarRegions(prev => ({ ...prev, [newP.region as string]: true }));
                 }
-                showToast('Đã thêm dự án mới và đồng bộ Supabase thành công!', 'success');
               }
+              
+              await handleSaveConfig('projects', updatedProjects);
+              setProjects(updatedProjects);
+              showToast('Đã lưu danh mục dự án lên Supabase thành công!', 'success');
             } catch (error) {
-              console.error('Supabase save project error:', error);
+              console.error('Save project error:', error);
               showToast('Lỗi khi lưu dự án lên Supabase.', 'error');
             } finally {
               setIsSavingApp(false);
