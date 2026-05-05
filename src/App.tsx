@@ -187,7 +187,8 @@ const LoginScreen = ({ onLogin, users, theme, onThemeToggle }: { onLogin: (user:
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const user = users.find(u => u.username === username || u.email === username);
-    if (user && (user.password ? password === user.password : password === '123456')) {
+    const validPassword = user?.password || '123456';
+    if (user && password === validPassword) {
       onLogin(user);
     } else if (!user) {
       alert('Tài khoản không tồn tại!');
@@ -2755,14 +2756,6 @@ export default function App() {
           supabase.from('system_configs').select('*')
         ]);
 
-        // Heuristic to check if this is a "Fresh Install"
-        // If everything is completely empty and no errors, we might want to load mocks
-        const isFreshInstall = !appsError && !usersError && !projectsError && 
-                               (!appsData || appsData.length === 0) && 
-                               (!usersData || usersData.length === 0) && 
-                               (!projectsData || projectsData.length === 0) &&
-                               (!configData || configData.length === 0);
-
         // Process Applications
         if (!appsError && appsData) {
           if (appsData.length > 0) {
@@ -2777,37 +2770,39 @@ export default function App() {
                 ? JSON.parse(item.audit_trail || item.auditTrail) 
                 : (item.audit_trail || item.auditTrail || [])
             })));
-          } else if (isFreshInstall) {
+          } else {
             const saved = localStorage.getItem('procedural_apps');
             setApplications(saved ? JSON.parse(saved) : MOCK_APPLICATIONS);
-          } else {
-            // It's empty because user deleted or it's just not populated
-            setApplications([]);
           }
+        } else if (appsError) {
+          const saved = localStorage.getItem('procedural_apps');
+          setApplications(saved ? JSON.parse(saved) : MOCK_APPLICATIONS);
         }
 
         // Process Users
         if (!usersError && usersData) {
           if (usersData.length > 0) {
             setUsers(usersData);
-          } else if (isFreshInstall) {
+          } else {
             const saved = localStorage.getItem('procedural_users');
             setUsers(saved ? JSON.parse(saved) : MOCK_USERS);
-          } else {
-            setUsers([]);
           }
+        } else if (usersError) {
+          const saved = localStorage.getItem('procedural_users');
+          setUsers(saved ? JSON.parse(saved) : MOCK_USERS);
         }
 
         // Process Projects
         if (!projectsError && projectsData) {
           if (projectsData.length > 0) {
             setProjects(projectsData);
-          } else if (isFreshInstall) {
+          } else {
             const saved = localStorage.getItem('procedural_projects');
             setProjects(saved ? JSON.parse(saved) : PROJECTS);
-          } else {
-            setProjects([]);
           }
+        } else if (projectsError) {
+          const saved = localStorage.getItem('procedural_projects');
+          setProjects(saved ? JSON.parse(saved) : PROJECTS);
         }
 
         // Process Configs
@@ -3827,6 +3822,13 @@ export default function App() {
     const app = editApp || selectedApp;
     if (!app) return;
 
+    // Restriction: Only authorized depts can report errors/supplement requests
+    const allowedDepts: Dept[] = ['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'];
+    if (!allowedDepts.includes(userRole)) {
+      showToast('Bạn không có quyền thực hiện chức năng Báo lỗi / Yêu cầu bổ sung.', 'error');
+      return;
+    }
+
     const newHistory = [
       {
         id: `hist-${Date.now()}`,
@@ -3926,6 +3928,13 @@ export default function App() {
   const handleRejectApp = async (reason: string) => {
     const app = editApp || selectedApp;
     if (!app) return;
+
+    // Restriction: Only authorized depts can reject apps
+    const allowedDepts: Dept[] = ['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'];
+    if (!allowedDepts.includes(userRole)) {
+      showToast('Bạn không có quyền Trả về / Yêu cầu bổ sung hồ sơ.', 'error');
+      return;
+    }
 
     const newHistory = [
       {
@@ -4636,6 +4645,23 @@ export default function App() {
 
     return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService && matchesDashboardFilter && matchesSLA;
   });
+
+  if (isLoadingApps || isLoadingConfig) {
+    return (
+      <div className={cn(
+        "min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-500",
+        theme === 'dark' ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-900"
+      )}>
+        <div className="relative">
+          <div className="w-20 h-20 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <RefreshCcw className="text-indigo-500 animate-pulse" size={30} />
+          </div>
+        </div>
+        <p className="mt-6 text-sm font-black uppercase tracking-widest animate-pulse opacity-50">Đang khởi tạo hệ thống dữ liệu...</p>
+      </div>
+    );
+  }
 
   if (!currentUser) {
     return <LoginScreen users={users} theme={theme} onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} onLogin={(user) => {
@@ -7177,17 +7203,19 @@ export default function App() {
               <div className="p-6 border-t border-slate-700 space-y-4 bg-slate-900/50">
                 {!isEditing && (editApp || selectedApp).status !== 'Completed' && (
                   <div className="flex flex-col gap-3">
-                    {/* Báo lỗi / Sai sót (Available for everyone) */}
-                    <button 
-                      onClick={() => {
-                        const note = prompt("Vui lòng mô tả sai sót/vướng mắc:");
-                        if (note) handleReportError(note);
-                      }}
-                      className="w-full py-2.5 border border-rose-500/30 text-rose-400 rounded-xl text-xs font-bold hover:bg-rose-500/10 transition-all flex items-center justify-center gap-2"
-                    >
-                      <AlertTriangle size={14} />
-                      Báo sai sót / Vướng mắc
-                    </button>
+                    {/* Báo lỗi / Sai sót (Available for authorized reviewers only) */}
+                    {['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'].includes(userRole) && (
+                      <button 
+                        onClick={() => {
+                          const note = prompt("Vui lòng mô tả sai sót/vướng mắc:");
+                          if (note) handleReportError(note);
+                        }}
+                        className="w-full py-2.5 border border-rose-500/30 text-rose-400 rounded-xl text-xs font-bold hover:bg-rose-500/10 transition-all flex items-center justify-center gap-2"
+                      >
+                        <AlertTriangle size={14} />
+                        Báo sai sót / Vướng mắc
+                      </button>
+                    )}
 
                     {/* Transition Logic */}
                     {(() => {
@@ -7241,15 +7269,17 @@ export default function App() {
                             >
                               Tiếp nhận hồ sơ đầu vào (KT) <CheckCircle2 size={16} />
                             </button>
-                            <button 
-                              onClick={() => {
-                                const reason = prompt("Lý do trả hồ sơ / Yêu cầu bổ sung:");
-                                if (reason) handleRejectApp(reason);
-                              }}
-                              className="w-full py-2.5 border-2 border-rose-500/50 text-rose-500 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-rose-500/10 transition-all flex items-center justify-center gap-2"
-                            >
-                              <RotateCcw size={14} /> Trả về PTT (Thiếu chứng từ)
-                            </button>
+                            {['KT', 'MANAGER', 'DIRECTOR', 'ADMIN'].includes(userRole) && (
+                              <button 
+                                onClick={() => {
+                                  const reason = prompt("Lý do trả hồ sơ / Yêu cầu bổ sung:");
+                                  if (reason) handleRejectApp(reason);
+                                }}
+                                className="w-full py-2.5 border-2 border-rose-500/50 text-rose-500 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-rose-500/10 transition-all flex items-center justify-center gap-2"
+                              >
+                                <RotateCcw size={14} /> Trả về PTT (Thiếu chứng từ)
+                              </button>
+                            )}
                           </div>
                         );
                       }
