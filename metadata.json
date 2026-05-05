@@ -1,6 +1,6 @@
 {
-  "name": "GCN-Tracker: Quản lý tình trạng cấp GCN",
-  "description": "Hệ thống theo dõi quy trình cấp Giấy chứng nhận quyền sử dụng đất cho các dự án bất động sản quy mô vùng.",
+  "name": "Hệ thống quản lý tình trạng cấp GCN QSDĐ VMT",
+  "description": "Hệ thống quản lý tình trạng cấp Giấy chứng nhận quyền sử dụng đất VMT.",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": []
 }

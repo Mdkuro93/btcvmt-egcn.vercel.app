@@ -68,6 +68,7 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { createClient } from '@supabase/supabase-js';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
@@ -99,6 +100,11 @@ const DOC_CHECKLIST_ITEMS = [
 ];
 
 const REGION_ORDER = ['Quảng Trị', 'Đà Nẵng', 'Quảng Ngãi', 'Khánh Hòa'];
+
+// Supabase Configuration
+const SUPABASE_URL = 'https://eewikwqwtgmrlvyrfgit.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_gKFEW2pn_2PAif9UkvMqGA_58E2Gj6z';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const formatDate = (val: string | Date | undefined) => {
     if (!val) return '---';
@@ -222,7 +228,7 @@ const LoginScreen = ({ onLogin, users, theme, onThemeToggle }: { onLogin: (user:
             <Building2 className="text-slate-950" size={32} />
           </div>
           <h1 className={cn("text-2xl font-black font-serif italic tracking-tight", theme === 'dark' ? "text-white" : "text-slate-900")}>GCN Tracker Login</h1>
-          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Hệ thống quản lý hồ sơ QSDĐ</p>
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Hệ thống quản lý tình trạng cấp GCN QSDĐ VMT</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
@@ -2540,14 +2546,54 @@ export default function App() {
     const saved = localStorage.getItem('procedural_projects');
     return saved ? JSON.parse(saved) : PROJECTS;
   });
-  const [applications, setApplications] = useState<Application[]>(() => {
-    const saved = localStorage.getItem('procedural_apps');
-    return saved ? JSON.parse(saved) : MOCK_APPLICATIONS;
-  });
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [isLoadingApps, setIsLoadingApps] = useState(true);
 
-  // Persistence effects
+  // Fetch applications from Supabase
   useEffect(() => {
-    localStorage.setItem('procedural_apps', JSON.stringify(applications));
+    const fetchApps = async () => {
+      setIsLoadingApps(true);
+      try {
+        const { data, error } = await supabase
+          .from('records')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching data from Supabase:', error);
+          // Fallback to mock data if table doesn't exist or error
+          const saved = localStorage.getItem('procedural_apps');
+          setApplications(saved ? JSON.parse(saved) : MOCK_APPLICATIONS);
+        } else if (data && data.length > 0) {
+          // Map stored data back to Application type if necessary (handling JSON fields)
+          const mappedData = data.map(item => ({
+            ...item,
+            history: typeof item.history === 'string' ? JSON.parse(item.history) : (item.history || []),
+            checklist: typeof item.checklist === 'string' ? JSON.parse(item.checklist) : (item.checklist || {}),
+            scannedFiles: typeof item.scannedFiles === 'string' ? JSON.parse(item.scannedFiles) : (item.scannedFiles || []),
+            auditTrail: typeof item.auditTrail === 'string' ? JSON.parse(item.auditTrail) : (item.auditTrail || [])
+          }));
+          setApplications(mappedData);
+        } else {
+          // If table is empty, use mock data
+          const saved = localStorage.getItem('procedural_apps');
+          setApplications(saved ? JSON.parse(saved) : MOCK_APPLICATIONS);
+        }
+      } catch (err) {
+        console.error('Unexpected error:', err);
+      } finally {
+        setIsLoadingApps(false);
+      }
+    };
+
+    fetchApps();
+  }, []);
+
+  // Sync to localStorage as fallback/cache (optional)
+  useEffect(() => {
+    if (applications.length > 0) {
+      localStorage.setItem('procedural_apps', JSON.stringify(applications));
+    }
   }, [applications]);
 
   useEffect(() => {
@@ -3068,13 +3114,11 @@ export default function App() {
     }, 500);
   };
 
-  const handleUpdateApp = () => {
+  const handleUpdateApp = async () => {
     if (!editApp || !selectedApp) return;
     setIsSavingApp(true);
     
-    // Simulate slight loading for better UX
-    setTimeout(() => {
-      // Add audit trail for manual update
+    try {
       const auditEntry: AuditTrailEntry = {
         id: `audit-${Date.now()}`,
         userId: currentUser?.id || 'admin',
@@ -3089,32 +3133,63 @@ export default function App() {
         auditTrail: [auditEntry, ...(editApp.auditTrail || [])]
       };
 
+      // Save to Supabase
+      const { error } = await supabase
+        .from('records')
+        .upsert({
+          ...updatedApp,
+          // Stringify JSON fields for storage if Supabase table columns are text/json
+          history: JSON.stringify(updatedApp.history),
+          checklist: JSON.stringify(updatedApp.checklist),
+          scannedFiles: JSON.stringify(updatedApp.scannedFiles),
+          auditTrail: JSON.stringify(updatedApp.auditTrail),
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
       setApplications(prev => prev.map(app => app.id === updatedApp.id ? updatedApp : app));
       setSelectedApp(updatedApp);
       setEditApp(null);
       setIsEditing(false);
+      showToast('Đã cập nhật thông tin hồ sơ lên Supabase thành công!', 'success');
+    } catch (error) {
+      console.error('Supabase update error:', error);
+      showToast('Lỗi khi lưu dữ liệu lên Supabase. Vui lòng kiểm tra cấu hình.', 'error');
+    } finally {
       setIsSavingApp(false);
-      showToast('Đã cập nhật thông tin hồ sơ thành công!', 'success');
-    }, 600);
+    }
   };
 
-  const handleDeleteApp = (id: string, code: string) => {
+  const handleDeleteApp = async (id: string, code: string) => {
     if (userRole !== 'ADMIN') {
       showToast('Bạn không có quyền thực hiện thao tác này!', 'error');
       return;
     }
     if (window.confirm(`Bạn có chắc chắn muốn xóa hồ sơ căn ${code}? Thao tác này không thể hoàn tác.`)) {
-      setApplications(prev => prev.filter(app => app.id !== id));
-      if (selectedApp?.id === id) {
-        setSelectedApp(null);
-        setIsEditing(false);
-        setEditApp(null);
+      try {
+        const { error } = await supabase
+          .from('records')
+          .delete()
+          .eq('id', id);
+
+        if (error) throw error;
+
+        setApplications(prev => prev.filter(app => app.id !== id));
+        if (selectedApp?.id === id) {
+          setSelectedApp(null);
+          setIsEditing(false);
+          setEditApp(null);
+        }
+        showToast('Đã xóa hồ sơ khỏi Supabase thành công', 'success');
+      } catch (error) {
+        console.error('Supabase delete error:', error);
+        showToast('Lỗi khi xóa dữ liệu trên Supabase.', 'error');
       }
-      showToast('Đã xóa hồ sơ thành công', 'success');
     }
   };
 
-  const handleStepTransition = (nextStep: StepName) => {
+  const handleStepTransition = async (nextStep: StepName) => {
     const app = editApp || selectedApp;
     if (!app) return;
 
@@ -3170,80 +3245,121 @@ export default function App() {
       history: newHistory
     };
 
-    setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
-    setSelectedApp(updatedApp);
-    setEditApp(null);
-    setIsEditing(false);
-    alert(`Đã chuyển hồ sơ sang bước: ${stepConfig[targetStep].label}`);
+    try {
+      const { error } = await supabase
+        .from('records')
+        .upsert({
+          ...updatedApp,
+          history: JSON.stringify(updatedApp.history),
+          checklist: JSON.stringify(updatedApp.checklist || {}),
+          scannedFiles: JSON.stringify(updatedApp.scannedFiles || []),
+          auditTrail: JSON.stringify(updatedApp.auditTrail || []),
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
+      setSelectedApp(updatedApp);
+      setEditApp(null);
+      setIsEditing(false);
+      showToast(`Đã chuyển hồ sơ sang bước: ${stepConfig[targetStep].label} và lưu Supabase`, 'success');
+    } catch (error) {
+      console.error('Supabase transition error:', error);
+      showToast('Lỗi khi cập nhật trạng thái lên Supabase.', 'error');
+    }
   };
 
-  const handleBulkStepTransition = (nextStep: StepName) => {
+  const handleBulkStepTransition = async (nextStep: StepName) => {
     if (selectedAppIds.length === 0) return;
     
     const nowStr = new Date().toISOString().split('T')[0];
     const updatedCount = selectedAppIds.length;
+    setIsSavingApp(true);
     
-    setApplications(prev => prev.map(app => {
-      if (!selectedAppIds.includes(app.id)) return app;
-      
-      // Smart logic for self-service: jump over intermediate processing steps
-      let targetStep = nextStep;
-      const intermediateSteps: StepName[] = [
-        'GD1_Cho_KT_TiepNhan', 'GD2_Cho_Nop_VPDK', 'GD2_Cho_PTDA_TiepNhan',
-        'GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo',
-        'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG'
-      ];
-      if (app.isSelfService && intermediateSteps.includes(nextStep)) {
-        targetStep = 'GD6_Cho_BG_Khach';
-      }
-      
-      const prevHistory = [...app.history];
-      if (prevHistory.length > 0) {
-        prevHistory[0] = { ...prevHistory[0], completedDate: nowStr };
-      }
-      
-      const newHistory = [
-        {
-          id: `hist-${Date.now()}-${app.id}`,
-          stepName: stepConfig[targetStep].label,
-          dept: stepConfig[targetStep].dept,
-          receivedDate: nowStr,
-          note: 'Chuyển hàng loạt',
-          performedBy: currentUser?.id,
-          performedByName: currentUser?.name
-        },
-        ...prevHistory
-      ];
-      
-      // Auto-populate dates based on transition if not already set
-      const autoDates: Partial<Application> = {};
-      if (targetStep === 'GD1_Cho_KT_TiepNhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
-      if (targetStep === 'GD2_Cho_PTDA_TiepNhan' && !app.submissionDate) autoDates.submissionDate = nowStr;
-      if (targetStep === 'GD4_Cho_Nop_NVTC' && !app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
-      if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
-      if (targetStep === 'GD6_Cho_BG_Khach' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
+    try {
+      const updatedApps = applications.map(app => {
+        if (!selectedAppIds.includes(app.id)) return app;
+        
+        let targetStep = nextStep;
+        const intermediateSteps: StepName[] = [
+          'GD1_Cho_KT_TiepNhan', 'GD2_Cho_Nop_VPDK', 'GD2_Cho_PTDA_TiepNhan',
+          'GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo',
+          'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG'
+        ];
+        if (app.isSelfService && intermediateSteps.includes(nextStep)) {
+          targetStep = 'GD6_Cho_BG_Khach';
+        }
+        
+        const prevHistory = [...app.history];
+        if (prevHistory.length > 0) {
+          prevHistory[0] = { ...prevHistory[0], completedDate: nowStr };
+        }
+        
+        const newHistory = [
+          {
+            id: `hist-${Date.now()}-${app.id}`,
+            stepName: stepConfig[targetStep].label,
+            dept: stepConfig[targetStep].dept,
+            receivedDate: nowStr,
+            note: 'Chuyển hàng loạt',
+            performedBy: currentUser?.id,
+            performedByName: currentUser?.name
+          },
+          ...prevHistory
+        ];
+        
+        const autoDates: Partial<Application> = {};
+        if (targetStep === 'GD1_Cho_KT_TiepNhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
+        if (targetStep === 'GD2_Cho_PTDA_TiepNhan' && !app.submissionDate) autoDates.submissionDate = nowStr;
+        if (targetStep === 'GD4_Cho_Nop_NVTC' && !app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
+        if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
+        if (targetStep === 'GD6_Cho_BG_Khach' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
 
-      let targetStatus = stepConfig[targetStep].status;
-      if (targetStatus === 'TaxCompleted' && !app.taxReceiptDate && !autoDates.taxReceiptDate) {
-        targetStatus = 'TaxPending';
-      }
+        let targetStatus = stepConfig[targetStep].status;
+        if (targetStatus === 'TaxCompleted' && !app.taxReceiptDate && !autoDates.taxReceiptDate) {
+          targetStatus = 'TaxPending';
+        }
 
-      return {
-        ...app,
-        ...autoDates,
-        currentStep: targetStep,
-        status: targetStep === 'GD1_ChuanBi' ? 'Error' : targetStatus,
-        isRejected: targetStep === 'GD1_ChuanBi' ? app.isRejected : false,
-        rejectionReason: targetStep === 'GD1_ChuanBi' ? app.rejectionReason : '',
-        history: newHistory
-      };
-    }));
-    
-    setSelectedAppIds([]);
-    showToast(`Đã xử lý hàng loạt ${updatedCount} hồ sơ thành công.`, 'success');
+        return {
+          ...app,
+          ...autoDates,
+          currentStep: targetStep,
+          status: targetStep === 'GD1_ChuanBi' ? 'Error' : targetStatus,
+          isRejected: targetStep === 'GD1_ChuanBi' ? app.isRejected : false,
+          rejectionReason: targetStep === 'GD1_ChuanBi' ? app.rejectionReason : '',
+          history: newHistory
+        };
+      });
+
+      const appsToSync = updatedApps.filter(app => selectedAppIds.includes(app.id));
+      
+      // Perform bulk upsert to Supabase
+      const { error } = await supabase
+        .from('records')
+        .upsert(appsToSync.map(app => ({
+          ...app,
+          history: JSON.stringify(app.history),
+          checklist: JSON.stringify(app.checklist || {}),
+          scannedFiles: JSON.stringify(app.scannedFiles || []),
+          auditTrail: JSON.stringify(app.auditTrail || []),
+          updated_at: new Date().toISOString()
+        })));
+
+      if (error) throw error;
+
+      setApplications(updatedApps);
+      setSelectedAppIds([]);
+      showToast(`Đã xử lý hàng loạt ${updatedCount} hồ sơ lên Supabase thành công.`, 'success');
+    } catch (error) {
+      console.error('Supabase bulk transition error:', error);
+      showToast('Lỗi khi cập nhật hàng loạt lên Supabase.', 'error');
+    } finally {
+      setIsSavingApp(false);
+    }
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (selectedAppIds.length === 0) return;
     
     if (!window.confirm(`Bạn có chắc chắn muốn xóa ${selectedAppIds.length} hồ sơ đã chọn? Hành động này không thể hoàn tác.`)) {
@@ -3251,25 +3367,65 @@ export default function App() {
     }
 
     const count = selectedAppIds.length;
-    setApplications(prev => prev.filter(app => !selectedAppIds.includes(app.id)));
-    setSelectedAppIds([]);
-    showToast(`Đã xóa ${count} hồ sơ thành công.`, 'success');
+    setIsSavingApp(true);
+
+    try {
+      const { error } = await supabase
+        .from('records')
+        .delete()
+        .in('id', selectedAppIds);
+
+      if (error) throw error;
+
+      setApplications(prev => prev.filter(app => !selectedAppIds.includes(app.id)));
+      setSelectedAppIds([]);
+      showToast(`Đã xóa hàng loạt ${count} hồ sơ khỏi Supabase thành công.`, 'success');
+    } catch (error) {
+      console.error('Supabase bulk delete error:', error);
+      showToast('Lỗi khi xóa hàng loạt trên Supabase.', 'error');
+    } finally {
+      setIsSavingApp(false);
+    }
   };
 
-  const handleBulkUpdateNote = () => {
+  const handleBulkUpdateNote = async () => {
     if (selectedAppIds.length === 0 || !bulkNoteText.trim()) return;
+    setIsSavingApp(true);
     
-    setApplications(prev => prev.map(app => {
-      if (selectedAppIds.includes(app.id)) {
-        return { ...app, note: bulkNoteText };
-      }
-      return app;
-    }));
-    
-    showToast(`Đã cập nhật ghi chú cho ${selectedAppIds.length} hồ sơ thành công.`, 'success');
-    setIsBulkNoteOpen(false);
-    setBulkNoteText('');
-    setSelectedAppIds([]);
+    try {
+      const updatedApps = applications.map(app => {
+        if (selectedAppIds.includes(app.id)) {
+          return { ...app, note: bulkNoteText };
+        }
+        return app;
+      });
+
+      const appsToSync = updatedApps.filter(app => selectedAppIds.includes(app.id));
+
+      const { error } = await supabase
+        .from('records')
+        .upsert(appsToSync.map(app => ({
+          ...app,
+          history: JSON.stringify(app.history),
+          checklist: JSON.stringify(app.checklist || {}),
+          scannedFiles: JSON.stringify(app.scannedFiles || []),
+          auditTrail: JSON.stringify(app.auditTrail || []),
+          updated_at: new Date().toISOString()
+        })));
+
+      if (error) throw error;
+
+      setApplications(updatedApps);
+      showToast(`Đã cập nhật ghi chú cho ${selectedAppIds.length} hồ sơ lên Supabase thành công.`, 'success');
+      setIsBulkNoteOpen(false);
+      setBulkNoteText('');
+      setSelectedAppIds([]);
+    } catch (error) {
+      console.error('Supabase bulk note update error:', error);
+      showToast('Lỗi khi cập nhật ghi chú lên Supabase.', 'error');
+    } finally {
+      setIsSavingApp(false);
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3278,7 +3434,7 @@ export default function App() {
     if (!file || !app) return;
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       const base64 = evt.target?.result as string;
       const newFile: ScannedFile = {
         id: `file-${Date.now()}`,
@@ -3288,51 +3444,78 @@ export default function App() {
         uploadDate: new Date().toISOString().split('T')[0]
       };
 
-      const updatedApps = applications.map(a => {
-        if (a.id === app.id) {
-          return {
-            ...a,
-            scannedFiles: [...(a.scannedFiles || []), newFile]
-          };
-        }
-        return a;
-      });
-      
-      setApplications(updatedApps);
-      if (editApp && editApp.id === app.id) {
-        setEditApp({
-          ...editApp,
-          scannedFiles: [...(editApp.scannedFiles || []), newFile]
-        });
+      const updatedApp = {
+        ...app,
+        scannedFiles: [...(app.scannedFiles || []), newFile]
+      };
+
+      setIsSavingApp(true);
+      try {
+        const { error } = await supabase
+          .from('records')
+          .upsert({
+            ...updatedApp,
+            history: JSON.stringify(updatedApp.history),
+            checklist: JSON.stringify(updatedApp.checklist || {}),
+            scannedFiles: JSON.stringify(updatedApp.scannedFiles || []),
+            auditTrail: JSON.stringify(updatedApp.auditTrail || []),
+            updated_at: new Date().toISOString()
+          });
+
+        if (error) throw error;
+
+        const updatedApps = applications.map(a => a.id === app.id ? updatedApp : a);
+        setApplications(updatedApps);
+        if (editApp && editApp.id === app.id) setEditApp(updatedApp);
+        if (selectedApp && selectedApp.id === app.id) setSelectedApp(updatedApp);
+        
+        showToast(`Đã tải tài liệu "${file.name}" lên Supabase thành công.`, 'success');
+      } catch (error) {
+        console.error('Supabase file upload error:', error);
+        showToast('Lỗi khi lưu tài liệu lên Supabase.', 'error');
+      } finally {
+        setIsSavingApp(false);
       }
-      showToast(`Đã tải tài liệu "${file.name}" lên thành công.`, 'success');
     };
     reader.readAsDataURL(file);
     e.target.value = '';
   };
 
-  const handleFileDelete = (fileId: string) => {
+  const handleFileDelete = async (fileId: string) => {
     const app = editApp || selectedApp;
     if (!app || !window.confirm('Bạn có chắc chắn muốn xóa tài liệu này?')) return;
 
-    const updatedApps = applications.map(a => {
-      if (a.id === app.id) {
-        return {
-          ...a,
-          scannedFiles: (a.scannedFiles || []).filter(f => f.id !== fileId)
-        };
-      }
-      return a;
-    });
+    const updatedApp = {
+      ...app,
+      scannedFiles: (app.scannedFiles || []).filter(f => f.id !== fileId)
+    };
 
-    setApplications(updatedApps);
-    if (editApp && editApp.id === app.id) {
-      setEditApp({
-        ...editApp,
-        scannedFiles: (editApp.scannedFiles || []).filter(f => f.id !== fileId)
-      });
+    setIsSavingApp(true);
+    try {
+      const { error } = await supabase
+        .from('records')
+        .upsert({
+          ...updatedApp,
+          history: JSON.stringify(updatedApp.history),
+          checklist: JSON.stringify(updatedApp.checklist || {}),
+          scannedFiles: JSON.stringify(updatedApp.scannedFiles || []),
+          auditTrail: JSON.stringify(updatedApp.auditTrail || []),
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      const updatedApps = applications.map(a => a.id === app.id ? updatedApp : a);
+      setApplications(updatedApps);
+      if (editApp && editApp.id === app.id) setEditApp(updatedApp);
+      if (selectedApp && selectedApp.id === app.id) setSelectedApp(updatedApp);
+      showToast('Đã xóa tài liệu khỏi Supabase thành công.', 'success');
+    } catch (error) {
+      console.error('Supabase file delete error:', error);
+      showToast('Lỗi khi xóa tài liệu trên Supabase.', 'error');
+    } finally {
+      setIsSavingApp(false);
     }
-    showToast('Đã xóa tài liệu thành công.', 'success');
   };
 
   const [previewFile, setPreviewFile] = useState<ScannedFile | null>(null);
@@ -3362,7 +3545,7 @@ export default function App() {
     );
   };
 
-  const handleReportError = (note: string) => {
+  const handleReportError = async (note: string) => {
     const app = editApp || selectedApp;
     if (!app) return;
 
@@ -3382,18 +3565,38 @@ export default function App() {
     const updatedApp = {
       ...app,
       status: 'Error' as const,
-      // currentStep remains the same to keep it in the current stage
       history: newHistory
     };
 
-    setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
-    setSelectedApp(updatedApp);
-    setEditApp(null);
-    setIsEditing(false);
-    showToast('Đã ghi nhận sai sót tại bước này.', 'warning');
+    setIsSavingApp(true);
+    try {
+      const { error } = await supabase
+        .from('records')
+        .upsert({
+          ...updatedApp,
+          history: JSON.stringify(updatedApp.history),
+          checklist: JSON.stringify(updatedApp.checklist || {}),
+          scannedFiles: JSON.stringify(updatedApp.scannedFiles || []),
+          auditTrail: JSON.stringify(updatedApp.auditTrail || []),
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
+      setSelectedApp(updatedApp);
+      setEditApp(null);
+      setIsEditing(false);
+      showToast('Đã ghi nhận sai sót và lưu lên Supabase.', 'warning');
+    } catch (error) {
+      console.error('Supabase report error:', error);
+      showToast('Lỗi khi ghi nhận sai sót lên Supabase.', 'error');
+    } finally {
+      setIsSavingApp(false);
+    }
   };
 
-  const handleResolveError = () => {
+  const handleResolveError = async () => {
     const app = editApp || selectedApp;
     if (!app) return;
 
@@ -3416,12 +3619,33 @@ export default function App() {
       history: newHistory
     };
 
-    setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
-    setSelectedApp(updatedApp);
-    alert('Đơn hàng đã được phục hồi trạng thái xử lý.');
+    setIsSavingApp(true);
+    try {
+      const { error } = await supabase
+        .from('records')
+        .upsert({
+          ...updatedApp,
+          history: JSON.stringify(updatedApp.history),
+          checklist: JSON.stringify(updatedApp.checklist || {}),
+          scannedFiles: JSON.stringify(updatedApp.scannedFiles || []),
+          auditTrail: JSON.stringify(updatedApp.auditTrail || []),
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
+      setSelectedApp(updatedApp);
+      showToast('Đã phục hồi trạng thái và lưu lên Supabase.', 'success');
+    } catch (error) {
+      console.error('Supabase resolve error:', error);
+      showToast('Lỗi khi lưu trạng thái phục hồi lên Supabase.', 'error');
+    } finally {
+      setIsSavingApp(false);
+    }
   };
 
-  const handleRejectApp = (reason: string) => {
+  const handleRejectApp = async (reason: string) => {
     const app = editApp || selectedApp;
     if (!app) return;
 
@@ -3448,22 +3672,43 @@ export default function App() {
       history: newHistory
     };
 
-    // Add notification
-    const newNotification: AppNotification = {
-      id: `notif-${Date.now()}`,
-      title: 'Hồ sơ bị trả về / Cần bổ sung',
-      message: `Hồ sơ lô ${app.unitCode} (${app.projectName}) bị Kế toán trả về: ${reason}`,
-      time: 'Vừa xong',
-      type: 'Urgent',
-      isRead: false
-    };
+    setIsSavingApp(true);
+    try {
+      // Add notification
+      const newNotification: AppNotification = {
+        id: `notif-${Date.now()}`,
+        title: 'Hồ sơ bị trả về / Cần bổ sung',
+        message: `Hồ sơ lô ${app.unitCode} (${app.projectName}) bị Kế toán trả về: ${reason}`,
+        time: 'Vừa xong',
+        type: 'Urgent',
+        isRead: false
+      };
 
-    setNotifications(prev => [newNotification, ...prev]);
-    setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
-    setSelectedApp(updatedApp);
-    setEditApp(null);
-    setIsEditing(false);
-    alert('Hồ sơ đã được trả về giai đoạn 1 để PTT bổ sung.');
+      const { error } = await supabase
+        .from('records')
+        .upsert({
+          ...updatedApp,
+          history: JSON.stringify(updatedApp.history),
+          checklist: JSON.stringify(updatedApp.checklist || {}),
+          scannedFiles: JSON.stringify(updatedApp.scannedFiles || []),
+          auditTrail: JSON.stringify(updatedApp.auditTrail || []),
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      setNotifications(prev => [newNotification, ...prev]);
+      setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
+      setSelectedApp(updatedApp);
+      setEditApp(null);
+      setIsEditing(false);
+      showToast('Hồ sơ đã được trả về giai đoạn 1 và cập nhật Supabase.', 'warning');
+    } catch (error) {
+      console.error('Supabase reject error:', error);
+      showToast('Lỗi khi lưu yêu cầu bổ sung lên Supabase.', 'error');
+    } finally {
+      setIsSavingApp(false);
+    }
   };
 
   const isFieldEditable = (fieldName: string) => {
@@ -3575,7 +3820,7 @@ export default function App() {
     });
   };
 
-  const handleCreateApp = () => {
+  const handleCreateApp = async () => {
     const errors: Record<string, string> = {};
     if (!newApp.unitCode) errors.unitCode = 'Vui lòng nhập mã căn';
     if (!newApp.customerName) errors.customerName = 'Vui lòng nhập tên khách hàng';
@@ -3598,8 +3843,7 @@ export default function App() {
 
     setIsSavingApp(true);
     
-    // Simulate loading
-    setTimeout(() => {
+    try {
       const appToAdd: Application = {
         id: `app-${Date.now()}`,
         unitCode: newApp.unitCode,
@@ -3626,9 +3870,22 @@ export default function App() {
         ]
       };
 
+      // Save to Supabase
+      const { error } = await supabase
+        .from('records')
+        .insert({
+          ...appToAdd,
+          history: JSON.stringify(appToAdd.history),
+          checklist: JSON.stringify(appToAdd.checklist || {}),
+          scannedFiles: JSON.stringify(appToAdd.scannedFiles || []),
+          auditTrail: JSON.stringify(appToAdd.auditTrail || []),
+          created_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
       setApplications(prev => [appToAdd, ...prev]);
       setIsCreateModalOpen(false);
-      setIsSavingApp(false);
       setNewApp({ 
         unitCode: '', 
         customerName: '', 
@@ -3642,9 +3899,14 @@ export default function App() {
         commitmentDate: ''
       });
       setFormErrors({});
-      showToast(`Hồ sơ ${appToAdd.unitCode} đã được khởi tạo thành công!`, 'success');
+      showToast(`Hồ sơ ${appToAdd.unitCode} đã được khởi tạo và lưu lên Supabase!`, 'success');
       setActiveTab('applications');
-    }, 800);
+    } catch (error) {
+      console.error('Supabase insert error:', error);
+      showToast('Lỗi khi lưu hồ sơ mới lên Supabase.', 'error');
+    } finally {
+      setIsSavingApp(false);
+    }
   };
 
   const handleCreateUser = () => {
