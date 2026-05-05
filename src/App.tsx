@@ -218,7 +218,9 @@ const mapUserFromSnakeCase = (item: any): UserProfile => {
     assignedProjectIds: item.assigned_project_ids || [],
     email: item.email,
     phoneNumber: item.phone_number,
-    status: item.status
+    status: item.status,
+    updatedAt: item.updated_at,
+    updatedBy: item.updated_by
   };
 };
 
@@ -233,7 +235,9 @@ const mapUserToSnakeCase = (user: UserProfile) => {
     assigned_project_ids: user.assignedProjectIds,
     email: user.email,
     phone_number: user.phoneNumber,
-    status: user.status
+    status: user.status,
+    updated_at: user.updatedAt,
+    updated_by: user.updatedBy
   };
 };
 
@@ -2968,11 +2972,25 @@ export default function App() {
 
         // Process Users
         if (usersData && usersData.length > 0) {
-          setUsers(usersData.map(mapUserFromSnakeCase));
+          const fetchedUsers = usersData.map(mapUserFromSnakeCase);
+          // Safety: Ensure admin exists
+          const adminExists = fetchedUsers.some(u => u.username === 'admin');
+          if (!adminExists) {
+            const defaultAdmin = MOCK_USERS.find(u => u.username === 'admin');
+            if (defaultAdmin) {
+              const adminToUpsert = { ...defaultAdmin, updatedAt: new Date().toISOString(), updatedBy: 'system' };
+              await supabase.from('users').upsert(mapUserToSnakeCase(adminToUpsert));
+              setUsers([...fetchedUsers, adminToUpsert]);
+            } else {
+              setUsers(fetchedUsers);
+            }
+          } else {
+            setUsers(fetchedUsers);
+          }
         } else {
           setUsers(MOCK_USERS);
           if (usersData && usersData.length === 0) {
-            await supabase.from('users').upsert(MOCK_USERS.map(mapUserToSnakeCase));
+            await supabase.from('users').upsert(MOCK_USERS.map(u => mapUserToSnakeCase({ ...u, updatedAt: new Date().toISOString(), updatedBy: 'system' })));
           }
         }
       } catch (err) {
@@ -4280,6 +4298,8 @@ export default function App() {
     const userToAdd: UserProfile = {
       id: `user-${Date.now()}`,
       ...newUser,
+      updatedAt: new Date().toISOString(),
+      updatedBy: currentUser?.name || 'system'
     };
     
     setIsSavingApp(true);
@@ -4301,12 +4321,18 @@ export default function App() {
 
   const handleUpdateUser = async () => {
     if (!editUser) return;
+    const updatedUser = {
+      ...editUser,
+      updatedAt: new Date().toISOString(),
+      updatedBy: currentUser?.name || 'system'
+    };
+
     setIsSavingApp(true);
     try {
-      const { error } = await supabase.from('users').upsert(mapUserToSnakeCase(editUser));
+      const { error } = await supabase.from('users').upsert(mapUserToSnakeCase(updatedUser));
       if (error) throw error;
       
-      setUsers(prev => prev.map(u => u.id === editUser.id ? editUser : u));
+      setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
       setEditUser(null);
       setIsUserModalOpen(false);
       showToast('Đã cập nhật thông tin người dùng lên Supabase thành công!', 'success');
@@ -4338,8 +4364,13 @@ export default function App() {
     if (!confirm(`Bạn có chắc muốn reset mật khẩu cho tài khoản @${u.username}? Mật khẩu mặc định sẽ là '123456'.`)) return;
     setIsSavingApp(true);
     try {
-      const updatedUser = { ...u, password: '123456' };
-      const { error } = await supabase.from('users').update({ password: '123456' }).eq('id', u.id);
+      const updatedUser = { 
+        ...u, 
+        password: '123456',
+        updatedAt: new Date().toISOString(),
+        updatedBy: currentUser?.name || 'system'
+      };
+      const { error } = await supabase.from('users').upsert(mapUserToSnakeCase(updatedUser));
       if (error) throw error;
       setUsers(prev => prev.map(usr => usr.id === u.id ? updatedUser : usr));
       showToast(`Đã reset mật khẩu cho @${u.username} thành 123456`, 'success');

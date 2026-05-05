@@ -33,6 +33,8 @@ export type UserProfile = {
   email?: string;
   phoneNumber?: string;
   status: 'Active' | 'Inactive';
+  updatedAt?: string;
+  updatedBy?: string;
 };
 
 export type UnitStatus = 
