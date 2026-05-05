@@ -341,12 +341,13 @@ const LoginScreen = ({ onLogin, users, theme, onThemeToggle }: { onLogin: (user:
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const user = users.find(u => u.username === username || u.email === username);
+    const loginUsers = users.length > 0 ? users : MOCK_USERS;
+    const user = loginUsers.find(u => u.username === username || u.email === username);
     const validPassword = user?.password || '123456';
     if (user && password === validPassword) {
       onLogin(user);
     } else if (!user) {
-      alert('Tài khoản không tồn tại!');
+      alert(`Tài khoản không tồn tại! (Kiểm tra dữ liệu: hiện có ${loginUsers.length} tài khoản)`);
     } else {
       alert('Mật khẩu không chính xác! (Gợi ý: 123456)');
     }
@@ -2901,15 +2902,15 @@ export default function App() {
       setIsLoadingConfig(true);
       try {
         // 1. Fetch data in parallel
-        const responses = await Promise.all([
+        const responses = await Promise.allSettled([
           supabase.from('records').select('*').order('created_at', { ascending: false }),
           supabase.from('users').select('*'),
           supabase.from('system_configs').select('*')
         ]);
 
-        const appsRes = responses[0];
-        const usersRes = responses[1];
-        const configRes = responses[2];
+        const appsRes = responses[0].status === 'fulfilled' ? responses[0].value : { data: null, error: (responses[0] as any).reason };
+        const usersRes = responses[1].status === 'fulfilled' ? responses[1].value : { data: null, error: (responses[1] as any).reason };
+        const configRes = responses[2].status === 'fulfilled' ? responses[2].value : { data: null, error: (responses[2] as any).reason };
 
         if (appsRes.error) console.error('Error fetching records:', appsRes.error);
         if (usersRes.error) console.error('Error fetching users:', usersRes.error);
@@ -2919,74 +2920,67 @@ export default function App() {
         const usersData = usersRes.data;
         const configData = configRes.data;
 
-        // Process Configs first
-        let isFirstRun = false;
-        if (configData) {
-          const configMap: any = {};
+        // Process Configs 
+        const configMap: any = {};
+        if (configData && configData.length > 0) {
           configData.forEach(c => {
             configMap[c.key] = typeof c.value === 'string' ? JSON.parse(c.value) : c.value;
           });
-          
-          if (configData.length === 0) {
-            isFirstRun = true;
-            // Bootstrap initial configs to Supabase
-            const initialConfigs = [
-              { key: 'slaConfig', value: Object.values(INITIAL_STEP_CONFIG).reduce((acc: any, s: any) => ({ ...acc, [s.label]: 10 }), {}) },
-              { key: 'checklistTemplates', value: DOC_CHECKLIST_ITEMS },
-              { key: 'stepConfig', value: INITIAL_STEP_CONFIG },
-              { key: 'handoverTemplate', value: {} },
-              { key: 'projects', value: PROJECTS }
-            ];
-            
-            for (const conf of initialConfigs) {
-              await supabase.from('system_configs').upsert({ 
-                key: conf.key, 
-                value: conf.value, 
-                updated_at: new Date().toISOString() 
-              }, { onConflict: 'key' });
-            }
-            
-            setSlaConfig(initialConfigs[0].value);
-            setChecklistTemplates(initialConfigs[1].value);
-            setStepConfig(initialConfigs[2].value);
-            setProjects(PROJECTS);
-
-            // Populate mocks to Supabase on first run
-            if (usersData && usersData.length === 0) {
-              await supabase.from('users').upsert(MOCK_USERS.map(mapUserToSnakeCase));
-            }
-            if (appsData && appsData.length === 0) {
-              await supabase.from('records').upsert(MOCK_APPLICATIONS.map(mapToSnakeCase));
-            }
-          } else {
-            if (configMap.slaConfig) setSlaConfig(configMap.slaConfig);
-            if (configMap.checklistTemplates) setChecklistTemplates(configMap.checklistTemplates);
-            if (configMap.handoverTemplate) setHandoverTemplate(configMap.handoverTemplate);
-            if (configMap.stepConfig) setStepConfig(configMap.stepConfig);
-            if (configMap.projects) setProjects(configMap.projects);
-          }
         }
+          
+          if (configData) {
+            // Initialize missing Configs or use defaults
+            const currentSla = configMap.slaConfig || Object.values(INITIAL_STEP_CONFIG).reduce((acc: any, s: any) => ({ ...acc, [s.label]: 10 }), {});
+            const currentChecklist = configMap.checklistTemplates || DOC_CHECKLIST_ITEMS;
+            const currentSteps = configMap.stepConfig || INITIAL_STEP_CONFIG;
+            const currentHandover = configMap.handoverTemplate || {};
+            const currentProjects = configMap.projects || PROJECTS;
 
-        // Process Applications
-        if (appsData) {
-          if (appsData.length > 0) {
-            setApplications(appsData.map(mapFromSnakeCase));
-          } else if (isFirstRun) {
-            setApplications(MOCK_APPLICATIONS);
+            setSlaConfig(currentSla);
+            setChecklistTemplates(currentChecklist);
+            setStepConfig(currentSteps);
+            setHandoverTemplate(currentHandover);
+            setProjects(currentProjects);
+
+            // Bootstrap missing configs to Supabase
+            const requiredKeys = ['slaConfig', 'checklistTemplates', 'stepConfig', 'handoverTemplate', 'projects'];
+            for (const key of requiredKeys) {
+              if (!configMap[key]) {
+                let val = key === 'slaConfig' ? currentSla 
+                        : key === 'checklistTemplates' ? currentChecklist
+                        : key === 'stepConfig' ? currentSteps
+                        : key === 'handoverTemplate' ? currentHandover
+                        : currentProjects;
+                
+                await supabase.from('system_configs').upsert({ key, value: val, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+              }
+            }
+          }
+
+        if (appsData && appsData.length > 0) {
+          setApplications(appsData.map(mapFromSnakeCase));
+        } else {
+          setApplications(MOCK_APPLICATIONS);
+          if (appsData && appsData.length === 0) {
+            await supabase.from('records').upsert(MOCK_APPLICATIONS.map(mapToSnakeCase));
           }
         }
 
         // Process Users
-        if (usersData) {
-          if (usersData.length > 0) {
-            setUsers(usersData.map(mapUserFromSnakeCase));
-          } else if (isFirstRun) {
-            setUsers(MOCK_USERS);
+        if (usersData && usersData.length > 0) {
+          setUsers(usersData.map(mapUserFromSnakeCase));
+        } else {
+          setUsers(MOCK_USERS);
+          if (usersData && usersData.length === 0) {
+            await supabase.from('users').upsert(MOCK_USERS.map(mapUserToSnakeCase));
           }
         }
       } catch (err) {
         console.error('Unexpected error fetching initial data:', err);
-        showToast('Không thể kết nối đến Supabase. Vui lòng kiểm tra lại cấu hình.', 'error');
+        setApplications(MOCK_APPLICATIONS);
+        setUsers(MOCK_USERS);
+        setProjects(PROJECTS);
+        showToast('Không thể kết nối đến Supabase. Đang sử dụng dữ liệu tạm thời.', 'warning');
       } finally {
         setIsLoadingApps(false);
         setIsLoadingConfig(false);
