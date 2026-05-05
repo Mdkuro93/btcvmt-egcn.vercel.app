@@ -435,6 +435,8 @@ const SettingsView = ({
   setChecklistTemplates,
   stepConfig,
   setStepConfig,
+  handoverTemplate,
+  setHandoverTemplate,
   theme
 }: { 
   slaConfig: Record<string, number>, 
@@ -443,6 +445,8 @@ const SettingsView = ({
   setChecklistTemplates: any,
   stepConfig: any,
   setStepConfig: any,
+  handoverTemplate: any,
+  setHandoverTemplate: any,
   theme: 'light' | 'dark'
 }) => {
   const [newChecklistItem, setNewChecklistItem] = useState('');
@@ -548,6 +552,127 @@ const SettingsView = ({
                   </button>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Handover Template Config */}
+        <section className={cn(
+          "backdrop-blur-xl border rounded-[2.5rem] overflow-hidden group lg:col-span-2",
+          theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800"
+        )}>
+          <div className={cn(
+            "p-8 border-b flex items-center justify-between",
+            theme === 'light' ? "bg-slate-50/50 border-slate-100" : "bg-slate-900/50 border-slate-800"
+          )}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
+                <Printer className="text-indigo-500" size={20} />
+              </div>
+              <h3 className={cn("text-base font-black uppercase tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Cấu hình Mẫu Biên bản bàn giao</h3>
+            </div>
+            <FileText className="text-slate-700" size={20} />
+          </div>
+          <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Tên Công ty / Đơn vị</label>
+                <input 
+                  type="text" 
+                  value={handoverTemplate.companyName}
+                  onChange={(e) => setHandoverTemplate({...handoverTemplate, companyName: e.target.value})}
+                  className={cn(
+                    "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none focus:ring-2 transition-all shadow-sm",
+                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-500/10 focus:border-indigo-500" : "bg-slate-950 border-slate-800 text-white focus:ring-indigo-500/10 focus:border-indigo-500"
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Tiêu đề phụ (Dự án/Địa điểm)</label>
+                <input 
+                  type="text" 
+                  value={handoverTemplate.subTitle}
+                  onChange={(e) => setHandoverTemplate({...handoverTemplate, subTitle: e.target.value})}
+                  className={cn(
+                    "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none focus:ring-2 transition-all shadow-sm",
+                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-500/10 focus:border-indigo-500" : "bg-slate-950 border-slate-800 text-white focus:ring-indigo-500/10 focus:border-indigo-500"
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Mã hiệu văn bản</label>
+                <input 
+                  type="text" 
+                  value={handoverTemplate.docCode}
+                  onChange={(e) => setHandoverTemplate({...handoverTemplate, docCode: e.target.value})}
+                  className={cn(
+                    "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none focus:ring-2 transition-all shadow-sm",
+                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-500/10 focus:border-indigo-500" : "bg-slate-950 border-slate-800 text-white focus:ring-indigo-500/10 focus:border-indigo-500"
+                  )}
+                />
+              </div>
+            </div>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Tiêu đề chính của biên bản</label>
+                <input 
+                  type="text" 
+                  value={handoverTemplate.title}
+                  onChange={(e) => setHandoverTemplate({...handoverTemplate, title: e.target.value})}
+                  className={cn(
+                    "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none focus:ring-2 transition-all shadow-sm",
+                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-500/10 focus:border-indigo-500" : "bg-slate-950 border-slate-800 text-white focus:ring-indigo-500/10 focus:border-indigo-500"
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Tiêu đề phụ 2 (Nội dung bàn giao)</label>
+                <input 
+                  type="text" 
+                  value={handoverTemplate.subTitle2}
+                  onChange={(e) => setHandoverTemplate({...handoverTemplate, subTitle2: e.target.value})}
+                  className={cn(
+                    "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none focus:ring-2 transition-all shadow-sm",
+                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-500/10 focus:border-indigo-500" : "bg-slate-950 border-slate-800 text-white focus:ring-indigo-500/10 focus:border-indigo-500"
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Địa chỉ thực hiện bàn giao</label>
+                <input 
+                  type="text" 
+                  value={handoverTemplate.address}
+                  onChange={(e) => setHandoverTemplate({...handoverTemplate, address: e.target.value})}
+                  className={cn(
+                    "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none focus:ring-2 transition-all shadow-sm",
+                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-500/10 focus:border-indigo-500" : "bg-slate-950 border-slate-800 text-white focus:ring-indigo-500/10 focus:border-indigo-500"
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Ghi chú chân trang 1</label>
+                <input 
+                  type="text" 
+                  value={handoverTemplate.footerNote1}
+                  onChange={(e) => setHandoverTemplate({...handoverTemplate, footerNote1: e.target.value})}
+                  className={cn(
+                    "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none focus:ring-2 transition-all shadow-sm",
+                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-500/10 focus:border-indigo-500" : "bg-slate-950 border-slate-800 text-white focus:ring-indigo-500/10 focus:border-indigo-500"
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Ghi chú chân trang 2</label>
+                <input 
+                  type="text" 
+                  value={handoverTemplate.footerNote2}
+                  onChange={(e) => setHandoverTemplate({...handoverTemplate, footerNote2: e.target.value})}
+                  className={cn(
+                    "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none focus:ring-2 transition-all shadow-sm",
+                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-500/10 focus:border-indigo-500" : "bg-slate-950 border-slate-800 text-white focus:ring-indigo-500/10 focus:border-indigo-500"
+                  )}
+                />
+              </div>
             </div>
           </div>
         </section>
@@ -2309,37 +2434,37 @@ const PrintStyles = () => (
   `}</style>
 );
 
-const HandoverRecord = ({ apps, user }: { apps: Application[], user: UserProfile | null }) => {
+const HandoverRecord = ({ apps, user, template }: { apps: Application[], user: UserProfile | null, template: any }) => {
   const today = new Date();
   return (
     <div id="print-section" className="p-10 text-black bg-white min-h-screen">
       <div className="flex justify-between items-start mb-8 border-b-2 border-black pb-4">
         <div>
-          <h1 className="text-xl font-bold uppercase">Tập đoàn Sun Group</h1>
-          <p className="text-xs italic">Vùng Đà Nẵng</p>
+          <h1 className="text-xl font-bold uppercase">{template.companyName}</h1>
+          <p className="text-xs italic">{template.subTitle}</p>
         </div>
         <div className="text-right">
-          <p className="text-xs font-bold">Mẫu HC-09-BM04</p>
+          <p className="text-xs font-bold">{template.docCode}</p>
           <p className="text-xs">Số: ....................</p>
         </div>
       </div>
 
       <div className="text-center mb-10">
-        <h2 className="text-2xl font-bold uppercase mt-4">Biên bản bàn giao</h2>
-        <h3 className="text-xl font-bold uppercase">Giấy chứng nhận QSD đất</h3>
+        <h2 className="text-2xl font-bold uppercase mt-4">{template.title}</h2>
+        <h3 className="text-xl font-bold uppercase">{template.subTitle2}</h3>
         <p className="italic mt-2">Ngày {formatDate(today)}</p>
       </div>
 
       <div className="mb-6 space-y-2">
         <p><strong>Người giao:</strong> {user?.name || '................................'}</p>
         <p><strong>Bộ phận:</strong> {user?.dept || '................................'}</p>
-        <p><strong>Địa chỉ:</strong> Tòa nhà Novotel, 36 Bạch Đẳng, Đà Nẵng</p>
+        <p><strong>Địa chỉ:</strong> {template.address}</p>
       </div>
 
       <div className="mb-8">
         <table className="w-full border-collapse border border-black text-sm">
           <thead>
-            <tr className="bg-gray-100">
+            <tr className="bg-gray-100 font-bold">
               <th className="border border-black px-2 py-2 w-12 text-center">STT</th>
               <th className="border border-black px-2 py-2 text-center">Mã lô/Căn</th>
               <th className="border border-black px-2 py-2 text-center">Chủ tài sản</th>
@@ -2388,8 +2513,8 @@ const HandoverRecord = ({ apps, user }: { apps: Application[], user: UserProfile
       </div>
 
       <div className="mt-20 pt-10 text-[10px] italic border-t border-gray-200">
-        <p>* Biên bản được lập thành 02 bản, mỗi bên giữ 01 bản để làm căn cứ.</p>
-        <p>* Vui lòng kiểm tra kỹ thông tin trên GCN trước khi ký nhận bàn giao.</p>
+        <p>{template.footerNote1}</p>
+        <p>{template.footerNote2}</p>
       </div>
     </div>
   );
@@ -2506,11 +2631,27 @@ export default function App() {
     assignedProjectIds: [] as string[]
   });
   const [editApp, setEditApp] = useState<Application | null>(null);
+  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+  const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [projectSearch, setProjectSearch] = useState('');
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'warning' } | null>(null);
   const [isSavingApp, setIsSavingApp] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F2') {
+        if (selectedApp && !isEditing && currentUser?.permission !== 'VIEW') {
+          e.preventDefault();
+          setIsEditing(true);
+          setEditApp(selectedApp);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedApp, isEditing, currentUser]);
 
   const showToast = (message: string, type: 'success' | 'error' | 'warning' = 'success') => {
     setToast({ message, type });
@@ -2553,7 +2694,6 @@ export default function App() {
   const regions = useMemo(() => {
     return ["VPĐK Phường", "VPĐK TP Đà Nẵng", "VPĐK Quận Liên Chiểu"];
   }, []);
-  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [detailTab, setDetailTab] = useState<'Workflow' | 'Audit' | 'Documents'>('Workflow');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [quickEditId, setQuickEditId] = useState<string | null>(null);
@@ -2579,7 +2719,25 @@ export default function App() {
     setQuickEditData({});
   };
 
-  const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
+  const [handoverTemplate, setHandoverTemplate] = useState(() => {
+    const saved = localStorage.getItem('procedural_handover_template');
+    return saved ? JSON.parse(saved) : {
+      companyName: 'CÔNG TY CỔ PHẦN ĐẦU TƯ LIÊN CHIỂU',
+      subTitle: 'Vùng Đà Nẵng',
+      docCode: 'Mẫu HC-09-BM04',
+      title: 'BIÊN BẢN BÀN GIAO',
+      subTitle2: 'Giấy chứng nhận QSD đất',
+      address: 'Tòa nhà Novotel, 36 Bạch Đẳng, Đà Nẵng',
+      footerNote1: '* Biên bản được lập thành 02 bản, mỗi bên giữ 01 bản để làm căn cứ.',
+      footerNote2: '* Vui lòng kiểm tra kỹ thông tin trên GCN trước khi ký nhận bàn giao.'
+    };
+  });
+
+  useEffect(() => {
+    localStorage.setItem('procedural_handover_template', JSON.stringify(handoverTemplate));
+  }, [handoverTemplate]);
+
+  const [filterSLAStatus, setFilterSLAStatus] = useState<'ALL' | 'OVERDUE'>('ALL');
   const [isBulkNoteOpen, setIsBulkNoteOpen] = useState(false);
   const [bulkNoteText, setBulkNoteText] = useState('');
   const [filterStep, setFilterStep] = useState<StepName | 'ALL'>('ALL');
@@ -3858,6 +4016,7 @@ export default function App() {
     const matchesLoan = filterLoanStatus === 'ALL' || app.loanStatus === filterLoanStatus;
     const matchesSelfService = filterSelfService === 'ALL' || 
       (filterSelfService === 'YES' ? app.isSelfService === true : app.isSelfService !== true);
+    const matchesSLA = filterSLAStatus === 'ALL' || (filterSLAStatus === 'OVERDUE' && getOverdueInfo(app).isOverdue);
     
     const matchesDashboardFilter = 
       dashboardFilter === 'ALL' ||
@@ -3877,7 +4036,7 @@ export default function App() {
       (dashboardFilter === 'PTDA_GCN_WAITING' && !!app.taxReceiptDate && !app.gcnSignedDate) ||
       (dashboardFilter === 'PTDA_ISSUES' && (app.isRejected || app.status === 'Error' || (app.issueType && app.issueType !== 'None')) && stepConfig[app.currentStep]?.dept === 'PTDA');
 
-    return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService && matchesDashboardFilter;
+    return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService && matchesDashboardFilter && matchesSLA;
   });
 
   if (!currentUser) {
@@ -3921,6 +4080,7 @@ export default function App() {
         <HandoverRecord 
           apps={applications.filter(a => selectedAppIds.includes(a.id))} 
           user={currentUser} 
+          template={handoverTemplate}
         />
       </div>
       {/* Background Image Container */}
@@ -5101,6 +5261,21 @@ export default function App() {
                               </select>
                             </div>
 
+                            <div className="space-y-2">
+                              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1">Tiến độ SLA</label>
+                              <select 
+                                className={cn(
+                                  "w-full rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
+                                  theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
+                                )}
+                                value={filterSLAStatus}
+                                onChange={(e) => setFilterSLAStatus(e.target.value as any)}
+                              >
+                                <option value="ALL">Tất cả tiến độ</option>
+                                <option value="OVERDUE">Quá hạn SLA</option>
+                              </select>
+                            </div>
+
                             <div className="flex items-end">
                               <button 
                                 onClick={() => {
@@ -5108,6 +5283,7 @@ export default function App() {
                                   setFilterStep('ALL');
                                   setFilterLoanStatus('ALL');
                                   setFilterSelfService('ALL');
+                                  setFilterSLAStatus('ALL');
                                   setSearch('');
                                 }}
                                 className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all"
@@ -5531,6 +5707,8 @@ export default function App() {
                   setChecklistTemplates={setChecklistTemplates}
                   stepConfig={stepConfig}
                   setStepConfig={setStepConfig}
+                  handoverTemplate={handoverTemplate}
+                  setHandoverTemplate={setHandoverTemplate}
                   theme={theme}
                 />
               </motion.div>
@@ -5990,13 +6168,15 @@ export default function App() {
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('customerHandoverDate', val)}
                       />
-                      <DetailCard theme={theme}
-                        label="Tình trạng nộp NVTC" 
-                        value={getTaxStatus(editApp || selectedApp).label} 
-                        valueColor={getTaxStatus(editApp || selectedApp).color} 
-                        editable={false}
-                        isEditing={isEditing}
-                      />
+                      {(userRole !== 'PTT' && userRole !== 'KT') && (
+                        <DetailCard theme={theme}
+                          label="Tình trạng nộp NVTC" 
+                          value={getTaxStatus(editApp || selectedApp).label} 
+                          valueColor={getTaxStatus(editApp || selectedApp).color} 
+                          editable={false}
+                          isEditing={isEditing}
+                        />
+                      )}
                     </div>
                   </section>
 
@@ -6007,7 +6187,7 @@ export default function App() {
                         <div className="w-1 h-6 bg-emerald-500 rounded-full"></div>
                         <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-white" : "text-slate-900")}>Thông tin xử lý hồ sơ theo chức năng (Kế toán)</h4>
                       </div>
-                      {userRole === 'KT' && <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full font-black uppercase border border-emerald-500/20">Cấp quyền chỉnh sửa</span>}
+                      {userRole === 'KT' && <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full font-black uppercase border border-indigo-500/20">Cấp quyền chỉnh sửa</span>}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       <DetailCard theme={theme}
@@ -6035,22 +6215,26 @@ export default function App() {
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('submissionDate', val)}
                       />
-                      <DetailCard theme={theme}
-                        label="Ngày nhận TB Thuế" 
-                        value={(editApp || selectedApp).taxNotificationReceivedDate} 
-                        type="date"
-                        editable={isFieldEditable('taxNotificationReceivedDate')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('taxNotificationReceivedDate', val)}
-                      />
-                      <DetailCard theme={theme}
-                        label="Ngày nhận NVTC" 
-                        value={(editApp || selectedApp).taxReceiptDate} 
-                        type="date"
-                        editable={isFieldEditable('taxReceiptDate')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('taxReceiptDate', val)}
-                      />
+                      {userRole !== 'PTT' && (
+                        <>
+                          <DetailCard theme={theme}
+                            label="Ngày nhận TB Thuế" 
+                            value={(editApp || selectedApp).taxNotificationReceivedDate} 
+                            type="date"
+                            editable={isFieldEditable('taxNotificationReceivedDate')}
+                            isEditing={isEditing}
+                            onChange={(val) => handleFieldChange('taxNotificationReceivedDate', val)}
+                          />
+                          <DetailCard theme={theme}
+                            label="Ngày nhận NVTC" 
+                            value={(editApp || selectedApp).taxReceiptDate} 
+                            type="date"
+                            editable={isFieldEditable('taxReceiptDate')}
+                            isEditing={isEditing}
+                            onChange={(val) => handleFieldChange('taxReceiptDate', val)}
+                          />
+                        </>
+                      )}
                       <DetailCard theme={theme}
                         label="Ngày nhận GCN thực tế" 
                         value={(editApp || selectedApp).gcnReceivedDate} 
