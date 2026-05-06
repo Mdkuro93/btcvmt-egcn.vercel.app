@@ -1,29 +1,29 @@
 import { Application, Project, Dept, UnitStatus, UserProfile } from './types';
 
 export const PROJECTS: Project[] = [
-  { id: 'p12', name: 'Dự án trung tâm thành phố Đồng Hới', region: 'Quảng Trị', totalUnits: 150 },
-  { id: 'p1', name: 'Dự án Hòa Xuân', region: 'Đà Nẵng', totalUnits: 120 },
-  { id: 'p2', name: 'Dự án Hòa Quý - Đồng Nò', region: 'Đà Nẵng', totalUnits: 450 },
-  { id: 'p3', name: 'Dự án Hòa Quý Mở rộng', region: 'Đà Nẵng', totalUnits: 300 },
-  { id: 'p4', name: 'Dự án Panoma', region: 'Đà Nẵng', totalUnits: 250 },
-  { id: 'p9', name: 'Dự án Sunneva Island', region: 'Đà Nẵng', totalUnits: 387 },
-  { id: 'p10', name: 'Dự án Nam Hòa Xuân', region: 'Đà Nẵng', totalUnits: 1000 },
-  { id: 'p13', name: 'Dự án Đảo Ngọc', region: 'Quảng Ngãi', totalUnits: 400 },
-  { id: 'p14', name: 'Nam Nha Trang', region: 'Khánh Hòa', totalUnits: 300 },
+  { id: '550e8400-e29b-41d4-a716-446655440020', name: 'Dự án trung tâm thành phố Đồng Hới', region: 'Quảng Trị', totalUnits: 150 },
+  { id: '550e8400-e29b-41d4-a716-446655440021', name: 'Dự án Hòa Xuân', region: 'Đà Nẵng', totalUnits: 120 },
+  { id: '550e8400-e29b-41d4-a716-446655440022', name: 'Dự án Hòa Quý - Đồng Nò', region: 'Đà Nẵng', totalUnits: 450 },
+  { id: '550e8400-e29b-41d4-a716-446655440023', name: 'Dự án Hòa Quý Mở rộng', region: 'Đà Nẵng', totalUnits: 300 },
+  { id: '550e8400-e29b-41d4-a716-446655440024', name: 'Dự án Panoma', region: 'Đà Nẵng', totalUnits: 250 },
+  { id: '550e8400-e29b-41d4-a716-446655440025', name: 'Dự án Sunneva Island', region: 'Đà Nẵng', totalUnits: 387 },
+  { id: '550e8400-e29b-41d4-a716-446655440026', name: 'Dự án Nam Hòa Xuân', region: 'Đà Nẵng', totalUnits: 1000 },
+  { id: '550e8400-e29b-41d4-a716-446655440027', name: 'Dự án Đảo Ngọc', region: 'Quảng Ngãi', totalUnits: 400 },
+  { id: '550e8400-e29b-41d4-a716-446655440028', name: 'Nam Nha Trang', region: 'Khánh Hòa', totalUnits: 300 },
 ];
 
 export const MOCK_USERS: UserProfile[] = [
-  { id: 'u1', username: 'admin', name: 'Hệ thống Admin', dept: 'ADMIN', permission: 'FULL', email: 'admin@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p9', 'p10', 'p12', 'p13', 'p14'] },
-  { id: 'u2', username: 'ptt_user', name: 'Nguyễn Thu Thủ Tục', dept: 'PTT', permission: 'EDIT', email: 'thutuc@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p12', 'p13'] },
-  { id: 'u3', username: 'kt_user', name: 'Trần Kế Toán', dept: 'KT', permission: 'EDIT', email: 'ketoan@sunshine.vn', status: 'Active', assignedProjectIds: ['p3', 'p4', 'p14'] },
-  { id: 'u4', username: 'ptda_user', name: 'Lê Phát Triển', dept: 'PTDA', permission: 'EDIT', email: 'ptda@sunshine.vn', status: 'Active', assignedProjectIds: ['p9', 'p10'] },
-  { id: 'u5', username: 'manager', name: 'Phạm Trưởng Phòng', dept: 'MANAGER', permission: 'VIEW', email: 'manager@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p12'] },
-  { id: 'u6', username: 'director', name: 'Lãnh đạo Sunshine', dept: 'DIRECTOR', permission: 'VIEW', email: 'director@sunshine.vn', status: 'Active', assignedProjectIds: ['p1', 'p2', 'p3', 'p4', 'p9', 'p10', 'p12', 'p13', 'p14'] },
+  { id: '550e8400-e29b-41d4-a716-446655440000', username: 'admin', name: 'Hệ thống Admin', dept: 'ADMIN', permission: 'FULL', email: 'admin@sunshine.vn', status: 'Active', assignedProjectIds: ['550e8400-e29b-41d4-a716-446655440021', '550e8400-e29b-41d4-a716-446655440022', '550e8400-e29b-41d4-a716-446655440023', '550e8400-e29b-41d4-a716-446655440024', '550e8400-e29b-41d4-a716-446655440025', '550e8400-e29b-41d4-a716-446655440026', '550e8400-e29b-41d4-a716-446655440020', '550e8400-e29b-41d4-a716-446655440027', '550e8400-e29b-41d4-a716-446655440028'] },
+  { id: '550e8400-e29b-41d4-a716-446655440001', username: 'ptt_user', name: 'Nguyễn Thu Thủ Tục', dept: 'PTT', permission: 'EDIT', email: 'thutuc@sunshine.vn', status: 'Active', assignedProjectIds: ['550e8400-e29b-41d4-a716-446655440021', '550e8400-e29b-41d4-a716-446655440022', '550e8400-e29b-41d4-a716-446655440020', '550e8400-e29b-41d4-a716-446655440027'] },
+  { id: '550e8400-e29b-41d4-a716-446655440002', username: 'kt_user', name: 'Trần Kế Toán', dept: 'KT', permission: 'EDIT', email: 'ketoan@sunshine.vn', status: 'Active', assignedProjectIds: ['550e8400-e29b-41d4-a716-446655440023', '550e8400-e29b-41d4-a716-446655440024', '550e8400-e29b-41d4-a716-446655440028'] },
+  { id: '550e8400-e29b-41d4-a716-446655440003', username: 'ptda_user', name: 'Lê Phát Triển', dept: 'PTDA', permission: 'EDIT', email: 'ptda@sunshine.vn', status: 'Active', assignedProjectIds: ['550e8400-e29b-41d4-a716-446655440025', '550e8400-e29b-41d4-a716-446655440026'] },
+  { id: '550e8400-e29b-41d4-a716-446655440004', username: 'manager', name: 'Phạm Trưởng Phòng', dept: 'MANAGER', permission: 'VIEW', email: 'manager@sunshine.vn', status: 'Active', assignedProjectIds: ['550e8400-e29b-41d4-a716-446655440021', '550e8400-e29b-41d4-a716-446655440022', '550e8400-e29b-41d4-a716-446655440020'] },
+  { id: '550e8400-e29b-41d4-a716-446655440005', username: 'director', name: 'Lãnh đạo Sunshine', dept: 'DIRECTOR', permission: 'VIEW', email: 'director@sunshine.vn', status: 'Active', assignedProjectIds: ['550e8400-e29b-41d4-a716-446655440021', '550e8400-e29b-41d4-a716-446655440022', '550e8400-e29b-41d4-a716-446655440023', '550e8400-e29b-41d4-a716-446655440024', '550e8400-e29b-41d4-a716-446655440025', '550e8400-e29b-41d4-a716-446655440026', '550e8400-e29b-41d4-a716-446655440020', '550e8400-e29b-41d4-a716-446655440027', '550e8400-e29b-41d4-a716-446655440028'] },
 ];
 
 export const MOCK_APPLICATIONS: Application[] = [
   {
-    id: 'app1',
+    id: '550e8400-e29b-41d4-a716-446655440010',
     unitCode: 'HX-A1-0501',
     projectName: 'Dự án Hòa Xuân',
     customerName: 'Nguyễn Văn A (Tự làm sổ)',
@@ -38,14 +38,14 @@ export const MOCK_APPLICATIONS: Application[] = [
     status: 'Processing',
     receivedDate: '2026-03-15',
     taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h1', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-03-15', performedBy: 'u2', performedByName: 'Nguyễn Thu Thủ Tục' }],
+    history: [{ id: 'h1', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-03-15', performedBy: '550e8400-e29b-41d4-a716-446655440001', performedByName: 'Nguyễn Thu Thủ Tục' }],
     auditTrail: [
-      { id: 'at1', userId: 'u1', userName: 'Admin', action: 'Khởi tạo hồ sơ', timestamp: '2026-03-15 08:00' },
-      { id: 'at2', userId: 'u2', userName: 'Nguyễn Thu Thủ Tục', action: 'Cập nhật Ngày ký HĐCN', timestamp: '2026-03-15 09:30', changes: 'Ngày ký HĐCN -> 2026-03-10' }
+      { id: 'at1', userId: '550e8400-e29b-41d4-a716-446655440000', userName: 'Admin', action: 'Khởi tạo hồ sơ', timestamp: '2026-03-15 08:00' },
+      { id: 'at2', userId: '550e8400-e29b-41d4-a716-446655440001', userName: 'Nguyễn Thu Thủ Tục', action: 'Cập nhật Ngày ký HĐCN', timestamp: '2026-03-15 09:30', changes: 'Ngày ký HĐCN -> 2026-03-10' }
     ]
   },
   {
-    id: 'app2',
+    id: '550e8400-e29b-41d4-a716-446655440011',
     unitCode: 'HQDN-C2-1210',
     projectName: 'Dự án Hòa Quý - Đồng Nò',
     customerName: 'Trần Thị B',
@@ -57,14 +57,14 @@ export const MOCK_APPLICATIONS: Application[] = [
     status: 'TaxPending',
     receivedDate: '2026-02-10',
     taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h2', stepName: 'GĐ3: Chờ Thông báo thuế', dept: 'PTDA', receivedDate: '2026-02-15', performedBy: 'u4', performedByName: 'Lê Phát Triển' }],
+    history: [{ id: 'h2', stepName: 'GĐ3: Chờ Thông báo thuế', dept: 'PTDA', receivedDate: '2026-02-15', performedBy: '550e8400-e29b-41d4-a716-446655440003', performedByName: 'Lê Phát Triển' }],
     auditTrail: [
-      { id: 'at3', userId: 'u1', userName: 'Admin', action: 'Khởi tạo hồ sơ', timestamp: '2026-02-10 10:00' },
-      { id: 'at4', userId: 'u3', userName: 'Trần Kế Toán', action: 'Chuyển giai đoạn sang PTDA', timestamp: '2026-02-15 14:00' }
+      { id: 'at3', userId: '550e8400-e29b-41d4-a716-446655440000', userName: 'Admin', action: 'Khởi tạo hồ sơ', timestamp: '2026-02-10 10:00' },
+      { id: 'at4', userId: '550e8400-e29b-41d4-a716-446655440002', userName: 'Trần Kế Toán', action: 'Chuyển giai đoạn sang PTDA', timestamp: '2026-02-15 14:00' }
     ]
   },
   {
-    id: 'app3',
+    id: '550e8400-e29b-41d4-a716-446655440012',
     unitCode: 'HQMR-S5-0220',
     projectName: 'Dự án Hòa Quý Mở rộng',
     customerName: 'Lê Văn C',
@@ -76,10 +76,10 @@ export const MOCK_APPLICATIONS: Application[] = [
     status: 'Completed',
     receivedDate: '2026-01-05',
     taxPaymentStatus: 'Paid',
-    history: [{ id: 'h4', stepName: 'GĐ6: Đang bàn giao khách hàng', dept: 'PTT', receivedDate: '2026-03-15', completedDate: '2026-03-20', performedBy: 'u2', performedByName: 'Nguyễn Thu Thủ Tục' }]
+    history: [{ id: 'h4', stepName: 'GĐ6: Đang bàn giao khách hàng', dept: 'PTT', receivedDate: '2026-03-15', completedDate: '2026-03-20', performedBy: '550e8400-e29b-41d4-a716-446655440001', performedByName: 'Nguyễn Thu Thủ Tục' }]
   },
   {
-    id: 'app4',
+    id: '550e8400-e29b-41d4-a716-446655440013',
     unitCode: 'HX-B2-0805',
     projectName: 'Dự án Hòa Xuân',
     customerName: 'Phạm Minh D',
@@ -94,13 +94,13 @@ export const MOCK_APPLICATIONS: Application[] = [
     issueNotes: 'Thiếu CMND bản sao công chứng của chủ sở hữu, đã yêu cầu bổ sung 3 lần.',
     receivedDate: '2026-02-01',
     taxPaymentStatus: 'Paid',
-    history: [{ id: 'h6', stepName: 'Đang xử lý sai sót/vướng', dept: 'KT', receivedDate: '2026-02-20', performedBy: 'u3', performedByName: 'Trần Kế Toán' }],
+    history: [{ id: 'h6', stepName: 'Đang xử lý sai sót/vướng', dept: 'KT', receivedDate: '2026-02-20', performedBy: '550e8400-e29b-41d4-a716-446655440002', performedByName: 'Trần Kế Toán' }],
     auditTrail: [
-      { id: 'at_err_1', userId: 'u3', userName: 'Trần Kế Toán', action: 'Báo cáo sai sót hồ sơ', timestamp: '2026-02-20 11:00', changes: 'Status -> Error, Issue -> Paperwork' }
+      { id: 'at_err_1', userId: '550e8400-e29b-41d4-a716-446655440002', userName: 'Trần Kế Toán', action: 'Báo cáo sai sót hồ sơ', timestamp: '2026-02-20 11:00', changes: 'Status -> Error, Issue -> Paperwork' }
     ]
   },
   {
-    id: 'app5',
+    id: '550e8400-e29b-41d4-a716-446655440014',
     unitCode: 'PN-P1-0105',
     projectName: 'Dự án Panoma',
     customerName: 'Hoàng Văn E',
@@ -113,10 +113,10 @@ export const MOCK_APPLICATIONS: Application[] = [
     receivedDate: '2026-03-01',
     submissionDate: '2026-03-05',
     taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h7', stepName: 'GĐ2: Chờ nộp VPĐK', dept: 'KT', receivedDate: '2026-03-05', performedBy: 'u3', performedByName: 'Trần Kế Toán' }]
+    history: [{ id: 'h7', stepName: 'GĐ2: Chờ nộp VPĐK', dept: 'KT', receivedDate: '2026-03-05', performedBy: '550e8400-e29b-41d4-a716-446655440002', performedByName: 'Trần Kế Toán' }]
   },
   {
-    id: 'app6',
+    id: '550e8400-e29b-41d4-a716-446655440015',
     unitCode: 'SI-L1-0022',
     projectName: 'Dự án Sunneva Island',
     customerName: 'Nguyễn Hải M',
@@ -127,10 +127,10 @@ export const MOCK_APPLICATIONS: Application[] = [
     status: 'Processing',
     receivedDate: '2026-04-15',
     taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h10', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-04-15', performedBy: 'u2', performedByName: 'Nguyễn Thu Thủ Tục' }]
+    history: [{ id: 'h10', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-04-15', performedBy: '550e8400-e29b-41d4-a716-446655440001', performedByName: 'Nguyễn Thu Thủ Tục' }]
   },
   {
-    id: 'app7',
+    id: '550e8400-e29b-41d4-a716-446655440016',
     unitCode: 'DH-K1-010',
     projectName: 'Dự án trung tâm thành phố Đồng Hới',
     customerName: 'Lý Kim Quy',
@@ -141,10 +141,10 @@ export const MOCK_APPLICATIONS: Application[] = [
     status: 'Processing',
     receivedDate: '2026-04-20',
     taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h11', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-04-20', performedBy: 'u2', performedByName: 'Nguyễn Thu Thủ Tục' }]
+    history: [{ id: 'h11', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-04-20', performedBy: '550e8400-e29b-41d4-a716-446655440001', performedByName: 'Nguyễn Thu Thủ Tục' }]
   },
   {
-    id: 'app8',
+    id: '550e8400-e29b-41d4-a716-446655440017',
     unitCode: 'NNT-A1-005',
     projectName: 'Nam Nha Trang',
     customerName: 'Vũ Mạnh Thắng',
@@ -157,7 +157,7 @@ export const MOCK_APPLICATIONS: Application[] = [
     taxPaymentStatus: 'Paid',
     taxNotificationDate: '2026-02-10',
     taxReceiptDate: '2026-02-15',
-    history: [{ id: 'h12', stepName: 'GĐ4: Chờ hoàn thành NVTC', dept: 'PTT', receivedDate: '2026-01-15', performedBy: 'u2', performedByName: 'Nguyễn Thu Thủ Tục' }]
+    history: [{ id: 'h12', stepName: 'GĐ4: Chờ hoàn thành NVTC', dept: 'PTT', receivedDate: '2026-01-15', performedBy: '550e8400-e29b-41d4-a716-446655440001', performedByName: 'Nguyễn Thu Thủ Tục' }]
   }
 ];
 

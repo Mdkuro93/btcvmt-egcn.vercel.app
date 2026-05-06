@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, Component, ReactNode, ErrorInfo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Cell,
   PieChart, Pie, LabelList, Legend, AreaChart, Area
 } from 'recharts';
 import { 
+  Database,
   RefreshCcw,
   Building2, 
   Files, 
@@ -335,21 +336,67 @@ const parseExcelDate = (val: any): string => {
   return String(val);
 };
 
-const LoginScreen = ({ onLogin, users, theme, onThemeToggle }: { onLogin: (user: UserProfile) => void, users: UserProfile[], theme: 'light' | 'dark', onThemeToggle: () => void }) => {
+const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserProfile) => void, theme: 'light' | 'dark', onThemeToggle: () => void }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const loginUsers = users.length > 0 ? users : MOCK_USERS;
-    const user = loginUsers.find(u => u.username === username || u.email === username);
-    const validPassword = user?.password || '123456';
-    if (user && password === validPassword) {
-      onLogin(user);
-    } else if (!user) {
-      alert(`Tài khoản không tồn tại! (Kiểm tra dữ liệu: hiện có ${loginUsers.length} tài khoản)`);
-    } else {
-      alert('Mật khẩu không chính xác! (Gợi ý: 123456)');
+    setIsAuthenticating(true);
+
+    try {
+      // 1. Sign in with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: username.includes('@') ? username : `${username}@sungroup.com.vn`, 
+        password: password,
+      });
+
+      if (authError) {
+        console.error('Supabase Auth error:', authError);
+        alert(`Lỗi đăng nhập: ${authError.message}`);
+        return;
+      }
+
+      if (!authData.user) {
+        throw new Error('Đăng nhập thành công nhưng không tìm thấy thông tin User Auth.');
+      }
+
+      const userId = authData.user.id;
+      if (!validateUUID(userId)) {
+        alert("Lỗi: Tài khoản định danh không hợp lệ (u1/u2 legacy detected). Vui lòng liên hệ Admin.");
+        await supabase.auth.signOut();
+        return;
+      }
+
+      // 2. Fetch user profile from public.users table
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (userError) {
+        console.error('Fetch user profile error:', userError);
+        alert(`Đã đăng nhập Auth nhưng không tìm thấy hồ sơ người dùng trong hệ thống (Table: users). Lỗi: ${userError.message}`);
+        // Optionally logout if profile missing
+        await supabase.auth.signOut();
+        return;
+      }
+
+      if (userData) {
+        const userProfile = mapUserFromSnakeCase(userData);
+        onLogin(userProfile);
+      } else {
+        alert('Không tìm thấy dữ liệu người dùng trong bảng users.');
+        await supabase.auth.signOut();
+      }
+
+    } catch (err: any) {
+      console.error('Unexpected login error:', err);
+      alert(`Đã xảy ra lỗi không mong muốn: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsAuthenticating(false);
     }
   };
 
@@ -386,7 +433,7 @@ const LoginScreen = ({ onLogin, users, theme, onThemeToggle }: { onLogin: (user:
             <Building2 className="text-slate-950" size={32} />
           </div>
           <h1 className={cn("text-2xl font-black font-serif italic tracking-tight", theme === 'dark' ? "text-white" : "text-slate-900")}>GCN Tracker Login</h1>
-          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Hệ thống quản lý tình trạng cấp GCN QSDĐ VMT</p>
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1 text-center">Hệ thống quản lý tình trạng cấp GCN QSDĐ VMT</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
@@ -394,7 +441,7 @@ const LoginScreen = ({ onLogin, users, theme, onThemeToggle }: { onLogin: (user:
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Tên đăng nhập / Email</label>
             <input 
               type="text" 
-              placeholder="VD: admin"
+              placeholder="VD: admin hoặc admin@sungroup.com.vn"
               className={cn(
                 "w-full rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-festive-gold/20 transition-all text-sm border",
                 theme === 'dark' ? "bg-slate-950 border-slate-800 text-white placeholder:text-slate-700" : "bg-white border-slate-200 text-slate-900 placeholder:text-slate-300"
@@ -402,6 +449,7 @@ const LoginScreen = ({ onLogin, users, theme, onThemeToggle }: { onLogin: (user:
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
+              disabled={isAuthenticating}
             />
           </div>
           <div className="space-y-2">
@@ -416,14 +464,26 @@ const LoginScreen = ({ onLogin, users, theme, onThemeToggle }: { onLogin: (user:
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              disabled={isAuthenticating}
             />
           </div>
           
           <button 
             type="submit"
-            className="w-full bg-festive-gold text-slate-950 py-4 rounded-2xl font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-festive-gold/20 hover:scale-[1.02] active:scale-95 transition-all mt-4"
+            disabled={isAuthenticating}
+            className={cn(
+              "w-full py-4 rounded-2xl font-black uppercase tracking-[0.2em] text-xs shadow-xl transition-all mt-4 flex items-center justify-center gap-2",
+              isAuthenticating 
+                ? "bg-slate-700 text-slate-400 cursor-not-allowed" 
+                : "bg-festive-gold text-slate-950 shadow-festive-gold/20 hover:scale-[1.02] active:scale-95"
+            )}
           >
-            Đăng nhập
+            {isAuthenticating ? (
+              <>
+                <RefreshCcw size={16} className="animate-spin" />
+                Đang kiểm tra...
+              </>
+            ) : 'Đăng nhập'}
           </button>
         </form>
       </motion.div>
@@ -619,7 +679,7 @@ const SettingsView = ({
   theme: 'light' | 'dark',
   onSaveConfig: (key: string, value: any) => Promise<void>,
   isLoading: boolean,
-  storageStats: { totalSize: number, fileCount: number, folders: string[] },
+  storageStats: { totalSize: number, fileCount: number, folders: string[], dbSize: number },
   isFetchingStorage: boolean,
   onRefreshStorage: () => void
 }) => {
@@ -911,12 +971,32 @@ const SettingsView = ({
           </button>
         </div>
         <div className="p-8 space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className={cn(
               "p-6 rounded-3xl border",
               theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950 border-slate-800"
             )}>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Tổng dung lượng</p>
+              <div className="flex items-center gap-2 mb-2">
+                <Database className="text-indigo-500" size={14} />
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Dung lượng Database</p>
+              </div>
+              <p className="text-2xl font-black text-indigo-500 font-mono tracking-tighter">
+                {formatSize(storageStats.dbSize)}
+              </p>
+              <div className="mt-2 flex items-center gap-1">
+                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                 <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Dữ liệu từ Supabase</span>
+              </div>
+            </div>
+            
+            <div className={cn(
+              "p-6 rounded-3xl border",
+              theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950 border-slate-800"
+            )}>
+              <div className="flex items-center gap-2 mb-2">
+                <FolderArchive className="text-orange-500" size={14} />
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Dung lượng Storage</p>
+              </div>
               <p className="text-2xl font-black text-orange-500 font-mono tracking-tighter">
                 {formatSize(storageStats.totalSize)}
               </p>
@@ -925,7 +1005,10 @@ const SettingsView = ({
               "p-6 rounded-3xl border",
               theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950 border-slate-800"
             )}>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Số lượng tài liệu</p>
+              <div className="flex items-center gap-2 mb-2">
+                <Files className="text-orange-500" size={14} />
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Số lượng tài liệu</p>
+              </div>
               <p className="text-2xl font-black text-orange-500 font-mono tracking-tighter">
                 {storageStats.fileCount} <span className="text-xs uppercase">Files</span>
               </p>
@@ -934,7 +1017,10 @@ const SettingsView = ({
               "p-6 rounded-3xl border",
               theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950 border-slate-800"
             )}>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Số thư mục dự án</p>
+              <div className="flex items-center gap-2 mb-2">
+                <Layers className="text-orange-500" size={14} />
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Số thư mục dự án</p>
+              </div>
               <p className="text-2xl font-black text-orange-500 font-mono tracking-tighter">
                 {storageStats.folders.length} <span className="text-xs uppercase">Folders</span>
               </p>
@@ -2717,6 +2803,20 @@ const PrintStyles = () => (
   `}</style>
 );
 
+const GlobalThemeStyles = ({ theme }: { theme: 'light' | 'dark' }) => (
+  <style>{`
+    html, body, #root {
+      background-color: ${theme === 'dark' ? '#020617' : '#f8fafc'};
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      width: 100% !important;
+      color-scheme: ${theme};
+      transition: background-color 0.5s ease;
+    }
+  `}</style>
+);
+
 const HandoverRecord = ({ apps, user, template }: { apps: Application[], user: UserProfile | null, template: any }) => {
   const today = new Date();
   return (
@@ -2831,8 +2931,89 @@ const HandoverRecord = ({ apps, user, template }: { apps: Application[], user: U
   );
 };
 
+const validateUUID = (id: string | undefined | null) => {
+  if (!id) return false;
+  const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return regex.test(id);
+};
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  theme: 'light' | 'dark';
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    // @ts-ignore
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
+  }
+
+  render() {
+    // @ts-ignore
+    if (this.state.hasError) {
+      return (
+        <div className={twMerge(
+          "min-h-screen flex flex-col items-center justify-center p-8 text-center",
+          // @ts-ignore
+          this.props.theme === 'dark' ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-900"
+        )}>
+          <div className="w-20 h-20 bg-rose-500/10 text-rose-500 rounded-3xl flex items-center justify-center mb-6 border border-rose-500/20">
+            <AlertTriangle size={40} />
+          </div>
+          <h1 className="text-2xl font-black mb-2 uppercase tracking-tight">Đã xảy ra lỗi hệ thống</h1>
+          <p className="text-slate-500 max-w-md mb-8 text-sm font-medium">
+            Ứng dụng gặp sự cố khi xử lý dữ liệu. Điều này thường do định dạng ID không hợp lệ hoặc lỗi kết nối.
+          </p>
+          <div className={twMerge(
+            "p-4 rounded-2xl border text-left mb-8 max-w-2xl w-full overflow-auto font-mono text-xs",
+            // @ts-ignore
+            this.props.theme === 'dark' ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
+          )}>
+            <p className="text-rose-500 font-bold mb-1">Error Details:</p>
+            {/* @ts-ignore */}
+            <p className="opacity-70">{this.state.error?.message}</p>
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-600/20 hover:scale-105 transition-all"
+          >
+            Tải lại trang web
+          </button>
+        </div>
+      );
+    }
+
+    // @ts-ignore
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  
+  return (
+    <ErrorBoundary theme={theme}>
+       <GlobalThemeStyles theme={theme} />
+       <ApplicationContent theme={theme} setTheme={setTheme} />
+    </ErrorBoundary>
+  );
+}
+
+function ApplicationContent({ theme, setTheme }: { theme: 'light' | 'dark', setTheme: React.Dispatch<React.SetStateAction<'light' | 'dark'>> }) {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([
     { id: '1', title: 'Hồ sơ trễ hạn', message: 'Lô A1.1205 đã quá hạn xử lý 2 ngày', time: '5 phút trước', type: 'Urgent', isRead: false },
@@ -2849,12 +3030,13 @@ export default function App() {
   const [isLoadingApps, setIsLoadingApps] = useState(true);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const [storageStats, setStorageStats] = useState<{ totalSize: number, fileCount: number, folders: string[] }>({ totalSize: 0, fileCount: 0, folders: [] });
+  const [storageStats, setStorageStats] = useState<{ totalSize: number, fileCount: number, folders: string[], dbSize: number }>({ totalSize: 0, fileCount: 0, folders: [], dbSize: 0 });
   const [isFetchingStorage, setIsFetchingStorage] = useState(false);
 
   const fetchStorageUsage = async () => {
     setIsFetchingStorage(true);
     try {
+      // 1. Fetch File Storage Stats
       const { data: rootItems, error: rootError } = await supabase.storage.from('Documents-GCN').list();
       if (rootError) throw rootError;
 
@@ -2882,10 +3064,24 @@ export default function App() {
         }
       }
 
+      // 2. Fetch Database Size via RPC (SELECT pg_database_size(current_database()))
+      // Note: This requires an RPC function 'get_database_size' to be created in Supabase SQL Editor:
+      // CREATE OR REPLACE FUNCTION get_database_size() RETURNS bigint AS $$ SELECT pg_database_size(current_database()); $$ LANGUAGE sql SECURITY DEFINER;
+      let dbSize = 0;
+      try {
+        const { data: dbSizeData, error: dbSizeError } = await supabase.rpc('get_database_size');
+        if (!dbSizeError && dbSizeData) {
+          dbSize = dbSizeData;
+        }
+      } catch (e) {
+        console.warn('Database size RPC not found or failed. Ensure "get_database_size" function exists in Supabase.', e);
+      }
+
       setStorageStats({
         totalSize,
         fileCount: totalFiles,
-        folders: folderNames
+        folders: folderNames,
+        dbSize
       });
     } catch (error) {
       console.error('Error fetching storage stats:', error);
@@ -2893,6 +3089,69 @@ export default function App() {
       setIsFetchingStorage(false);
     }
   };
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      setCurrentUser(null);
+      showToast('Đã đăng xuất thành công', 'success');
+    } catch (error: any) {
+      console.error('Logout error:', error);
+      showToast('Lỗi khi đăng xuất', 'error');
+    }
+  };
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const userId = session.user.id;
+        if (!validateUUID(userId)) {
+          console.error("Invalid User ID format detected:", userId);
+          await supabase.auth.signOut();
+          setCurrentUser(null);
+          return;
+        }
+
+        const { data: userData } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', userId)
+          .single();
+        
+        if (userData) {
+          setCurrentUser(mapUserFromSnakeCase(userData));
+        }
+      }
+    };
+    checkUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        const userId = session.user.id;
+        if (!validateUUID(userId)) {
+          console.error("Invalid User ID format in auth change:", userId);
+          await supabase.auth.signOut();
+          setCurrentUser(null);
+          return;
+        }
+
+        const { data: userData } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', userId)
+          .single();
+        
+        if (userData) {
+          setCurrentUser(mapUserFromSnakeCase(userData));
+        }
+      } else {
+        setCurrentUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Fetch all data from Supabase
   useEffect(() => {
@@ -2962,7 +3221,12 @@ export default function App() {
         } else {
           setApplications(MOCK_APPLICATIONS);
           if (appsData && appsData.length === 0) {
-            await supabase.from('records').upsert(MOCK_APPLICATIONS.map(mapToSnakeCase));
+            // Seed mock apps using valid UUIDs from constants
+            const appsToSeed = MOCK_APPLICATIONS.map(app => mapToSnakeCase(app));
+            const { data: seededApps, error: seedError } = await supabase.from('records').insert(appsToSeed).select();
+            if (!seedError && seededApps) {
+              setApplications(seededApps.map(mapFromSnakeCase));
+            }
           }
         }
 
@@ -2972,7 +3236,12 @@ export default function App() {
         } else {
           setUsers(MOCK_USERS);
           if (usersData && usersData.length === 0) {
-            await supabase.from('users').upsert(MOCK_USERS.map(mapUserToSnakeCase));
+             // Seed mock users using valid UUIDs from constants
+             const usersToSeed = MOCK_USERS.map(user => mapUserToSnakeCase(user));
+             const { data: seededUsers, error: seedError } = await supabase.from('users').insert(usersToSeed).select();
+             if (!seedError && seededUsers) {
+               setUsers(seededUsers.map(mapUserFromSnakeCase));
+             }
           }
         }
       } catch (err) {
@@ -3407,9 +3676,9 @@ export default function App() {
           const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
           
           const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
-             id: `admin-imp-${Date.now()}-${Math.random()}`,
              unitCode: unitCode,
-             history: [{ id: `hist-${Date.now()}`, stepName: 'Quản trị viên Import', dept: 'ADMIN', receivedDate: new Date().toISOString().split('T')[0] }]
+             // No custom ID, let db generate it
+             history: [{ id: `his-${crypto.randomUUID()}`, stepName: 'Quản trị viên Import', dept: 'ADMIN', receivedDate: new Date().toISOString().split('T')[0] }]
           } as Application;
 
           app.projectName = row[0] || app.projectName || projects[0].name;
@@ -3445,11 +3714,10 @@ export default function App() {
         } else if (userRole === 'PTT') {
           const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
           const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
-             id: `ptt-imp-${Date.now()}-${Math.random()}`,
              unitCode: unitCode,
              status: 'Processing',
              currentStep: 'GD1_ChuanBi',
-             history: [{ id: `hist-${Date.now()}`, stepName: 'PTT Import', dept: 'PTT', receivedDate: new Date().toISOString().split('T')[0] }]
+             history: [{ id: `his-${crypto.randomUUID()}`, stepName: 'PTT Import', dept: 'PTT', receivedDate: new Date().toISOString().split('T')[0] }]
           } as Application;
 
           app.projectName = row[0] || app.projectName || projects[0].name;
@@ -3534,7 +3802,7 @@ export default function App() {
     
     try {
       const auditEntry: AuditTrailEntry = {
-        id: `audit-${Date.now()}`,
+        id: `aud-${crypto.randomUUID()}`,
         userId: currentUser?.id || 'admin',
         userName: currentUser?.name || 'Admin',
         timestamp: new Date().toLocaleString('vi-VN'),
@@ -3688,7 +3956,7 @@ export default function App() {
         
         const newHistory = [
           {
-            id: `hist-${Date.now()}-${app.id}`,
+            id: `his-${crypto.randomUUID()}`,
             stepName: stepConfig[targetStep].label,
             dept: stepConfig[targetStep].dept,
             receivedDate: nowStr,
@@ -3834,7 +4102,7 @@ export default function App() {
           .getPublicUrl(filePath);
 
         const newFile: ScannedFile = {
-          id: `file-${Date.now()}`,
+          id: `fil-${crypto.randomUUID()}`,
           name: file.name,
           type: file.type,
           url: publicUrl,
@@ -4057,7 +4325,7 @@ export default function App() {
     try {
       // Add notification
       const newNotification: AppNotification = {
-        id: `notif-${Date.now()}`,
+        id: `not-${crypto.randomUUID()}`,
         title: 'Hồ sơ bị trả về / Cần bổ sung',
         message: `Hồ sơ lô ${app.unitCode} (${app.projectName}) bị Kế toán trả về: ${reason}`,
         time: 'Vừa xong',
@@ -4218,8 +4486,7 @@ export default function App() {
     setIsSavingApp(true);
     
     try {
-      const appToAdd: Application = {
-        id: `app-${Date.now()}`,
+      const appToAddTemp: any = {
         unitCode: newApp.unitCode,
         customerName: newApp.customerName,
         contractSignerType: newApp.contractSignerType,
@@ -4244,8 +4511,15 @@ export default function App() {
         ]
       };
       
-      // Save to Supabase
-      await syncRecordToSupabase(appToAdd);
+      // Save to Supabase (omit id to let Supabase generate UUID)
+      const dataToInsert = mapToSnakeCase(appToAddTemp);
+      delete dataToInsert.id;
+
+      const { data, error } = await supabase.from('records').insert(dataToInsert).select();
+
+      if (error) throw error;
+      
+      const appToAdd = mapFromSnakeCase(data[0]);
 
       setApplications(prev => [appToAdd, ...prev]);
       setIsCreateModalOpen(false);
@@ -4273,27 +4547,41 @@ export default function App() {
   };
 
   const handleCreateUser = async () => {
-    if (!newUser.username || !newUser.name) {
-      alert('Vui lòng điền đầy đủ thông tin');
+    if (!newUser.username || !newUser.name || !newUser.email || !newUser.password) {
+      alert('Vui lòng điền đầy đủ thông tin (Email và Mật khẩu là bắt buộc để đồng bộ Auth)');
       return;
     }
-    const userToAdd: UserProfile = {
-      id: `user-${Date.now()}`,
-      ...newUser,
-    };
     
     setIsSavingApp(true);
     try {
-      const { error } = await supabase.from('users').upsert(mapUserToSnakeCase(userToAdd));
-      if (error) throw error;
+      // Step 1: Create user in Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: newUser.email,
+        password: newUser.password,
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('Không thể khởi tạo Auth user');
+
+      // Step 2: Use the exact UID from Auth to create row in public.users
+      const userToInsert = mapUserToSnakeCase(newUser as UserProfile);
+      userToInsert.id = authData.user.id; // ĐÂY LÀ CHÌA KHÓA: Lấy ID từ Auth bỏ vào Public
+
+      const { data, error: dbError } = await supabase.from('users').insert(userToInsert).select().single();
       
+      if (dbError) {
+        console.error('Database sync error after Auth creation:', dbError);
+        throw dbError;
+      }
+      
+      const userToAdd = mapUserFromSnakeCase(data);
       setUsers(prev => [...prev, userToAdd]);
       setIsUserModalOpen(false);
       setNewUser({ username: '', password: '', name: '', dept: 'PTT', email: '', status: 'Active', permission: 'VIEW', assignedProjectIds: [] });
-      showToast('Đã thêm người dùng mới và đồng bộ Supabase thành công!', 'success');
-    } catch (error) {
+      showToast('Đã thêm người dùng mới và đồng bộ Auth/Database thành công!', 'success');
+    } catch (error: any) {
       console.error('Supabase create user error:', error);
-      showToast('Lỗi khi tạo người dùng lên Supabase.', 'error');
+      showToast(`Lỗi khi tạo người dùng: ${error.message || ''}`, 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -4303,6 +4591,7 @@ export default function App() {
     if (!editUser) return;
     setIsSavingApp(true);
     try {
+      // For update, we must have a valid UUID in editUser.id
       const { error } = await supabase.from('users').upsert(mapUserToSnakeCase(editUser));
       if (error) throw error;
       
@@ -4310,9 +4599,9 @@ export default function App() {
       setEditUser(null);
       setIsUserModalOpen(false);
       showToast('Đã cập nhật thông tin người dùng lên Supabase thành công!', 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Supabase update user error:', error);
-      showToast('Lỗi khi cập nhật người dùng.', 'error');
+      showToast(`Lỗi khi cập nhật người dùng: ${error.message || ''}`, 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -4747,7 +5036,7 @@ export default function App() {
   }
 
   if (!currentUser) {
-    return <LoginScreen users={users} theme={theme} onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} onLogin={(user) => {
+    return <LoginScreen theme={theme} onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} onLogin={(user) => {
       setCurrentUser(user);
     }} />;
   }
@@ -4761,7 +5050,7 @@ export default function App() {
           setApplications(prev => prev.map(a => a.id === updated.id ? updated : a));
           setNotifications(prev => [
             { 
-              id: Date.now().toString(), 
+              id: crypto.randomUUID(), 
               title: 'Cập nhật hiện trường', 
               message: `Hồ sơ ${updated.unitCode} được cập nhật trạng thái bởi nhân viên hiện trường.`, 
               time: 'Vừa xong', 
@@ -5196,14 +5485,14 @@ export default function App() {
                 {currentUser?.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
               </div>
               <button 
-                onClick={() => setCurrentUser(null)}
+                onClick={handleLogout}
                 className={cn(
                   "p-2.5 rounded-xl transition-all border",
                   theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 shadow-sm" : "bg-slate-900/50 border-slate-800 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10"
                 )}
                 title="Đăng xuất"
               >
-                <LogOut size={20} />
+                <LogOut size={18} />
               </button>
             </div>
           </div>
