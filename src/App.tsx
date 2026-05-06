@@ -4407,23 +4407,32 @@ export default function App() {
       alert('Vui lòng điền đầy đủ thông tin');
       return;
     }
-    const userToAdd: UserProfile = {
-      id: `user-${Date.now()}`,
-      ...newUser,
-    };
     
     setIsSavingApp(true);
     try {
-      const { error } = await supabase.from('users').upsert(mapUserToSnakeCase(userToAdd));
-      if (error) throw error;
+      const dataToInsert = mapUserToSnakeCase(newUser as UserProfile);
+      // Remove id to let Supabase generate a proper UUID if column is UUID or handle PK
+      delete (dataToInsert as any).id;
       
-      setUsers(prev => [...prev, userToAdd]);
+      const { data, error } = await supabase.from('users').insert(dataToInsert).select();
+      
+      if (error) {
+        console.error('Supabase error detail:', error);
+        throw new Error(error.message || 'Lỗi không xác định từ Supabase');
+      }
+      
+      if (!data || data.length === 0) {
+        throw new Error('Không nhận được dữ liệu phản hồi từ Supabase sau khi tạo.');
+      }
+      
+      const userAdded = mapUserFromSnakeCase(data[0]);
+      setUsers(prev => [...prev, userAdded]);
       setIsUserModalOpen(false);
       setNewUser({ username: '', password: '', name: '', dept: 'PTT', email: '', status: 'Active', permission: 'VIEW', assignedProjectIds: [] });
-      showToast('Đã thêm người dùng mới và đồng bộ Supabase thành công!', 'success');
-    } catch (error) {
+      showToast('Đã thêm người dùng mới thành công!', 'success');
+    } catch (error: any) {
       console.error('Supabase create user error:', error);
-      showToast('Lỗi khi tạo người dùng lên Supabase.', 'error');
+      showToast(`Lỗi khi tạo người dùng: ${error.message || 'Vui lòng kiểm tra kết nối.'}`, 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -4433,16 +4442,21 @@ export default function App() {
     if (!editUser) return;
     setIsSavingApp(true);
     try {
-      const { error } = await supabase.from('users').upsert(mapUserToSnakeCase(editUser));
-      if (error) throw error;
+      const dataToUpdate = mapUserToSnakeCase(editUser);
+      const { error } = await supabase.from('users').update(dataToUpdate).eq('id', editUser.id);
+      
+      if (error) {
+        console.error('Supabase update error detail:', error);
+        throw new Error(error.message || 'Lỗi khi cập nhật trên Supabase');
+      }
       
       setUsers(prev => prev.map(u => u.id === editUser.id ? editUser : u));
       setEditUser(null);
       setIsUserModalOpen(false);
-      showToast('Đã cập nhật thông tin người dùng lên Supabase thành công!', 'success');
-    } catch (error) {
+      showToast('Đã cập nhật thông tin người dùng thành công!', 'success');
+    } catch (error: any) {
       console.error('Supabase update user error:', error);
-      showToast('Lỗi khi cập nhật người dùng.', 'error');
+      showToast(`Lỗi khi cập nhật: ${error.message || ''}`, 'error');
     } finally {
       setIsSavingApp(false);
     }
