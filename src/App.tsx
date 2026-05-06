@@ -48,6 +48,7 @@ import {
   GitMerge,
   Info,
   ShieldCheck,
+  ShieldAlert,
   FolderArchive,
   TrendingUp,
   Activity,
@@ -363,6 +364,7 @@ const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserPr
       }
 
       const userId = authData.user.id;
+      console.log('User ID hiện tại:', userId);
       if (!validateUUID(userId)) {
         alert("Lỗi: Tài khoản định danh không hợp lệ (u1/u2 legacy detected). Vui lòng liên hệ Admin.");
         await supabase.auth.signOut();
@@ -3015,6 +3017,7 @@ export default function App() {
 
 function ApplicationContent({ theme, setTheme }: { theme: 'light' | 'dark', setTheme: React.Dispatch<React.SetStateAction<'light' | 'dark'>> }) {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([
     { id: '1', title: 'Hồ sơ trễ hạn', message: 'Lô A1.1205 đã quá hạn xử lý 2 ngày', time: '5 phút trước', type: 'Urgent', isRead: false },
     { id: '2', title: 'Cập nhật trạng thái', message: 'Căn hộ B2.0504 đã hoàn tất nộp thuế', time: '1 giờ trước', type: 'Success', isRead: false },
@@ -3106,6 +3109,7 @@ function ApplicationContent({ theme, setTheme }: { theme: 'light' | 'dark', setT
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         const userId = session.user.id;
+        console.log('User ID hiện tại:', userId);
         if (!validateUUID(userId)) {
           console.error("Invalid User ID format detected:", userId);
           await supabase.auth.signOut();
@@ -3113,7 +3117,7 @@ function ApplicationContent({ theme, setTheme }: { theme: 'light' | 'dark', setT
           return;
         }
 
-        const { data: userData } = await supabase
+        const { data: userData, error } = await supabase
           .from('users')
           .select('*')
           .eq('id', userId)
@@ -3121,6 +3125,9 @@ function ApplicationContent({ theme, setTheme }: { theme: 'light' | 'dark', setT
         
         if (userData) {
           setCurrentUser(mapUserFromSnakeCase(userData));
+          setAuthError(null);
+        } else {
+          setAuthError('Tài khoản chưa được phân quyền trên hệ thống');
         }
       }
     };
@@ -3129,6 +3136,7 @@ function ApplicationContent({ theme, setTheme }: { theme: 'light' | 'dark', setT
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
         const userId = session.user.id;
+        console.log('User ID hiện tại:', userId);
         if (!validateUUID(userId)) {
           console.error("Invalid User ID format in auth change:", userId);
           await supabase.auth.signOut();
@@ -3136,7 +3144,7 @@ function ApplicationContent({ theme, setTheme }: { theme: 'light' | 'dark', setT
           return;
         }
 
-        const { data: userData } = await supabase
+        const { data: userData, error } = await supabase
           .from('users')
           .select('*')
           .eq('id', userId)
@@ -3144,9 +3152,13 @@ function ApplicationContent({ theme, setTheme }: { theme: 'light' | 'dark', setT
         
         if (userData) {
           setCurrentUser(mapUserFromSnakeCase(userData));
+          setAuthError(null);
+        } else {
+          setAuthError('Tài khoản chưa được phân quyền trên hệ thống');
         }
       } else {
         setCurrentUser(null);
+        setAuthError(null);
       }
     });
 
@@ -5010,6 +5022,33 @@ function ApplicationContent({ theme, setTheme }: { theme: 'light' | 'dark', setT
 
     return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService && matchesDashboardFilter && matchesSLA;
   });
+
+  if (authError) {
+    return (
+      <div className={cn(
+        "min-h-screen flex flex-col items-center justify-center p-8 text-center",
+        theme === 'dark' ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-900"
+      )}>
+        <div className="w-20 h-20 bg-rose-500/10 text-rose-500 rounded-3xl flex items-center justify-center mb-6 border border-rose-500/20">
+          <ShieldAlert size={40} />
+        </div>
+        <h1 className="text-2xl font-black mb-2 uppercase tracking-tight">Quyền truy cập bị từ chối</h1>
+        <p className="text-slate-500 max-w-md mb-8 text-sm font-medium">
+          {authError}. Vui lòng liên hệ quản trị viên để được cấp quyền truy cập vào hệ thống GCN Tracker.
+        </p>
+        <button 
+          onClick={async () => {
+            await supabase.auth.signOut();
+            setAuthError(null);
+            setCurrentUser(null);
+          }}
+          className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-600/20 hover:scale-105 transition-all"
+        >
+          Quay lại màn hình đăng nhập
+        </button>
+      </div>
+    );
+  }
 
   if (isInitialLoading) {
     return (
