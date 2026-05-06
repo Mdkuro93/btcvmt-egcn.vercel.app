@@ -33,7 +33,6 @@ export type UserProfile = {
   email?: string;
   phoneNumber?: string;
   status: 'Active' | 'Inactive';
-  version?: number;
 };
 
 export type UnitStatus = 
@@ -131,7 +130,6 @@ export type Application = {
   };
   history: ApplicationStepHistory[];
   auditTrail?: AuditTrailEntry[];
-  version?: number;
 };
 
 export type AppNotification = {

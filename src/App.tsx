@@ -4,6 +4,7 @@ import {
   PieChart, Pie, LabelList, Legend, AreaChart, Area
 } from 'recharts';
 import { 
+  Database,
   RefreshCcw,
   Building2, 
   Files, 
@@ -155,8 +156,7 @@ const mapFromSnakeCase = (item: any): Application => {
       : (item.scanned_files || item.scannedFiles || []),
     auditTrail: typeof (item.audit_trail || item.auditTrail) === 'string' 
       ? JSON.parse(item.audit_trail || item.auditTrail) 
-      : (item.audit_trail || item.auditTrail || []),
-    version: item.version || 1
+      : (item.audit_trail || item.auditTrail || [])
   };
 };
 
@@ -204,24 +204,22 @@ const mapToSnakeCase = (app: Application) => {
     checklist: app.checklist || {},
     scanned_files: app.scannedFiles || [],
     audit_trail: app.auditTrail || [],
-    updated_at: new Date().toISOString(),
-    version: app.version || 1
+    updated_at: new Date().toISOString()
   };
 };
 
 const mapUserFromSnakeCase = (item: any): UserProfile => {
   return {
-    id: item.id || '',
-    username: item.username || '',
-    password: item.password || '',
-    name: item.name || 'Người dùng',
-    dept: item.dept || 'PTT',
-    permission: item.permission || 'VIEW',
+    id: item.id,
+    username: item.username,
+    password: item.password,
+    name: item.name,
+    dept: item.dept,
+    permission: item.permission,
     assignedProjectIds: item.assigned_project_ids || [],
-    email: item.email || '',
-    phoneNumber: item.phone_number || '',
-    status: item.status || 'Active',
-    version: item.version || 1
+    email: item.email,
+    phoneNumber: item.phone_number,
+    status: item.status
   };
 };
 
@@ -236,8 +234,7 @@ const mapUserToSnakeCase = (user: UserProfile) => {
     assigned_project_ids: user.assignedProjectIds,
     email: user.email,
     phone_number: user.phoneNumber,
-    status: user.status,
-    version: user.version || 1
+    status: user.status
   };
 };
 
@@ -339,35 +336,72 @@ const parseExcelDate = (val: any): string => {
   return String(val);
 };
 
-const LoginScreen = ({ onLogin, users, theme, onThemeToggle }: { onLogin: (user: UserProfile) => void, users: UserProfile[], theme: 'light' | 'dark', onThemeToggle: () => void }) => {
+const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserProfile) => void, theme: 'light' | 'dark', onThemeToggle: () => void }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Check database users first
-    const dbUser = users.find(u => u.username === username || u.email === username);
-    // Fallback to mock users
-    const mockUser = MOCK_USERS.find(u => u.username === username || u.email === username);
-    
-    const user = dbUser || mockUser;
-    
-    if (!user) {
-      alert(`Tài khoản "${username}" không tồn tại trên hệ thống.`);
+    if (!username || !password) {
+      alert('Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu');
       return;
     }
+    
+    setIsLoading(true);
+    console.log('Attempting login for:', username);
+    
+    try {
+      // 1. Prioritize db check
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .or(`username.eq.${username},email.eq.${username}`)
+        .eq('password', password)
+        .maybeSingle();
 
-    // Special case: admin/123456 should ALWAYS allow entry to prevent lockouts
-    const isMasterAccess = username === 'admin' && password === '123456';
-    
-    // Use user-defined password, or default to 123456
-    const validPassword = user.password || '123456';
-    
-    if (isMasterAccess || password === validPassword) {
-      onLogin(user);
-    } else {
-      alert(`Mật khẩu cho tài khoản "${username}" không chính xác! (Gợi ý mặc định: 123456)`);
+      if (error) {
+        console.warn('Database error or table missing, falling back to local users:', error);
+      }
+
+      if (data) {
+        console.log('Login successful via DB');
+        onLogin(mapUserFromSnakeCase(data));
+        return;
+      }
+
+      // 2. Hardcoded Fallbacks (MOCK_USERS + specific hardcoded overrides)
+      const mockUser = MOCK_USERS.find(u => (u.username === username || u.email === username) && (u.password === password || password === '123456'));
+      
+      if (username === 'admin' && password === '123456') {
+        console.log('Using hardcoded admin fallback');
+        const defaultAdmin: UserProfile = {
+          id: '550e8400-e29b-41d4-a716-446655440000',
+          username: 'admin',
+          password: '123456',
+          name: 'Hệ thống Admin',
+          dept: 'ADMIN', // Highest level permission
+          permission: 'FULL',
+          assignedProjectIds: PROJECTS.map(p => p.id),
+          email: 'admin@sunshine.vn',
+          status: 'Active'
+        };
+        onLogin(defaultAdmin);
+        return;
+      }
+
+      if (mockUser) {
+        console.log('Using mock user fallback');
+        onLogin(mockUser);
+        return;
+      }
+
+      alert('Tên đăng nhập hoặc mật khẩu không chính xác!');
+    } catch (err) {
+      console.error('System login error:', err);
+      alert('Đã xảy ra lỗi hệ thống khi đăng nhập!');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -483,87 +517,31 @@ const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark',
   </motion.div>
 );
 
-const ChangePasswordModal = ({ isOpen, onClose, onConfirm, theme = 'dark' }: { isOpen: boolean, onClose: () => void, onConfirm: (oldPass: string, newPass: string) => void, theme?: 'light' | 'dark' }) => {
-  const [oldPass, setOldPass] = useState('');
-  const [newPass, setNewPass] = useState('');
-  const [confirmPass, setConfirmPass] = useState('');
+const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Application }) => {
+  let effectiveStatus: string = status;
+  if (app) {
+    if (app.currentStep === 'GD4_Cho_Nop_NVTC') {
+      effectiveStatus = app.taxReceiptDate ? 'TaxCompleted_Dynamic' : 'TaxPaymentPending_Dynamic';
+    } else if (app.currentStep === 'GD5_Cho_GCN') {
+      effectiveStatus = app.gcnSignedDate ? 'GCN_Issued' : 'GCN_SignPending_Dynamic';
+    }
+  }
 
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className={cn(
-          "w-full max-w-md p-8 rounded-[2.5rem] border shadow-2xl",
-          theme === 'dark' ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900"
-        )}
-      >
-        <div className="flex justify-between items-center mb-6">
-          <h3 className={cn("text-xl font-black italic", theme === 'dark' ? "text-white" : "text-slate-900")}>Đổi mật khẩu</h3>
-          <button onClick={onClose} className="p-2 hover:bg-slate-800/20 rounded-lg transition-all"><X size={20} /></button>
-        </div>
-        <div className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mật khẩu hiện tại</label>
-            <input 
-              type="password" 
-              className={cn("w-full rounded-xl px-4 py-3 text-sm border outline-none", theme === 'dark' ? "bg-slate-950 border-slate-800" : "bg-slate-50 border-slate-200")}
-              value={oldPass}
-              onChange={e => setOldPass(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mật khẩu mới</label>
-            <input 
-              type="password" 
-              className={cn("w-full rounded-xl px-4 py-3 text-sm border outline-none", theme === 'dark' ? "bg-slate-950 border-slate-800" : "bg-slate-50 border-slate-200")}
-              value={newPass}
-              onChange={e => setNewPass(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Xác nhận mật khẩu mới</label>
-            <input 
-              type="password" 
-              className={cn("w-full rounded-xl px-4 py-3 text-sm border outline-none", theme === 'dark' ? "bg-slate-950 border-slate-800" : "bg-slate-50 border-slate-200")}
-              value={confirmPass}
-              onChange={e => setConfirmPass(e.target.value)}
-            />
-          </div>
-          <button 
-            onClick={() => {
-              if (newPass !== confirmPass) {
-                alert('Mật khẩu xác nhận không khớp!');
-                return;
-              }
-              onConfirm(oldPass, newPass);
-              setOldPass(''); setNewPass(''); setConfirmPass('');
-            }}
-            className="w-full bg-festive-gold text-slate-950 py-3 rounded-xl font-bold uppercase text-xs shadow-lg mt-4 active:scale-95 transition-all hover:bg-amber-400"
-          >
-            Cập nhật mật khẩu
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-const StatusBadge = ({ status }: { status: UnitStatus }) => {
-  const configs: Record<UnitStatus, { label: string, classes: string }> = {
+  const configs: Record<string, { label: string, classes: string }> = {
     Processing: { label: 'Đang xử lý', classes: 'bg-amber-500/10 text-amber-500 border border-amber-500/20' },
     Submitted: { label: 'Đã nộp VPĐK', classes: 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' },
     TaxPending: { label: 'Chờ thông báo thuế', classes: 'bg-orange-500/10 text-orange-400 border border-orange-500/20' },
+    TaxPaymentPending_Dynamic: { label: 'Chờ nộp thuế', classes: 'bg-orange-500/10 text-orange-400 border border-orange-500/20' },
     TaxCompleted: { label: 'Đã hoàn thành NVTC', classes: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' },
+    TaxCompleted_Dynamic: { label: 'Đã nộp thuế', classes: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' },
+    GCN_SignPending_Dynamic: { label: 'Chờ ký/in GCN', classes: 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' },
     GCN_Issued: { label: 'Đã ra GCN', classes: 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' },
     Completed: { label: 'Hoàn tất', classes: 'bg-emerald-500 text-slate-950 font-bold shadow-lg shadow-emerald-500/20' },
     Error: { label: 'Sai sót/Vướng', classes: 'bg-rose-600/20 text-rose-500 border border-rose-500/30' },
     Draft: { label: 'Nháp', classes: 'bg-slate-800 text-slate-400 border border-slate-700' },
   };
 
-  const config = configs[status];
+  const config = configs[effectiveStatus] || configs.Processing;
   return (
     <span className={cn("px-2.5 py-1 rounded-full text-xs font-semibold", config.classes)}>
       {config.label}
@@ -705,7 +683,7 @@ const SettingsView = ({
   theme: 'light' | 'dark',
   onSaveConfig: (key: string, value: any) => Promise<void>,
   isLoading: boolean,
-  storageStats: { totalSize: number, fileCount: number, folders: string[] },
+  storageStats: { totalSize: number, fileCount: number, folders: string[], dbSize: number },
   isFetchingStorage: boolean,
   onRefreshStorage: () => void
 }) => {
@@ -997,12 +975,32 @@ const SettingsView = ({
           </button>
         </div>
         <div className="p-8 space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className={cn(
               "p-6 rounded-3xl border",
               theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950 border-slate-800"
             )}>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Tổng dung lượng</p>
+              <div className="flex items-center gap-2 mb-2">
+                <Database className="text-indigo-500" size={14} />
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Dung lượng Database</p>
+              </div>
+              <p className="text-2xl font-black text-indigo-500 font-mono tracking-tighter">
+                {formatSize(storageStats.dbSize)}
+              </p>
+              <div className="mt-2 flex items-center gap-1">
+                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                 <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Dữ liệu từ Supabase</span>
+              </div>
+            </div>
+            
+            <div className={cn(
+              "p-6 rounded-3xl border",
+              theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950 border-slate-800"
+            )}>
+              <div className="flex items-center gap-2 mb-2">
+                <FolderArchive className="text-orange-500" size={14} />
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Dung lượng Storage</p>
+              </div>
               <p className="text-2xl font-black text-orange-500 font-mono tracking-tighter">
                 {formatSize(storageStats.totalSize)}
               </p>
@@ -1011,7 +1009,10 @@ const SettingsView = ({
               "p-6 rounded-3xl border",
               theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950 border-slate-800"
             )}>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Số lượng tài liệu</p>
+              <div className="flex items-center gap-2 mb-2">
+                <Files className="text-orange-500" size={14} />
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Số lượng tài liệu</p>
+              </div>
               <p className="text-2xl font-black text-orange-500 font-mono tracking-tighter">
                 {storageStats.fileCount} <span className="text-xs uppercase">Files</span>
               </p>
@@ -1020,7 +1021,10 @@ const SettingsView = ({
               "p-6 rounded-3xl border",
               theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950 border-slate-800"
             )}>
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Số thư mục dự án</p>
+              <div className="flex items-center gap-2 mb-2">
+                <Layers className="text-orange-500" size={14} />
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Số thư mục dự án</p>
+              </div>
               <p className="text-2xl font-black text-orange-500 font-mono tracking-tighter">
                 {storageStats.folders.length} <span className="text-xs uppercase">Folders</span>
               </p>
@@ -1614,7 +1618,7 @@ const ReportsView = ({
                                </div>
                             </td>
                             <td className="px-6 py-5 text-center">
-                               <StatusBadge status={app.status} />
+                               <StatusBadge status={app.status} app={app} />
                                <p className="text-[8px] font-black text-slate-500 uppercase mt-1">{stepConfig[app.currentStep]?.label.split(':')[0]}</p>
                             </td>
                             <td className="px-6 py-5 text-center">
@@ -1722,10 +1726,10 @@ const ReportsView = ({
                            )}>
                               <div className="flex items-center gap-4">
                                  <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 font-black italic">
-                                   {user.name.charAt(0)}
+                                   {(user.name || 'User').charAt(0)}
                                  </div>
                                  <div>
-                                   <p className={cn("text-sm font-black", theme === 'light' ? "text-slate-900" : "text-white group-hover:text-indigo-400 transition-colors")}>{user.name}</p>
+                                   <p className={cn("text-sm font-black", theme === 'light' ? "text-slate-900" : "text-white group-hover:text-indigo-400 transition-colors")}>{user.name || 'Unknown'}</p>
                                    <div className="flex items-center gap-2 mt-0.5">
                                       <span className={cn("text-[9px] font-black uppercase tracking-tighter", theme === 'light' ? "text-slate-400" : "text-slate-500")}>Hoàn tất:</span>
                                       <span className={cn("px-2 py-0.5 text-[8px] font-black rounded-lg", theme === 'light' ? "bg-emerald-100 text-emerald-600" : "bg-emerald-500/10 text-emerald-500")}>{user.completed} hồ sơ</span>
@@ -2665,36 +2669,19 @@ const getOverdueInfo = (app: Application) => {
   return { isOverdue: false, daysLate: 0 };
 };
 
-const UserManagementView = ({ users, onEdit, onDelete, onCreate, onResetPassword, onResetSystem, isAdmin, isResetingSystem, theme }: { users: UserProfile[]; onEdit: (u: UserProfile) => void; onDelete: (id: string) => void; onCreate: () => void; onResetPassword: (u: UserProfile) => void; onResetSystem: () => void; isAdmin: boolean; isResetingSystem: boolean; theme: 'light' | 'dark' }) => (
+const UserManagementView = ({ users, onEdit, onDelete, onCreate, onResetPassword, theme }: { users: UserProfile[]; onEdit: (u: UserProfile) => void; onDelete: (id: string) => void; onCreate: () => void; onResetPassword: (u: UserProfile) => void; theme: 'light' | 'dark' }) => (
   <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-    <header className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 text-left">
+    <header className="flex justify-between items-end text-left">
       <div>
          <h2 className={cn("text-3xl font-black italic font-serif tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Quản trị người dùng</h2>
          <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em] mt-1">Phân quyền & Điều phối dự án</p>
       </div>
-      <div className="flex gap-4">
-        {isAdmin && (
-          <button 
-            onClick={onResetSystem}
-            disabled={isResetingSystem}
-            className={cn(
-              "flex items-center gap-2 px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all outline-none border shadow-lg",
-              theme === 'light' 
-                ? "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100" 
-                : "bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20 shadow-rose-900/10"
-            )}
-          >
-            {isResetingSystem ? <RefreshCcw size={16} className="animate-spin" /> : <RotateCcw size={16} />}
-            Mặc định hệ thống
-          </button>
-        )}
-        <button 
-          onClick={onCreate}
-          className="flex items-center gap-2 px-6 py-3 bg-festive-gold text-slate-900 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-festive-gold/20 hover:scale-105 active:scale-95 transition-all outline-none"
-        >
-          <Plus size={16} /> Thêm tài khoản
-        </button>
-      </div>
+      <button 
+        onClick={onCreate}
+        className="flex items-center gap-2 px-6 py-3 bg-festive-gold text-slate-900 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-festive-gold/20 hover:scale-105 active:scale-95 transition-all outline-none"
+      >
+        <Plus size={16} /> Thêm tài khoản
+      </button>
     </header>
 
     <div className={cn(
@@ -2720,86 +2707,79 @@ const UserManagementView = ({ users, onEdit, onDelete, onCreate, onResetPassword
             "divide-y transition-all",
             theme === 'light' ? "divide-slate-50" : "divide-slate-800/50"
           )}>
-            {Array.isArray(users) && users.map(user => {
-              if (!user || !user.id) return null;
-              const safeName = user.name || 'Người dùng';
-              const nameParts = safeName.split(' ');
-              const lastChar = nameParts[nameParts.length - 1]?.charAt(0) || '?';
-              
-              return (
-                <tr key={user.id} className={cn(
-                  "group transition-all",
-                  theme === 'light' ? "hover:bg-slate-50" : "hover:bg-slate-800/20"
-                )}>
-                  <td className="px-8 py-5 text-left">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 border border-slate-600 flex items-center justify-center text-sm font-black text-white italic shadow-inner">
-                        {lastChar}
-                      </div>
-                      <div>
-                        <p className={cn("text-sm font-bold", theme === 'light' ? "text-slate-800" : "text-slate-100")}>{safeName}</p>
-                        <p className="text-[10px] text-slate-500 font-mono italic">@{user.username || 'user'}</p>
-                      </div>
+            {users.map(user => (
+              <tr key={user.id} className={cn(
+                "group transition-all",
+                theme === 'light' ? "hover:bg-slate-50" : "hover:bg-slate-800/20"
+              )}>
+                <td className="px-8 py-5 text-left">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 border border-slate-600 flex items-center justify-center text-sm font-black text-white italic shadow-inner">
+                      {(user.name || 'User').split(' ').pop()?.charAt(0)}
                     </div>
-                  </td>
-                  <td className="px-8 py-5">
-                    <span className={cn(
-                      "px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border transition-all",
-                      user.dept === 'ADMIN' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-                      user.dept === 'DIRECTOR' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
-                      user.dept === 'MANAGER' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
-                      user.dept === 'PTT' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                      user.dept === 'KT' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                      user.dept === 'PTDA' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-slate-700 text-slate-400 border-slate-600'
-                    )}>
-                      {user.dept}
-                    </span>
-                  </td>
-                  <td className="px-8 py-5 text-center">
-                    <span className={cn(
-                      "px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border",
-                      user.permission === 'FULL' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
-                      user.permission === 'EDIT' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                      'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                    )}>
-                      {user.permission === 'FULL' ? 'Toàn quyền' : user.permission === 'EDIT' ? 'Được sửa' : 'Chỉ xem'}
-                    </span>
-                  </td>
-                  <td className="px-8 py-5 text-center">
-                    <span className="text-xs font-black text-slate-500 italic">{(user.assignedProjectIds || []).length} Dự án</span>
-                  </td>
-                  <td className="px-8 py-5 text-center">
-                     <div className="flex items-center justify-center gap-2">
-                       <span className={cn("inline-block w-1.5 h-1.5 rounded-full shadow-sm", user.status === 'Active' ? 'bg-emerald-400 shadow-emerald-400/50' : 'bg-slate-600')} />
-                       <span className="text-[10px] font-black uppercase text-slate-400">{user.status}</span>
-                     </div>
-                  </td>
-                  <td className="px-8 py-5 text-right">
-                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                       <button 
-                        onClick={() => onResetPassword(user)}
-                        className="p-2 rounded-lg bg-orange-500/10 text-orange-500 hover:bg-orange-500 hover:text-white transition-all shadow-lg border border-orange-500/20"
-                        title="Reset mật khẩu"
-                       >
-                         <Key size={14} />
-                       </button>
-                       <button 
-                        onClick={() => onEdit(user)}
-                        className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all shadow-lg"
-                       >
-                         <Settings size={14} />
-                       </button>
-                       <button 
-                        onClick={() => onDelete(user.id)}
-                        className="p-2 rounded-lg bg-slate-800 text-rose-500/70 hover:bg-rose-500 hover:text-white transition-all shadow-lg"
-                       >
-                         <Trash2 size={14} />
-                       </button>
+                    <div>
+                      <p className={cn("text-sm font-bold", theme === 'light' ? "text-slate-800" : "text-slate-100")}>{user.name || 'Unknown'}</p>
+                      <p className="text-[10px] text-slate-500 font-mono italic">@{user.username}</p>
                     </div>
-                  </td>
-                </tr>
-              );
-            })}
+                  </div>
+                </td>
+                <td className="px-8 py-5">
+                  <span className={cn(
+                    "px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border transition-all",
+                    user.dept === 'ADMIN' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                    user.dept === 'DIRECTOR' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
+                    user.dept === 'MANAGER' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
+                    user.dept === 'PTT' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                    user.dept === 'KT' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                    user.dept === 'PTDA' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-slate-700 text-slate-400 border-slate-600'
+                  )}>
+                    {user.dept}
+                  </span>
+                </td>
+                <td className="px-8 py-5 text-center">
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border",
+                    user.permission === 'FULL' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
+                    user.permission === 'EDIT' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                    'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                  )}>
+                    {user.permission === 'FULL' ? 'Toàn quyền' : user.permission === 'EDIT' ? 'Được sửa' : 'Chỉ xem'}
+                  </span>
+                </td>
+                <td className="px-8 py-5 text-center">
+                  <span className="text-xs font-black text-slate-500 italic">{(user.assignedProjectIds || []).length} Dự án</span>
+                </td>
+                <td className="px-8 py-5 text-center">
+                   <div className="flex items-center justify-center gap-2">
+                     <span className={cn("inline-block w-1.5 h-1.5 rounded-full shadow-sm", user.status === 'Active' ? 'bg-emerald-400 shadow-emerald-400/50' : 'bg-slate-600')} />
+                     <span className="text-[10px] font-black uppercase text-slate-400">{user.status}</span>
+                   </div>
+                </td>
+                <td className="px-8 py-5 text-right">
+                  <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                     <button 
+                      onClick={() => onResetPassword(user)}
+                      className="p-2 rounded-lg bg-orange-500/10 text-orange-500 hover:bg-orange-500 hover:text-white transition-all shadow-lg border border-orange-500/20"
+                      title="Reset mật khẩu"
+                     >
+                       <Key size={14} />
+                     </button>
+                     <button 
+                      onClick={() => onEdit(user)}
+                      className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all shadow-lg"
+                     >
+                       <Settings size={14} />
+                     </button>
+                     <button 
+                      onClick={() => onDelete(user.id)}
+                      className="p-2 rounded-lg bg-slate-800 text-rose-500/70 hover:bg-rose-500 hover:text-white transition-all shadow-lg"
+                     >
+                       <Trash2 size={14} />
+                     </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -2953,20 +2933,93 @@ export default function App() {
   const [isPrintingHandover, setIsPrintingHandover] = useState(false);
   const [printHandoverApps, setPrintHandoverApps] = useState<Application[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [isChangePassOpen, setIsChangePassOpen] = useState(false);
-  const [isResetingSystem, setIsResetingSystem] = useState(false);
   const [stepConfig, setStepConfig] = useState<Record<string, { label: string, dept: Dept, status: UnitStatus, slaDays?: number }>>(INITIAL_STEP_CONFIG);
   const [projects, setProjects] = useState<Project[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [isLoadingApps, setIsLoadingApps] = useState(true);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const [storageStats, setStorageStats] = useState<{ totalSize: number, fileCount: number, folders: string[] }>({ totalSize: 0, fileCount: 0, folders: [] });
+  const [storageStats, setStorageStats] = useState<{ totalSize: number, fileCount: number, folders: string[], dbSize: number }>({ totalSize: 0, fileCount: 0, folders: [], dbSize: 0 });
   const [isFetchingStorage, setIsFetchingStorage] = useState(false);
+  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+
+  const handleUpdatePassword = async () => {
+    if (!currentUser) return;
+    if (!passwordForm.newPassword) {
+      showToast('Vui lòng nhập mật khẩu mới', 'warning');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      showToast('Mật khẩu xác nhận không khớp', 'error');
+      return;
+    }
+    
+    // Check current password (using direct comparison)
+    if (passwordForm.currentPassword !== currentUser.password) {
+      showToast('Mật khẩu hiện tại không chính xác', 'error');
+      return;
+    }
+
+    setIsSavingApp(true);
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ 
+          password: passwordForm.newPassword, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', currentUser.id);
+
+      if (error) throw error;
+      
+      showToast('Đổi mật khẩu thành công!', 'success');
+      setIsChangePasswordModalOpen(false);
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      // Real-time synchronization will update the currentUser state across sessions
+    } catch (error) {
+      console.error('Update password error:', error);
+      showToast('Lỗi khi đổi mật khẩu', 'error');
+    } finally {
+      setIsSavingApp(false);
+    }
+  };
+
+  // Real-time synchronization for current user profile
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const channel = supabase
+      .channel(`profile-${currentUser.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'users',
+          filter: `id=eq.${currentUser.id}`,
+        },
+        (payload) => {
+          console.log('Real-time profile sync:', payload.new);
+          const updatedUser = mapUserFromSnakeCase(payload.new);
+          setCurrentUser(updatedUser);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser?.id]);
 
   const fetchStorageUsage = async () => {
     setIsFetchingStorage(true);
     try {
+      // 1. Fetch File Storage Stats
       const { data: rootItems, error: rootError } = await supabase.storage.from('Documents-GCN').list();
       if (rootError) throw rootError;
 
@@ -2994,10 +3047,24 @@ export default function App() {
         }
       }
 
+      // 2. Fetch Database Size via RPC (SELECT pg_database_size(current_database()))
+      // Note: This requires an RPC function 'get_database_size' to be created in Supabase SQL Editor:
+      // CREATE OR REPLACE FUNCTION get_database_size() RETURNS bigint AS $$ SELECT pg_database_size(current_database()); $$ LANGUAGE sql SECURITY DEFINER;
+      let dbSize = 0;
+      try {
+        const { data: dbSizeData, error: dbSizeError } = await supabase.rpc('get_database_size');
+        if (!dbSizeError && dbSizeData) {
+          dbSize = dbSizeData;
+        }
+      } catch (e) {
+        console.warn('Database size RPC not found or failed. Ensure "get_database_size" function exists in Supabase.', e);
+      }
+
       setStorageStats({
         totalSize,
         fileCount: totalFiles,
-        folders: folderNames
+        folders: folderNames,
+        dbSize
       });
     } catch (error) {
       console.error('Error fetching storage stats:', error);
@@ -3074,13 +3141,12 @@ export default function App() {
         } else {
           setApplications(MOCK_APPLICATIONS);
           if (appsData && appsData.length === 0) {
-            // Seed mock apps but omit custom non-UUID IDs to let Supabase generate them
-            const appsToSeed = MOCK_APPLICATIONS.map(app => {
-              const snake = mapToSnakeCase(app);
-              delete snake.id;
-              return snake;
-            });
-            await supabase.from('records').insert(appsToSeed);
+            // Seed mock apps using valid UUIDs from constants
+            const appsToSeed = MOCK_APPLICATIONS.map(app => mapToSnakeCase(app));
+            const { data: seededApps, error: seedError } = await supabase.from('records').insert(appsToSeed).select();
+            if (!seedError && seededApps) {
+              setApplications(seededApps.map(mapFromSnakeCase));
+            }
           }
         }
 
@@ -3090,13 +3156,12 @@ export default function App() {
         } else {
           setUsers(MOCK_USERS);
           if (usersData && usersData.length === 0) {
-             // Seed mock users but omit custom non-UUID IDs
-             const usersToSeed = MOCK_USERS.map(user => {
-               const snake = mapUserToSnakeCase(user);
-               delete snake.id;
-               return snake;
-             });
-            await supabase.from('users').insert(usersToSeed);
+             // Seed mock users using valid UUIDs from constants
+             const usersToSeed = MOCK_USERS.map(user => mapUserToSnakeCase(user));
+             const { data: seededUsers, error: seedError } = await supabase.from('users').insert(usersToSeed).select();
+             if (!seedError && seededUsers) {
+               setUsers(seededUsers.map(mapUserFromSnakeCase));
+             }
           }
         }
       } catch (err) {
@@ -3717,6 +3782,27 @@ export default function App() {
   const handleStepTransition = async (nextStep: StepName) => {
     const app = editApp || selectedApp;
     if (!app) return;
+
+    // Field validations
+    const isMovingForward = Object.keys(stepConfig).indexOf(nextStep) > Object.keys(stepConfig).indexOf(app.currentStep);
+    if (isMovingForward) {
+      if ((app.currentStep === 'GD1_ChuanBi' || app.currentStep === 'GD1_Cho_KT_TiepNhan') && !app.contractSigningDate) {
+        showToast('Vui lòng điền "Ngày ký HĐCN/HĐMB" trước khi chuyển tiếp.', 'warning');
+        return;
+      }
+      if (app.currentStep === 'GD3_Cho_TBThue' && !app.taxNotificationReceivedDate) {
+        showToast('Vui lòng điền "Ngày nhận TB Thuế" trước khi chuyển tiếp.', 'warning');
+        return;
+      }
+      if (app.currentStep === 'GD4_Cho_Nop_NVTC' && !app.taxReceiptDate) {
+        showToast('Vui lòng điền "Ngày nhận NVTC" trước khi chuyển tiếp.', 'warning');
+        return;
+      }
+      if (app.currentStep === 'GD5_Cho_GCN' && !app.gcnSignedDate) {
+        showToast('Vui lòng điền "Ngày trình ký/In GCN" trước khi chuyển tiếp.', 'warning');
+        return;
+      }
+    }
 
     // Smart logic for self-service: jump over intermediate processing steps
     let targetStep = nextStep;
@@ -4410,29 +4496,21 @@ export default function App() {
     
     setIsSavingApp(true);
     try {
-      const dataToInsert = mapUserToSnakeCase(newUser as UserProfile);
-      // Remove id to let Supabase generate a proper UUID if column is UUID or handle PK
-      delete (dataToInsert as any).id;
+      const userToInsert = mapUserToSnakeCase(newUser as UserProfile);
+      // @ts-ignore
+      delete userToInsert.id;
+
+      const { data, error } = await supabase.from('users').insert(userToInsert).select();
+      if (error) throw error;
       
-      const { data, error } = await supabase.from('users').insert(dataToInsert).select();
-      
-      if (error) {
-        console.error('Supabase error detail:', error);
-        throw new Error(error.message || 'Lỗi không xác định từ Supabase');
-      }
-      
-      if (!data || data.length === 0) {
-        throw new Error('Không nhận được dữ liệu phản hồi từ Supabase sau khi tạo.');
-      }
-      
-      const userAdded = mapUserFromSnakeCase(data[0]);
-      setUsers(prev => [...prev, userAdded]);
+      const userToAdd = mapUserFromSnakeCase(data[0]);
+      setUsers(prev => [...prev, userToAdd]);
       setIsUserModalOpen(false);
       setNewUser({ username: '', password: '', name: '', dept: 'PTT', email: '', status: 'Active', permission: 'VIEW', assignedProjectIds: [] });
-      showToast('Đã thêm người dùng mới thành công!', 'success');
+      showToast('Đã thêm người dùng mới và đồng bộ Supabase thành công!', 'success');
     } catch (error: any) {
       console.error('Supabase create user error:', error);
-      showToast(`Lỗi khi tạo người dùng: ${error.message || 'Vui lòng kiểm tra kết nối.'}`, 'error');
+      showToast(`Lỗi khi tạo người dùng lên Supabase: ${error.message || ''}`, 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -4442,21 +4520,17 @@ export default function App() {
     if (!editUser) return;
     setIsSavingApp(true);
     try {
-      const dataToUpdate = mapUserToSnakeCase(editUser);
-      const { error } = await supabase.from('users').update(dataToUpdate).eq('id', editUser.id);
-      
-      if (error) {
-        console.error('Supabase update error detail:', error);
-        throw new Error(error.message || 'Lỗi khi cập nhật trên Supabase');
-      }
+      // For update, we must have a valid UUID in editUser.id
+      const { error } = await supabase.from('users').upsert(mapUserToSnakeCase(editUser));
+      if (error) throw error;
       
       setUsers(prev => prev.map(u => u.id === editUser.id ? editUser : u));
       setEditUser(null);
       setIsUserModalOpen(false);
-      showToast('Đã cập nhật thông tin người dùng thành công!', 'success');
+      showToast('Đã cập nhật thông tin người dùng lên Supabase thành công!', 'success');
     } catch (error: any) {
       console.error('Supabase update user error:', error);
-      showToast(`Lỗi khi cập nhật: ${error.message || ''}`, 'error');
+      showToast(`Lỗi khi cập nhật người dùng: ${error.message || ''}`, 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -4492,68 +4566,6 @@ export default function App() {
       showToast('Lỗi khi reset mật khẩu.', 'error');
     } finally {
       setIsSavingApp(false);
-    }
-  };
-
-  const handleChangePassword = async (oldPass: string, newPass: string) => {
-    if (!currentUser) return;
-    if (currentUser.password && currentUser.password !== oldPass) {
-      alert('Mật khẩu hiện tại không chính xác!');
-      return;
-    }
-    
-    setIsSavingApp(true);
-    try {
-      const { error } = await supabase.from('users').update({ password: newPass, version: (currentUser.version || 1) + 1 }).eq('id', currentUser.id);
-      if (error) throw error;
-      
-      const updatedUser = { ...currentUser, password: newPass, version: (currentUser.version || 1) + 1 };
-      setCurrentUser(updatedUser);
-      setUsers(prev => prev.map(u => u.id === currentUser.id ? updatedUser : u));
-      setIsChangePassOpen(false);
-      showToast('Đã đổi mật khẩu thành công!', 'success');
-    } catch (error) {
-      console.error('Change password error:', error);
-      showToast('Lỗi khi đổi mật khẩu trên hệ thống.', 'error');
-    } finally {
-      setIsSavingApp(false);
-    }
-  };
-
-  const handleResetToDefaultSystemUsers = async () => {
-    if (!confirm('Hành động này sẽ XÓA TẤT CẢ người dùng hiện tại và quay lại danh sách người dùng mặc định. Bạn có chắc chắn?')) return;
-    setIsResetingSystem(true);
-    try {
-      // 1. Delete all current users
-      const { error: delError } = await supabase.from('users').delete().neq('id', 'temp-id'); // delete all
-      if (delError) throw delError;
-
-      // 2. Insert mock users
-      const usersToSeed = MOCK_USERS.map(u => {
-        const snake = mapUserToSnakeCase(u);
-        delete snake.id;
-        return snake;
-      });
-      const { data, error: insError } = await supabase.from('users').insert(usersToSeed).select();
-      if (insError) throw insError;
-
-      const newUsers = data.map(mapUserFromSnakeCase);
-      setUsers(newUsers);
-      
-      // If current user was deleted, logout
-      const currentExists = newUsers.find(u => u.username === currentUser?.username);
-      if (!currentExists) {
-        setCurrentUser(null);
-      } else {
-        setCurrentUser(currentExists);
-      }
-
-      showToast('Hệ thống người dùng đã được khôi phục về mặc định!', 'success');
-    } catch (error) {
-      console.error('Reset system users error:', error);
-      showToast('Lỗi khi khôi phục người dùng mặc định.', 'error');
-    } finally {
-      setIsResetingSystem(false);
     }
   };
 
@@ -4953,7 +4965,7 @@ export default function App() {
   }
 
   if (!currentUser) {
-    return <LoginScreen users={users} theme={theme} onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} onLogin={(user) => {
+    return <LoginScreen theme={theme} onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} onLogin={(user) => {
       setCurrentUser(user);
     }} />;
   }
@@ -5396,33 +5408,29 @@ export default function App() {
             <div className="flex items-center gap-4 pl-6 border-l border-slate-800/20">
               <div className="text-right hidden sm:block overflow-hidden max-w-[150px]">
                 <p className={cn("text-xs font-black uppercase tracking-widest truncate", theme === 'light' ? "text-slate-900" : "text-white")}>{currentUser?.name}</p>
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter truncate">Dept: {currentUser?.dept}</p>
+                <div className="flex items-center justify-end gap-2">
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter truncate">Dept: {currentUser?.dept}</p>
+                  <button 
+                    onClick={() => setIsChangePasswordModalOpen(true)}
+                    className="text-[9px] font-black text-indigo-500 hover:text-indigo-400 uppercase tracking-tighter transition-colors"
+                  >
+                    Đổi Pass
+                  </button>
+                </div>
               </div>
               <div className="w-10 h-10 rounded-xl bg-festive-gold/10 border border-festive-gold/20 flex items-center justify-center text-festive-gold font-black text-xs shadow-lg shadow-festive-gold/5">
-                {currentUser?.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                {(currentUser?.name || 'User').split(' ').map(n => n[0]).join('').slice(0, 2)}
               </div>
-              <div className="flex gap-1">
-                <button 
-                  onClick={() => setIsChangePassOpen(true)}
-                  className={cn(
-                    "p-2.5 rounded-xl transition-all border",
-                    theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 shadow-sm" : "bg-slate-900/50 border-slate-800 text-slate-500 hover:text-indigo-400 hover:bg-indigo-400/10"
-                  )}
-                  title="Đổi mật khẩu"
-                >
-                  <Key size={20} />
-                </button>
-                <button 
-                  onClick={() => setCurrentUser(null)}
-                  className={cn(
-                    "p-2.5 rounded-xl transition-all border",
-                    theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 shadow-sm" : "bg-slate-900/50 border-slate-800 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10"
-                  )}
-                  title="Đăng xuất"
-                >
-                  <LogOut size={20} />
-                </button>
-              </div>
+              <button 
+                onClick={() => setCurrentUser(null)}
+                className={cn(
+                  "p-2.5 rounded-xl transition-all border",
+                  theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 shadow-sm" : "bg-slate-900/50 border-slate-800 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10"
+                )}
+                title="Đăng xuất"
+              >
+                <LogOut size={20} />
+              </button>
             </div>
           </div>
         </header>
@@ -6482,7 +6490,7 @@ export default function App() {
                                 </span>
                               </td>
                               <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
-                                <StatusBadge status={app.status} />
+                                <StatusBadge status={app.status} app={app} />
                               </td>
                               {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                                 <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
@@ -6571,9 +6579,6 @@ export default function App() {
                   onDelete={handleDeleteUser} 
                   onCreate={() => { setEditUser(null); setIsUserModalOpen(true); }} 
                   onResetPassword={handleResetUserPassword}
-                  onResetSystem={handleResetToDefaultSystemUsers}
-                  isAdmin={userRole === 'ADMIN'}
-                  isResetingSystem={isResetingSystem}
                   theme={theme}
                 />
               </motion.div>
@@ -6823,7 +6828,7 @@ export default function App() {
                     <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 rounded text-[10px] font-black uppercase tracking-widest border border-indigo-500/20">
                       {(editApp || selectedApp).unitCode}
                     </span>
-                    <StatusBadge status={(editApp || selectedApp).status} />
+                    <StatusBadge status={(editApp || selectedApp).status} app={editApp || selectedApp} />
                   </div>
                   <h3 className="text-2xl font-black text-slate-100 italic font-serif">{(editApp || selectedApp).projectName}</h3>
                   <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">{(editApp || selectedApp).customerName}</p>
@@ -7380,11 +7385,11 @@ export default function App() {
                         (editApp || selectedApp).auditTrail?.map((entry) => (
                            <div key={entry.id} className="p-3 bg-slate-900/60 rounded-xl border border-slate-800 flex gap-3 items-start">
                               <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-500">
-                                {entry.userName.charAt(0)}
+                                {(entry.userName || 'U').charAt(0)}
                               </div>
                               <div className="flex-1">
                                 <div className="flex justify-between items-center mb-1">
-                                  <p className="text-[11px] font-bold text-slate-200">{entry.userName}</p>
+                                  <p className="text-[11px] font-bold text-slate-200">{entry.userName || 'Unknown'}</p>
                                   <p className="text-[9px] font-mono text-slate-500">{entry.timestamp}</p>
                                 </div>
                                 <p className="text-[11px] text-slate-400">{entry.action}</p>
@@ -8266,12 +8271,80 @@ export default function App() {
       </AnimatePresence>
 
       {/* Change Password Modal */}
-      <ChangePasswordModal 
-        isOpen={isChangePassOpen} 
-        onClose={() => setIsChangePassOpen(false)} 
-        onConfirm={handleChangePassword}
-        theme={theme}
-      />
+      <AnimatePresence>
+        {isChangePasswordModalOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="w-full max-w-md bg-slate-900 rounded-[2.5rem] p-8 border border-slate-700 shadow-2xl"
+            >
+              <div className="flex justify-between items-center mb-8">
+                 <div>
+                   <h3 className="text-2xl font-black text-white font-serif italic tracking-tight">Đổi mật khẩu</h3>
+                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Cập nhật mật khẩu bảo mật hệ thống</p>
+                 </div>
+                 <button onClick={() => setIsChangePasswordModalOpen(false)} className="p-2 text-slate-500 hover:text-white transition-colors">
+                   <X size={24} />
+                 </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1">Mật khẩu hiện tại</label>
+                  <input 
+                    type="password" 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm text-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all placeholder:text-slate-700"
+                    placeholder="••••••••"
+                    value={passwordForm.currentPassword}
+                    onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1">Mật khẩu mới</label>
+                  <input 
+                    type="password" 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm text-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all placeholder:text-slate-700"
+                    placeholder="••••••••"
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1">Xác nhận mật khẩu mới</label>
+                  <input 
+                    type="password" 
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm text-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all placeholder:text-slate-700"
+                    placeholder="••••••••"
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-8 flex gap-4">
+                <button 
+                  onClick={() => setIsChangePasswordModalOpen(false)}
+                  className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold transition-all"
+                >
+                  Hủy bỏ
+                </button>
+                <button 
+                  onClick={handleUpdatePassword}
+                  disabled={isSavingApp}
+                  className="flex-[2] py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold shadow-xl shadow-indigo-600/20 transition-all font-serif italic flex items-center justify-center gap-2"
+                >
+                   {isSavingApp ? (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : <Save size={18} />}
+                  Cập nhật mật khẩu
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Toast Notification */}
       <AnimatePresence>
