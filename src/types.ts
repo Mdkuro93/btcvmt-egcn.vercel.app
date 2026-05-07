@@ -13,7 +13,9 @@ export type StepName =
   | 'GD3_Cho_TBThue'
   | 'GD4_Cho_Nop_NVTC'
   | 'GD4_Cho_KT_TiepNhan_LaySo'
-  | 'GD5_Cho_GCN'
+  | 'GD5_Cho_PTDA_TiepNhan_KyGCN'
+  | 'GD5_Cho_Ky_In_GCN'
+  | 'GD5_Cho_KT_Nhan_GCN_Thuc_Te'
   | 'GD5_Cho_PTT_TiepNhan_BG'
   | 'GD6_Cho_BG_Khach'
   | 'Hoan_Tat';

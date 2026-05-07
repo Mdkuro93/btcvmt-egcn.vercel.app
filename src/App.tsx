@@ -522,7 +522,7 @@ const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Appli
   if (app) {
     if (app.currentStep === 'GD4_Cho_Nop_NVTC') {
       effectiveStatus = app.taxReceiptDate ? 'TaxCompleted_Dynamic' : 'TaxPaymentPending_Dynamic';
-    } else if (app.currentStep === 'GD5_Cho_GCN') {
+    } else if (['GD5_Cho_Ky_In_GCN', 'GD5_Cho_PTDA_TiepNhan_KyGCN', 'GD5_Cho_KT_Nhan_GCN_Thuc_Te'].includes(app.currentStep)) {
       effectiveStatus = app.gcnSignedDate ? 'GCN_Issued' : 'GCN_SignPending_Dynamic';
     }
   }
@@ -2621,7 +2621,7 @@ const getPhaseIndex = (step: StepName) => {
   if (['GD2_Cho_Nop_VPDK', 'GD2_Cho_PTDA_TiepNhan'].includes(step)) return 1;
   if (['GD3_Cho_TBThue'].includes(step)) return 2;
   if (['GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo'].includes(step)) return 3;
-  if (['GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG'].includes(step)) return 4;
+  if (['GD5_Cho_PTDA_TiepNhan_KyGCN', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_KT_Nhan_GCN_Thuc_Te', 'GD5_Cho_PTT_TiepNhan_BG'].includes(step)) return 4;
   if (['GD6_Cho_BG_Khach', 'Hoan_Tat'].includes(step)) return 5;
   return -1;
 };
@@ -3803,7 +3803,7 @@ export default function App() {
       // Enhanced contract signing date validation: PTT must fill when in tax notification stage, PTDA is exempt
       const isPTT = userRole === 'PTT';
       const isPTDA = userRole === 'PTDA';
-      if (['GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Hoan_Tat'].includes(app.currentStep) && !app.contractSigningDate) {
+      if (['GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD5_Cho_PTDA_TiepNhan_KyGCN', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_KT_Nhan_GCN_Thuc_Te', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Hoan_Tat'].includes(app.currentStep) && !app.contractSigningDate) {
         if (!isPTDA) {
           showToast('PTT: Vui lòng điền "Ngày ký HĐCN/HĐMB".', 'warning');
           return;
@@ -3813,7 +3813,7 @@ export default function App() {
         showToast('Vui lòng điền "Ngày nhận TB Thuế" trước khi chuyển tiếp.', 'warning');
         return;
       }
-      if (app.currentStep === 'GD5_Cho_GCN' && !app.gcnSignedDate) {
+      if (app.currentStep === 'GD5_Cho_Ky_In_GCN' && !app.gcnSignedDate) {
         showToast('Vui lòng điền "Ngày trình ký/In GCN" trước khi chuyển tiếp.', 'warning');
         return;
       }
@@ -3830,7 +3830,7 @@ export default function App() {
     const intermediateSteps: StepName[] = [
       'GD1_Cho_KT_TiepNhan', 'GD2_Cho_Nop_VPDK', 'GD2_Cho_PTDA_TiepNhan',
       'GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo',
-      'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG'
+      'GD5_Cho_PTDA_TiepNhan_KyGCN', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_KT_Nhan_GCN_Thuc_Te', 'GD5_Cho_PTT_TiepNhan_BG'
     ];
     if (app.isSelfService && intermediateSteps.includes(nextStep)) {
       targetStep = 'GD6_Cho_BG_Khach';
@@ -3915,7 +3915,7 @@ export default function App() {
         const intermediateSteps: StepName[] = [
           'GD1_Cho_KT_TiepNhan', 'GD2_Cho_Nop_VPDK', 'GD2_Cho_PTDA_TiepNhan',
           'GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo',
-          'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG'
+          'GD5_Cho_PTDA_TiepNhan_KyGCN', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_KT_Nhan_GCN_Thuc_Te', 'GD5_Cho_PTT_TiepNhan_BG'
         ];
         if (app.isSelfService && intermediateSteps.includes(nextStep)) {
           targetStep = 'GD6_Cho_BG_Khach';
@@ -7751,7 +7751,7 @@ export default function App() {
                         return (
                           <div className="flex flex-col gap-3">
                             <button 
-                              onClick={() => handleStepTransition('GD5_Cho_GCN')}
+                              onClick={() => handleStepTransition('GD5_Cho_PTDA_TiepNhan_KyGCN')}
                               className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
                             >
                               Tiếp nhận lấy sổ (KT) <CheckCircle2 size={16} />
@@ -7769,26 +7769,72 @@ export default function App() {
                         );
                       }
 
-                      // GĐ 5: KT đã nhận sổ
-                      if (app.currentStep === 'GD5_Cho_GCN') {
+                      // GĐ 5: PTDA tiếp nhận hồ sơ trình ký
+                      if (app.currentStep === 'GD5_Cho_PTDA_TiepNhan_KyGCN') {
+                        return (
+                          <div className="flex flex-col gap-3">
+                            <button 
+                              onClick={() => handleStepTransition('GD5_Cho_Ky_In_GCN')}
+                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
+                            >
+                              Tiếp nhận trình ký GCN (PTDA) <CheckCircle2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => {
+                                const reason = prompt("Lý do trả hồ sơ / Yêu cầu bổ sung:");
+                                if (reason) handleRejectApp(reason);
+                              }}
+                              className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
+                            >
+                              <RotateCcw size={16} /> Trả hồ sơ về KT
+                            </button>
+                          </div>
+                        );
+                      }
+
+                      // GĐ 5: Chờ PTDA trình ký / In GCN
+                      if (app.currentStep === 'GD5_Cho_Ky_In_GCN') {
                         return (
                           <button 
-                            disabled={!app.gcnReceivedDate}
-                            onClick={() => handleStepTransition('GD5_Cho_PTT_TiepNhan_BG')}
+                            disabled={!app.gcnSignedDate}
+                            onClick={() => handleStepTransition('GD5_Cho_KT_Nhan_GCN_Thuc_Te')}
                             className={cn(
                                 "w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2",
-                                app.gcnReceivedDate ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20" : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+                                app.gcnSignedDate ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20" : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
                             )}
                           >
-                            {!app.gcnReceivedDate && <Clock size={16} />}
-                            {app.gcnReceivedDate ? "Bàn giao GCN cho PTT" : "Cần nhập Ngày nhận GCN để Chuyển bước"} <ChevronRight size={16} />
+                            {!app.gcnSignedDate && <Clock size={16} />}
+                            {app.gcnSignedDate ? "Hoàn thành trình ký -> Chuyển KT lấy sổ" : "Cần nhập Ngày trình ký/In GCN để Chuyển bước"} <ChevronRight size={16} />
                           </button>
                         );
                       }
 
-                      // GĐ 5: PTT xác nhận nhận sổ
-                      if (app.currentStep === 'GD5_Cho_PTT_TiepNhan_BG') {
+                      // GĐ 5: KT tiếp nhận sổ thực tế
+                      if (app.currentStep === 'GD5_Cho_KT_Nhan_GCN_Thuc_Te') {
                         return (
+                          <div className="flex flex-col gap-3">
+                            <button 
+                              onClick={() => handleStepTransition('GD5_Cho_PTT_TiepNhan_BG')}
+                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
+                            >
+                              Tiếp nhận GCN thực tế (KT) <CheckCircle2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => {
+                                const reason = prompt("Lý do trả hồ sơ / Yêu cầu bổ sung:");
+                                if (reason) handleRejectApp(reason);
+                              }}
+                              className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
+                            >
+                              <RotateCcw size={16} /> Trả hồ sơ về PTDA
+                            </button>
+                          </div>
+                        );
+                      }
+
+                      // GĐ 6: PTT xác nhận nhận sổ (previously GD5_Cho_PTT_TiepNhan_BG)
+                      if (app.currentStep === 'GD5_Cho_PTT_TiepNhan_BG') {
+                         return (
                           <div className="flex flex-col gap-3">
                             <button 
                               onClick={() => handleStepTransition('GD6_Cho_BG_Khach')}
