@@ -115,6 +115,7 @@ export type Application = {
   
   // New fields
   taxNoticeProvisionDate?: string; // Ngày cung cấp TB Thuế
+  taxVpdkSubmissionDate?: string; // Ngày KT nộp hồ sơ NVTC & hồ sơ lấy sổ vô VPĐK
   gcnSignedDate?: string; // Ngày hoàn thành in / trình ký GCN
   issueType?: 'None' | 'Paperwork' | 'Financial' | 'Authority' | 'Other';
   issueSeverity?: IssueSeverity;

@@ -4359,7 +4359,7 @@ export default function App() {
     // Financial & Tax & Authority Submission: KT responsible for processing according to function (Tax/Accounting)
     const ktFields = [
       'submissionLocation', 'vpdkCode', 'submissionDate',
-      'taxReceiptDate', 'taxPaymentStatus',
+      'taxReceiptDate', 'taxVpdkSubmissionDate', 'taxPaymentStatus',
       'gcnReceivedDate', 'ptdaHandoverDate',
       'issueType', 'issueNotes'
     ];
@@ -7273,6 +7273,14 @@ export default function App() {
                             isEditing={isEditing}
                             onChange={(val) => handleFieldChange('taxReceiptDate', val)}
                           />
+                          <DetailCard theme={theme}
+                            label="Ngày KT nộp HS lấy sổ vô VPĐK" 
+                            value={(editApp || selectedApp).taxVpdkSubmissionDate} 
+                            type="date"
+                            editable={isFieldEditable('taxVpdkSubmissionDate')}
+                            isEditing={isEditing}
+                            onChange={(val) => handleFieldChange('taxVpdkSubmissionDate', val)}
+                          />
                       <DetailCard theme={theme}
                         label="Ngày nhận GCN thực tế" 
                         value={(editApp || selectedApp).gcnReceivedDate} 
@@ -7750,12 +7758,30 @@ export default function App() {
                       if (app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') {
                         return (
                           <div className="flex flex-col gap-3">
-                            <button 
-                              onClick={() => handleStepTransition('GD5_Cho_PTDA_TiepNhan_KyGCN')}
-                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                            >
-                              Tiếp nhận lấy sổ (KT) <CheckCircle2 size={16} />
-                            </button>
+                            {!app.taxReceiptDate ? (
+                              <button 
+                                onClick={() => {
+                                  // This just records receipt from PTT effectively
+                                  const now = new Date().toISOString().split('T')[0];
+                                  handleFieldChange('taxReceiptDate', now);
+                                }}
+                                className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
+                              >
+                                Xác nhận nhận chứng từ đóng thuế (KT) <CheckCircle2 size={16} />
+                              </button>
+                            ) : (
+                              <button 
+                                disabled={!app.taxVpdkSubmissionDate}
+                                onClick={() => handleStepTransition('GD5_Cho_PTDA_TiepNhan_KyGCN')}
+                                className={cn(
+                                    "w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2",
+                                    app.taxVpdkSubmissionDate ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20" : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+                                )}
+                              >
+                                {!app.taxVpdkSubmissionDate && <Clock size={16} />}
+                                {app.taxVpdkSubmissionDate ? "Đã nộp VPĐK (Đang lấy sổ) -> Chuyển PTDA" : "Cần Ngày nộp hồ sơ VPĐK để Chuyển bước"} <ChevronRight size={16} />
+                              </button>
+                            )}
                             <button 
                               onClick={() => {
                                 const reason = prompt("Lý do trả hồ sơ / Yêu cầu bổ sung:");
