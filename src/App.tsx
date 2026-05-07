@@ -3859,6 +3859,7 @@ export default function App() {
     if (targetStep === 'GD1_Cho_KT_TiepNhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
     if (targetStep === 'GD2_Cho_PTDA_TiepNhan' && !app.submissionDate) autoDates.submissionDate = nowStr;
     if (targetStep === 'GD4_Cho_Nop_NVTC' && !app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
+    if (targetStep === 'GD3_Cho_TBThue' && !app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
     if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
     if (targetStep === 'GD6_Cho_BG_Khach' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
     
@@ -3943,6 +3944,7 @@ export default function App() {
         if (targetStep === 'GD1_Cho_KT_TiepNhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
         if (targetStep === 'GD2_Cho_PTDA_TiepNhan' && !app.submissionDate) autoDates.submissionDate = nowStr;
         if (targetStep === 'GD4_Cho_Nop_NVTC' && !app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
+        if (targetStep === 'GD3_Cho_TBThue' && !app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
         if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
         if (targetStep === 'GD6_Cho_BG_Khach' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
 
@@ -7742,15 +7744,29 @@ export default function App() {
                         );
                       }
 
-                      // GĐ 4: PTT đã nộp thuế
+                      // GĐ 4: PTT xử lý nộp thuế
                       if (app.currentStep === 'GD4_Cho_Nop_NVTC') {
                         return (
-                          <button 
-                            onClick={() => handleStepTransition('GD4_Cho_KT_TiepNhan_LaySo')}
-                            className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
-                          >
-                            Bàn giao HS đóng thuế cho KT <ChevronRight size={16} />
-                          </button>
+                          <div className="flex flex-col gap-3">
+                            {!app.taxNoticeProvisionDate ? (
+                              <button 
+                                onClick={() => {
+                                  const now = new Date().toISOString().split('T')[0];
+                                  handleFieldChange('taxNoticeProvisionDate', now);
+                                }}
+                                className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
+                              >
+                                Xác nhận nhận TB Thuế (PTT) <CheckCircle2 size={16} />
+                              </button>
+                            ) : (
+                              <button 
+                                onClick={() => handleStepTransition('GD4_Cho_KT_TiepNhan_LaySo')}
+                                className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
+                              >
+                                Bàn giao HS đóng thuế cho KT <ChevronRight size={16} />
+                              </button>
+                            )}
+                          </div>
                         );
                       }
 
@@ -7839,12 +7855,24 @@ export default function App() {
                       if (app.currentStep === 'GD5_Cho_KT_Nhan_GCN_Thuc_Te') {
                         return (
                           <div className="flex flex-col gap-3">
-                            <button 
-                              onClick={() => handleStepTransition('GD5_Cho_PTT_TiepNhan_BG')}
-                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                            >
-                              Tiếp nhận GCN thực tế (KT) <CheckCircle2 size={16} />
-                            </button>
+                            {!app.gcnReceivedDate ? (
+                              <button 
+                                onClick={() => {
+                                  const now = new Date().toISOString().split('T')[0];
+                                  handleFieldChange('gcnReceivedDate', now);
+                                }}
+                                className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
+                              >
+                                Xác nhận đã nhận GCN thực tế (KT) <CheckCircle2 size={16} />
+                              </button>
+                            ) : (
+                              <button 
+                                onClick={() => handleStepTransition('GD5_Cho_PTT_TiepNhan_BG')}
+                                className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
+                              >
+                                Chuyển hồ sơ cho PTT (Bàn giao khách) <ChevronRight size={16} />
+                              </button>
+                            )}
                             <button 
                               onClick={() => {
                                 const reason = prompt("Lý do trả hồ sơ / Yêu cầu bổ sung:");
