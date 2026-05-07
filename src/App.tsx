@@ -2115,6 +2115,7 @@ const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: {
     String(a.customerName || '').toLowerCase().includes(search.toLowerCase())
   );
 
+  console.log('Rendering FieldModeView');
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 font-sans safe-area-inset overflow-x-hidden text-left">
        <header className="flex items-center justify-between mb-6">
@@ -2267,7 +2268,17 @@ const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: {
                    </section>
                 </div>
 
-                <div className="pt-6">
+                   <section className="space-y-4">
+                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-2">Ghi chú hiện trường</p>
+                       <textarea
+                         className="w-full h-32 bg-slate-900 border border-slate-800 rounded-2xl p-4 text-sm font-medium text-white focus:border-indigo-500 transition-all custom-scrollbar"
+                         placeholder="Nhập ghi chú hoặc mô tả hiện trường..."
+                         value={selectedApp.issueNotes || ''}
+                         onChange={(e) => onUpdateApp({ ...selectedApp, issueNotes: e.target.value })}
+                       />
+                    </section>
+
+                 <div className="pt-6">
                    <button 
                      onClick={() => setSelectedApp(null)}
                      className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/20 active:scale-95 transition-all"
@@ -4331,7 +4342,13 @@ export default function App() {
 
   const isFieldEditable = (fieldName: string) => {
     if (!isEditing) return false;
+    
+    // Admin/Full access
+    if (currentUser?.permission === 'FULL') return true;
     if (userRole === 'ADMIN' || userRole === 'DIRECTOR') return true;
+
+    // View-only access
+    if (currentUser?.permission === 'VIEW') return false;
 
     // Restriction: PTDA cannot edit vpdkCode
     if (userRole === 'PTDA' && fieldName === 'vpdkCode') return false;
@@ -4341,7 +4358,7 @@ export default function App() {
     
     // Logic to restrict editing based on department and current step
     const currentStepDept = stepConfig[editApp?.currentStep || selectedApp?.currentStep || 'GD1_ChuanBi']?.dept;
-    if (userRole !== 'ADMIN' && userRole !== 'DIRECTOR') {
+    if (userRole !== 'ADMIN' && userRole !== 'DIRECTOR' && currentUser?.permission !== 'FULL') {
        if (userRole === 'PTT' && currentStepDept !== 'PTT') return false;
        if (userRole === 'KT' && currentStepDept !== 'KT') return false;
        if (userRole === 'PTDA' && currentStepDept !== 'PTDA') return false;
@@ -4375,6 +4392,7 @@ export default function App() {
   };
 
   const isFieldVisible = (fieldName: string) => {
+    if (currentUser?.permission === 'FULL') return true;
     if (userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') return true;
 
     // PTDA and KT don't need to see doc checklist
