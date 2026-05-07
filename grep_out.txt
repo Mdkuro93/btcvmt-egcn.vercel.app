@@ -1,0 +1,123 @@
+2124:  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+2210:          {selectedApp && (
+2228:                      <h3 className="text-2xl font-black text-indigo-400 font-serif italic mb-1">{selectedApp.unitCode}</h3>
+2231:                          {selectedApp.propertyType === 'Dat_Nen' ? 'Đất nền' : 'Căn hộ'}
+2235:                          selectedApp.loanStatus === 'Co_Vay' ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/20" : "bg-slate-800 text-slate-500"
+2237:                          {selectedApp.loanStatus === 'Co_Vay' ? 'Có vay' : 'Không vay'}
+2240:                      <p className="text-sm font-bold text-slate-300">{selectedApp.customerName}</p>
+2254:                                 onUpdateApp({ ...selectedApp, status: st.val as any });
+2259:                                selectedApp.status === st.val ? "bg-indigo-600 border-indigo-500 text-white" : "bg-slate-950 border-slate-800 text-slate-500"
+3288:  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+3289:  const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
+3299:        if (selectedApp && !isEditing && currentUser?.permission !== 'VIEW') {
+3302:          setEditApp(selectedApp);
+3308:  }, [selectedApp, isEditing, currentUser]);
+3372:      if (selectedApp?.id === id) setSelectedApp(updatedApp);
+3725:    if (selectedAppIds.length === 0) return;
+3726:    const appsToPrint = applications.filter(a => selectedAppIds.includes(a.id));
+3735:    if (!editApp || !selectedApp) return;
+3783:        if (selectedApp?.id === id) {
+3797:    const app = editApp || selectedApp;
+3893:    const app = editApp || selectedApp;
+3921:    if (selectedAppIds.length === 0) return;
+3924:    const updatedCount = selectedAppIds.length;
+3929:        if (!selectedAppIds.includes(app.id)) return app;
+3982:      const appsToSync = updatedApps.filter(app => selectedAppIds.includes(app.id));
+4003:    if (selectedAppIds.length === 0) return;
+4005:    if (!window.confirm(`Bạn có chắc chắn muốn xóa ${selectedAppIds.length} hồ sơ đã chọn? Hành động này không thể hoàn tác.`)) {
+4009:    const count = selectedAppIds.length;
+4016:        .in('id', selectedAppIds);
+4020:      setApplications(prev => prev.filter(app => !selectedAppIds.includes(app.id)));
+4032:    if (selectedAppIds.length === 0 || !bulkNoteText.trim()) return;
+4037:        if (selectedAppIds.includes(app.id)) {
+4043:      const appsToSync = updatedApps.filter(app => selectedAppIds.includes(app.id));
+4053:      showToast(`Đã cập nhật ghi chú cho ${selectedAppIds.length} hồ sơ và đồng bộ Supabase thành công.`, 'success');
+4067:    const app = editApp || selectedApp;
+4113:        if (selectedApp && selectedApp.id === app.id) setSelectedApp(updatedApp);
+4128:    const app = editApp || selectedApp;
+4157:      if (selectedApp && selectedApp.id === app.id) setSelectedApp(updatedApp);
+4171:  }, [selectedApp]);
+4195:    const app = editApp || selectedApp;
+4242:    const app = editApp || selectedApp;
+4280:    const app = editApp || selectedApp;
+4356:    const currentStepDept = stepConfig[editApp?.currentStep || selectedApp?.currentStep || 'GD1_ChuanBi']?.dept;
+4437:    } else if (selectedApp) {
+4439:        if (app.id === selectedApp.id) {
+4855:        if (selectedApp) {
+4867:          if (selectedAppIds.length === filteredApps.length) {
+4877:        if (selectedApp) {
+4893:        } else if (selectedApp) {
+4901:  }, [quickEditId, quickEditData, isEditing, editApp, isCreateModalOpen, selectedApp, applications]);
+5072:          apps={applications.filter(a => selectedAppIds.includes(a.id))} 
+6144:                        {selectedAppIds.length > 0 && (
+6150:                            In phiếu ({selectedAppIds.length})
+6324:                    {selectedAppIds.length > 0 && (
+6333:                            {selectedAppIds.length}
+6383:                              setPrintHandoverApps(filteredApps.filter(a => selectedAppIds.includes(a.id)));
+6432:                              checked={selectedAppIds.length === filteredApps.length && filteredApps.length > 0}
+6469:                                  ? (selectedAppIds.includes(app.id) ? "bg-festive-gold/10" : "hover:bg-slate-50 border-slate-100") 
+6470:                                  : (selectedAppIds.includes(app.id) ? "bg-festive-gold/5" : "hover:bg-slate-800/30 border-slate-800/40")
+6477:                                  checked={selectedAppIds.includes(app.id)}
+6921:        {selectedApp && (
+6941:                      {(editApp || selectedApp).unitCode}
+6943:                    <StatusBadge status={(editApp || selectedApp).status} app={editApp || selectedApp} />
+6945:                  <h3 className="text-2xl font-black text-slate-100 italic font-serif">{(editApp || selectedApp).projectName}</h3>
+6946:                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">{(editApp || selectedApp).customerName}</p>
+6954:                          setEditApp(selectedApp);
+6984:                      setPrintHandoverApps([editApp || selectedApp]);
+6996:                      onClick={() => handleDeleteApp((editApp || selectedApp).id, (editApp || selectedApp).unitCode)}
+7017:                {(editApp || selectedApp).isRejected && (
+7029:                        <span className="text-[10px] font-mono text-rose-400 bg-rose-500/5 px-2 py-0.5 rounded border border-rose-500/10">Lần {(editApp || selectedApp).rejectionCount}</span>
+7031:                      <p className="text-xs font-bold text-slate-200">{(editApp || selectedApp).rejectionReason}</p>
+7056:                        const currentPhase = getPhaseIndex((editApp || selectedApp).currentStep);
+7057:                        const isCompleted = idx < currentPhase || (editApp || selectedApp).currentStep === 'Hoan_Tat';
+7058:                        const isActive = idx === currentPhase && (editApp || selectedApp).currentStep !== 'Hoan_Tat';
+7098:                          {stepConfig[(editApp || selectedApp).currentStep]?.label}
+7112:                          {stepConfig[(editApp || selectedApp).currentStep]?.dept}
+7130:                      <DetailCard theme={theme} label="Mã lô/căn" value={(editApp || selectedApp).unitCode} isEditing={isEditing} />
+7131:                      <DetailCard theme={theme} label="Dự án" value={(editApp || selectedApp).projectName} isEditing={isEditing} />
+7134:                        value={(editApp || selectedApp).customerName} 
+7141:                        value={(editApp || selectedApp).contractSignerType} 
+7148:                        value={(editApp || selectedApp).phoneNumber} 
+7155:                        value={(editApp || selectedApp).propertyType === 'Dat_Nen' ? 'Quyền sử dụng đất (Nhà đất/Đất nền)' : 'Căn hộ'} 
+7164:                        value={(editApp || selectedApp).loanStatus === 'Co_Vay' ? 'Có vay' : 'Không vay'} 
+7171:                      {(editApp || selectedApp).loanStatus === 'Co_Vay' && (
+7174:                          value={(editApp || selectedApp).bankCommitmentDeadline} 
+7196:                        value={(editApp || selectedApp).receivedDate} 
+7204:                        value={(editApp || selectedApp).contractSigningDate} 
+7212:                        value={(editApp || selectedApp).accountingHandoverDate} 
+7220:                        value={(editApp || selectedApp).isSelfService ? 'Có' : 'Không'} 
+7221:                        valueColor={(editApp || selectedApp).isSelfService ? 'text-amber-500' : theme === 'dark' ? 'text-slate-200' : 'text-slate-900'}
+7230:                        value={(editApp || selectedApp).taxNotificationReceivedDate}
+7238:                        value={(editApp || selectedApp).bankCommitmentDeadline} 
+7246:                        value={(editApp || selectedApp).customerHandoverDate} 
+7255:                          value={getTaxStatus(editApp || selectedApp).label} 
+7256:                          valueColor={getTaxStatus(editApp || selectedApp).color} 
+7276:                        value={(editApp || selectedApp).submissionLocation === 'TP_DANANG' ? 'Tỉnh/Thành phố' : (editApp || selectedApp).submissionLocation === 'PHUONG' ? 'Phường/Xã' : '---'} 
+7286:                        value={(editApp || selectedApp).vpdkCode} 
+7293:                        value={(editApp || selectedApp).submissionDate} 
+7302:                            value={(editApp || selectedApp).taxReceiptDate} 
+7310:                        value={(editApp || selectedApp).gcnReceivedDate} 
+7318:                        value={(editApp || selectedApp).ptdaHandoverDate} 
+7343:                      value={(editApp || selectedApp).taxNotificationDate} 
+7351:                      value={(editApp || selectedApp).taxNoticeProvisionDate} 
+7359:                      value={(editApp || selectedApp).gcnSignedDate} 
+7382:                        (editApp || selectedApp).issueType === 'Paperwork' ? 'Hồ sơ pháp lý' :
+7383:                        (editApp || selectedApp).issueType === 'Financial' ? 'Nghĩa vụ tài chính' :
+7384:                        (editApp || selectedApp).issueType === 'Authority' ? 'Cơ quan nhà nước' :
+7385:                        (editApp || selectedApp).issueType === 'Other' ? 'Vướng mắc khác' : 'Chưa có vướng mắc'
+7405:                        (editApp || selectedApp).issueSeverity === 'Minor' ? 'Thấp (Nhân viên tự xử lý)' :
+7406:                        (editApp || selectedApp).issueSeverity === 'Moderate' ? 'Trung bình' :
+7407:                        (editApp || selectedApp).issueSeverity === 'Critical' ? 'Cao (Cần lãnh đạo can thiệp)' : 'Chưa xác định'
+7410:                      valueColor={(editApp || selectedApp).issueSeverity === 'Critical' ? 'text-rose-500 font-black' : (editApp || selectedApp).issueSeverity === 'Moderate' ? 'text-amber-500' : 'text-slate-400'}
+7429:                            value={(editApp || selectedApp).issueNotes || ''}
+7435:                            <p className="text-xs text-slate-400 italic">{(editApp || selectedApp).issueNotes || 'Không có ghi chú.'}</p>
+7480:                      {(editApp || selectedApp).history.map((h, idx) => (
+7501:                      {((editApp || selectedApp).auditTrail || []).length > 0 ? (
+7502:                        (editApp || selectedApp).auditTrail?.map((entry) => (
+7548:                        {((editApp || selectedApp).scannedFiles || []).length > 0 ? (
+7549:                          (editApp || selectedApp).scannedFiles?.map((file) => (
+7629:                {!isEditing && (editApp || selectedApp).status !== 'Completed' && (
+7647:                      const app = editApp || selectedApp;
+7849:                        setEditApp(selectedApp);
+8358:                <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">Ghi chú hàng loạt ({selectedAppIds.length})</h3>

@@ -1776,62 +1776,49 @@ const ReportsView = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                   <div className="h-[400px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={slaStats} layout="vertical" margin={{ left: 20 }}>
-                          <XAxis type="number" hide />
-                          <YAxis dataKey="step" type="category" stroke="#94a3b8" fontSize={10} width={100} axisLine={false} tickLine={false} />
-                          <ReTooltip 
-                            cursor={{ fill: 'rgba(99,102,241,0.05)' }}
-                            contentStyle={{ 
-                              backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
-                              border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #1e293b', 
-                              borderRadius: '16px' 
-                            }}
-                          />
-                          <Bar dataKey="avgDays" name="Số ngày tb" radius={[0, 6, 6, 0]} barSize={20}>
-                            {slaStats.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.isCritical ? '#f43f5e' : entry.avgDays > 5 ? '#f59e0b' : '#6366f1'} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                   </div>
-                   
-                   <div className="space-y-4">
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Trách nhiệm Phòng ban & TAT</p>
-                      <div className="space-y-3">
-                         {slaStats.sort((a,b) => b.avgDays - a.avgDays).map((item, i) => (
-                           <div key={i} className={cn(
-                             "p-4 rounded-2xl border flex items-center justify-between transition-all group",
-                             item.isCritical ? "bg-rose-500/5 border-rose-500/20" : "bg-slate-950/20 border-slate-800"
-                           )}>
-                              <div className="flex items-center gap-4">
-                                 <div className={cn(
-                                   "w-2 h-2 rounded-full",
-                                   item.isCritical ? "bg-rose-500" : "bg-indigo-500"
-                                 )} />
-                                 <div>
-                                   <p className={cn("text-xs font-black", theme === 'light' ? "text-slate-900" : "text-white group-hover:text-indigo-400 transition-colors")}>{item.step}</p>
-                                   <div className="flex items-center gap-2 mt-0.5">
-                                      <span className="text-[9px] font-black text-slate-500 uppercase">Phụ trách:</span>
-                                      <span className="px-2 py-0.5 bg-slate-800 text-slate-300 text-[8px] font-black rounded-lg">{item.dept}</span>
-                                   </div>
-                                 </div>
-                              </div>
-                              <div className="text-right">
-                                 <p className={cn(
-                                   "text-sm font-black italic",
-                                   item.isCritical ? "text-rose-500" : "text-slate-300"
-                                 )}>{item.avgDays} Ngày</p>
-                                 <p className="text-[8px] font-black text-slate-600 uppercase">Avg. TAT</p>
-                              </div>
-                           </div>
-                         ))}
-                      </div>
-                   </div>
-                </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                     <div className="h-[300px] w-full">
+                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Bottleneck Quy trình (Avg TAT v.s SLA)</p>
+                       <ResponsiveContainer width="100%" height="100%">
+                         <BarChart data={slaStats} layout="vertical" margin={{ left: 20 }}>
+                           <XAxis type="number" hide />
+                           <YAxis dataKey="step" type="category" stroke="#94a3b8" fontSize={10} width={100} axisLine={false} tickLine={false} />
+                           <Bar dataKey="avgDays" fill="#6366f1" radius={[0, 6, 6, 0]} barSize={20} />
+                         </BarChart>
+                       </ResponsiveContainer>
+                    </div>
+                    <div className="h-[300px] w-full">
+                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Hiệu suất Bộ phận</p>
+                       <ResponsiveContainer width="100%" height="100%">
+                         <BarChart data={['PTT', 'KT', 'PTDA'].map(dept => ({
+                           name: dept,
+                           avgDays: slaStats.filter(s => s.dept === dept).reduce((acc, curr) => acc + curr.avgDays, 0) / (slaStats.filter(s => s.dept === dept).length || 1)
+                         }))}>
+                           <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} axisLine={false} tickLine={false} />
+                           <YAxis stroke="#94a3b8" fontSize={10} axisLine={false} tickLine={false} />
+                           <Bar dataKey="avgDays" fill="#10b981" radius={[6, 6, 0, 0]} barSize={40} />
+                         </BarChart>
+                       </ResponsiveContainer>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Chi tiết Bottleneck</p>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {slaStats.sort((a,b) => b.avgDays - a.avgDays).map((item, i) => (
+                          <div key={i} className={cn(
+                            "p-4 rounded-2xl border flex items-center justify-between",
+                            item.isCritical ? "bg-rose-500/10 border-rose-500/20" : "bg-slate-950/20 border-slate-800"
+                          )}>
+                             <div>
+                               <p className={cn("text-xs font-black", theme === 'light' ? "text-slate-900" : "text-white")}>{item.step}</p>
+                               <span className="text-[9px] font-black text-slate-500 uppercase">{item.dept}</span>
+                             </div>
+                             <p className={cn("text-sm font-black italic", item.isCritical ? "text-rose-500" : "text-slate-300")}>{item.avgDays} Ngày</p>
+                          </div>
+                        ))}
+                     </div>
+                  </div>
               </div>
             ) : (
               <div className="h-[400px] w-full">
@@ -3244,6 +3231,20 @@ export default function App() {
           });
         }
       }
+
+      // 2. SLA Check
+      const overdueInfo = getOverdueInfo(app);
+      if (overdueInfo.isOverdue) {
+        reminders.push({
+          id: `rem-sla-${app.id}`,
+          title: 'Trễ hạn SLA',
+          message: `Hồ sơ ${app.unitCode}: ${overdueInfo.label} (${overdueInfo.daysLate} ngày). Cần xử lý gấp.`,
+          time: 'Quá hạn',
+          type: 'Urgent',
+          isRead: false,
+          appId: app.id
+        });
+      }
     });
 
     setTaskReminders(reminders);
@@ -4651,7 +4652,8 @@ export default function App() {
   }, [filteredByProjectApps]);
 
   const roleKpis = useMemo(() => {
-    const apps = filteredByProjectApps;
+    // Exclude completed records
+    const apps = filteredByProjectApps.filter(a => a.status !== 'Completed');
     
     // PTT
     const pttTotal = apps.length;
@@ -4918,14 +4920,14 @@ export default function App() {
         color: '#6366f1' // Indigo
       },
       { 
-        name: 'Chờ thuế', 
+        name: 'CHỜ TB THUẾ', 
         value: taxPending.total, 
         normal: taxPending.normal, 
         error: taxPending.error, 
         color: '#f43f5e' // Rose
       },
       { 
-        name: 'Xong thuế', 
+        name: 'ĐÃ CÓ TB THUẾ', 
         value: taxCompleted.total, 
         normal: taxCompleted.normal, 
         error: taxCompleted.error, 
@@ -5555,8 +5557,8 @@ export default function App() {
 
                 {userRole === 'PTDA' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <StatCard title="Chưa có TB thuế" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-rose-500 shadow-rose-900/40" delay={0.1} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_NO_TAX'); }} />
-                    <StatCard title="Hồ sơ đã nhận TB thuế" value={roleKpis.ptda.withTax} icon={CheckCircle2} colorClass="bg-emerald-500 shadow-emerald-900/40" delay={0.2} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_TAX_RECEIVED'); }} />
+                    <StatCard title="CHỜ TB THUẾ" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-rose-500 shadow-rose-900/40" delay={0.1} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_NO_TAX'); }} />
+                    <StatCard title="ĐÃ CÓ TB THUẾ" value={roleKpis.ptda.withTax} icon={CheckCircle2} colorClass="bg-emerald-500 shadow-emerald-900/40" delay={0.2} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_TAX_RECEIVED'); }} />
                     <StatCard title="Hồ sơ chờ In/trình ký GCN" value={roleKpis.ptda.gcnWaiting} icon={FileText} colorClass="bg-indigo-500 shadow-indigo-900/40" delay={0.3} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_GCN_WAITING'); }} />
                     <StatCard title="Hồ sơ sai sót/vướng mắc" value={roleKpis.ptda.issues} icon={AlertCircle} colorClass="bg-rose-500 shadow-rose-900/40" delay={0.4} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_ISSUES'); }} />
                   </div>
@@ -6564,7 +6566,30 @@ export default function App() {
                                 </span>
                               </td>
                               <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
-                                <StatusBadge status={app.status} app={app} />
+                                <div className="flex flex-col gap-1.5">
+                                  <StatusBadge status={app.status} app={app} />
+                                  {(() => {
+                                      const stepKeys = Object.keys(stepConfig);
+                                      const currentIndex = stepKeys.indexOf(app.currentStep);
+                                      const progress = app.currentStep === 'Hoan_Tat' ? 100 : Math.round(((currentIndex + 1) / stepKeys.length) * 100);
+                                      const overdue = getOverdueInfo(app);
+                                      
+                                      let barColor = 'bg-indigo-500';
+                                      if (overdue.isOverdue) barColor = 'bg-rose-500';
+                                      else if (progress >= 100) barColor = 'bg-emerald-500';
+                                      
+                                      return (
+                                        <div className="w-20">
+                                          <div className={cn("h-1 rounded-full overflow-hidden w-full", theme === 'light' ? "bg-slate-200" : "bg-slate-800")}>
+                                            <div className={cn("h-full rounded-full transition-all duration-500", barColor)} style={{ width: `${Math.min(100, progress)}%` }} />
+                                          </div>
+                                          <span className={cn("text-[8px] font-bold mt-0.5 block", overdue.isOverdue ? "text-rose-500" : (theme === 'light' ? "text-slate-600" : "text-slate-400"))}>
+                                            {overdue.isOverdue ? `Trễ ${overdue.daysLate} ngày` : `${progress}%`}
+                                          </span>
+                                        </div>
+                                      );
+                                  })()}
+                                </div>
                               </td>
                               {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                                 <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
@@ -7047,20 +7072,29 @@ export default function App() {
                   </div>
 
                   <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className={cn(
-                      "flex items-start gap-4 p-5 rounded-3xl border transition-colors",
-                      theme === 'dark' ? "bg-indigo-500/5 border-indigo-500/10" : "bg-indigo-50/50 border-indigo-100"
-                    )}>
-                      <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 text-indigo-500 flex items-center justify-center shrink-0">
-                        <Clock size={24} />
-                      </div>
-                      <div>
-                        <p className={cn("text-[10px] font-black uppercase tracking-widest mb-1.5 opacity-70", theme === 'dark' ? "text-indigo-400" : "text-indigo-600")}>Bước hiện tại:</p>
-                        <p className={cn("text-base font-black uppercase tracking-tight", theme === 'dark' ? "text-slate-100" : "text-slate-900")}>
-                          {stepConfig[(editApp || selectedApp).currentStep]?.label}
-                        </p>
-                      </div>
-                    </div>
+                    {(() => {
+                      const app = editApp || selectedApp;
+                      const overdue = getOverdueInfo(app);
+                      return (
+                        <div className={cn(
+                          "flex items-start gap-4 p-5 rounded-3xl border transition-colors",
+                          theme === 'dark' ? (overdue.isOverdue ? "bg-rose-500/10 border-rose-500/20" : "bg-indigo-500/5 border-indigo-500/10") : (overdue.isOverdue ? "bg-rose-50 border-rose-100" : "bg-indigo-50/50 border-indigo-100")
+                        )}>
+                          <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0", overdue.isOverdue ? "bg-rose-500/20 text-rose-500" : "bg-indigo-600/20 text-indigo-500")}>
+                            {overdue.isOverdue ? <AlertTriangle size={24} /> : <Clock size={24} />}
+                          </div>
+                          <div>
+                            <p className={cn("text-[10px] font-black uppercase tracking-widest mb-1.5 opacity-70", overdue.isOverdue ? "text-rose-600" : (theme === 'dark' ? "text-indigo-400" : "text-indigo-600"))}>
+                              {overdue.isOverdue ? 'Trễ hạn SLA!' : 'Bước hiện tại:'}
+                            </p>
+                            <p className={cn("text-base font-black uppercase tracking-tight", overdue.isOverdue ? "text-rose-500" : (theme === 'dark' ? "text-slate-100" : "text-slate-900"))}>
+                              {stepConfig[app.currentStep]?.label}
+                              {overdue.isOverdue && <span className="text-[10px] ml-2 font-bold">({overdue.daysLate} ngày)</span>}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <div className={cn(
                       "flex items-start gap-4 p-5 rounded-3xl border transition-colors",
                       theme === 'dark' ? "bg-slate-800/30 border-slate-700/30" : "bg-slate-100/50 border-slate-200"
