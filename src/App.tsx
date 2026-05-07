@@ -3786,11 +3786,16 @@ export default function App() {
     // Field validations
     const isMovingForward = Object.keys(stepConfig).indexOf(nextStep) > Object.keys(stepConfig).indexOf(app.currentStep);
     if (isMovingForward) {
-      if ((app.currentStep === 'GD1_ChuanBi' || app.currentStep === 'GD1_Cho_KT_TiepNhan') && !app.contractSigningDate) {
-        showToast('Vui lòng điền "Ngày ký HĐCN/HĐMB" trước khi chuyển tiếp.', 'warning');
-        return;
+      // Enhanced contract signing date validation: PTT must fill when in tax notification stage, PTDA is exempt
+      const isPTT = userRole === 'PTT';
+      const isPTDA = userRole === 'PTDA';
+      if (['GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Hoan_Tat'].includes(app.currentStep) && !app.contractSigningDate) {
+        if (!isPTDA) {
+          showToast('PTT: Vui lòng điền "Ngày ký HĐCN/HĐMB".', 'warning');
+          return;
+        }
       }
-      if (app.currentStep === 'GD3_Cho_TBThue' && !app.taxNotificationReceivedDate) {
+      if (app.currentStep === 'GD3_Cho_TBThue' && !app.taxNotificationReceivedDate && userRole !== 'PTDA') {
         showToast('Vui lòng điền "Ngày nhận TB Thuế" trước khi chuyển tiếp.', 'warning');
         return;
       }
@@ -3868,6 +3873,34 @@ export default function App() {
       console.error('Supabase transition error:', error);
       showToast('Lỗi khi cập nhật trạng thái lên Supabase.', 'error');
     }
+  };
+
+  const handleReturnStep = async () => {
+    const app = editApp || selectedApp;
+    if (!app) return;
+
+    const stepKeys = Object.keys(stepConfig);
+    const currentIndex = stepKeys.indexOf(app.currentStep);
+    if (currentIndex <= 0) return; // Cannot return from first step
+
+    const prevStep = stepKeys[currentIndex - 1] as StepName;
+    const nowStr = new Date().toISOString().split('T')[0];
+    
+    // Add history entry
+    const newHistory = [
+      {
+        id: `hist-${Date.now()}`,
+        stepName: `Trả về: ${stepConfig[prevStep].label}`,
+        dept: stepConfig[prevStep].dept,
+        receivedDate: nowStr,
+        performedBy: currentUser?.id,
+        performedByName: currentUser?.name
+      },
+      ...(app.history || [])
+    ];
+
+    setEditApp({ ...app, currentStep: prevStep, history: newHistory, isRejected: true, rejectionReason: 'Trả hồ sơ về', status: stepConfig[prevStep].status });
+    showToast(`Đã trả hồ sơ về: ${stepConfig[prevStep].label}`, 'warning');
   };
 
   const handleBulkStepTransition = async (nextStep: StepName) => {
@@ -4299,16 +4332,29 @@ export default function App() {
     if (!isEditing) return false;
     if (userRole === 'ADMIN' || userRole === 'DIRECTOR') return true;
 
+    // Restriction: PTDA cannot edit vpdkCode
+    if (userRole === 'PTDA' && fieldName === 'vpdkCode') return false;
+
+    // Only allow edit if it's the right department and the field is not "locked" by status
     // Master & Procedural: PTT responsible for initial collection and master data
+    
+    // Logic to restrict editing based on department and current step
+    const currentStepDept = stepConfig[editApp?.currentStep || selectedApp?.currentStep || 'GD1_ChuanBi']?.dept;
+    if (userRole !== 'ADMIN' && userRole !== 'DIRECTOR') {
+       if (userRole === 'PTT' && currentStepDept !== 'PTT') return false;
+       if (userRole === 'KT' && currentStepDept !== 'KT') return false;
+       if (userRole === 'PTDA' && currentStepDept !== 'PTDA') return false;
+    }
+
     const pttFields = [
       'customerName', 'contractSignerType', 'phoneNumber', 'loanStatus', 'bankCommitmentDeadline', 'propertyType', 
-      'contractSigningDate', 'receivedDate', 'isSelfService', 'customerHandoverDate'
+      'contractSigningDate', 'receivedDate', 'isSelfService', 'customerHandoverDate', 'taxNotificationReceivedDate', 'accountingHandoverDate'
     ];
 
     // Financial & Tax & Authority Submission: KT responsible for processing according to function (Tax/Accounting)
     const ktFields = [
       'submissionLocation', 'vpdkCode', 'submissionDate',
-      'taxNotificationReceivedDate', 'taxReceiptDate', 'taxPaymentStatus',
+      'taxReceiptDate', 'taxPaymentStatus',
       'gcnReceivedDate', 'ptdaHandoverDate',
       'issueType', 'issueNotes'
     ];
@@ -4348,6 +4394,11 @@ export default function App() {
       // Auto-promote status to TaxCompleted if taxReceiptDate is added and current step expects it
       if (field === 'taxReceiptDate' && value && stepConfig[editApp.currentStep]?.status === 'TaxCompleted') {
         nextApp.status = 'TaxCompleted';
+      }
+      
+      // Auto-promote status to GĐ4 if taxNotificationReceivedDate is added and current step is GD3_Cho_TBThue
+      if (field === 'taxNotificationReceivedDate' && value && editApp.currentStep === 'GD3_Cho_TBThue') {
+        nextApp.currentStep = 'GD4_Cho_Nop_NVTC';
       }
 
       // Auto-update issue type if notes are added
@@ -5250,7 +5301,12 @@ export default function App() {
                       {regionProjects.map(p => (
                         <button 
                           key={p.id} 
-                          onClick={() => { setSelectedProjectId(p.id); setActiveTab('dashboard'); }}
+                          onClick={() => { 
+                            setSelectedProjectId(p.id); 
+                            if (activeTab !== 'applications' && activeTab !== 'reports') {
+                              setActiveTab('dashboard'); 
+                            }
+                          }}
                           className={cn(
                             "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-black group relative overflow-hidden",
                             selectedProjectId === p.id 
@@ -6106,9 +6162,26 @@ export default function App() {
                           className="overflow-hidden"
                         >
                           <div className={cn(
-                            "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4 pt-4 border-t",
+                            "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4 pt-4 border-t",
                             theme === 'light' ? "border-slate-100" : "border-slate-800/30"
                           )}>
+                            <div className="space-y-2">
+                              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1">Lọc theo dự án</label>
+                              <select 
+                                className={cn(
+                                  "w-full rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all font-bold",
+                                  theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
+                                )}
+                                value={selectedProjectId || 'ALL'}
+                                onChange={(e) => setSelectedProjectId(e.target.value === 'ALL' ? null : e.target.value)}
+                              >
+                                <option value="ALL">Tất cả dự án</option>
+                                {projects.map(p => (
+                                  <option key={p.id} value={p.id}>{p.name}</option>
+                                ))}
+                              </select>
+                            </div>
+
                             <div className="space-y-2">
                               <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1">Trạng thái hồ sơ</label>
                               <select 
@@ -6212,6 +6285,7 @@ export default function App() {
                             <div className="flex items-end">
                               <button 
                                 onClick={() => {
+                                  setSelectedProjectId(null);
                                   setFilterStatus('ALL');
                                   setFilterStep('ALL');
                                   setFilterLoanStatus('ALL');
@@ -7058,7 +7132,7 @@ export default function App() {
                       />
                       {(editApp || selectedApp).loanStatus === 'Co_Vay' && (
                         <DetailCard theme={theme}
-                          label="Cam kết Ngân hàng (Thời hạn GCN)" 
+                          label="Ngày cam kết hoàn thành (Ngân hàng)" 
                           value={(editApp || selectedApp).bankCommitmentDeadline} 
                           type="date"
                           editable={isFieldEditable('bankCommitmentDeadline')}
@@ -7112,6 +7186,22 @@ export default function App() {
                         type="select"
                         options={['Có', 'Không']}
                         onChange={(val) => handleFieldChange('isSelfService', val === 'Có')}
+                      />
+                      <DetailCard theme={theme}
+                        label="Ngày nhận TB Thuế"
+                        value={(editApp || selectedApp).taxNotificationReceivedDate}
+                        type="date"
+                        editable={isFieldEditable('taxNotificationReceivedDate')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('taxNotificationReceivedDate', val)}
+                      />
+                      <DetailCard theme={theme}
+                        label="Ngày cam kết hoàn thành (Ngân hàng)" 
+                        value={(editApp || selectedApp).bankCommitmentDeadline} 
+                        type="date"
+                        editable={isFieldEditable('bankCommitmentDeadline')}
+                        isEditing={isEditing}
+                        onChange={(val) => handleFieldChange('bankCommitmentDeadline', val)}
                       />
                       <DetailCard theme={theme}
                         label="Ngày BG GCN cho khách" 
@@ -7168,26 +7258,15 @@ export default function App() {
                         isEditing={isEditing}
                         onChange={(val) => handleFieldChange('submissionDate', val)}
                       />
-                      {userRole !== 'PTT' && (
-                        <>
+
                           <DetailCard theme={theme}
-                            label="Ngày nhận TB Thuế" 
-                            value={(editApp || selectedApp).taxNotificationReceivedDate} 
-                            type="date"
-                            editable={isFieldEditable('taxNotificationReceivedDate')}
-                            isEditing={isEditing}
-                            onChange={(val) => handleFieldChange('taxNotificationReceivedDate', val)}
-                          />
-                          <DetailCard theme={theme}
-                            label="Ngày nhận NVTC" 
+                            label="Ngày KT xác nhận tiếp nhận hồ sơ (Ngày nhận NVTC)" 
                             value={(editApp || selectedApp).taxReceiptDate} 
                             type="date"
                             editable={isFieldEditable('taxReceiptDate')}
                             isEditing={isEditing}
                             onChange={(val) => handleFieldChange('taxReceiptDate', val)}
                           />
-                        </>
-                      )}
                       <DetailCard theme={theme}
                         label="Ngày nhận GCN thực tế" 
                         value={(editApp || selectedApp).gcnReceivedDate} 
@@ -7576,6 +7655,12 @@ export default function App() {
                               className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
                             >
                               Tiếp nhận hồ sơ đầu vào (KT) <CheckCircle2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => handleReturnStep()}
+                              className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
+                            >
+                              Trả hồ sơ về <RotateCcw size={16} />
                             </button>
                             {['KT', 'MANAGER', 'DIRECTOR', 'ADMIN'].includes(userRole) && (
                               <button 
