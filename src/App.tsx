@@ -3111,7 +3111,7 @@ export default function App() {
             // Initialize missing Configs or use defaults
             const currentSla = configMap.slaConfig || Object.values(INITIAL_STEP_CONFIG).reduce((acc: any, s: any) => ({ ...acc, [s.label]: 10 }), {});
             const currentChecklist = configMap.checklistTemplates || DOC_CHECKLIST_ITEMS;
-            const currentSteps = configMap.stepConfig || INITIAL_STEP_CONFIG;
+            const currentSteps = { ...INITIAL_STEP_CONFIG, ...(configMap.stepConfig || {}) };
             const currentHandover = configMap.handoverTemplate || {};
             const currentProjects = configMap.projects || PROJECTS;
 
@@ -3137,7 +3137,14 @@ export default function App() {
           }
 
         if (appsData && appsData.length > 0) {
-          setApplications(appsData.map(mapFromSnakeCase));
+          const processedApps = appsData.map(app => {
+            const mapped = mapFromSnakeCase(app);
+            if (mapped.currentStep === 'GD5_Cho_GCN' as any) {
+              mapped.currentStep = 'GD5_Cho_KT_Nhan_GCN_Thuc_Te';
+            }
+            return mapped;
+          });
+          setApplications(processedApps);
         } else {
           setApplications(MOCK_APPLICATIONS);
           if (appsData && appsData.length === 0) {
@@ -3798,7 +3805,7 @@ export default function App() {
     if (!app) return;
 
     // Field validations
-    const isMovingForward = Object.keys(stepConfig).indexOf(nextStep) > Object.keys(stepConfig).indexOf(app.currentStep);
+    const isMovingForward = Object.keys(stepConfig).indexOf(nextStep) > (Object.keys(stepConfig).indexOf(app.currentStep) === -1 ? 0 : Object.keys(stepConfig).indexOf(app.currentStep));
     if (isMovingForward) {
       // Enhanced contract signing date validation: PTT must fill when in tax notification stage, PTDA is exempt
       const isPTT = userRole === 'PTT';
@@ -3845,8 +3852,8 @@ export default function App() {
     const newHistory = [
       {
         id: `hist-${Date.now()}`,
-        stepName: stepConfig[targetStep].label,
-        dept: stepConfig[targetStep].dept,
+        stepName: (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label,
+        dept: (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).dept,
         receivedDate: nowStr,
         performedBy: currentUser?.id,
         performedByName: currentUser?.name
@@ -3858,7 +3865,10 @@ export default function App() {
     const autoDates: Partial<Application> = {};
     if (targetStep === 'GD1_Cho_KT_TiepNhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
     if (targetStep === 'GD2_Cho_PTDA_TiepNhan' && !app.submissionDate) autoDates.submissionDate = nowStr;
-    if (targetStep === 'GD4_Cho_Nop_NVTC' && !app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
+    if (targetStep === 'GD4_Cho_Nop_NVTC') {
+      if (!app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
+      if (!app.taxNotificationReceivedDate) autoDates.taxNotificationReceivedDate = nowStr;
+    }
     if (targetStep === 'GD3_Cho_TBThue' && !app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
     if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
     if (targetStep === 'GD6_Cho_BG_Khach' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
@@ -3866,7 +3876,7 @@ export default function App() {
     // GĐ4: Ngày kế toán xác nhận hồ sơ là ngày nhận NVTC
     if (app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo' && !app.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
 
-    let targetStatus = stepConfig[targetStep].status;
+    let targetStatus = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).status;
     if (targetStatus === 'TaxCompleted' && !app.taxReceiptDate && !autoDates.taxReceiptDate) {
       targetStatus = 'TaxPending'; // Fallback if no receipt date yet
     }
@@ -3888,7 +3898,7 @@ export default function App() {
       setSelectedApp(updatedApp);
       setEditApp(null);
       setIsEditing(false);
-      showToast(`Đã chuyển hồ sơ sang bước: ${stepConfig[targetStep].label} (Đã đồng bộ Supabase)`, 'success');
+      showToast(`Đã chuyển hồ sơ sang bước: ${(stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label} (Đã đồng bộ Supabase)`, 'success');
     } catch (error) {
       console.error('Supabase transition error:', error);
       showToast('Lỗi khi cập nhật trạng thái lên Supabase.', 'error');
@@ -3930,8 +3940,8 @@ export default function App() {
         const newHistory = [
           {
             id: `hist-${Date.now()}-${app.id}`,
-            stepName: stepConfig[targetStep].label,
-            dept: stepConfig[targetStep].dept,
+            stepName: (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label,
+            dept: (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).dept,
             receivedDate: nowStr,
             note: 'Chuyển hàng loạt',
             performedBy: currentUser?.id,
@@ -3943,7 +3953,10 @@ export default function App() {
         const autoDates: Partial<Application> = {};
         if (targetStep === 'GD1_Cho_KT_TiepNhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
         if (targetStep === 'GD2_Cho_PTDA_TiepNhan' && !app.submissionDate) autoDates.submissionDate = nowStr;
-        if (targetStep === 'GD4_Cho_Nop_NVTC' && !app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
+        if (targetStep === 'GD4_Cho_Nop_NVTC') {
+          if (!app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
+          if (!app.taxNotificationReceivedDate) autoDates.taxNotificationReceivedDate = nowStr;
+        }
         if (targetStep === 'GD3_Cho_TBThue' && !app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
         if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
         if (targetStep === 'GD6_Cho_BG_Khach' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
@@ -3951,7 +3964,7 @@ export default function App() {
         // GĐ4: Ngày kế toán xác nhận hồ sơ là ngày nhận NVTC
         if (app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo' && !app.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
 
-        let targetStatus = stepConfig[targetStep].status;
+        let targetStatus = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).status;
         if (targetStatus === 'TaxCompleted' && !app.taxReceiptDate && !autoDates.taxReceiptDate) {
           targetStatus = 'TaxPending';
         }
@@ -4443,6 +4456,7 @@ export default function App() {
             }
             nextApp.status = 'Error';
           }
+          setSelectedApp(nextApp);
           return nextApp;
         }
         return app;
@@ -7637,7 +7651,7 @@ export default function App() {
                         );
                       }
 
-                      const canAction = role === 'ADMIN' || role === 'DIRECTOR' || stepConfig[app.currentStep].dept === role;
+                      const canAction = role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER' || (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.dept === role || (app.currentStep === 'GD5_Cho_GCN' as any && role === 'KT');
                       if (!canAction) return null;
 
                       // GĐ 1: Chuyển bàn giao
@@ -7770,46 +7784,45 @@ export default function App() {
                         );
                       }
 
-                      // GĐ 4: KT xác nhận lấy sổ
-                      if (app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') {
-                        return (
-                          <div className="flex flex-col gap-3">
-                            {!app.taxReceiptDate ? (
-                              <button 
-                                onClick={() => {
-                                  // This just records receipt from PTT effectively
-                                  const now = new Date().toISOString().split('T')[0];
-                                  handleFieldChange('taxReceiptDate', now);
-                                }}
-                                className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                              >
-                                Xác nhận nhận chứng từ đóng thuế (KT) <CheckCircle2 size={16} />
-                              </button>
-                            ) : (
-                              <button 
-                                disabled={!app.taxVpdkSubmissionDate}
-                                onClick={() => handleStepTransition('GD5_Cho_PTDA_TiepNhan_KyGCN')}
-                                className={cn(
-                                    "w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2",
-                                    app.taxVpdkSubmissionDate ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20" : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
-                                )}
-                              >
-                                {!app.taxVpdkSubmissionDate && <Clock size={16} />}
-                                {app.taxVpdkSubmissionDate ? "Đã nộp VPĐK (Đang lấy sổ) -> Chuyển PTDA" : "Cần Ngày nộp hồ sơ VPĐK để Chuyển bước"} <ChevronRight size={16} />
-                              </button>
-                            )}
-                            <button 
-                              onClick={() => {
-                                const reason = prompt("Lý do trả hồ sơ / Yêu cầu bổ sung:");
-                                if (reason) handleRejectApp(reason);
-                              }}
-                              className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
-                            >
-                              <RotateCcw size={16} /> Trả hồ sơ về PTT
-                            </button>
-                          </div>
-                        );
-                      }
+      // GĐ 4: KT xác nhận lấy sổ
+      if (app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') {
+        return (
+          <div className="flex flex-col gap-3">
+            {!app.taxReceiptDate ? (
+              <button 
+                onClick={() => {
+                  const now = new Date().toISOString().split('T')[0];
+                  handleFieldChange('taxReceiptDate', now);
+                }}
+                className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
+              >
+                Xác nhận đã đóng thuế & nhận chứng từ (KT) <CheckCircle2 size={16} />
+              </button>
+            ) : (
+              <button 
+                disabled={!app.taxVpdkSubmissionDate}
+                onClick={() => handleStepTransition('GD5_Cho_PTDA_TiepNhan_KyGCN')}
+                className={cn(
+                    "w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2",
+                    app.taxVpdkSubmissionDate ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20" : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+                )}
+              >
+                {!app.taxVpdkSubmissionDate && <Clock size={16} />}
+                {app.taxVpdkSubmissionDate ? "Đã nộp VPĐK (Lấy sổ) -> Chuyển PTDA" : "Cần Ngày nộp hồ sơ VPĐK để Chuyển bước"} <ChevronRight size={16} />
+              </button>
+            )}
+            <button 
+              onClick={() => {
+                const reason = prompt("Lý do trả hồ sơ / Yêu cầu bổ sung:");
+                if (reason) handleRejectApp(reason);
+              }}
+              className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
+            >
+              <RotateCcw size={16} /> Trả hồ sơ về PTT
+            </button>
+          </div>
+        );
+      }
 
                       // GĐ 5: PTDA tiếp nhận hồ sơ trình ký
                       if (app.currentStep === 'GD5_Cho_PTDA_TiepNhan_KyGCN') {
@@ -7852,7 +7865,7 @@ export default function App() {
                       }
 
                       // GĐ 5: KT tiếp nhận sổ thực tế
-                      if (app.currentStep === 'GD5_Cho_KT_Nhan_GCN_Thuc_Te') {
+                      if (app.currentStep === 'GD5_Cho_KT_Nhan_GCN_Thuc_Te' || app.currentStep === 'GD5_Cho_GCN' as any) {
                         return (
                           <div className="flex flex-col gap-3">
                             {!app.gcnReceivedDate ? (

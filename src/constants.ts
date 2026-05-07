@@ -173,6 +173,7 @@ export const STEP_CONFIG: Record<string, { label: string, dept: Dept, status: Un
   GD5_Cho_Ky_In_GCN: { label: 'GĐ5: Chờ ký / In GCN', dept: 'PTDA', status: 'GCN_Issued', slaDays: 5 },
   GD5_Cho_KT_Nhan_GCN_Thuc_Te: { label: 'GĐ5: Chờ KT tiếp nhận GCN thực tế', dept: 'KT', status: 'GCN_Issued' },
   GD5_Cho_PTT_TiepNhan_BG: { label: 'GĐ5: Chờ PTT tiếp nhận (Bàn giao khách)', dept: 'PTT', status: 'GCN_Issued' },
+  GD5_Cho_GCN: { label: 'GĐ5: Chờ lấy GCN (Cũ)', dept: 'KT', status: 'GCN_Issued' },
   GD6_Cho_BG_Khach: { label: 'GĐ6: Đang bàn giao khách hàng', dept: 'PTT', status: 'Completed' },
   Hoan_Tat: { label: 'Đã hoàn tất quy trình', dept: 'ADMIN', status: 'Completed' },
 };
