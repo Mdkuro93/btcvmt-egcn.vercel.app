@@ -3813,10 +3813,6 @@ export default function App() {
         showToast('Vui lòng điền "Ngày nhận TB Thuế" trước khi chuyển tiếp.', 'warning');
         return;
       }
-      if (app.currentStep === 'GD4_Cho_Nop_NVTC' && !app.taxReceiptDate) {
-        showToast('Vui lòng điền "Ngày nhận NVTC" trước khi chuyển tiếp.', 'warning');
-        return;
-      }
       if (app.currentStep === 'GD5_Cho_GCN' && !app.gcnSignedDate) {
         showToast('Vui lòng điền "Ngày trình ký/In GCN" trước khi chuyển tiếp.', 'warning');
         return;
@@ -3825,6 +3821,12 @@ export default function App() {
 
     // Smart logic for self-service: jump over intermediate processing steps
     let targetStep = nextStep;
+
+    // GĐ2 Skip PTDA: If naturally moving to PTDA receipt, skip to tax notification
+    if (nextStep === 'GD2_Cho_PTDA_TiepNhan' && !app.isSelfService) {
+      targetStep = 'GD3_Cho_TBThue';
+    }
+
     const intermediateSteps: StepName[] = [
       'GD1_Cho_KT_TiepNhan', 'GD2_Cho_Nop_VPDK', 'GD2_Cho_PTDA_TiepNhan',
       'GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo',
@@ -3859,6 +3861,9 @@ export default function App() {
     if (targetStep === 'GD4_Cho_Nop_NVTC' && !app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
     if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
     if (targetStep === 'GD6_Cho_BG_Khach' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
+    
+    // GĐ4: Ngày kế toán xác nhận hồ sơ là ngày nhận NVTC
+    if (app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo' && !app.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
 
     let targetStatus = stepConfig[targetStep].status;
     if (targetStatus === 'TaxCompleted' && !app.taxReceiptDate && !autoDates.taxReceiptDate) {
@@ -3889,34 +3894,6 @@ export default function App() {
     }
   };
 
-  const handleReturnStep = async () => {
-    const app = editApp || selectedApp;
-    if (!app) return;
-
-    const stepKeys = Object.keys(stepConfig);
-    const currentIndex = stepKeys.indexOf(app.currentStep);
-    if (currentIndex <= 0) return; // Cannot return from first step
-
-    const prevStep = stepKeys[currentIndex - 1] as StepName;
-    const nowStr = new Date().toISOString().split('T')[0];
-    
-    // Add history entry
-    const newHistory = [
-      {
-        id: `hist-${Date.now()}`,
-        stepName: `Trả về: ${stepConfig[prevStep].label}`,
-        dept: stepConfig[prevStep].dept,
-        receivedDate: nowStr,
-        performedBy: currentUser?.id,
-        performedByName: currentUser?.name
-      },
-      ...(app.history || [])
-    ];
-
-    setEditApp({ ...app, currentStep: prevStep, history: newHistory, isRejected: true, rejectionReason: 'Trả hồ sơ về', status: stepConfig[prevStep].status });
-    showToast(`Đã trả hồ sơ về: ${stepConfig[prevStep].label}`, 'warning');
-  };
-
   const handleBulkStepTransition = async (nextStep: StepName) => {
     if (selectedAppIds.length === 0) return;
     
@@ -3929,6 +3906,12 @@ export default function App() {
         if (!selectedAppIds.includes(app.id)) return app;
         
         let targetStep = nextStep;
+
+        // GĐ2 Skip PTDA: If naturally moving to PTDA receipt, skip to tax notification
+        if (nextStep === 'GD2_Cho_PTDA_TiepNhan' && !app.isSelfService) {
+          targetStep = 'GD3_Cho_TBThue';
+        }
+
         const intermediateSteps: StepName[] = [
           'GD1_Cho_KT_TiepNhan', 'GD2_Cho_Nop_VPDK', 'GD2_Cho_PTDA_TiepNhan',
           'GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo',
@@ -3962,6 +3945,9 @@ export default function App() {
         if (targetStep === 'GD4_Cho_Nop_NVTC' && !app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
         if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
         if (targetStep === 'GD6_Cho_BG_Khach' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
+
+        // GĐ4: Ngày kế toán xác nhận hồ sơ là ngày nhận NVTC
+        if (app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo' && !app.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
 
         let targetStatus = stepConfig[targetStep].status;
         if (targetStatus === 'TaxCompleted' && !app.taxReceiptDate && !autoDates.taxReceiptDate) {
@@ -4281,11 +4267,16 @@ export default function App() {
     if (!app) return;
 
     // Restriction: Only authorized depts can reject apps
-    const allowedDepts: Dept[] = ['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'];
+    const allowedDepts: Dept[] = ['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'];
     if (!allowedDepts.includes(userRole)) {
       showToast('Bạn không có quyền Trả về / Yêu cầu bổ sung hồ sơ.', 'error');
       return;
     }
+
+    // Determine previous step dynamically
+    const stepKeys = Object.keys(stepConfig);
+    const currentIndex = stepKeys.indexOf(app.currentStep);
+    const prevStep = currentIndex > 0 ? stepKeys[currentIndex - 1] as StepName : app.currentStep;
 
     const newHistory = [
       {
@@ -4302,7 +4293,7 @@ export default function App() {
 
     const updatedApp = {
       ...app,
-      currentStep: 'GD1_ChuanBi' as StepName,
+      currentStep: prevStep,
       status: 'Error' as const,
       rejectionCount: (app.rejectionCount || 0) + 1,
       isRejected: true,
@@ -7275,7 +7266,7 @@ export default function App() {
                       />
 
                           <DetailCard theme={theme}
-                            label="Ngày KT xác nhận tiếp nhận hồ sơ (Ngày nhận NVTC)" 
+                            label="Ngày nhận NVTC" 
                             value={(editApp || selectedApp).taxReceiptDate} 
                             type="date"
                             editable={isFieldEditable('taxReceiptDate')}
@@ -7671,21 +7662,15 @@ export default function App() {
                             >
                               Tiếp nhận hồ sơ đầu vào (KT) <CheckCircle2 size={16} />
                             </button>
-                            <button 
-                              onClick={() => handleReturnStep()}
-                              className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
-                            >
-                              Trả hồ sơ về <RotateCcw size={16} />
-                            </button>
                             {['KT', 'MANAGER', 'DIRECTOR', 'ADMIN'].includes(userRole) && (
                               <button 
                                 onClick={() => {
                                   const reason = prompt("Lý do trả hồ sơ / Yêu cầu bổ sung:");
                                   if (reason) handleRejectApp(reason);
                                 }}
-                                className="w-full py-2.5 border-2 border-rose-500/50 text-rose-500 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-rose-500/10 transition-all flex items-center justify-center gap-2"
+                                className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
                               >
-                                <RotateCcw size={14} /> Trả về PTT (Thiếu chứng từ)
+                                <RotateCcw size={16} /> Trả hồ sơ về (Yêu cầu bổ sung)
                               </button>
                             )}
                           </div>
@@ -7697,14 +7682,14 @@ export default function App() {
                         return (
                           <button 
                             disabled={!app.submissionDate}
-                            onClick={() => handleStepTransition('GD2_Cho_PTDA_TiepNhan')}
+                            onClick={() => handleStepTransition('GD3_Cho_TBThue')}
                             className={cn(
                                 "w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2",
                                 app.submissionDate ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20" : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
                             )}
                           >
                             {!app.submissionDate && <Clock size={16} />}
-                            {app.submissionDate ? "Bàn giao hồ sơ cho PTDA" : "Cần nhập Ngày nộp VPĐK để Chuyển bước"} <ChevronRight size={16} />
+                            {app.submissionDate ? "Cập nhật chuyển theo dõi Thuế (PTDA)" : "Cần nhập Ngày nộp VPĐK để Chuyển bước"} <ChevronRight size={16} />
                           </button>
                         );
                       }
@@ -7712,12 +7697,23 @@ export default function App() {
                       // GĐ 2: PTDA xác nhận
                       if (app.currentStep === 'GD2_Cho_PTDA_TiepNhan') {
                         return (
-                          <button 
-                            onClick={() => handleStepTransition('GD3_Cho_TBThue')}
-                            className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                          >
-                            Tiếp nhận theo dõi Thuế (PTDA) <CheckCircle2 size={16} />
-                          </button>
+                          <div className="flex flex-col gap-3">
+                            <button 
+                              onClick={() => handleStepTransition('GD3_Cho_TBThue')}
+                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
+                            >
+                              Tiếp nhận theo dõi Thuế (PTDA) <CheckCircle2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => {
+                                const reason = prompt("Lý do trả hồ sơ / Yêu cầu bổ sung:");
+                                if (reason) handleRejectApp(reason);
+                              }}
+                              className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
+                            >
+                              <RotateCcw size={16} /> Trả hồ sơ về KT
+                            </button>
+                          </div>
                         );
                       }
 
@@ -7753,12 +7749,23 @@ export default function App() {
                       // GĐ 4: KT xác nhận lấy sổ
                       if (app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') {
                         return (
-                          <button 
-                            onClick={() => handleStepTransition('GD5_Cho_GCN')}
-                            className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                          >
-                            Tiếp nhận lấy sổ (KT) <CheckCircle2 size={16} />
-                          </button>
+                          <div className="flex flex-col gap-3">
+                            <button 
+                              onClick={() => handleStepTransition('GD5_Cho_GCN')}
+                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
+                            >
+                              Tiếp nhận lấy sổ (KT) <CheckCircle2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => {
+                                const reason = prompt("Lý do trả hồ sơ / Yêu cầu bổ sung:");
+                                if (reason) handleRejectApp(reason);
+                              }}
+                              className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
+                            >
+                              <RotateCcw size={16} /> Trả hồ sơ về PTT
+                            </button>
+                          </div>
                         );
                       }
 
@@ -7782,12 +7789,23 @@ export default function App() {
                       // GĐ 5: PTT xác nhận nhận sổ
                       if (app.currentStep === 'GD5_Cho_PTT_TiepNhan_BG') {
                         return (
-                          <button 
-                            onClick={() => handleStepTransition('GD6_Cho_BG_Khach')}
-                            className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                          >
-                            Tiếp nhận GCN thực tế (PTT) <CheckCircle2 size={16} />
-                          </button>
+                          <div className="flex flex-col gap-3">
+                            <button 
+                              onClick={() => handleStepTransition('GD6_Cho_BG_Khach')}
+                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
+                            >
+                              Tiếp nhận GCN thực tế (PTT) <CheckCircle2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => {
+                                const reason = prompt("Lý do trả hồ sơ / Yêu cầu bổ sung:");
+                                if (reason) handleRejectApp(reason);
+                              }}
+                              className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
+                            >
+                              <RotateCcw size={16} /> Trả hồ sơ về KT
+                            </button>
+                          </div>
                         );
                       }
 
