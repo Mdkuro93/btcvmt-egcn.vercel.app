@@ -3586,137 +3586,159 @@ export default function App() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setIsSavingApp(true);
     const reader = new FileReader();
-    reader.onload = (evt) => {
-      const data = evt.target?.result;
-      const workbook = XLSX.read(data, { type: 'array' });
-      const worksheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[worksheetName];
-      const excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+    reader.onload = async (evt) => {
+      try {
+        const data = evt.target?.result;
+        const workbook = XLSX.read(data, { type: 'array' });
+        const worksheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[worksheetName];
+        const excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
-      let updatedCount = 0;
-      let createdCount = 0;
+        let updatedCount = 0;
+        let createdCount = 0;
 
-      const newApplications = [...applications];
+        const newApplications = [...applications];
+        const affectedApps: Application[] = [];
 
-      excelData.slice(1).forEach((row) => {
-        if (!row || row.length < 2) return;
-        const unitCode = row[1];
-        if (!unitCode) return;
+        excelData.slice(1).forEach((row) => {
+          if (!row || row.length < 2) return;
+          const unitCode = row[1];
+          if (!unitCode) return;
 
-        if (userRole === 'ADMIN' || userRole === 'DIRECTOR') {
+          let app: Application | null = null;
           const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
-          
-          const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
-             id: `admin-imp-${Date.now()}-${Math.random()}`,
-             unitCode: unitCode,
-             history: [{ id: `hist-${Date.now()}`, stepName: 'Quản trị viên Import', dept: 'ADMIN', receivedDate: new Date().toISOString().split('T')[0] }]
-          } as Application;
 
-          app.projectName = row[0] || app.projectName || projects[0].name;
-          app.customerName = row[2] || app.customerName || '---';
-          app.phoneNumber = row[3] || app.phoneNumber || '';
-          app.loanStatus = row[4] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
-          app.propertyType = row[5] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
-          app.bankCommitmentDeadline = parseExcelDate(row[6]) || app.bankCommitmentDeadline;
-          app.receivedDate = parseExcelDate(row[7]) || app.receivedDate || new Date().toISOString().split('T')[0];
-          app.contractSigningDate = parseExcelDate(row[8]) || app.contractSigningDate;
-          app.isSelfService = row[9] === 'Có';
-          
-          if (row[10]) app.submissionLocation = (row[10] as string).includes('Phường') ? 'PHUONG' : 'TP_DANANG';
-          if (row[11]) app.vpdkCode = row[11];
-          if (row[12]) app.submissionDate = parseExcelDate(row[12]);
-          if (row[13]) app.taxNotificationDate = parseExcelDate(row[13]);
-          if (row[14]) app.taxNotificationReceivedDate = parseExcelDate(row[14]);
-          if (row[15]) app.taxReceiptDate = parseExcelDate(row[15]);
-          if (row[16]) app.gcnSignedDate = parseExcelDate(row[16]);
-          if (row[17]) app.gcnReceivedDate = parseExcelDate(row[17]);
-          if (row[18]) app.accountingHandoverDate = parseExcelDate(row[18]);
-          if (row[19]) app.customerHandoverDate = parseExcelDate(row[19]);
+          if (userRole === 'ADMIN' || userRole === 'DIRECTOR') {
+            app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
+               id: `admin-imp-${Date.now()}-${Math.random()}`,
+               unitCode: unitCode,
+               history: [{ id: `hist-${Date.now()}`, stepName: 'Quản trị viên Import', dept: 'ADMIN', receivedDate: new Date().toISOString().split('T')[0] }]
+            } as Application;
 
-          if (existingIndex > -1) {
-            newApplications[existingIndex] = app;
-            updatedCount++;
-          } else {
-            app.status = 'Processing';
-            app.currentStep = 'GD1_ChuanBi';
-            newApplications.push(app);
-            createdCount++;
-          }
-        } else if (userRole === 'PTT') {
-          const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
-          const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
-             id: `ptt-imp-${Date.now()}-${Math.random()}`,
-             unitCode: unitCode,
-             status: 'Processing',
-             currentStep: 'GD1_ChuanBi',
-             history: [{ id: `hist-${Date.now()}`, stepName: 'PTT Import', dept: 'PTT', receivedDate: new Date().toISOString().split('T')[0] }]
-          } as Application;
+            app.projectName = row[0] || app.projectName || projects[0].name;
+            app.customerName = row[2] || app.customerName || '---';
+            app.phoneNumber = row[3] || app.phoneNumber || '';
+            app.loanStatus = row[4] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
+            app.propertyType = row[5] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
+            app.bankCommitmentDeadline = parseExcelDate(row[6]) || app.bankCommitmentDeadline;
+            app.receivedDate = parseExcelDate(row[7]) || app.receivedDate || new Date().toISOString().split('T')[0];
+            app.contractSigningDate = parseExcelDate(row[8]) || app.contractSigningDate;
+            app.isSelfService = row[9] === 'Có';
+            
+            if (row[10]) app.submissionLocation = (row[10] as string).includes('Phường') ? 'PHUONG' : 'TP_DANANG';
+            if (row[11]) app.vpdkCode = row[11];
+            if (row[12]) app.submissionDate = parseExcelDate(row[12]);
+            if (row[13]) app.taxNotificationDate = parseExcelDate(row[13]);
+            if (row[14]) app.taxNotificationReceivedDate = parseExcelDate(row[14]);
+            if (row[15]) app.taxReceiptDate = parseExcelDate(row[15]);
+            if (row[16]) app.gcnSignedDate = parseExcelDate(row[16]);
+            if (row[17]) app.gcnReceivedDate = parseExcelDate(row[17]);
+            if (row[18]) app.accountingHandoverDate = parseExcelDate(row[18]);
+            if (row[19]) app.customerHandoverDate = parseExcelDate(row[19]);
 
-          app.projectName = row[0] || app.projectName || projects[0].name;
-          app.customerName = row[2] || app.customerName || '---';
-          app.contractSignerType = row[3] || app.contractSignerType || '';
-          app.phoneNumber = row[4] || app.phoneNumber || '';
-          app.loanStatus = row[5] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
-          app.propertyType = row[6] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
-          app.receivedDate = parseExcelDate(row[7]) || app.receivedDate || new Date().toISOString().split('T')[0];
-          app.contractSigningDate = parseExcelDate(row[8]) || app.contractSigningDate;
-          app.bankCommitmentDeadline = parseExcelDate(row[9]) || app.bankCommitmentDeadline;
-          app.isSelfService = row[10] === 'Có';
-          if (row[11]) app.customerHandoverDate = parseExcelDate(row[11]);
-
-          if (existingIndex > -1) {
-            newApplications[existingIndex] = app;
-            updatedCount++;
-          } else {
-            newApplications.push(app);
-            createdCount++;
-          }
-        } 
-        else if (userRole === 'KT') {
-          const idx = newApplications.findIndex(a => a.unitCode === unitCode);
-          if (idx > -1) {
-            const app = { ...newApplications[idx] };
-            app.projectName = row[0] || app.projectName;
-            if (row[3]) app.submissionLocation = (row[3] as string).includes('Phường') ? 'PHUONG' : 'TP_DANANG';
-            if (row[4]) app.vpdkCode = row[4];
-            if (row[5]) app.submissionDate = parseExcelDate(row[5]);
-            if (row[6]) app.taxNotificationReceivedDate = parseExcelDate(row[6]);
-            if (row[7]) app.taxReceiptDate = parseExcelDate(row[7]);
-            if (row[8]) app.gcnReceivedDate = parseExcelDate(row[8]);
-            if (row[9]) app.ptdaHandoverDate = parseExcelDate(row[9]);
-            if (row[10]) {
-              app.issueNotes = row[10];
-              app.issueType = 'Other';
+            if (existingIndex > -1) {
+              newApplications[existingIndex] = app;
+              updatedCount++;
+            } else {
+              app.status = 'Processing';
+              app.currentStep = 'GD1_ChuanBi';
+              newApplications.push(app);
+              createdCount++;
             }
-            newApplications[idx] = app;
-            updatedCount++;
-          }
-        }
-        else if (userRole === 'PTDA') {
-          const idx = newApplications.findIndex(a => a.unitCode === unitCode);
-          if (idx > -1) {
-            const app = { ...newApplications[idx] };
-            app.projectName = row[0] || app.projectName;
-            if (row[2]) app.taxNoticeProvisionDate = parseExcelDate(row[2]);
-            if (row[3]) app.gcnSignedDate = parseExcelDate(row[3]);
-            if (row[4]) app.gcnReceivedDate = parseExcelDate(row[4]);
-            if (row[5]) {
-              app.issueNotes = row[5];
-              app.issueType = 'Other';
-            }
-            newApplications[idx] = app;
-            updatedCount++;
-          }
-        }
-      });
+            affectedApps.push(app);
+          } else if (userRole === 'PTT') {
+            app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
+               id: `ptt-imp-${Date.now()}-${Math.random()}`,
+               unitCode: unitCode,
+               status: 'Processing',
+               currentStep: 'GD1_ChuanBi',
+               history: [{ id: `hist-${Date.now()}`, stepName: 'PTT Import', dept: 'PTT', receivedDate: new Date().toISOString().split('T')[0] }]
+            } as Application;
 
-      setApplications(newApplications);
-      showToast(`Hoàn tất nhập liệu: Cập nhật ${updatedCount} hồ sơ, Tạo mới ${createdCount} hồ sơ.`);
-      setActiveTab('applications');
+            app.projectName = row[0] || app.projectName || projects[0].name;
+            app.customerName = row[2] || app.customerName || '---';
+            app.contractSignerType = row[3] || app.contractSignerType || '';
+            app.phoneNumber = row[4] || app.phoneNumber || '';
+            app.loanStatus = row[5] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
+            app.propertyType = row[6] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
+            app.receivedDate = parseExcelDate(row[7]) || app.receivedDate || new Date().toISOString().split('T')[0];
+            app.contractSigningDate = parseExcelDate(row[8]) || app.contractSigningDate;
+            app.bankCommitmentDeadline = parseExcelDate(row[9]) || app.bankCommitmentDeadline;
+            app.isSelfService = row[10] === 'Có';
+            if (row[11]) app.customerHandoverDate = parseExcelDate(row[11]);
+
+            if (existingIndex > -1) {
+              newApplications[existingIndex] = app;
+              updatedCount++;
+            } else {
+              newApplications.push(app);
+              createdCount++;
+            }
+            affectedApps.push(app);
+          } 
+          else if (userRole === 'KT') {
+            const idx = newApplications.findIndex(a => a.unitCode === unitCode);
+            if (idx > -1) {
+              const updatedApp = { ...newApplications[idx] };
+              updatedApp.projectName = row[0] || updatedApp.projectName;
+              if (row[3]) updatedApp.submissionLocation = (row[3] as string).includes('Phường') ? 'PHUONG' : 'TP_DANANG';
+              if (row[4]) updatedApp.vpdkCode = row[4];
+              if (row[5]) updatedApp.submissionDate = parseExcelDate(row[5]);
+              if (row[6]) updatedApp.taxNotificationReceivedDate = parseExcelDate(row[6]);
+              if (row[7]) updatedApp.taxReceiptDate = parseExcelDate(row[7]);
+              if (row[8]) updatedApp.gcnReceivedDate = parseExcelDate(row[8]);
+              if (row[9]) updatedApp.ptdaHandoverDate = parseExcelDate(row[9]);
+              if (row[10]) {
+                updatedApp.issueNotes = row[10];
+                updatedApp.issueType = 'Other';
+              }
+              newApplications[idx] = updatedApp;
+              updatedCount++;
+              affectedApps.push(updatedApp);
+            }
+          }
+          else if (userRole === 'PTDA') {
+            const idx = newApplications.findIndex(a => a.unitCode === unitCode);
+            if (idx > -1) {
+              const updatedApp = { ...newApplications[idx] };
+              updatedApp.projectName = row[0] || updatedApp.projectName;
+              if (row[2]) updatedApp.taxNoticeProvisionDate = parseExcelDate(row[2]);
+              if (row[3]) updatedApp.gcnSignedDate = parseExcelDate(row[3]);
+              if (row[4]) updatedApp.gcnReceivedDate = parseExcelDate(row[4]);
+              if (row[5]) {
+                updatedApp.issueNotes = row[5];
+                updatedApp.issueType = 'Other';
+              }
+              newApplications[idx] = updatedApp;
+              updatedCount++;
+              affectedApps.push(updatedApp);
+            }
+          }
+        });
+
+        // Batch upsert to Supabase
+        if (affectedApps.length > 0) {
+          const { error } = await supabase
+            .from('records')
+            .upsert(affectedApps.map(app => mapToSnakeCase(app)));
+          
+          if (error) throw error;
+        }
+
+        setApplications(newApplications);
+        showToast(`Hoàn tất nhập liệu: Cập nhật ${updatedCount} hồ sơ, Tạo mới ${createdCount} hồ sơ lên hệ thống.`, 'success');
+        setActiveTab('applications');
+      } catch (err) {
+        console.error('Import error:', err);
+        showToast('Lỗi khi xử lý file Excel hoặc lưu dữ liệu.', 'error');
+      } finally {
+        setIsSavingApp(false);
+        e.target.value = ''; 
+      }
     };
     reader.readAsArrayBuffer(file);
-    e.target.value = ''; 
   };
 
   const handleBulkPrint = () => {
@@ -4343,26 +4365,26 @@ export default function App() {
   const isFieldEditable = (fieldName: string) => {
     if (!isEditing) return false;
     
-    // Admin/Full access
-    if (currentUser?.permission === 'FULL') return true;
-    if (userRole === 'ADMIN' || userRole === 'DIRECTOR') return true;
-
-    // View-only access
+    // 1. View-only access ALWAYS returns false regardless of role
     if (currentUser?.permission === 'VIEW') return false;
 
-    // Restriction: PTDA cannot edit vpdkCode
+    // 2. Full access / Admin role returns true
+    if (currentUser?.permission === 'FULL') return true;
+    if (userRole === 'ADMIN') return true;
+
+    // 3. For DIRECTOR and MANAGER: if they have EDIT permission, they can edit all fields
+    if (userRole === 'DIRECTOR' || userRole === 'MANAGER') {
+      return currentUser?.permission === 'EDIT';
+    }
+
+    // 4. Restriction: PTDA cannot edit vpdkCode
     if (userRole === 'PTDA' && fieldName === 'vpdkCode') return false;
 
-    // Only allow edit if it's the right department and the field is not "locked" by status
-    // Master & Procedural: PTT responsible for initial collection and master data
-    
-    // Logic to restrict editing based on department and current step
+    // 5. Logic to restrict editing based on department and current step for regular staff
     const currentStepDept = stepConfig[editApp?.currentStep || selectedApp?.currentStep || 'GD1_ChuanBi']?.dept;
-    if (userRole !== 'ADMIN' && userRole !== 'DIRECTOR' && currentUser?.permission !== 'FULL') {
-       if (userRole === 'PTT' && currentStepDept !== 'PTT') return false;
-       if (userRole === 'KT' && currentStepDept !== 'KT') return false;
-       if (userRole === 'PTDA' && currentStepDept !== 'PTDA') return false;
-    }
+    if (userRole === 'PTT' && currentStepDept !== 'PTT') return false;
+    if (userRole === 'KT' && currentStepDept !== 'KT') return false;
+    if (userRole === 'PTDA' && currentStepDept !== 'PTDA') return false;
 
     const pttFields = [
       'customerName', 'contractSignerType', 'phoneNumber', 'loanStatus', 'bankCommitmentDeadline', 'propertyType', 
@@ -4386,7 +4408,6 @@ export default function App() {
     if (userRole === 'PTT') return pttFields.includes(fieldName);
     if (userRole === 'KT') return ktFields.includes(fieldName);
     if (userRole === 'PTDA') return ptdaFields.includes(fieldName);
-    if (userRole === 'MANAGER') return false; // Managers are read-only
     
     return false;
   };
@@ -4845,7 +4866,7 @@ export default function App() {
       // Ctrl + N (New)
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
         e.preventDefault();
-        const canCreate = userRole === 'ADMIN' || userRole === 'PTT';
+        const canCreate = userRole === 'ADMIN' || userRole === 'PTT' || ((userRole === 'DIRECTOR' || userRole === 'MANAGER') && currentUser?.permission !== 'VIEW');
         if (!isCreateModalOpen && canCreate) {
           const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
           setNewApp(prev => ({ ...prev, projectName: defaultProj }));
@@ -5412,7 +5433,7 @@ export default function App() {
                 </button>
               </div>
 
-              {(userRole === 'ADMIN' || userRole === 'PTT') && (
+              {(userRole === 'ADMIN' || userRole === 'PTT' || ((userRole === 'DIRECTOR' || userRole === 'MANAGER') && currentUser?.permission !== 'VIEW')) && (
                 <button 
                   onClick={() => {
                     const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
@@ -7673,7 +7694,9 @@ export default function App() {
                         );
                       }
 
-                      const canAction = role === 'ADMIN' || role === 'DIRECTOR' || stepConfig[app.currentStep].dept === role;
+                      const canAction = role === 'ADMIN' || 
+                                       ((role === 'DIRECTOR' || role === 'MANAGER') && currentUser?.permission !== 'VIEW') ||
+                                       stepConfig[app.currentStep].dept === role;
                       if (!canAction) return null;
 
                       // GĐ 1: Chuyển bàn giao
@@ -7857,15 +7880,17 @@ export default function App() {
                       Lưu thay đổi
                     </button>
                   ) : (
-                    <button 
-                      onClick={() => {
-                        setIsEditing(true);
-                        setEditApp(selectedApp);
-                      }}
-                      className="w-full py-3 bg-festive-gold text-slate-900 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-amber-400 shadow-lg shadow-festive-gold/10 transition-all font-serif"
-                    >
-                      {(userRole === 'PTT' || userRole === 'KT' || userRole === 'PTDA') ? 'Sửa/Nhập thông tin' : 'Sửa hồ sơ'}
-                    </button>
+                    currentUser?.permission !== 'VIEW' && (
+                      <button 
+                        onClick={() => {
+                          setIsEditing(true);
+                          setEditApp(selectedApp);
+                        }}
+                        className="w-full py-3 bg-festive-gold text-slate-900 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-amber-400 shadow-lg shadow-festive-gold/10 transition-all font-serif"
+                      >
+                        {(userRole === 'PTT' || userRole === 'KT' || userRole === 'PTDA') ? 'Sửa/Nhập thông tin' : 'Sửa hồ sơ'}
+                      </button>
+                    )
                   )}
                 </div>
               </div>
