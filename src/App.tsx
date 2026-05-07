@@ -1776,49 +1776,62 @@ const ReportsView = ({
                   </div>
                 </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                     <div className="h-[300px] w-full">
-                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Bottleneck Quy trình (Avg TAT v.s SLA)</p>
-                       <ResponsiveContainer width="100%" height="100%">
-                         <BarChart data={slaStats} layout="vertical" margin={{ left: 20 }}>
-                           <XAxis type="number" hide />
-                           <YAxis dataKey="step" type="category" stroke="#94a3b8" fontSize={10} width={100} axisLine={false} tickLine={false} />
-                           <Bar dataKey="avgDays" fill="#6366f1" radius={[0, 6, 6, 0]} barSize={20} />
-                         </BarChart>
-                       </ResponsiveContainer>
-                    </div>
-                    <div className="h-[300px] w-full">
-                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">Hiệu suất Bộ phận</p>
-                       <ResponsiveContainer width="100%" height="100%">
-                         <BarChart data={['PTT', 'KT', 'PTDA'].map(dept => ({
-                           name: dept,
-                           avgDays: slaStats.filter(s => s.dept === dept).reduce((acc, curr) => acc + curr.avgDays, 0) / (slaStats.filter(s => s.dept === dept).length || 1)
-                         }))}>
-                           <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} axisLine={false} tickLine={false} />
-                           <YAxis stroke="#94a3b8" fontSize={10} axisLine={false} tickLine={false} />
-                           <Bar dataKey="avgDays" fill="#10b981" radius={[6, 6, 0, 0]} barSize={40} />
-                         </BarChart>
-                       </ResponsiveContainer>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                     <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Chi tiết Bottleneck</p>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {slaStats.sort((a,b) => b.avgDays - a.avgDays).map((item, i) => (
-                          <div key={i} className={cn(
-                            "p-4 rounded-2xl border flex items-center justify-between",
-                            item.isCritical ? "bg-rose-500/10 border-rose-500/20" : "bg-slate-950/20 border-slate-800"
-                          )}>
-                             <div>
-                               <p className={cn("text-xs font-black", theme === 'light' ? "text-slate-900" : "text-white")}>{item.step}</p>
-                               <span className="text-[9px] font-black text-slate-500 uppercase">{item.dept}</span>
-                             </div>
-                             <p className={cn("text-sm font-black italic", item.isCritical ? "text-rose-500" : "text-slate-300")}>{item.avgDays} Ngày</p>
-                          </div>
-                        ))}
-                     </div>
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                   <div className="h-[400px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={slaStats} layout="vertical" margin={{ left: 20 }}>
+                          <XAxis type="number" hide />
+                          <YAxis dataKey="step" type="category" stroke="#94a3b8" fontSize={10} width={100} axisLine={false} tickLine={false} />
+                          <ReTooltip 
+                            cursor={{ fill: 'rgba(99,102,241,0.05)' }}
+                            contentStyle={{ 
+                              backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
+                              border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #1e293b', 
+                              borderRadius: '16px' 
+                            }}
+                          />
+                          <Bar dataKey="avgDays" name="Số ngày tb" radius={[0, 6, 6, 0]} barSize={20}>
+                            {slaStats.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.isCritical ? '#f43f5e' : entry.avgDays > 5 ? '#f59e0b' : '#6366f1'} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                   </div>
+                   
+                   <div className="space-y-4">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Trách nhiệm Phòng ban & TAT</p>
+                      <div className="space-y-3">
+                         {slaStats.sort((a,b) => b.avgDays - a.avgDays).map((item, i) => (
+                           <div key={i} className={cn(
+                             "p-4 rounded-2xl border flex items-center justify-between transition-all group",
+                             item.isCritical ? "bg-rose-500/5 border-rose-500/20" : "bg-slate-950/20 border-slate-800"
+                           )}>
+                              <div className="flex items-center gap-4">
+                                 <div className={cn(
+                                   "w-2 h-2 rounded-full",
+                                   item.isCritical ? "bg-rose-500" : "bg-indigo-500"
+                                 )} />
+                                 <div>
+                                   <p className={cn("text-xs font-black", theme === 'light' ? "text-slate-900" : "text-white group-hover:text-indigo-400 transition-colors")}>{item.step}</p>
+                                   <div className="flex items-center gap-2 mt-0.5">
+                                      <span className="text-[9px] font-black text-slate-500 uppercase">Phụ trách:</span>
+                                      <span className="px-2 py-0.5 bg-slate-800 text-slate-300 text-[8px] font-black rounded-lg">{item.dept}</span>
+                                   </div>
+                                 </div>
+                              </div>
+                              <div className="text-right">
+                                 <p className={cn(
+                                   "text-sm font-black italic",
+                                   item.isCritical ? "text-rose-500" : "text-slate-300"
+                                 )}>{item.avgDays} Ngày</p>
+                                 <p className="text-[8px] font-black text-slate-600 uppercase">Avg. TAT</p>
+                              </div>
+                           </div>
+                         ))}
+                      </div>
+                   </div>
+                </div>
               </div>
             ) : (
               <div className="h-[400px] w-full">
@@ -2115,7 +2128,6 @@ const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: {
     String(a.customerName || '').toLowerCase().includes(search.toLowerCase())
   );
 
-  console.log('Rendering FieldModeView');
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 font-sans safe-area-inset overflow-x-hidden text-left">
        <header className="flex items-center justify-between mb-6">
@@ -2268,17 +2280,7 @@ const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: {
                    </section>
                 </div>
 
-                   <section className="space-y-4">
-                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-2">Ghi chú hiện trường</p>
-                       <textarea
-                         className="w-full h-32 bg-slate-900 border border-slate-800 rounded-2xl p-4 text-sm font-medium text-white focus:border-indigo-500 transition-all custom-scrollbar"
-                         placeholder="Nhập ghi chú hoặc mô tả hiện trường..."
-                         value={selectedApp.issueNotes || ''}
-                         onChange={(e) => onUpdateApp({ ...selectedApp, issueNotes: e.target.value })}
-                       />
-                    </section>
-
-                 <div className="pt-6">
+                <div className="pt-6">
                    <button 
                      onClick={() => setSelectedApp(null)}
                      className="w-full py-5 bg-indigo-600 text-white rounded-[2rem] font-black uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/20 active:scale-95 transition-all"
@@ -3586,159 +3588,137 @@ export default function App() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setIsSavingApp(true);
     const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const data = evt.target?.result;
-        const workbook = XLSX.read(data, { type: 'array' });
-        const worksheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[worksheetName];
-        const excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+    reader.onload = (evt) => {
+      const data = evt.target?.result;
+      const workbook = XLSX.read(data, { type: 'array' });
+      const worksheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[worksheetName];
+      const excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
-        let updatedCount = 0;
-        let createdCount = 0;
+      let updatedCount = 0;
+      let createdCount = 0;
 
-        const newApplications = [...applications];
-        const affectedApps: Application[] = [];
+      const newApplications = [...applications];
 
-        excelData.slice(1).forEach((row) => {
-          if (!row || row.length < 2) return;
-          const unitCode = row[1];
-          if (!unitCode) return;
+      excelData.slice(1).forEach((row) => {
+        if (!row || row.length < 2) return;
+        const unitCode = row[1];
+        if (!unitCode) return;
 
-          let app: Application | null = null;
+        if (userRole === 'ADMIN' || userRole === 'DIRECTOR') {
           const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
-
-          if (userRole === 'ADMIN' || userRole === 'DIRECTOR') {
-            app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
-               id: `admin-imp-${Date.now()}-${Math.random()}`,
-               unitCode: unitCode,
-               history: [{ id: `hist-${Date.now()}`, stepName: 'Quản trị viên Import', dept: 'ADMIN', receivedDate: new Date().toISOString().split('T')[0] }]
-            } as Application;
-
-            app.projectName = row[0] || app.projectName || projects[0].name;
-            app.customerName = row[2] || app.customerName || '---';
-            app.phoneNumber = row[3] || app.phoneNumber || '';
-            app.loanStatus = row[4] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
-            app.propertyType = row[5] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
-            app.bankCommitmentDeadline = parseExcelDate(row[6]) || app.bankCommitmentDeadline;
-            app.receivedDate = parseExcelDate(row[7]) || app.receivedDate || new Date().toISOString().split('T')[0];
-            app.contractSigningDate = parseExcelDate(row[8]) || app.contractSigningDate;
-            app.isSelfService = row[9] === 'Có';
-            
-            if (row[10]) app.submissionLocation = (row[10] as string).includes('Phường') ? 'PHUONG' : 'TP_DANANG';
-            if (row[11]) app.vpdkCode = row[11];
-            if (row[12]) app.submissionDate = parseExcelDate(row[12]);
-            if (row[13]) app.taxNotificationDate = parseExcelDate(row[13]);
-            if (row[14]) app.taxNotificationReceivedDate = parseExcelDate(row[14]);
-            if (row[15]) app.taxReceiptDate = parseExcelDate(row[15]);
-            if (row[16]) app.gcnSignedDate = parseExcelDate(row[16]);
-            if (row[17]) app.gcnReceivedDate = parseExcelDate(row[17]);
-            if (row[18]) app.accountingHandoverDate = parseExcelDate(row[18]);
-            if (row[19]) app.customerHandoverDate = parseExcelDate(row[19]);
-
-            if (existingIndex > -1) {
-              newApplications[existingIndex] = app;
-              updatedCount++;
-            } else {
-              app.status = 'Processing';
-              app.currentStep = 'GD1_ChuanBi';
-              newApplications.push(app);
-              createdCount++;
-            }
-            affectedApps.push(app);
-          } else if (userRole === 'PTT') {
-            app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
-               id: `ptt-imp-${Date.now()}-${Math.random()}`,
-               unitCode: unitCode,
-               status: 'Processing',
-               currentStep: 'GD1_ChuanBi',
-               history: [{ id: `hist-${Date.now()}`, stepName: 'PTT Import', dept: 'PTT', receivedDate: new Date().toISOString().split('T')[0] }]
-            } as Application;
-
-            app.projectName = row[0] || app.projectName || projects[0].name;
-            app.customerName = row[2] || app.customerName || '---';
-            app.contractSignerType = row[3] || app.contractSignerType || '';
-            app.phoneNumber = row[4] || app.phoneNumber || '';
-            app.loanStatus = row[5] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
-            app.propertyType = row[6] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
-            app.receivedDate = parseExcelDate(row[7]) || app.receivedDate || new Date().toISOString().split('T')[0];
-            app.contractSigningDate = parseExcelDate(row[8]) || app.contractSigningDate;
-            app.bankCommitmentDeadline = parseExcelDate(row[9]) || app.bankCommitmentDeadline;
-            app.isSelfService = row[10] === 'Có';
-            if (row[11]) app.customerHandoverDate = parseExcelDate(row[11]);
-
-            if (existingIndex > -1) {
-              newApplications[existingIndex] = app;
-              updatedCount++;
-            } else {
-              newApplications.push(app);
-              createdCount++;
-            }
-            affectedApps.push(app);
-          } 
-          else if (userRole === 'KT') {
-            const idx = newApplications.findIndex(a => a.unitCode === unitCode);
-            if (idx > -1) {
-              const updatedApp = { ...newApplications[idx] };
-              updatedApp.projectName = row[0] || updatedApp.projectName;
-              if (row[3]) updatedApp.submissionLocation = (row[3] as string).includes('Phường') ? 'PHUONG' : 'TP_DANANG';
-              if (row[4]) updatedApp.vpdkCode = row[4];
-              if (row[5]) updatedApp.submissionDate = parseExcelDate(row[5]);
-              if (row[6]) updatedApp.taxNotificationReceivedDate = parseExcelDate(row[6]);
-              if (row[7]) updatedApp.taxReceiptDate = parseExcelDate(row[7]);
-              if (row[8]) updatedApp.gcnReceivedDate = parseExcelDate(row[8]);
-              if (row[9]) updatedApp.ptdaHandoverDate = parseExcelDate(row[9]);
-              if (row[10]) {
-                updatedApp.issueNotes = row[10];
-                updatedApp.issueType = 'Other';
-              }
-              newApplications[idx] = updatedApp;
-              updatedCount++;
-              affectedApps.push(updatedApp);
-            }
-          }
-          else if (userRole === 'PTDA') {
-            const idx = newApplications.findIndex(a => a.unitCode === unitCode);
-            if (idx > -1) {
-              const updatedApp = { ...newApplications[idx] };
-              updatedApp.projectName = row[0] || updatedApp.projectName;
-              if (row[2]) updatedApp.taxNoticeProvisionDate = parseExcelDate(row[2]);
-              if (row[3]) updatedApp.gcnSignedDate = parseExcelDate(row[3]);
-              if (row[4]) updatedApp.gcnReceivedDate = parseExcelDate(row[4]);
-              if (row[5]) {
-                updatedApp.issueNotes = row[5];
-                updatedApp.issueType = 'Other';
-              }
-              newApplications[idx] = updatedApp;
-              updatedCount++;
-              affectedApps.push(updatedApp);
-            }
-          }
-        });
-
-        // Batch upsert to Supabase
-        if (affectedApps.length > 0) {
-          const { error } = await supabase
-            .from('records')
-            .upsert(affectedApps.map(app => mapToSnakeCase(app)));
           
-          if (error) throw error;
-        }
+          const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
+             id: `admin-imp-${Date.now()}-${Math.random()}`,
+             unitCode: unitCode,
+             history: [{ id: `hist-${Date.now()}`, stepName: 'Quản trị viên Import', dept: 'ADMIN', receivedDate: new Date().toISOString().split('T')[0] }]
+          } as Application;
 
-        setApplications(newApplications);
-        showToast(`Hoàn tất nhập liệu: Cập nhật ${updatedCount} hồ sơ, Tạo mới ${createdCount} hồ sơ lên hệ thống.`, 'success');
-        setActiveTab('applications');
-      } catch (err) {
-        console.error('Import error:', err);
-        showToast('Lỗi khi xử lý file Excel hoặc lưu dữ liệu.', 'error');
-      } finally {
-        setIsSavingApp(false);
-        e.target.value = ''; 
-      }
+          app.projectName = row[0] || app.projectName || projects[0].name;
+          app.customerName = row[2] || app.customerName || '---';
+          app.phoneNumber = row[3] || app.phoneNumber || '';
+          app.loanStatus = row[4] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
+          app.propertyType = row[5] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
+          app.bankCommitmentDeadline = parseExcelDate(row[6]) || app.bankCommitmentDeadline;
+          app.receivedDate = parseExcelDate(row[7]) || app.receivedDate || new Date().toISOString().split('T')[0];
+          app.contractSigningDate = parseExcelDate(row[8]) || app.contractSigningDate;
+          app.isSelfService = row[9] === 'Có';
+          
+          if (row[10]) app.submissionLocation = (row[10] as string).includes('Phường') ? 'PHUONG' : 'TP_DANANG';
+          if (row[11]) app.vpdkCode = row[11];
+          if (row[12]) app.submissionDate = parseExcelDate(row[12]);
+          if (row[13]) app.taxNotificationDate = parseExcelDate(row[13]);
+          if (row[14]) app.taxNotificationReceivedDate = parseExcelDate(row[14]);
+          if (row[15]) app.taxReceiptDate = parseExcelDate(row[15]);
+          if (row[16]) app.gcnSignedDate = parseExcelDate(row[16]);
+          if (row[17]) app.gcnReceivedDate = parseExcelDate(row[17]);
+          if (row[18]) app.accountingHandoverDate = parseExcelDate(row[18]);
+          if (row[19]) app.customerHandoverDate = parseExcelDate(row[19]);
+
+          if (existingIndex > -1) {
+            newApplications[existingIndex] = app;
+            updatedCount++;
+          } else {
+            app.status = 'Processing';
+            app.currentStep = 'GD1_ChuanBi';
+            newApplications.push(app);
+            createdCount++;
+          }
+        } else if (userRole === 'PTT') {
+          const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
+          const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
+             id: `ptt-imp-${Date.now()}-${Math.random()}`,
+             unitCode: unitCode,
+             status: 'Processing',
+             currentStep: 'GD1_ChuanBi',
+             history: [{ id: `hist-${Date.now()}`, stepName: 'PTT Import', dept: 'PTT', receivedDate: new Date().toISOString().split('T')[0] }]
+          } as Application;
+
+          app.projectName = row[0] || app.projectName || projects[0].name;
+          app.customerName = row[2] || app.customerName || '---';
+          app.contractSignerType = row[3] || app.contractSignerType || '';
+          app.phoneNumber = row[4] || app.phoneNumber || '';
+          app.loanStatus = row[5] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
+          app.propertyType = row[6] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
+          app.receivedDate = parseExcelDate(row[7]) || app.receivedDate || new Date().toISOString().split('T')[0];
+          app.contractSigningDate = parseExcelDate(row[8]) || app.contractSigningDate;
+          app.bankCommitmentDeadline = parseExcelDate(row[9]) || app.bankCommitmentDeadline;
+          app.isSelfService = row[10] === 'Có';
+          if (row[11]) app.customerHandoverDate = parseExcelDate(row[11]);
+
+          if (existingIndex > -1) {
+            newApplications[existingIndex] = app;
+            updatedCount++;
+          } else {
+            newApplications.push(app);
+            createdCount++;
+          }
+        } 
+        else if (userRole === 'KT') {
+          const idx = newApplications.findIndex(a => a.unitCode === unitCode);
+          if (idx > -1) {
+            const app = { ...newApplications[idx] };
+            app.projectName = row[0] || app.projectName;
+            if (row[3]) app.submissionLocation = (row[3] as string).includes('Phường') ? 'PHUONG' : 'TP_DANANG';
+            if (row[4]) app.vpdkCode = row[4];
+            if (row[5]) app.submissionDate = parseExcelDate(row[5]);
+            if (row[6]) app.taxNotificationReceivedDate = parseExcelDate(row[6]);
+            if (row[7]) app.taxReceiptDate = parseExcelDate(row[7]);
+            if (row[8]) app.gcnReceivedDate = parseExcelDate(row[8]);
+            if (row[9]) app.ptdaHandoverDate = parseExcelDate(row[9]);
+            if (row[10]) {
+              app.issueNotes = row[10];
+              app.issueType = 'Other';
+            }
+            newApplications[idx] = app;
+            updatedCount++;
+          }
+        }
+        else if (userRole === 'PTDA') {
+          const idx = newApplications.findIndex(a => a.unitCode === unitCode);
+          if (idx > -1) {
+            const app = { ...newApplications[idx] };
+            app.projectName = row[0] || app.projectName;
+            if (row[2]) app.taxNoticeProvisionDate = parseExcelDate(row[2]);
+            if (row[3]) app.gcnSignedDate = parseExcelDate(row[3]);
+            if (row[4]) app.gcnReceivedDate = parseExcelDate(row[4]);
+            if (row[5]) {
+              app.issueNotes = row[5];
+              app.issueType = 'Other';
+            }
+            newApplications[idx] = app;
+            updatedCount++;
+          }
+        }
+      });
+
+      setApplications(newApplications);
+      showToast(`Hoàn tất nhập liệu: Cập nhật ${updatedCount} hồ sơ, Tạo mới ${createdCount} hồ sơ.`);
+      setActiveTab('applications');
     };
     reader.readAsArrayBuffer(file);
+    e.target.value = ''; 
   };
 
   const handleBulkPrint = () => {
@@ -4364,27 +4344,21 @@ export default function App() {
 
   const isFieldEditable = (fieldName: string) => {
     if (!isEditing) return false;
-    
-    // 1. View-only access ALWAYS returns false regardless of role
-    if (currentUser?.permission === 'VIEW') return false;
+    if (userRole === 'ADMIN' || userRole === 'DIRECTOR') return true;
 
-    // 2. Full access / Admin role returns true
-    if (currentUser?.permission === 'FULL') return true;
-    if (userRole === 'ADMIN') return true;
-
-    // 3. For DIRECTOR and MANAGER: if they have EDIT permission, they can edit all fields
-    if (userRole === 'DIRECTOR' || userRole === 'MANAGER') {
-      return currentUser?.permission === 'EDIT';
-    }
-
-    // 4. Restriction: PTDA cannot edit vpdkCode
+    // Restriction: PTDA cannot edit vpdkCode
     if (userRole === 'PTDA' && fieldName === 'vpdkCode') return false;
 
-    // 5. Logic to restrict editing based on department and current step for regular staff
+    // Only allow edit if it's the right department and the field is not "locked" by status
+    // Master & Procedural: PTT responsible for initial collection and master data
+    
+    // Logic to restrict editing based on department and current step
     const currentStepDept = stepConfig[editApp?.currentStep || selectedApp?.currentStep || 'GD1_ChuanBi']?.dept;
-    if (userRole === 'PTT' && currentStepDept !== 'PTT') return false;
-    if (userRole === 'KT' && currentStepDept !== 'KT') return false;
-    if (userRole === 'PTDA' && currentStepDept !== 'PTDA') return false;
+    if (userRole !== 'ADMIN' && userRole !== 'DIRECTOR') {
+       if (userRole === 'PTT' && currentStepDept !== 'PTT') return false;
+       if (userRole === 'KT' && currentStepDept !== 'KT') return false;
+       if (userRole === 'PTDA' && currentStepDept !== 'PTDA') return false;
+    }
 
     const pttFields = [
       'customerName', 'contractSignerType', 'phoneNumber', 'loanStatus', 'bankCommitmentDeadline', 'propertyType', 
@@ -4408,12 +4382,12 @@ export default function App() {
     if (userRole === 'PTT') return pttFields.includes(fieldName);
     if (userRole === 'KT') return ktFields.includes(fieldName);
     if (userRole === 'PTDA') return ptdaFields.includes(fieldName);
+    if (userRole === 'MANAGER') return false; // Managers are read-only
     
     return false;
   };
 
   const isFieldVisible = (fieldName: string) => {
-    if (currentUser?.permission === 'FULL') return true;
     if (userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') return true;
 
     // PTDA and KT don't need to see doc checklist
@@ -4866,7 +4840,7 @@ export default function App() {
       // Ctrl + N (New)
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
         e.preventDefault();
-        const canCreate = userRole === 'ADMIN' || userRole === 'PTT' || ((userRole === 'DIRECTOR' || userRole === 'MANAGER') && currentUser?.permission !== 'VIEW');
+        const canCreate = userRole === 'ADMIN' || userRole === 'PTT';
         if (!isCreateModalOpen && canCreate) {
           const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
           setNewApp(prev => ({ ...prev, projectName: defaultProj }));
@@ -5433,7 +5407,7 @@ export default function App() {
                 </button>
               </div>
 
-              {(userRole === 'ADMIN' || userRole === 'PTT' || ((userRole === 'DIRECTOR' || userRole === 'MANAGER') && currentUser?.permission !== 'VIEW')) && (
+              {(userRole === 'ADMIN' || userRole === 'PTT') && (
                 <button 
                   onClick={() => {
                     const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
@@ -6605,30 +6579,7 @@ export default function App() {
                                 </span>
                               </td>
                               <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
-                                <div className="flex flex-col gap-1.5">
-                                  <StatusBadge status={app.status} app={app} />
-                                  {(() => {
-                                      const stepKeys = Object.keys(stepConfig);
-                                      const currentIndex = stepKeys.indexOf(app.currentStep);
-                                      const progress = app.currentStep === 'Hoan_Tat' ? 100 : Math.round(((currentIndex + 1) / stepKeys.length) * 100);
-                                      const overdue = getOverdueInfo(app);
-                                      
-                                      let barColor = 'bg-indigo-500';
-                                      if (overdue.isOverdue) barColor = 'bg-rose-500';
-                                      else if (progress >= 100) barColor = 'bg-emerald-500';
-                                      
-                                      return (
-                                        <div className="w-20">
-                                          <div className={cn("h-1 rounded-full overflow-hidden w-full", theme === 'light' ? "bg-slate-200" : "bg-slate-800")}>
-                                            <div className={cn("h-full rounded-full transition-all duration-500", barColor)} style={{ width: `${Math.min(100, progress)}%` }} />
-                                          </div>
-                                          <span className={cn("text-[8px] font-bold mt-0.5 block", overdue.isOverdue ? "text-rose-500" : (theme === 'light' ? "text-slate-600" : "text-slate-400"))}>
-                                            {overdue.isOverdue ? `Trễ ${overdue.daysLate} ngày` : `${progress}%`}
-                                          </span>
-                                        </div>
-                                      );
-                                  })()}
-                                </div>
+                                <StatusBadge status={app.status} app={app} />
                               </td>
                               {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                                 <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
@@ -7111,29 +7062,20 @@ export default function App() {
                   </div>
 
                   <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {(() => {
-                      const app = editApp || selectedApp;
-                      const overdue = getOverdueInfo(app);
-                      return (
-                        <div className={cn(
-                          "flex items-start gap-4 p-5 rounded-3xl border transition-colors",
-                          theme === 'dark' ? (overdue.isOverdue ? "bg-rose-500/10 border-rose-500/20" : "bg-indigo-500/5 border-indigo-500/10") : (overdue.isOverdue ? "bg-rose-50 border-rose-100" : "bg-indigo-50/50 border-indigo-100")
-                        )}>
-                          <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0", overdue.isOverdue ? "bg-rose-500/20 text-rose-500" : "bg-indigo-600/20 text-indigo-500")}>
-                            {overdue.isOverdue ? <AlertTriangle size={24} /> : <Clock size={24} />}
-                          </div>
-                          <div>
-                            <p className={cn("text-[10px] font-black uppercase tracking-widest mb-1.5 opacity-70", overdue.isOverdue ? "text-rose-600" : (theme === 'dark' ? "text-indigo-400" : "text-indigo-600"))}>
-                              {overdue.isOverdue ? 'Trễ hạn SLA!' : 'Bước hiện tại:'}
-                            </p>
-                            <p className={cn("text-base font-black uppercase tracking-tight", overdue.isOverdue ? "text-rose-500" : (theme === 'dark' ? "text-slate-100" : "text-slate-900"))}>
-                              {stepConfig[app.currentStep]?.label}
-                              {overdue.isOverdue && <span className="text-[10px] ml-2 font-bold">({overdue.daysLate} ngày)</span>}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })()}
+                    <div className={cn(
+                      "flex items-start gap-4 p-5 rounded-3xl border transition-colors",
+                      theme === 'dark' ? "bg-indigo-500/5 border-indigo-500/10" : "bg-indigo-50/50 border-indigo-100"
+                    )}>
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-600/20 text-indigo-500 flex items-center justify-center shrink-0">
+                        <Clock size={24} />
+                      </div>
+                      <div>
+                        <p className={cn("text-[10px] font-black uppercase tracking-widest mb-1.5 opacity-70", theme === 'dark' ? "text-indigo-400" : "text-indigo-600")}>Bước hiện tại:</p>
+                        <p className={cn("text-base font-black uppercase tracking-tight", theme === 'dark' ? "text-slate-100" : "text-slate-900")}>
+                          {stepConfig[(editApp || selectedApp).currentStep]?.label}
+                        </p>
+                      </div>
+                    </div>
                     <div className={cn(
                       "flex items-start gap-4 p-5 rounded-3xl border transition-colors",
                       theme === 'dark' ? "bg-slate-800/30 border-slate-700/30" : "bg-slate-100/50 border-slate-200"
@@ -7694,9 +7636,7 @@ export default function App() {
                         );
                       }
 
-                      const canAction = role === 'ADMIN' || 
-                                       ((role === 'DIRECTOR' || role === 'MANAGER') && currentUser?.permission !== 'VIEW') ||
-                                       stepConfig[app.currentStep].dept === role;
+                      const canAction = role === 'ADMIN' || role === 'DIRECTOR' || stepConfig[app.currentStep].dept === role;
                       if (!canAction) return null;
 
                       // GĐ 1: Chuyển bàn giao
@@ -7880,17 +7820,15 @@ export default function App() {
                       Lưu thay đổi
                     </button>
                   ) : (
-                    currentUser?.permission !== 'VIEW' && (
-                      <button 
-                        onClick={() => {
-                          setIsEditing(true);
-                          setEditApp(selectedApp);
-                        }}
-                        className="w-full py-3 bg-festive-gold text-slate-900 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-amber-400 shadow-lg shadow-festive-gold/10 transition-all font-serif"
-                      >
-                        {(userRole === 'PTT' || userRole === 'KT' || userRole === 'PTDA') ? 'Sửa/Nhập thông tin' : 'Sửa hồ sơ'}
-                      </button>
-                    )
+                    <button 
+                      onClick={() => {
+                        setIsEditing(true);
+                        setEditApp(selectedApp);
+                      }}
+                      className="w-full py-3 bg-festive-gold text-slate-900 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-amber-400 shadow-lg shadow-festive-gold/10 transition-all font-serif"
+                    >
+                      {(userRole === 'PTT' || userRole === 'KT' || userRole === 'PTDA') ? 'Sửa/Nhập thông tin' : 'Sửa hồ sơ'}
+                    </button>
                   )}
                 </div>
               </div>
