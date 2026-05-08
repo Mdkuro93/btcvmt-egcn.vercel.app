@@ -4077,7 +4077,7 @@ export default function App() {
       const isPTDA = userRole === 'PTDA';
       
       const ptdaSteps: StepName[] = ['GD2_Cho_PTDA_TiepNhan', 'GD5_Cho_PTDA_TiepNhan_KyGCN'];
-      if (ptdaSteps.includes(nextStep) && !app.submissionDate) {
+      if (ptdaSteps.includes(nextStep) && !app.submissionDate && !app.taxVpdkSubmissionDate) {
         showToast('Yêu cầu điền "Ngày nộp VPĐK" trước khi bàn giao PTDA.', 'error');
         return;
       }
@@ -4186,7 +4186,7 @@ export default function App() {
       // Check validation for all apps before transition
       const ptdaSteps: StepName[] = ['GD2_Cho_PTDA_TiepNhan', 'GD5_Cho_PTDA_TiepNhan_KyGCN'];
       if (ptdaSteps.includes(nextStep)) {
-        const missingSub = applications.filter(a => selectedAppIds.includes(a.id) && !a.submissionDate);
+        const missingSub = applications.filter(a => selectedAppIds.includes(a.id) && !a.submissionDate && !a.taxVpdkSubmissionDate);
         if (missingSub.length > 0) {
           showToast(`Lỗi: Căn ${missingSub[0].unitCode} thiếu "Ngày nộp VPĐK", vui lòng bổ sung trước khi bàn giao PTDA.`, 'error');
           setIsSavingApp(false);
@@ -6722,12 +6722,20 @@ export default function App() {
                               Có TB Thuế &rarr;
                             </button>
                           )}
-                          {userRole === 'PTDA' && applications.some(a => selectedAppIds.includes(a.id) && a.currentStep === 'GD4_Cho_Nop_NVTC') && (
+                          {(userRole === 'PTT' || userRole === 'KT' || userRole === 'ADMIN') && applications.some(a => selectedAppIds.includes(a.id) && a.currentStep === 'GD4_Cho_Nop_NVTC') && (
+                            <button 
+                              onClick={() => handleBulkStepTransition('GD4_Cho_KT_TiepNhan_LaySo')}
+                              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
+                            >
+                              Đã có TB Thuế &rarr;
+                            </button>
+                          )}
+                          {(userRole === 'KT' || userRole === 'ADMIN') && applications.some(a => selectedAppIds.includes(a.id) && a.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') && (
                             <button 
                               onClick={() => handleBulkStepTransition('GD5_Cho_PTDA_TiepNhan_KyGCN')}
                               className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
                             >
-                              Đã nộp tiền &rarr;
+                              Đã nộp tiền/chứng từ &rarr;
                             </button>
                           )}
                           {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
@@ -8302,26 +8310,17 @@ export default function App() {
               </button>
             ) : (
               <button 
-                disabled={!app.taxVpdkSubmissionDate}
+                disabled={!(app.taxVpdkSubmissionDate || app.submissionDate)}
                 onClick={() => handleStepTransition('GD5_Cho_PTDA_TiepNhan_KyGCN')}
                 className={cn(
                     "w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2",
-                    app.taxVpdkSubmissionDate ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20" : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+                    (app.taxVpdkSubmissionDate || app.submissionDate) ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20" : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
                 )}
               >
-                {!app.taxVpdkSubmissionDate && <Clock size={16} />}
-                {app.taxVpdkSubmissionDate ? "Đã nộp VPĐK (Lấy sổ) -> Chuyển PTDA" : "Cần Ngày nộp hồ sơ VPĐK để Chuyển bước"} <ChevronRight size={16} />
+                {!(app.taxVpdkSubmissionDate || app.submissionDate) && <Clock size={16} />}
+                {(app.taxVpdkSubmissionDate || app.submissionDate) ? "Đã nộp VPĐK (Lấy sổ) -> Chuyển PTDA" : "Cần Ngày nộp hồ sơ VPĐK để Chuyển bước"} <ChevronRight size={16} />
               </button>
             )}
-            <button 
-              onClick={() => {
-                const reason = prompt("Lý do trả hồ sơ / Yêu cầu bổ sung:");
-                if (reason) handleRejectApp(reason);
-              }}
-              className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
-            >
-              <RotateCcw size={16} /> Trả hồ sơ về PTT
-            </button>
           </div>
         );
       }
