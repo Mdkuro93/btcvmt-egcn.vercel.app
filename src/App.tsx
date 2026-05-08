@@ -4407,9 +4407,31 @@ export default function App() {
       }
 
       const chronoErrors: string[] = [];
+      let actuallyUpdatedCount = 0;
 
       const updatedApps = applications.map(app => {
         if (!selectedAppIds.includes(app.id)) return app;
+        
+        // Security check: Only move apps that are in the expected source step for this bulk action
+        // This prevents the issue where one dept accepts apps that haven't been handed over by the previous dept
+        const bulkSourceMapping: Record<string, string[]> = {
+          'GD1_Cho_KT_TiepNhan': ['GD1_ChuanBi'],
+          'GD2_Cho_Nop_VPDK': ['GD1_Cho_KT_TiepNhan'],
+          'GD2_Cho_PTDA_TiepNhan': ['GD2_Cho_Nop_VPDK'],
+          'GD3_Cho_TBThue': ['GD2_Cho_PTDA_TiepNhan', 'GD2_Cho_Nop_VPDK'], // Bulk receipt can come from either
+          'GD4_Cho_Nop_NVTC': ['GD3_Cho_TBThue'],
+          'GD4_Cho_KT_TiepNhan_LaySo': ['GD4_Cho_Nop_NVTC'],
+          'GD5_Cho_PTDA_TiepNhan_KyGCN': ['GD4_Cho_KT_TiepNhan_LaySo'],
+          'GD5_Cho_PTT_TiepNhan_BG': ['GD5_Cho_KT_Nhan_GCN_Thuc_Te', 'GD5_Cho_Ky_In_GCN'],
+          'GD6_Cho_BG_Khach': ['GD5_Cho_PTT_TiepNhan_BG']
+        };
+
+        const allowedSources = bulkSourceMapping[nextStep];
+        if (allowedSources && !allowedSources.includes(app.currentStep) && userRole !== 'ADMIN' && userRole !== 'MANAGER') {
+          return app;
+        }
+
+        actuallyUpdatedCount++;
         
         // Check chronology for all selected apps
         const chronoError = validateDateSequence(app);
@@ -4484,7 +4506,16 @@ export default function App() {
         return;
       }
 
-      const appsToSync = updatedApps.filter(app => selectedAppIds.includes(app.id));
+      if (actuallyUpdatedCount === 0) {
+        showToast('Không có hồ sơ nào đủ điều kiện để thực hiện chuyển bước này hàng loạt.', 'warning');
+        setIsSavingApp(false);
+        return;
+      }
+
+      const appsToSync = updatedApps.filter(app => {
+        const original = applications.find(a => a.id === app.id);
+        return original && original.currentStep !== app.currentStep;
+      });
       
       // Perform bulk upsert to Supabase
       const { error } = await supabase
@@ -4495,7 +4526,7 @@ export default function App() {
 
       setApplications(updatedApps);
       setSelectedAppIds([]);
-      showToast(`Đã xử lý hàng loạt ${updatedCount} hồ sơ lên Supabase thành công.`, 'success');
+      showToast(`Đã xử lý hàng loạt ${actuallyUpdatedCount} hồ sơ lên Supabase thành công.`, 'success');
     } catch (error) {
       console.error('Supabase bulk transition error:', error);
       showToast('Lỗi khi cập nhật hàng loạt lên Supabase.', 'error');
