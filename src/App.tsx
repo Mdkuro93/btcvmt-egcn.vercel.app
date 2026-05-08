@@ -299,41 +299,41 @@ const parseExcelDate = (val: any): string => {
 
   if (typeof val === 'string') {
     const trimmed = val.trim();
-    if (!trimmed) return '';
+    if (!trimmed || trimmed === '---') return '';
+
+    // Standardize delimiters to /
+    const standardized = trimmed.replace(/[\.-]/g, '/');
 
     // Match dd/mm/yyyy
     const ddmm_yyyy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
-    const match = trimmed.match(ddmm_yyyy);
+    const match = standardized.match(ddmm_yyyy);
     if (match) {
       const d = match[1].padStart(2, '0');
       const m = match[2].padStart(2, '0');
       const y = match[3];
       return `${y}-${m}-${d}`;
     }
-    
-    // Match yyyy-mm-dd
-    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-      return trimmed;
-    }
-  }
 
-  if (val instanceof Date) {
-    if (!isNaN(val.getTime())) {
-      return val.toISOString().split('T')[0];
+    // Match yyyy/mm/dd
+    const yyyymm_dd = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/;
+    const matchY = standardized.match(yyyymm_dd);
+    if (matchY) {
+      const y = matchY[1];
+      const m = matchY[2].padStart(2, '0');
+      const d = matchY[3].padStart(2, '0');
+      return `${y}-${m}-${d}`;
     }
+
+    // Attempt native date parse if it looks like ISO
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
   }
 
   // Last resort
   const d = new Date(val);
   if (!isNaN(d.getTime())) {
-    try {
-      return d.toISOString().split('T')[0];
-    } catch (e) {
-      return String(val);
-    }
+    return d.toISOString().split('T')[0];
   }
-
-  return String(val);
+  return '';
 };
 
 const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserProfile) => void, theme: 'light' | 'dark', onThemeToggle: () => void }) => {
@@ -3410,6 +3410,263 @@ export default function App() {
   const [filterSLAStatus, setFilterSLAStatus] = useState<'ALL' | 'OVERDUE'>('ALL');
   const [isBulkNoteOpen, setIsBulkNoteOpen] = useState(false);
   const [bulkNoteText, setBulkNoteText] = useState('');
+
+  // SPREADSHEET MODE STATES
+  const [isSpreadsheetMode, setIsSpreadsheetMode] = useState(false);
+  const [spreadsheetChanges, setSpreadsheetChanges] = useState<Record<string, Partial<Application>>>({});
+  const [spreadsheetErrors, setSpreadsheetErrors] = useState<Record<string, Record<string, string>>>({});
+  const [activeCell, setActiveCell] = useState<{ id: string, field: string } | null>(null);
+
+  const EDITABLE_DATE_FIELDS = [
+    { key: 'receivedDate', label: 'Ngày nhận HS' },
+    { key: 'submissionDate', label: 'Ngày nộp VPĐK' },
+    { key: 'taxNotificationDate', label: 'Ngày TB Thuế' },
+    { key: 'taxReceiptDate', label: 'Ngày nộp tiền' },
+    { key: 'gcnReceivedDate', label: 'Ngày nhận GCN' },
+    { key: 'customerHandoverDate', label: 'Ngày BG Khách' }
+  ];
+
+  const validateDateSequence = (app: Partial<Application>) => {
+    const dates = [
+      { key: 'receivedDate', label: 'Ngày nhận HS' },
+      { key: 'submissionDate', label: 'Ngày nộp VPĐK' },
+      { key: 'taxNotificationDate', label: 'Ngày TB Thuế' },
+      { key: 'taxReceiptDate', label: 'Ngày nộp tiền/NVTC' },
+      { key: 'gcnReceivedDate', label: 'Ngày nhận GCN' },
+      { key: 'customerHandoverDate', label: 'Ngày BG Khách' }
+    ];
+
+    // Filter out fields that are present and have valid date strings
+    const activeDates = dates
+      .map(d => ({ ...d, value: app[d.key as keyof Application] }))
+      .filter(d => d.value && d.value !== '---' && typeof d.value === 'string');
+
+    for (let i = 0; i < activeDates.length - 1; i++) {
+      const d1 = activeDates[i];
+      const d2 = activeDates[i+1];
+      
+      const date1 = new Date(d1.value as string);
+      const date2 = new Date(d2.value as string);
+      
+      if (!isNaN(date1.getTime()) && !isNaN(date2.getTime())) {
+        // Normalize to midnight for pure date comparison
+        date1.setHours(0, 0, 0, 0);
+        date2.setHours(0, 0, 0, 0);
+        
+        if (date2 < date1) {
+          return `${d2.label} (${formatDate(d2.value as string)}) không được nhỏ hơn ${d1.label} (${formatDate(d1.value as string)})`;
+        }
+      }
+    }
+    return null;
+  };
+
+  const handleSpreadsheetChange = (id: string, field: string, value: string) => {
+    setSpreadsheetChanges(prev => ({
+      ...prev,
+      [id]: { ...(prev[id] || {}), [field]: value }
+    }));
+
+    // Simple validation: check if it matches DD/MM/YYYY or YYYY-MM-DD or is empty
+    const isValid = !value || /^\d{2}\/\d{2}\/\d{4}$/.test(value) || /^\d{4}-\d{2}-\d{2}$/.test(value);
+    
+    setSpreadsheetErrors(prev => {
+      const next = { ...prev };
+      if (!isValid) {
+        if (!next[id]) next[id] = {};
+        next[id][field] = 'Định dạng ngày không hợp lệ';
+      } else {
+        if (next[id]) {
+          delete next[id][field];
+          if (Object.keys(next[id]).length === 0) delete next[id];
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleSpreadsheetPaste = (e: React.ClipboardEvent, startId: string, startField: string) => {
+    e.preventDefault();
+    const pasteData = e.clipboardData.getData('text');
+    const rows = pasteData.split(/\r?\n/).filter(line => line.trim() !== '');
+    console.log(`Pasting ${rows.length} rows...`);
+    
+    const newChanges = { ...spreadsheetChanges };
+    const newErrors = { ...spreadsheetErrors };
+    
+    const startIdx = filteredApps.findIndex(a => a.id === startId);
+    if (startIdx === -1) return;
+    
+    const startFieldIdx = EDITABLE_DATE_FIELDS.findIndex(f => f.key === startField);
+
+    rows.forEach((row, ri) => {
+      const columns = row.split('\t');
+      let targetApp: Application | undefined = filteredApps[startIdx + ri];
+      let rowData = columns;
+      let fieldOffset = startFieldIdx;
+
+      // Logic "Mapping ID": If first column matches a unitCode in system, use that row
+      const firstCol = columns[0]?.trim().toLowerCase();
+      if (!firstCol) return;
+
+      const matchedApp = applications.find(a => 
+        (a.unitCode || '').trim().toLowerCase() === firstCol || 
+        a.id.toLowerCase() === firstCol
+      );
+      
+      if (matchedApp) {
+        targetApp = matchedApp;
+        rowData = columns.slice(1); // Skip the ID column for data filling
+        fieldOffset = 0; // Fill starting from first editable field
+        console.log(`Matched record ${targetApp.unitCode} using ID/Code "${firstCol}"`);
+      } else {
+        // Skip rows that don't match or warn
+        console.warn(`Row ${ri + 1}: Could not find match for "${firstCol}"`);
+        return;
+      }
+
+      rowData.forEach((val, ci) => {
+        const fieldObj = EDITABLE_DATE_FIELDS[fieldOffset + ci];
+        if (!fieldObj) return;
+        
+        const field = fieldObj.key;
+        const trimmedVal = val.trim();
+        
+        if (!newChanges[targetApp.id]) newChanges[targetApp.id] = {};
+        newChanges[targetApp.id][field as keyof Application] = trimmedVal as any;
+        
+        // Inline Validation: Allow /, -, .
+        const isValid = !trimmedVal || trimmedVal === '---' || 
+                        /^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{4})$/.test(trimmedVal) || 
+                        /^\d{4}-\d{2}-\d{2}$/.test(trimmedVal);
+        if (!isValid) {
+          if (!newErrors[targetApp.id]) newErrors[targetApp.id] = {};
+          newErrors[targetApp.id][field] = 'Ngày không đúng định dạng (dd/mm/yyyy)';
+        } else {
+          if (newErrors[targetApp.id]) {
+            delete newErrors[targetApp.id][field];
+            if (Object.keys(newErrors[targetApp.id]).length === 0) delete newErrors[targetApp.id];
+          }
+        }
+      });
+    });
+    
+    setSpreadsheetChanges(newChanges);
+    setSpreadsheetErrors(newErrors);
+  };
+
+  const confirmSpreadsheetUpdates = async () => {
+    const errorEntries = Object.entries(spreadsheetErrors);
+    if (errorEntries.length > 0) {
+      const firstErrorId = errorEntries[0][0];
+      const appWithError = applications.find(a => a.id === firstErrorId);
+      const fields = Object.keys(errorEntries[0][1]).join(', ');
+      showToast(`Lỗi tại căn ${appWithError?.unitCode || firstErrorId}: Sai định dạng ở cột [${fields}]`, 'error');
+      return;
+    }
+
+    const changedCount = Object.keys(spreadsheetChanges).length;
+    if (changedCount === 0) {
+      showToast('Không có dữ liệu thay đổi để cập nhật', 'warning');
+      return;
+    }
+
+    setIsSavingApp(true);
+    try {
+      console.log('Building spreadsheet update payloads for:', spreadsheetChanges);
+
+      const updatePayloads: any[] = [];
+      const nowStr = new Date().toISOString().split('T')[0];
+      const updatedAppsLocal = [...applications];
+      
+      const results = {
+        success: 0,
+        skipped: 0,
+        error: 0,
+        errors: [] as string[]
+      };
+
+      for (const [id, changes] of Object.entries(spreadsheetChanges)) {
+        const originalIndex = updatedAppsLocal.findIndex(a => a.id === id);
+        if (originalIndex === -1) {
+          results.error++;
+          results.errors.push(`ID "${id}" không tồn tại.`);
+          continue;
+        }
+
+        const original = updatedAppsLocal[originalIndex];
+        const processedChanges: any = {};
+        let hasActualChange = false;
+        
+        Object.entries(changes).forEach(([field, val]) => {
+          if (val === undefined) return;
+          
+          const newDate = val === '' ? null : parseExcelDate(val as string);
+          const oldDateValue = original[field as keyof Application];
+          
+          const normNew = (newDate && typeof newDate === 'string') ? newDate.split('T')[0] : (newDate === '' ? null : newDate);
+          const normOld = (oldDateValue && typeof oldDateValue === 'string') ? oldDateValue.split('T')[0] : (oldDateValue === '' ? null : oldDateValue);
+
+          if (normNew !== normOld) {
+            processedChanges[field] = newDate;
+            hasActualChange = true;
+          }
+        });
+
+        if (!hasActualChange) {
+          results.skipped++;
+          continue;
+        }
+
+        const mergedApp = { ...original, ...processedChanges };
+        const dateError = validateDateSequence(mergedApp);
+        if (dateError) {
+          results.error++;
+          results.errors.push(`Căn ${original.unitCode || id}: ${dateError}`);
+          continue;
+        }
+
+        const updated = { ...mergedApp, updated_at: nowStr };
+        updatedAppsLocal[originalIndex] = updated;
+        updatePayloads.push(mapToSnakeCase(updated));
+        results.success++;
+      }
+
+      if (results.error > 0) {
+        showToast(`Có ${results.error} lỗi. Vui lòng kiểm tra lại: ${results.errors[0]}`, 'error');
+        // If there are errors, we might want to prevent partial updates or proceed with success cases?
+        // User asked for log, but also mentioned "không cho lưu" if vi phạm.
+        // Let's stop if there are errors.
+        setIsSavingApp(false);
+        return;
+      }
+
+      if (updatePayloads.length > 0) {
+        const { error } = await supabase.from('records').upsert(updatePayloads, { onConflict: 'id' });
+        if (error) throw new Error(`Supabase error: ${error.message}`);
+        
+        setApplications(updatedAppsLocal);
+        let msg = `Cập nhật thành công: ${results.success} căn.`;
+        if (results.skipped > 0) msg += ` (Bỏ qua ${results.skipped} căn không đổi).`;
+        showToast(msg, 'success');
+        
+        setIsSpreadsheetMode(false);
+        setSpreadsheetChanges({});
+        setSpreadsheetErrors({});
+      } else {
+        if (results.skipped > 0) {
+          showToast(`Hoàn tất: ${results.skipped} hồ sơ đã trùng khớp dữ liệu hệ thống.`, 'success');
+        } else {
+          showToast('Không tìm thấy dữ liệu hợp lệ để cập nhật', 'warning');
+        }
+      }
+    } catch (error: any) {
+      console.error('Spreadsheet bulk update error:', error);
+      showToast(`Lỗi khi cập nhật hàng loạt: ${error.message || 'Lỗi không xác định'}`, 'error');
+    } finally {
+      setIsSavingApp(false);
+    }
+  };
   const [filterStep, setFilterStep] = useState<StepName | 'ALL'>('ALL');
   const [filterStatus, setFilterStatus] = useState<UnitStatus | 'ALL'>('ALL');
   const [filterLoanStatus, setFilterLoanStatus] = useState<'Co_Vay' | 'Khong_Vay' | 'ALL'>('ALL');
@@ -3806,10 +4063,25 @@ export default function App() {
 
     // Field validations
     const isMovingForward = Object.keys(stepConfig).indexOf(nextStep) > (Object.keys(stepConfig).indexOf(app.currentStep) === -1 ? 0 : Object.keys(stepConfig).indexOf(app.currentStep));
+    
     if (isMovingForward) {
+      // Date order validation for single transition
+      const chronoError = validateDateSequence(app);
+      if (chronoError) {
+        showToast(`Lỗi trình tự ngày: ${chronoError}`, 'warning');
+        return;
+      }
+
       // Enhanced contract signing date validation: PTT must fill when in tax notification stage, PTDA is exempt
       const isPTT = userRole === 'PTT';
       const isPTDA = userRole === 'PTDA';
+      
+      const ptdaSteps: StepName[] = ['GD2_Cho_PTDA_TiepNhan', 'GD5_Cho_PTDA_TiepNhan_KyGCN'];
+      if (ptdaSteps.includes(nextStep) && !app.submissionDate) {
+        showToast('Yêu cầu điền "Ngày nộp VPĐK" trước khi bàn giao PTDA.', 'error');
+        return;
+      }
+      
       if (['GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD5_Cho_PTDA_TiepNhan_KyGCN', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_KT_Nhan_GCN_Thuc_Te', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Hoan_Tat'].includes(app.currentStep) && !app.contractSigningDate) {
         if (!isPTDA) {
           showToast('PTT: Vui lòng điền "Ngày ký HĐCN/HĐMB".', 'warning');
@@ -3861,14 +4133,12 @@ export default function App() {
       ...prevHistory
     ];
 
-    // Auto-populate dates based on transition if not already set
+    // Auto-populate dates based on transition if not already set (Removed auto-fill for critical dates as requested)
     const autoDates: Partial<Application> = {};
     if (targetStep === 'GD1_Cho_KT_TiepNhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
-    if (targetStep === 'GD2_Cho_PTDA_TiepNhan' && !app.submissionDate) autoDates.submissionDate = nowStr;
-    if (targetStep === 'GD4_Cho_Nop_NVTC') {
-      if (!app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
-      if (!app.taxNotificationReceivedDate) autoDates.taxNotificationReceivedDate = nowStr;
-    }
+    // Removed: if (targetStep === 'GD2_Cho_PTDA_TiepNhan' && !app.submissionDate) autoDates.submissionDate = nowStr;
+    // Removed: if (targetStep === 'GD4_Cho_Nop_NVTC') { ... }
+    
     if (targetStep === 'GD3_Cho_TBThue' && !app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
     if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
     if (targetStep === 'GD6_Cho_BG_Khach' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
@@ -3913,8 +4183,52 @@ export default function App() {
     setIsSavingApp(true);
     
     try {
+      // Check validation for all apps before transition
+      const ptdaSteps: StepName[] = ['GD2_Cho_PTDA_TiepNhan', 'GD5_Cho_PTDA_TiepNhan_KyGCN'];
+      if (ptdaSteps.includes(nextStep)) {
+        const missingSub = applications.filter(a => selectedAppIds.includes(a.id) && !a.submissionDate);
+        if (missingSub.length > 0) {
+          showToast(`Lỗi: Căn ${missingSub[0].unitCode} thiếu "Ngày nộp VPĐK", vui lòng bổ sung trước khi bàn giao PTDA.`, 'error');
+          setIsSavingApp(false);
+          return;
+        }
+      }
+
+      // Check validation for tax notification step
+      if (nextStep === 'GD4_Cho_Nop_NVTC') {
+        const missingTax = applications.filter(a => 
+          selectedAppIds.includes(a.id) && 
+          !a.taxNotificationDate && 
+          !a.taxNotificationReceivedDate && 
+          userRole !== 'PTDA'
+        );
+        if (missingTax.length > 0) {
+          showToast(`Lỗi: Căn ${missingTax[0].unitCode} thiếu thông tin Thuế, vui lòng bổ sung trước khi chuyển sang bước nộp NVTC.`, 'error');
+          setIsSavingApp(false);
+          return;
+        }
+      }
+
+      // Check validation for GCN received
+      if (nextStep === 'GD5_Cho_PTT_TiepNhan_BG') {
+        const missingGCN = applications.filter(a => selectedAppIds.includes(a.id) && !a.gcnReceivedDate);
+        if (missingGCN.length > 0) {
+          showToast(`Lỗi: Căn ${missingGCN[0].unitCode} thiếu "Ngày nhận GCN", vui lòng bổ sung trước khi bàn giao PTT.`, 'error');
+          setIsSavingApp(false);
+          return;
+        }
+      }
+
+      const chronoErrors: string[] = [];
+
       const updatedApps = applications.map(app => {
         if (!selectedAppIds.includes(app.id)) return app;
+        
+        // Check chronology for all selected apps
+        const chronoError = validateDateSequence(app);
+        if (chronoError) {
+          chronoErrors.push(`Căn ${app.unitCode}: ${chronoError}`);
+        }
         
         let targetStep = nextStep;
 
@@ -3952,11 +4266,8 @@ export default function App() {
         
         const autoDates: Partial<Application> = {};
         if (targetStep === 'GD1_Cho_KT_TiepNhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
-        if (targetStep === 'GD2_Cho_PTDA_TiepNhan' && !app.submissionDate) autoDates.submissionDate = nowStr;
-        if (targetStep === 'GD4_Cho_Nop_NVTC') {
-          if (!app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
-          if (!app.taxNotificationReceivedDate) autoDates.taxNotificationReceivedDate = nowStr;
-        }
+        // Removed auto-fills for critical dates to prevent data issues
+        
         if (targetStep === 'GD3_Cho_TBThue' && !app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
         if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
         if (targetStep === 'GD6_Cho_BG_Khach' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
@@ -3979,6 +4290,12 @@ export default function App() {
           history: newHistory
         };
       });
+
+      if (chronoErrors.length > 0) {
+        showToast(`Lỗi trình tự ngày: ${chronoErrors[0]}`, 'error');
+        setIsSavingApp(false);
+        return;
+      }
 
       const appsToSync = updatedApps.filter(app => selectedAppIds.includes(app.id));
       
@@ -6177,6 +6494,20 @@ export default function App() {
                           <Filter size={14} />
                           Lọc nâng cao
                         </button>
+
+                        <button 
+                          onClick={() => setIsSpreadsheetMode(!isSpreadsheetMode)}
+                          className={cn(
+                            "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all",
+                            isSpreadsheetMode 
+                              ? "bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-600/20" 
+                              : (theme === 'light' ? "bg-white text-slate-600 border-slate-200 shadow-sm hover:bg-slate-50" : "bg-slate-950/40 text-slate-400 border-slate-800 hover:border-indigo-500/30")
+                          )}
+                          title="Chế độ nhập liệu Spreadsheet (Excel-like)"
+                        >
+                          <FileSpreadsheet size={14} />
+                          Nhập liệu nhanh
+                        </button>
                       </div>
                       <div className="text-[11px] text-slate-500 italic">
                         Hiển thị {filteredApps.length} / {filteredByProjectApps.length} hồ sơ {selectedProject ? `thuộc ${selectedProject.name}` : 'toàn vùng'}
@@ -6351,7 +6682,7 @@ export default function App() {
                         </div>
 
                         <div className="flex items-center gap-1">
-                          {userRole === 'PTT' && (
+                          {userRole === 'PTT' && applications.some(a => selectedAppIds.includes(a.id) && a.currentStep === 'GD1_ChuanBi') && (
                             <button 
                               onClick={() => handleBulkStepTransition('GD1_Cho_KT_TiepNhan')}
                               className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
@@ -6359,35 +6690,65 @@ export default function App() {
                               Gửi KT &rarr;
                             </button>
                           )}
-                          {userRole === 'KT' && (
-                            <div className="flex items-center gap-1">
-                              <button 
-                                onClick={() => handleBulkStepTransition('GD2_Cho_Nop_VPDK')}
-                                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
-                              >
-                                KT Tiếp nhận
-                              </button>
-                              <button 
-                                onClick={() => handleBulkStepTransition('GD2_Cho_PTDA_TiepNhan')}
-                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
-                              >
-                                Chuyển PTDA &rarr;
-                              </button>
-                            </div>
+                          {userRole === 'KT' && applications.some(a => selectedAppIds.includes(a.id) && a.currentStep === 'GD1_Cho_KT_TiepNhan') && (
+                            <button 
+                              onClick={() => handleBulkStepTransition('GD2_Cho_Nop_VPDK')}
+                              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
+                            >
+                              KT Tiếp nhận
+                            </button>
                           )}
-                          {userRole === 'PTDA' && (
+                          {userRole === 'KT' && applications.some(a => selectedAppIds.includes(a.id) && a.currentStep === 'GD2_Cho_Nop_VPDK') && (
+                            <button 
+                              onClick={() => handleBulkStepTransition('GD2_Cho_PTDA_TiepNhan')}
+                              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
+                            >
+                              Chuyển PTDA &rarr;
+                            </button>
+                          )}
+                          {userRole === 'PTDA' && applications.some(a => selectedAppIds.includes(a.id) && a.currentStep === 'GD2_Cho_PTDA_TiepNhan') && (
+                            <button 
+                              onClick={() => handleBulkStepTransition('GD3_Cho_TBThue')}
+                              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
+                            >
+                              PTDA Tiếp nhận
+                            </button>
+                          )}
+                          {userRole === 'PTDA' && applications.some(a => selectedAppIds.includes(a.id) && a.currentStep === 'GD3_Cho_TBThue') && (
+                            <button 
+                              onClick={() => handleBulkStepTransition('GD4_Cho_Nop_NVTC')}
+                              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
+                            >
+                              Có TB Thuế &rarr;
+                            </button>
+                          )}
+                          {userRole === 'PTDA' && applications.some(a => selectedAppIds.includes(a.id) && a.currentStep === 'GD4_Cho_Nop_NVTC') && (
+                            <button 
+                              onClick={() => handleBulkStepTransition('GD5_Cho_PTDA_TiepNhan_KyGCN')}
+                              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
+                            >
+                              Đã nộp tiền &rarr;
+                            </button>
+                          )}
+                          {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
                             <div className="flex items-center gap-1">
-                              <button 
-                                onClick={() => handleBulkStepTransition('GD3_Cho_TBThue')}
-                                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
+                               <button 
+                                onClick={() => handleBulkStepTransition('GD2_Cho_Nop_VPDK')}
+                                className="px-4 py-2.5 bg-indigo-600/50 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
                               >
-                                PTDA Tiếp nhận
+                                Chuyển GĐ2
                               </button>
                               <button 
                                 onClick={() => handleBulkStepTransition('GD4_Cho_Nop_NVTC')}
-                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
+                                className="px-4 py-2.5 bg-indigo-600/50 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
                               >
-                                Có TB Thuế &rarr;
+                                Chuyển GĐ4
+                              </button>
+                              <button 
+                                onClick={() => handleBulkStepTransition('GD5_Cho_PTDA_TiepNhan_KyGCN')}
+                                className="px-4 py-2.5 bg-indigo-600/50 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
+                              >
+                                Chuyển GĐ5
                               </button>
                             </div>
                           )}
@@ -6453,18 +6814,26 @@ export default function App() {
                           </th>
                           <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Mã lô/căn</th>
                           <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Khách hàng</th>
-                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Đối tượng ký</th>
-                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Trạng thái</th>
-                          {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                            <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nộp VPĐK</th>
+                          {isSpreadsheetMode ? (
+                            EDITABLE_DATE_FIELDS.map(f => (
+                              <th key={f.key} className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center whitespace-nowrap bg-indigo-500/5">{f.label}</th>
+                            ))
+                          ) : (
+                            <>
+                              <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Đối tượng ký</th>
+                              <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Trạng thái</th>
+                              {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
+                                <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nộp VPĐK</th>
+                              )}
+                              {(userRole === 'PTT' || userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
+                                <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nộp thuế</th>
+                              )}
+                              {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
+                                <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nhận sổ</th>
+                              )}
+                              <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">BG Khách</th>
+                            </>
                           )}
-                          {(userRole === 'PTT' || userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                            <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nộp thuế</th>
-                          )}
-                          {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                            <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nhận sổ</th>
-                          )}
-                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">BG Khách</th>
                           <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center text-indigo-400">Tài liệu</th>
                           <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Hành động</th>
                         </tr>
@@ -6588,39 +6957,105 @@ export default function App() {
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
-                                <span className={cn("text-xs font-medium", theme === 'light' ? "text-slate-600" : "text-slate-400")}>
-                                  {app.contractSignerType || '---'}
-                                </span>
-                              </td>
-                              <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
-                                <StatusBadge status={app.status} app={app} />
-                              </td>
-                              {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
-                                  <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.submissionDate)}</span>
-                                </td>
-                              )}
-                              {(userRole === 'PTT' || userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
-                                  <div className="flex flex-col items-center">
-                                    <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>
-                                      {app.taxReceiptDate ? formatDate(app.taxReceiptDate) : (app.taxNotificationReceivedDate ? 'Chờ nộp' : '---')}
+                              {isSpreadsheetMode ? (
+                                EDITABLE_DATE_FIELDS.map(f => {
+                                  const val = spreadsheetChanges[app.id]?.[f.key as keyof Application] ?? (app[f.key as keyof Application] ? formatDate(app[f.key as keyof Application] as string) : '');
+                                  const hasError = spreadsheetErrors[app.id]?.[f.key];
+                                  const isChanged = spreadsheetChanges[app.id]?.hasOwnProperty(f.key);
+                                  const isActive = activeCell?.id === app.id && activeCell?.field === f.key;
+
+                                  return (
+                                    <td 
+                                      key={f.key} 
+                                      className={cn(
+                                        "px-2 py-2 border-x transition-all relative group/cell",
+                                        theme === 'light' ? "border-slate-50" : "border-slate-800/20",
+                                        isActive ? "ring-2 ring-indigo-500/50 z-10" : "",
+                                        hasError ? "bg-rose-500/10" : (isChanged ? "bg-emerald-500/5" : "")
+                                      )}
+                                      onPaste={(e) => handleSpreadsheetPaste(e, app.id, f.key)}
+                                      onClick={() => setActiveCell({ id: app.id, field: f.key })}
+                                    >
+                                      <input 
+                                        type="text"
+                                        placeholder="dd/mm/yyyy"
+                                        className={cn(
+                                          "w-full bg-transparent border-none outline-none text-[11px] font-mono text-center placeholder:opacity-30",
+                                          theme === 'light' ? "text-slate-700" : "text-slate-200",
+                                          hasError ? "text-rose-500" : (isChanged ? "text-emerald-400 font-black" : "")
+                                        )}
+                                        value={val}
+                                        onChange={(e) => handleSpreadsheetChange(app.id, f.key, e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
+                                            e.preventDefault();
+                                            const currentIdx = filteredApps.findIndex(a => a.id === app.id);
+                                            const currentFldIdx = EDITABLE_DATE_FIELDS.findIndex(fd => fd.key === f.key);
+                                            
+                                            let nextId = app.id;
+                                            let nextFld = f.key;
+
+                                            if (e.key === 'ArrowUp' && currentIdx > 0) nextId = filteredApps[currentIdx - 1].id;
+                                            if ((e.key === 'ArrowDown' || e.key === 'Enter') && currentIdx < filteredApps.length - 1) nextId = filteredApps[currentIdx + 1].id;
+                                            if (e.key === 'ArrowLeft' && currentFldIdx > 0) nextFld = EDITABLE_DATE_FIELDS[currentFldIdx - 1].key;
+                                            if (e.key === 'ArrowRight' && currentFldIdx < EDITABLE_DATE_FIELDS.length - 1) nextFld = EDITABLE_DATE_FIELDS[currentFldIdx + 1].key;
+
+                                            setActiveCell({ id: nextId, field: nextFld });
+                                            // Focus management is tricky with React, but setting state helps
+                                          }
+                                        }}
+                                        ref={(el) => {
+                                          if (isActive && el) el.focus();
+                                        }}
+                                      />
+                                      {hasError && (
+                                        <div className="absolute top-0 right-0 p-1">
+                                          <AlertCircle size={8} className="text-rose-500" />
+                                          <div className="hidden group-hover/cell:block absolute top-6 right-0 bg-rose-500 text-white text-[9px] px-2 py-1 rounded shadow-lg whitespace-nowrap z-50">
+                                            {hasError}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </td>
+                                  );
+                                })
+                              ) : (
+                                <>
+                                  <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
+                                    <span className={cn("text-xs font-medium", theme === 'light' ? "text-slate-600" : "text-slate-400")}>
+                                      {app.contractSignerType || '---'}
                                     </span>
-                                    <span className={cn("text-[9px] font-bold uppercase", getTaxStatus(app).color)}>
-                                      {getTaxStatus(app).label}
-                                    </span>
-                                  </div>
-                                </td>
+                                  </td>
+                                  <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
+                                    <StatusBadge status={app.status} app={app} />
+                                  </td>
+                                  {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
+                                    <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
+                                      <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.submissionDate)}</span>
+                                    </td>
+                                  )}
+                                  {(userRole === 'PTT' || userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
+                                    <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
+                                      <div className="flex flex-col items-center">
+                                        <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>
+                                          {app.taxReceiptDate ? formatDate(app.taxReceiptDate) : (app.taxNotificationReceivedDate ? 'Chờ nộp' : '---')}
+                                        </span>
+                                        <span className={cn("text-[9px] font-bold uppercase", getTaxStatus(app).color)}>
+                                          {getTaxStatus(app).label}
+                                        </span>
+                                      </div>
+                                    </td>
+                                  )}
+                                  {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
+                                    <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
+                                      <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.gcnReceivedDate)}</span>
+                                    </td>
+                                  )}
+                                  <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
+                                    <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.customerHandoverDate)}</span>
+                                  </td>
+                                </>
                               )}
-                              {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
-                                  <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.gcnReceivedDate)}</span>
-                                </td>
-                              )}
-                              <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
-                                <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.customerHandoverDate)}</span>
-                              </td>
                               <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
                                 {app.scannedFiles && app.scannedFiles.length > 0 ? (
                                   <div className="flex flex-col items-center gap-1 group/doc">
@@ -6665,6 +7100,65 @@ export default function App() {
                       </tbody>
                     </table>
                   </div>
+
+                  {isSpreadsheetMode && (
+                    <motion.div 
+                      initial={{ y: 100 }}
+                      animate={{ y: 0 }}
+                      className={cn(
+                        "sticky bottom-0 left-0 right-0 p-4 border-t backdrop-blur-md z-50 flex items-center justify-between shadow-[0_-10px_30px_rgba(0,0,0,0.1)]",
+                        theme === 'light' ? "bg-white/95 border-slate-200" : "bg-slate-900/95 border-slate-800"
+                      )}
+                    >
+                      <div className="flex items-center gap-6">
+                        <div className="flex flex-col text-left">
+                          <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest leading-none mb-1">Chế độ nhập liệu Spreadsheet</span>
+                          <span className="text-sm font-bold text-indigo-400">Review: {Object.keys(spreadsheetChanges).length} thay đổi</span>
+                        </div>
+
+                        <div className="h-8 w-[1px] bg-slate-700/50"></div>
+
+                        <div className="flex items-center gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-tight">
+                          <div className="flex items-center gap-1.5">
+                            <div className={cn("w-2 h-2 rounded-full", Object.keys(spreadsheetChanges).length > 0 ? "bg-emerald-400 animate-pulse" : "bg-slate-700")}></div>
+                            <span>Đã thay đổi</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className={cn("w-2 h-2 rounded-full", Object.keys(spreadsheetErrors).length > 0 ? "bg-rose-500" : "bg-slate-700")}></div>
+                            <span>Lỗi định dạng</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <button 
+                          onClick={() => {
+                            setSpreadsheetChanges({});
+                            setSpreadsheetErrors({});
+                            setIsSpreadsheetMode(false);
+                          }}
+                          className={cn(
+                            "px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all",
+                            theme === 'light' ? "text-slate-600 hover:bg-slate-100" : "text-slate-400 hover:bg-slate-800"
+                          )}
+                        >
+                          Hủy bỏ
+                        </button>
+                        <button 
+                          onClick={confirmSpreadsheetUpdates}
+                          disabled={Object.keys(spreadsheetErrors).length > 0 || Object.keys(spreadsheetChanges).length === 0}
+                          className={cn(
+                            "px-8 py-3 rounded-full text-xs font-black uppercase tracking-[0.2em] transition-all shadow-xl",
+                            Object.keys(spreadsheetErrors).length > 0 || Object.keys(spreadsheetChanges).length === 0
+                              ? "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed"
+                              : "bg-festive-gold text-slate-950 shadow-festive-gold/20 hover:scale-[1.02] active:scale-95"
+                          )}
+                        >
+                          Xác nhận cập nhật ({Object.keys(spreadsheetChanges).length})
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
               </motion.div>
             )}
