@@ -71,6 +71,8 @@ export type AuditTrailEntry = {
 
 export type IssueSeverity = 'Minor' | 'Moderate' | 'Critical';
 
+export type IssueType = 'None' | 'Paperwork' | 'Financial' | 'Authority' | 'Other';
+
 export type ScannedFile = {
   id: string;
   name: string;
