@@ -4654,29 +4654,37 @@ export default function App() {
   }, [selectedProjectId, selectedProject, applications, currentUser, userRole, projects]);
 
   const kpis: KPI = useMemo(() => {
+    const processingApps = filteredByProjectApps.filter(a => {
+      const step = stepConfig[a.currentStep] || INITIAL_STEP_CONFIG[a.currentStep];
+      return step?.status !== 'Completed';
+    });
     return {
-      total: filteredByProjectApps.length,
+      total: processingApps.length,
       // Aggregating by logical status from Step Config to include errors in their stages
-      processing: filteredByProjectApps.filter(a => stepConfig[a.currentStep]?.status === 'Processing').length,
-      submitted: filteredByProjectApps.filter(a => stepConfig[a.currentStep]?.status === 'Submitted').length,
-      taxPending: filteredByProjectApps.filter(a => stepConfig[a.currentStep]?.status === 'TaxPending').length,
-      taxCompleted: filteredByProjectApps.filter(a => stepConfig[a.currentStep]?.status === 'TaxCompleted').length,
-      gcnIssued: filteredByProjectApps.filter(a => stepConfig[a.currentStep]?.status === 'GCN_Issued').length,
-      completed: filteredByProjectApps.filter(a => stepConfig[a.currentStep]?.status === 'Completed').length,
+      processing: filteredByProjectApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'Processing').length,
+      submitted: filteredByProjectApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'Submitted').length,
+      taxPending: filteredByProjectApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'TaxPending').length,
+      taxCompleted: filteredByProjectApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'TaxCompleted').length,
+      gcnIssued: filteredByProjectApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'GCN_Issued').length,
+      completed: filteredByProjectApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'Completed').length,
       error: filteredByProjectApps.filter(a => a.status === 'Error').length,
       overdue: filteredByProjectApps.filter(a => getOverdueInfo(a).isOverdue).length,
-      loanCount: filteredByProjectApps.filter(a => a.loanStatus === 'Co_Vay').length,
-      regularCount: filteredByProjectApps.filter(a => a.loanStatus === 'Khong_Vay').length,
-      rejectedCount: filteredByProjectApps.filter(a => a.isRejected && a.currentStep === 'GD1_ChuanBi').length,
+      loanCount: processingApps.filter(a => a.loanStatus === 'Co_Vay').length,
+      regularCount: processingApps.filter(a => a.loanStatus === 'Khong_Vay').length,
+      rejectedCount: processingApps.filter(a => a.isRejected && a.currentStep === 'GD1_ChuanBi').length,
     };
-  }, [filteredByProjectApps]);
+  }, [filteredByProjectApps, stepConfig]);
 
   const roleKpis = useMemo(() => {
-    // Exclude completed records
-    const apps = filteredByProjectApps.filter(a => a.status !== 'Completed');
+    // Exclude completed records for active workload analysis
+    const apps = filteredByProjectApps.filter(a => {
+      const step = stepConfig[a.currentStep] || INITIAL_STEP_CONFIG[a.currentStep];
+      return step?.status !== 'Completed';
+    });
     
     // PTT
-    const pttTotal = apps.length;
+    // Requirement: PTT total should show ALL records (including completed)
+    const pttTotal = filteredByProjectApps.length;
     const pttProcessing = apps.filter(a => a.status === 'Processing').length;
     const pttIssues = apps.filter(a => a.isRejected || a.status === 'Error').length;
     // PTT Tax Pending: Has tax notification (from PTDA) but not yet completed payment (no receipt date)
