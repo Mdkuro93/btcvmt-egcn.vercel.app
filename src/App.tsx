@@ -32,6 +32,7 @@ import {
   Plus,
   X,
   ChevronDown,
+  ChevronUp,
   Menu,
   Save,
   Trash2,
@@ -528,16 +529,16 @@ const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Appli
   }
 
   const configs: Record<string, { label: string, classes: string }> = {
-    Processing: { label: 'Đang xử lý', classes: 'bg-amber-500/10 text-amber-500 border border-amber-500/20' },
-    Submitted: { label: 'Đã nộp VPĐK', classes: 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' },
-    TaxPending: { label: 'Chờ thông báo thuế', classes: 'bg-orange-500/10 text-orange-400 border border-orange-500/20' },
-    TaxPaymentPending_Dynamic: { label: 'Chờ nộp thuế', classes: 'bg-orange-500/10 text-orange-400 border border-orange-500/20' },
-    TaxCompleted: { label: 'Đã hoàn thành NVTC', classes: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' },
-    TaxCompleted_Dynamic: { label: 'Đã nộp thuế', classes: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' },
-    GCN_SignPending_Dynamic: { label: 'Chờ ký/in GCN', classes: 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' },
-    GCN_Issued: { label: 'Đã ra GCN', classes: 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' },
-    Completed: { label: 'Hoàn tất', classes: 'bg-emerald-500 text-slate-950 font-bold shadow-lg shadow-emerald-500/20' },
-    Error: { label: 'Sai sót/Vướng', classes: 'bg-rose-600/20 text-rose-500 border border-rose-500/30' },
+    Processing: { label: 'Đang xử lý', classes: 'bg-info/10 text-info border border-info/20' },
+    Submitted: { label: 'Đã nộp VPĐK', classes: 'bg-info/20 text-info border border-info/30' },
+    TaxPending: { label: 'Chờ thông báo thuế', classes: 'bg-warning/10 text-warning border border-warning/20' },
+    TaxPaymentPending_Dynamic: { label: 'Chờ nộp thuế', classes: 'bg-warning/10 text-warning border border-warning/20' },
+    TaxCompleted: { label: 'Đã hoàn thành NVTC', classes: 'bg-success/10 text-success border border-success/20' },
+    TaxCompleted_Dynamic: { label: 'Đã nộp thuế', classes: 'bg-success/10 text-success border border-success/20' },
+    GCN_SignPending_Dynamic: { label: 'Chờ ký/in GCN', classes: 'bg-blue-500/10 text-blue-400 border border-blue-500/20' },
+    GCN_Issued: { label: 'Đã ra GCN', classes: 'bg-blue-500/20 text-blue-500 border border-blue-500/30' },
+    Completed: { label: 'Hoàn tất', classes: 'bg-success text-white font-bold shadow-lg shadow-success/20' },
+    Error: { label: 'Sai sót/Vướng', classes: 'bg-error/10 text-error border border-error/20' },
     Draft: { label: 'Nháp', classes: 'bg-slate-800 text-slate-400 border border-slate-700' },
   };
 
@@ -2462,6 +2463,162 @@ const ProjectManagementView = ({ projects, onCreate, onEdit, onDelete, theme }: 
   );
 };
 
+const HandoverTicketModal = ({ 
+  isOpen, 
+  onClose, 
+  app, 
+  theme 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  app: Application | null;
+  theme: 'light' | 'dark'
+}) => {
+  if (!app) return null;
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60]"
+          />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className={cn(
+              "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[90vh] overflow-y-auto z-[70] rounded-[2.5rem] shadow-2xl border print:shadow-none print:border-none print:static print:translate-x-0 print:translate-y-0 print:max-h-none",
+              theme === 'dark' ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900"
+            )}
+          >
+            <div className="p-8 md:p-12 space-y-8 print:p-0">
+               <div className="flex justify-between items-start border-b pb-6 border-slate-200/20 print:border-slate-800">
+                  <div className="space-y-1">
+                    <h2 className="text-2xl font-black font-serif italic tracking-tight text-festive-gold">BIÊN BẢN BÀN GIAO</h2>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-60">Giấy chứng nhận Quyền sử dụng đất</p>
+                  </div>
+                  <div className="text-right space-y-1">
+                    <p className="text-[10px] font-mono opacity-60">Số: {app.unitCode}/{new Date().getFullYear()}/BBBG</p>
+                    <p className="text-[10px] font-mono opacity-60">{new Date().toLocaleDateString('vi-VN')}</p>
+                  </div>
+               </div>
+
+               <div className="space-y-6">
+                 <div>
+                   <h3 className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-3 border-b border-indigo-500/10 pb-1">BÊN GIAO (PHÒNG THỦ TỤC - PTT)</h3>
+                   <div className="grid grid-cols-2 gap-4 text-xs">
+                     <div>
+                       <p className="opacity-50 mb-0.5">Họ và tên người giao:</p>
+                       <p className="font-bold">Ban QL Dự án {app.projectName}</p>
+                     </div>
+                     <div>
+                       <p className="opacity-50 mb-0.5">Bộ phận:</p>
+                       <p className="font-bold">Phòng Thủ tục hồ sơ</p>
+                     </div>
+                   </div>
+                 </div>
+
+                 <div>
+                   <h3 className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-3 border-b border-emerald-500/10 pb-1">BÊN NHẬN (KHÁCH HÀNG)</h3>
+                   <div className="grid grid-cols-2 gap-4 text-xs">
+                     <div>
+                       <p className="opacity-50 mb-0.5">Họ và tên:</p>
+                       <p className="font-bold">{app.customerName}</p>
+                     </div>
+                     <div>
+                       <p className="opacity-50 mb-0.5">Số điện thoại:</p>
+                       <p className="font-bold">{app.phone || '---'}</p>
+                     </div>
+                     <div className="col-span-2">
+                       <p className="opacity-50 mb-0.5">Mã sản phẩm / Lô căn:</p>
+                       <p className="font-bold text-lg">{app.unitCode} - Dự án {app.projectName}</p>
+                     </div>
+                   </div>
+                 </div>
+
+                 <div>
+                   <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 border-b border-slate-700 pb-1">DANH MỤC TÀI LIỆU BÀN GIAO</h3>
+                   <table className="w-full text-xs border-collapse">
+                     <thead>
+                       <tr className="bg-slate-800/10 dark:bg-slate-800/50">
+                         <th className="border border-slate-700/50 p-2 text-left">STT</th>
+                         <th className="border border-slate-700/50 p-2 text-left text-[10px] uppercase">Loại tài liệu / Giấy tờ</th>
+                         <th className="border border-slate-700/50 p-2 text-center text-[10px] uppercase">Số lượng</th>
+                         <th className="border border-slate-700/50 p-2 text-left text-[10px] uppercase">Ghi chú</th>
+                       </tr>
+                     </thead>
+                     <tbody>
+                       <tr>
+                         <td className="border border-slate-700/50 p-2 text-center">1</td>
+                         <td className="border border-slate-700/50 p-2 font-bold">Giấy chứng nhận Quyền sử dụng Đất (GCN)</td>
+                         <td className="border border-slate-700/50 p-2 text-center">01 bản gốc</td>
+                         <td className="border border-slate-700/50 p-2 italic opacity-60">Kèm thông báo nộp thuế</td>
+                       </tr>
+                       <tr>
+                         <td className="border border-slate-700/50 p-2 text-center">2</td>
+                         <td className="border border-slate-700/50 p-2 pr-4 font-bold">Hồ sơ kỹ thuật / Biên bản đo đạc</td>
+                         <td className="border border-slate-700/50 p-2 text-center">01 bộ</td>
+                         <td className="border border-slate-700/50 p-2 italic opacity-60"></td>
+                       </tr>
+                       {app.isSelfService && (
+                         <tr>
+                           <td className="border border-slate-700/50 p-2 text-center">3</td>
+                           <td className="border border-slate-700/50 p-2 font-bold">Tài liệu hướng dẫn sang tên</td>
+                           <td className="border border-slate-700/50 p-2 text-center">01 bộ</td>
+                           <td className="border border-slate-700/50 p-2 italic opacity-60">Khách hàng tự làm hồ sơ</td>
+                         </tr>
+                       )}
+                     </tbody>
+                   </table>
+                 </div>
+
+                 <div className="pt-8 grid grid-cols-2 gap-12">
+                    <div className="text-center space-y-20">
+                       <p className="text-[10px] font-black uppercase tracking-widest opacity-60">ĐẠI DIỆN BÊN GIAO</p>
+                       <p className="text-xs font-bold">(Ký và ghi rõ họ tên)</p>
+                    </div>
+                    <div className="text-center space-y-20">
+                       <p className="text-[10px] font-black uppercase tracking-widest opacity-60">ĐẠI DIỆN BÊN NHẬN</p>
+                       <p className="text-xs font-bold">(Ký và ghi rõ họ tên)</p>
+                    </div>
+                 </div>
+
+                 <div className="pt-10 border-t border-slate-800 border-dashed text-[9px] italic text-slate-500 text-center uppercase tracking-widest">
+                    Vui lòng bảo quản cẩn thận giấy tờ gốc. Mọi khiếu nại sau khi ký biên bản này sẽ được xử lý theo quy định công ty.
+                 </div>
+               </div>
+
+               <div className="flex gap-3 pt-6 print:hidden">
+                 <button 
+                   onClick={onClose}
+                   className="flex-1 py-3 border border-slate-700 rounded-xl text-xs font-bold uppercase tracking-widest text-slate-500 hover:bg-slate-800 transition-colors"
+                 >
+                   Đóng lại
+                 </button>
+                 <button 
+                   onClick={handlePrint}
+                   className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
+                 >
+                   <Printer size={16} /> In Phiếu BĐ
+                 </button>
+               </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+};
+
 const ProjectModal = ({ 
   isOpen, 
   onClose, 
@@ -2947,7 +3104,7 @@ export default function App() {
     newPassword: '',
     confirmPassword: ''
   });
-
+  
   const handleUpdatePassword = async () => {
     if (!currentUser) return;
     if (!passwordForm.newPassword) {
@@ -3293,6 +3450,35 @@ export default function App() {
   });
   const [editApp, setEditApp] = useState<Application | null>(null);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+  
+  const [expandedSections, setExpandedSections] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (userRole) {
+      if (userRole === 'PTT') {
+        setExpandedSections(['PTT_SECTION']);
+      } else if (userRole === 'KT') {
+        setExpandedSections(['KT_SECTION']);
+      } else if (userRole === 'PTDA') {
+        setExpandedSections(['PTDA_SECTION']);
+      } else {
+        setExpandedSections(['PTT_SECTION', 'KT_SECTION', 'PTDA_SECTION', 'OTHER_SECTION']);
+      }
+    }
+  }, [selectedApp, userRole]);
+
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => 
+      prev.includes(section) ? prev.filter(s => s !== section) : [...prev, section]
+    );
+  };
+  
+  const [isHandoverTicketOpen, setIsHandoverTicketOpen] = useState(false);
+  
+  const handlePrintHandoverTicket = () => {
+    setIsHandoverTicketOpen(true);
+  };
+  
   const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [projectSearch, setProjectSearch] = useState('');
@@ -3413,6 +3599,7 @@ export default function App() {
 
   // SPREADSHEET MODE STATES
   const [isSpreadsheetMode, setIsSpreadsheetMode] = useState(false);
+  const isValidDate = (d: string | null | undefined) => d && d !== '---' && d.trim() !== '';
   const [spreadsheetChanges, setSpreadsheetChanges] = useState<Record<string, Partial<Application>>>({});
   const [spreadsheetErrors, setSpreadsheetErrors] = useState<Record<string, Record<string, string>>>({});
   const [activeCell, setActiveCell] = useState<{ id: string, field: string } | null>(null);
@@ -4509,6 +4696,29 @@ export default function App() {
     );
   };
 
+  const updateAppIssue = (app: Application, note: string, type: IssueType = 'Other'): Application => {
+    const newHistory = [
+      {
+        id: `hist-${Date.now()}`,
+        stepName: 'Ghi nhận Sai sót/Vướng mắc',
+        dept: userRole as Dept,
+        receivedDate: new Date().toISOString().split('T')[0],
+        note: `Vướng mắc mới: ${note}`,
+        performedBy: currentUser?.id,
+        performedByName: currentUser?.name
+      },
+      ...app.history
+    ];
+
+    return {
+      ...app,
+      status: 'Error' as const,
+      issueNotes: note,
+      issueType: type,
+      history: newHistory
+    };
+  };
+
   const handleReportError = async (note: string) => {
     const app = editApp || selectedApp;
     if (!app) return;
@@ -4520,24 +4730,7 @@ export default function App() {
       return;
     }
 
-    const newHistory = [
-      {
-        id: `hist-${Date.now()}`,
-        stepName: 'Báo lỗi/Sai sót',
-        dept: userRole as Dept,
-        receivedDate: new Date().toISOString().split('T')[0],
-        note,
-        performedBy: currentUser?.id,
-        performedByName: currentUser?.name
-      },
-      ...app.history
-    ];
-
-    const updatedApp = {
-      ...app,
-      status: 'Error' as const,
-      history: newHistory
-    };
+    const updatedApp = updateAppIssue(app, note);
 
     setIsSavingApp(true);
     try {
@@ -4547,6 +4740,7 @@ export default function App() {
       setSelectedApp(updatedApp);
       setEditApp(null);
       setIsEditing(false);
+      setExpandedSections(prev => prev.includes('OTHER_SECTION') ? prev : [...prev, 'OTHER_SECTION']);
       showToast('Đã ghi nhận sai sót và đồng bộ Supabase thành công.', 'warning');
     } catch (error) {
       console.error('Supabase report error:', error);
@@ -4576,6 +4770,9 @@ export default function App() {
     const updatedApp = {
       ...app,
       status: stepConfig[app.currentStep]?.status || 'Processing',
+      issueType: 'None',
+      issueNotes: '',
+      isRejected: false,
       history: newHistory
     };
 
@@ -4624,13 +4821,11 @@ export default function App() {
     ];
 
     const updatedApp = {
-      ...app,
+      ...updateAppIssue(app, reason, 'Paperwork'),
       currentStep: prevStep,
-      status: 'Error' as const,
       rejectionCount: (app.rejectionCount || 0) + 1,
       isRejected: true,
       rejectionReason: reason,
-      history: newHistory
     };
 
     setIsSavingApp(true);
@@ -4656,6 +4851,7 @@ export default function App() {
       setSelectedApp(updatedApp);
       setEditApp(null);
       setIsEditing(false);
+      setExpandedSections(prev => prev.includes('OTHER_SECTION') ? prev : [...prev, 'OTHER_SECTION']);
       showToast('Hồ sơ đã được trả về giai đoạn 1 và cập nhật Supabase thành công.', 'warning');
     } catch (error) {
       console.error('Supabase reject error:', error);
@@ -4668,24 +4864,14 @@ export default function App() {
   const isFieldEditable = (fieldName: string) => {
     if (!isEditing) return false;
     if (userRole === 'ADMIN' || userRole === 'DIRECTOR') return true;
+    if (userRole === 'MANAGER') return false; // Managers are read-only
 
-    // Restriction: PTDA cannot edit vpdkCode
+    // Custom restrictions
     if (userRole === 'PTDA' && fieldName === 'vpdkCode') return false;
-
-    // Only allow edit if it's the right department and the field is not "locked" by status
-    // Master & Procedural: PTT responsible for initial collection and master data
-    
-    // Logic to restrict editing based on department and current step
-    const currentStepDept = stepConfig[editApp?.currentStep || selectedApp?.currentStep || 'GD1_ChuanBi']?.dept;
-    if (userRole !== 'ADMIN' && userRole !== 'DIRECTOR') {
-       if (userRole === 'PTT' && currentStepDept !== 'PTT') return false;
-       if (userRole === 'KT' && currentStepDept !== 'KT') return false;
-       if (userRole === 'PTDA' && currentStepDept !== 'PTDA') return false;
-    }
 
     const pttFields = [
       'customerName', 'contractSignerType', 'phoneNumber', 'loanStatus', 'bankCommitmentDeadline', 'propertyType', 
-      'contractSigningDate', 'receivedDate', 'isSelfService', 'customerHandoverDate', 'taxNotificationReceivedDate', 'accountingHandoverDate'
+      'contractSigningDate', 'receivedDate', 'isSelfService', 'customerHandoverDate', 'taxNotificationReceivedDate', 'accountingHandoverDate', 'staffName'
     ];
 
     // Financial & Tax & Authority Submission: KT responsible for processing according to function (Tax/Accounting)
@@ -4693,19 +4879,18 @@ export default function App() {
       'submissionLocation', 'vpdkCode', 'submissionDate',
       'taxReceiptDate', 'taxVpdkSubmissionDate', 'taxPaymentStatus',
       'gcnReceivedDate', 'ptdaHandoverDate',
-      'issueType', 'issueNotes'
+      'issueType', 'issueNotes', 'issueSeverity'
     ];
 
     // Project/Authority: PTDA responsible for processing dates (GCN milestones)
     const ptdaFields = [
       'vpdkCode', 'taxNotificationDate', 'taxNoticeProvisionDate', 'gcnSignedDate',
-      'issueType', 'issueNotes'
+      'issueType', 'issueNotes', 'issueSeverity'
     ];
 
     if (userRole === 'PTT') return pttFields.includes(fieldName);
     if (userRole === 'KT') return ktFields.includes(fieldName);
     if (userRole === 'PTDA') return ptdaFields.includes(fieldName);
-    if (userRole === 'MANAGER') return false; // Managers are read-only
     
     return false;
   };
@@ -4959,7 +5144,7 @@ export default function App() {
   };
 
   const filteredByProjectApps = useMemo(() => {
-    const baseApps = ((userRole === 'ADMIN' || userRole === 'DIRECTOR') 
+    const baseApps = ((userRole === 'ADMIN' || userRole === 'DIRECTOR' || userRole === 'MANAGER' || userRole === 'PTDA') 
       ? applications 
       : applications.filter(app => {
           const project = projects.find(p => p.name === app.projectName);
@@ -5021,11 +5206,13 @@ export default function App() {
     const ktGcnReceived = apps.filter(a => !!a.gcnReceivedDate).length;
 
     // PTDA
-    const ptdaNoTax = apps.filter(a => a.currentStep === 'GD3_Cho_TBThue' && !a.taxNotificationDate).length;
-    // PTDA Tax Received: Has notification but tax not paid yet (waiting for PTT handover/KT payment)
-    const ptdaWithTax = apps.filter(a => !!a.taxNotificationDate && !a.taxReceiptDate).length;
-    // PTDA GCN Waiting: Tax paid (NVTC) but not yet signed/printed GCN
-    const ptdaGcnWaiting = apps.filter(a => !!a.taxReceiptDate && !a.gcnSignedDate).length;
+    const ptdaApps = apps.filter(a => stepConfig[a.currentStep]?.dept === 'PTDA');
+    // CHỜ TB THUẾ: là các căn ở GD3_Cho_TBThue
+    const ptdaNoTax = apps.filter(a => a.currentStep === 'GD3_Cho_TBThue').length;
+    // ĐÃ CÓ TB THUẾ: là các cnaw GD4_Cho_Nop_NVTC
+    const ptdaWithTax = apps.filter(a => a.currentStep === 'GD4_Cho_Nop_NVTC').length;
+    // PTDA GCN Waiting: PTDA department, tax paid (NVTC) but not yet signed/printed GCN
+    const ptdaGcnWaiting = ptdaApps.filter(a => !!a.taxReceiptDate && !a.gcnSignedDate).length;
     const ptdaIssues = apps.filter(a => (a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None')) && stepConfig[a.currentStep]?.dept === 'PTDA').length;
     
     const ptdaAppsWithTax = apps.filter(a => a.submissionDate && a.taxNotificationDate);
@@ -5330,9 +5517,9 @@ export default function App() {
       (dashboardFilter === 'KT_SUBMITTED_DONE' && !!app.submissionDate) ||
       (dashboardFilter === 'KT_TAX_SUBMITTED' && (!!app.taxReceiptDate || app.taxPaymentStatus === 'Paid')) ||
       (dashboardFilter === 'KT_GCN_RECEIVED' && !!app.gcnReceivedDate) ||
-      (dashboardFilter === 'PTDA_NO_TAX' && app.currentStep === 'GD3_Cho_TBThue' && !app.taxNotificationDate) ||
-      (dashboardFilter === 'PTDA_TAX_RECEIVED' && !!app.taxNotificationDate && !app.taxReceiptDate) ||
-      (dashboardFilter === 'PTDA_GCN_WAITING' && !!app.taxReceiptDate && !app.gcnSignedDate) ||
+      (dashboardFilter === 'PTDA_NO_TAX' && app.currentStep === 'GD3_Cho_TBThue') ||
+      (dashboardFilter === 'PTDA_TAX_RECEIVED' && app.currentStep === 'GD4_Cho_Nop_NVTC') ||
+      (dashboardFilter === 'PTDA_GCN_WAITING' && stepConfig[app.currentStep]?.dept === 'PTDA' && !!app.taxReceiptDate && !app.gcnSignedDate) ||
       (dashboardFilter === 'PTDA_ISSUES' && (app.isRejected || app.status === 'Error' || (app.issueType && app.issueType !== 'None')) && stepConfig[app.currentStep]?.dept === 'PTDA');
 
     return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService && matchesDashboardFilter && matchesSLA;
@@ -5856,7 +6043,7 @@ export default function App() {
                       title="Tổng số lượng hồ sơ" 
                       value={roleKpis.ptt.total} 
                       icon={Files} 
-                      colorClass="bg-blue-500 shadow-blue-900/40" 
+                      colorClass="bg-blue-500 shadow-blue-500/40" 
                       delay={0.1} 
                       theme={theme} 
                       onClick={() => { setActiveTab('applications'); setDashboardFilter('ALL'); }}
@@ -5865,7 +6052,7 @@ export default function App() {
                       title="Hồ sơ đang xử lý" 
                       value={roleKpis.ptt.processing} 
                       icon={Activity} 
-                      colorClass="bg-indigo-500 shadow-indigo-900/40" 
+                      colorClass="bg-info shadow-info/40" 
                       delay={0.2} 
                       theme={theme} 
                       onClick={() => { setActiveTab('applications'); setDashboardFilter('PTT_PROCESSING'); }}
@@ -5874,7 +6061,7 @@ export default function App() {
                       title="Hồ sơ sai sót/vướng mắc" 
                       value={roleKpis.ptt.issues} 
                       icon={AlertTriangle} 
-                      colorClass="bg-rose-500 shadow-rose-900/40" 
+                      colorClass="bg-error shadow-error/40" 
                       delay={0.3} 
                       theme={theme} 
                       onClick={() => { setActiveTab('applications'); setDashboardFilter('PTT_ISSUES'); }}
@@ -5883,7 +6070,7 @@ export default function App() {
                       title="Tình trạng nộp NVTC (Chưa nộp)" 
                       value={roleKpis.ptt.taxPending} 
                       icon={Clock} 
-                      colorClass="bg-amber-500 shadow-amber-900/40" 
+                      colorClass="bg-warning shadow-warning/40" 
                       delay={0.4} 
                       theme={theme} 
                       onClick={() => { setActiveTab('applications'); setDashboardFilter('PTT_TAX_UNPAID'); }}
@@ -5893,19 +6080,19 @@ export default function App() {
 
                 {userRole === 'KT' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <StatCard title="Hồ sơ đã/cần tiếp nhận" value={roleKpis.kt.received} icon={Files} colorClass="bg-indigo-500 shadow-indigo-900/40" delay={0.1} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_RECEIVED'); }} />
-                    <StatCard title="Đã hoàn thành nộp hồ sơ" value={roleKpis.kt.submitted} icon={CheckCircle2} colorClass="bg-emerald-500 shadow-emerald-900/40" delay={0.2} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_SUBMITTED_DONE'); }} />
-                    <StatCard title="Hồ sơ đã nộp NVTC" value={roleKpis.kt.taxPaid} icon={Map} colorClass="bg-amber-500 shadow-amber-900/40" delay={0.3} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_TAX_SUBMITTED'); }} />
-                    <StatCard title="GCN đã nhận" value={roleKpis.kt.gcnReceived} icon={Building2} colorClass="bg-cyan-500 shadow-cyan-900/40" delay={0.4} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_GCN_RECEIVED'); }} />
+                    <StatCard title="Hồ sơ đã/cần tiếp nhận" value={roleKpis.kt.received} icon={Files} colorClass="bg-info shadow-info/40" delay={0.1} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_RECEIVED'); }} />
+                    <StatCard title="Đã hoàn thành nộp hồ sơ" value={roleKpis.kt.submitted} icon={CheckCircle2} colorClass="bg-success shadow-success/40" delay={0.2} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_SUBMITTED_DONE'); }} />
+                    <StatCard title="Hồ sơ đã nộp NVTC" value={roleKpis.kt.taxPaid} icon={Map} colorClass="bg-warning shadow-warning/40" delay={0.3} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_TAX_SUBMITTED'); }} />
+                    <StatCard title="GCN đã nhận" value={roleKpis.kt.gcnReceived} icon={Building2} colorClass="bg-blue-500 shadow-blue-500/40" delay={0.4} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('KT_GCN_RECEIVED'); }} />
                   </div>
                 )}
 
                 {userRole === 'PTDA' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <StatCard title="CHỜ TB THUẾ" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-rose-500 shadow-rose-900/40" delay={0.1} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_NO_TAX'); }} />
-                    <StatCard title="ĐÃ CÓ TB THUẾ" value={roleKpis.ptda.withTax} icon={CheckCircle2} colorClass="bg-emerald-500 shadow-emerald-900/40" delay={0.2} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_TAX_RECEIVED'); }} />
-                    <StatCard title="Hồ sơ chờ In/trình ký GCN" value={roleKpis.ptda.gcnWaiting} icon={FileText} colorClass="bg-indigo-500 shadow-indigo-900/40" delay={0.3} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_GCN_WAITING'); }} />
-                    <StatCard title="Hồ sơ sai sót/vướng mắc" value={roleKpis.ptda.issues} icon={AlertCircle} colorClass="bg-rose-500 shadow-rose-900/40" delay={0.4} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_ISSUES'); }} />
+                    <StatCard title="CHỜ TB THUẾ" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-warning shadow-warning/40" delay={0.1} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_NO_TAX'); }} />
+                    <StatCard title="ĐÃ CÓ TB THUẾ" value={roleKpis.ptda.withTax} icon={CheckCircle2} colorClass="bg-success shadow-success/40" delay={0.2} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_TAX_RECEIVED'); }} />
+                    <StatCard title="Hồ sơ chờ In/trình ký GCN" value={roleKpis.ptda.gcnWaiting} icon={FileText} colorClass="bg-info shadow-info/40" delay={0.3} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_GCN_WAITING'); }} />
+                    <StatCard title="Hồ sơ sai sót/vướng mắc" value={roleKpis.ptda.issues} icon={AlertCircle} colorClass="bg-error shadow-error/40" delay={0.4} theme={theme} onClick={() => { setActiveTab('applications'); setDashboardFilter('PTDA_ISSUES'); }} />
                   </div>
                 )}
 
@@ -5915,7 +6102,7 @@ export default function App() {
                       title="Tổng số lượng căn đang xử lý" 
                       value={kpis.total} 
                       icon={Building2} 
-                      colorClass="bg-festive-gold" 
+                      colorClass="bg-info shadow-info/40" 
                       delay={0.1} 
                       theme={theme} 
                       onClick={() => { setActiveTab('applications'); setDashboardFilter('ALL'); }}
@@ -5924,7 +6111,7 @@ export default function App() {
                       title="Trễ hạn xử lý" 
                       value={kpis.overdue} 
                       icon={AlertCircle} 
-                      colorClass="bg-amber-600 shadow-amber-900/40" 
+                      colorClass="bg-warning shadow-warning/40" 
                       delay={0.3} 
                       theme={theme} 
                       onClick={() => { setActiveTab('applications'); setDashboardFilter('OVERDUE'); }}
@@ -5933,7 +6120,7 @@ export default function App() {
                       title="Vướng / Sai sót" 
                       value={kpis.error} 
                       icon={AlertCircle} 
-                      colorClass="bg-rose-500 shadow-rose-900/40" 
+                      colorClass="bg-error shadow-error/40" 
                       delay={0.4} 
                       theme={theme} 
                       onClick={() => { setActiveTab('applications'); setDashboardFilter('ERROR'); }}
@@ -5942,7 +6129,7 @@ export default function App() {
                       title="Căn có vay bổ sung" 
                       value={applications.filter(a => a.loanStatus === 'Co_Vay').length} 
                       icon={CreditCard} 
-                      colorClass="bg-indigo-600 shadow-indigo-900/40" 
+                      colorClass="bg-blue-600 shadow-blue-600/40" 
                       delay={0.5} 
                       theme={theme} 
                       onClick={() => { setActiveTab('reports'); setDashboardFilter('LOAN' as any); }}
@@ -6978,7 +7165,11 @@ export default function App() {
                                       className={cn(
                                         "px-2 py-2 border-x transition-all relative group/cell",
                                         theme === 'light' ? "border-slate-50" : "border-slate-800/20",
-                                        isActive ? "ring-2 ring-indigo-500/50 z-10" : "",
+                                        isActive 
+                                          ? (theme === 'light' 
+                                              ? "ring-2 ring-indigo-500 bg-indigo-50/30 z-10 shadow-[0_0_15px_rgba(99,102,241,0.2)]" 
+                                              : "ring-2 ring-indigo-400 bg-indigo-900/20 z-10 shadow-[0_0_15px_rgba(129,140,248,0.2)]") 
+                                          : "",
                                         hasError ? "bg-rose-500/10" : (isChanged ? "bg-emerald-500/5" : "")
                                       )}
                                       onPaste={(e) => handleSpreadsheetPaste(e, app.id, f.key)}
@@ -6990,26 +7181,59 @@ export default function App() {
                                         className={cn(
                                           "w-full bg-transparent border-none outline-none text-[11px] font-mono text-center placeholder:opacity-30",
                                           theme === 'light' ? "text-slate-700" : "text-slate-200",
+                                          isActive ? "font-bold" : "",
                                           hasError ? "text-rose-500" : (isChanged ? "text-emerald-400 font-black" : "")
                                         )}
                                         value={val}
                                         onChange={(e) => handleSpreadsheetChange(app.id, f.key, e.target.value)}
                                         onKeyDown={(e) => {
-                                          if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
+                                          if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Tab'].includes(e.key)) {
+                                            const isTab = e.key === 'Tab';
+                                            const isShiftTab = isTab && e.shiftKey;
+                                            
+                                            // ArrowUp/Down/Left/Right/Enter and Tab/ShiftTab
                                             e.preventDefault();
                                             const currentIdx = filteredApps.findIndex(a => a.id === app.id);
                                             const currentFldIdx = EDITABLE_DATE_FIELDS.findIndex(fd => fd.key === f.key);
                                             
                                             let nextId = app.id;
                                             let nextFld = f.key;
+                                            const isLastRow = currentIdx === filteredApps.length - 1;
+                                            const isFirstRow = currentIdx === 0;
+                                            const isLastField = currentFldIdx === EDITABLE_DATE_FIELDS.length - 1;
+                                            const isFirstField = currentFldIdx === 0;
 
-                                            if (e.key === 'ArrowUp' && currentIdx > 0) nextId = filteredApps[currentIdx - 1].id;
-                                            if ((e.key === 'ArrowDown' || e.key === 'Enter') && currentIdx < filteredApps.length - 1) nextId = filteredApps[currentIdx + 1].id;
-                                            if (e.key === 'ArrowLeft' && currentFldIdx > 0) nextFld = EDITABLE_DATE_FIELDS[currentFldIdx - 1].key;
-                                            if (e.key === 'ArrowRight' && currentFldIdx < EDITABLE_DATE_FIELDS.length - 1) nextFld = EDITABLE_DATE_FIELDS[currentFldIdx + 1].key;
+                                            if (e.key === 'ArrowUp' && !isFirstRow) {
+                                              nextId = filteredApps[currentIdx - 1].id;
+                                            } else if ((e.key === 'ArrowDown' || e.key === 'Enter') && !isLastRow) {
+                                              nextId = filteredApps[currentIdx + 1].id;
+                                            } else if (e.key === 'ArrowLeft' && !isFirstField) {
+                                              nextFld = EDITABLE_DATE_FIELDS[currentFldIdx - 1].key;
+                                            } else if (e.key === 'ArrowRight' && !isLastField) {
+                                              nextFld = EDITABLE_DATE_FIELDS[currentFldIdx + 1].key;
+                                            } else if (isTab && !isShiftTab) {
+                                              if (isLastField) {
+                                                if (!isLastRow) {
+                                                  nextId = filteredApps[currentIdx + 1].id;
+                                                  nextFld = EDITABLE_DATE_FIELDS[0].key;
+                                                }
+                                              } else {
+                                                nextFld = EDITABLE_DATE_FIELDS[currentFldIdx + 1].key;
+                                              }
+                                            } else if (isShiftTab) {
+                                              if (isFirstField) {
+                                                if (!isFirstRow) {
+                                                  nextId = filteredApps[currentIdx - 1].id;
+                                                  nextFld = EDITABLE_DATE_FIELDS[EDITABLE_DATE_FIELDS.length - 1].key;
+                                                }
+                                              } else {
+                                                nextFld = EDITABLE_DATE_FIELDS[currentFldIdx - 1].key;
+                                              }
+                                            }
 
-                                            setActiveCell({ id: nextId, field: nextFld });
-                                            // Focus management is tricky with React, but setting state helps
+                                            if (nextId !== app.id || nextFld !== f.key) {
+                                              setActiveCell({ id: nextId, field: nextFld });
+                                            }
                                           }
                                         }}
                                         ref={(el) => {
@@ -7035,7 +7259,15 @@ export default function App() {
                                     </span>
                                   </td>
                                   <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
-                                    <StatusBadge status={app.status} app={app} />
+                                    <div className="flex flex-col gap-1">
+                                      <StatusBadge status={app.status} app={app} />
+                                      {(app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None')) && (
+                                        <div className="flex items-center gap-1 text-rose-500 animate-pulse">
+                                          <AlertTriangle size={10} />
+                                          <span className="text-[9px] font-bold uppercase truncate max-w-[120px]">{app.issueNotes || 'Vướng mắc'}</span>
+                                        </div>
+                                      )}
+                                    </div>
                                   </td>
                                   {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                                     <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
@@ -7428,18 +7660,42 @@ export default function App() {
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className="fixed right-0 top-0 bottom-0 w-full md:w-[750px] lg:w-[900px] bg-[#1E293B] z-50 shadow-2xl flex flex-col border-l border-slate-700"
             >
-              <div className="p-8 border-b border-slate-700 flex items-center justify-between bg-slate-900/50">
-                <div>
-                  <div className="flex items-center gap-3 mb-1">
-                    <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 rounded text-[10px] font-black uppercase tracking-widest border border-indigo-500/20">
+              <div className="p-8 border-b border-slate-700 flex flex-col md:flex-row items-start md:items-center justify-between bg-slate-900/50 gap-4">
+                <div className="flex-1">
+                  <div className="flex flex-wrap items-center gap-3 mb-2">
+                    <span className="px-3 py-1 bg-indigo-500/10 text-indigo-400 rounded-lg text-sm font-black uppercase tracking-widest border border-indigo-500/20">
                       {(editApp || selectedApp).unitCode}
                     </span>
                     <StatusBadge status={(editApp || selectedApp).status} app={editApp || selectedApp} />
+                    <span className="px-2.5 py-1 bg-slate-800 text-slate-300 rounded-full text-xs font-bold border border-slate-700 flex items-center gap-1.5">
+                      <Activity size={12} />
+                      {stepConfig[(editApp || selectedApp).currentStep]?.label || (editApp || selectedApp).currentStep}
+                    </span>
                   </div>
                   <h3 className="text-2xl font-black text-slate-100 italic font-serif">{(editApp || selectedApp).projectName}</h3>
-                  <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">{(editApp || selectedApp).customerName}</p>
+                  <p className="text-sm text-slate-400 font-bold uppercase tracking-widest mt-1 flex items-center gap-2">
+                    <User size={14} className="text-slate-500" />
+                    {(editApp || selectedApp).customerName}
+                  </p>
+                  
+                  {((editApp || selectedApp).isRejected || (editApp || selectedApp).status === 'Error' || ((editApp || selectedApp).issueType && (editApp || selectedApp).issueType !== 'None')) && (
+                    <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-error/10 border border-error/20 text-error rounded-lg">
+                      <AlertTriangle size={14} className="animate-pulse" />
+                      <span className="text-xs font-bold">Vướng mắc: {(editApp || selectedApp).issueNotes || 'Có sai sót cần xử lý'}</span>
+                      {selectedApp.rejectionCount > 0 && <span className="ml-2 text-[10px] font-mono bg-error/20 px-1.5 py-0.5 rounded">Trả về: {selectedApp.rejectionCount} lần</span>}
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-3">
+
+                <div className="flex flex-wrap items-center gap-3">
+                  {(userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
+                    <button 
+                      onClick={() => setExpandedSections(expandedSections.length > 0 ? [] : ['PTT_SECTION', 'KT_SECTION', 'PTDA_SECTION', 'OTHER_SECTION'])}
+                      className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all border border-slate-700 mr-2"
+                    >
+                      {expandedSections.length > 0 ? 'Thu gọn' : 'Mở rộng tất cả'}
+                    </button>
+                  )}
                   {!isEditing ? (
                     currentUser?.permission !== 'VIEW' && (
                       <button 
@@ -7610,340 +7866,472 @@ export default function App() {
                   </div>
                 </section>
 
-                <div className="grid grid-cols-1 gap-10">
-                   {/* Row 1: Master Info */}
-                  <section className="space-y-6">
-                    <div className={cn("flex items-center justify-between border-b pb-4", theme === 'dark' ? "border-slate-800/50" : "border-slate-200")}>
-                      <div className="flex items-center gap-3">
-                        <div className="w-1 h-6 bg-indigo-500 rounded-full"></div>
-                        <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-white" : "text-slate-900")}>Thông tin Khách hàng (PTT)</h4>
-                      </div>
-                      {userRole === 'PTT' && <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-3 py-1 rounded-full font-black uppercase border border-indigo-500/20">Cấp quyền chỉnh sửa</span>}
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <DetailCard theme={theme} label="Mã lô/căn" value={(editApp || selectedApp).unitCode} isEditing={isEditing} />
-                      <DetailCard theme={theme} label="Dự án" value={(editApp || selectedApp).projectName} isEditing={isEditing} />
-                      <DetailCard theme={theme}
-                        label="Tên khách hàng" 
-                        value={(editApp || selectedApp).customerName} 
-                        editable={isFieldEditable('customerName')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('customerName', val)}
-                      />
-                      <DetailCard theme={theme}
-                        label="Đối tượng ký HĐCN" 
-                        value={(editApp || selectedApp).contractSignerType} 
-                        editable={isFieldEditable('contractSignerType')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('contractSignerType', val)}
-                      />
-                      <DetailCard theme={theme}
-                        label="Số điện thoại" 
-                        value={(editApp || selectedApp).phoneNumber} 
-                        editable={isFieldEditable('phoneNumber')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('phoneNumber', val)}
-                      />
-                      <DetailCard theme={theme}
-                        label="Loại tài sản" 
-                        value={(editApp || selectedApp).propertyType === 'Dat_Nen' ? 'Quyền sử dụng đất (Nhà đất/Đất nền)' : 'Căn hộ'} 
-                        type="select"
-                        editable={isFieldEditable('propertyType')}
-                        isEditing={isEditing}
-                        options={['Quyền sử dụng đất (Nhà đất/Đất nền)', 'Căn hộ']}
-                        onChange={(val) => handleFieldChange('propertyType', val === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen')}
-                      />
-                      <DetailCard theme={theme}
-                        label="Sử dụng gói vay" 
-                        value={(editApp || selectedApp).loanStatus === 'Co_Vay' ? 'Có vay' : 'Không vay'} 
-                        type="select"
-                        editable={isFieldEditable('loanStatus')}
-                        isEditing={isEditing}
-                        options={['Có vay', 'Không vay']}
-                        onChange={(val) => handleFieldChange('loanStatus', val === 'Có vay' ? 'Co_Vay' : 'Khong_Vay')}
-                      />
-                      {(editApp || selectedApp).loanStatus === 'Co_Vay' && (
-                        <DetailCard theme={theme}
-                          label="Ngày cam kết hoàn thành (Ngân hàng)" 
-                          value={(editApp || selectedApp).bankCommitmentDeadline} 
-                          type="date"
-                          editable={isFieldEditable('bankCommitmentDeadline')}
-                          isEditing={isEditing}
-                          onChange={(val) => handleFieldChange('bankCommitmentDeadline', val)}
-                        />
-                      )}
-                    </div>
-                  </section>
+                <div className="grid grid-cols-1 gap-6">
+                   {/* PTT Section */}
+                   <div className={cn("border rounded-3xl overflow-hidden transition-all", theme === 'dark' ? "border-slate-800 bg-slate-900/20" : "border-slate-200 bg-white")}>
+                     <div 
+                       className={cn("flex flex-wrap items-center justify-between p-5 cursor-pointer hover:bg-indigo-500/5 transition-colors", expandedSections.includes('PTT_SECTION') && (theme === 'dark' ? "border-b border-slate-800" : "border-b border-slate-200"))}
+                       onClick={() => toggleSection('PTT_SECTION')}
+                     >
+                        <div className="flex items-center gap-3">
+                            <div className="w-1.5 h-6 bg-indigo-500 rounded-full"></div>
+                            <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-white" : "text-slate-900")}>1. Thủ tục & Khách hàng (PTT)</h4>
+                        </div>
+                        <div className="flex items-center gap-4">
+                           {userRole === 'PTT' && <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-3 py-1 rounded-full font-black uppercase border border-indigo-500/20">Vùng của bạn</span>}
+                           {expandedSections.includes('PTT_SECTION') ? <ChevronUp size={20} className="text-slate-500" /> : <ChevronDown size={20} className="text-slate-500" />}
+                        </div>
+                     </div>
+                     <AnimatePresence>
+                       {expandedSections.includes('PTT_SECTION') && (
+                         <motion.div
+                           initial={{ height: 0, opacity: 0 }}
+                           animate={{ height: 'auto', opacity: 1 }}
+                           exit={{ height: 0, opacity: 0 }}
+                           className="overflow-hidden"
+                         >
+                           <div className="p-6 space-y-10">
+                              {/* Row 1: Master Info */}
+                              <section className="space-y-6">
+                                <div className={cn("flex items-center justify-between border-b pb-4", theme === 'dark' ? "border-slate-800/50" : "border-slate-200")}>
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-1 h-6 bg-indigo-500 rounded-full opacity-50"></div>
+                                    <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-slate-300" : "text-slate-700")}>Thông tin Khách hàng</h4>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                  <DetailCard theme={theme} label="Mã lô/căn" value={(editApp || selectedApp).unitCode} isEditing={isEditing} />
+                                  <DetailCard theme={theme} label="Dự án" value={(editApp || selectedApp).projectName} isEditing={isEditing} />
+                                  <DetailCard theme={theme}
+                                    label="Tên khách hàng" 
+                                    value={(editApp || selectedApp).customerName} 
+                                    editable={isFieldEditable('customerName')}
+                                    isEditing={isEditing}
+                                    onChange={(val) => handleFieldChange('customerName', val)}
+                                  />
+                                  <DetailCard theme={theme}
+                                    label="Đối tượng ký HĐCN" 
+                                    value={(editApp || selectedApp).contractSignerType} 
+                                    editable={isFieldEditable('contractSignerType')}
+                                    isEditing={isEditing}
+                                    onChange={(val) => handleFieldChange('contractSignerType', val)}
+                                  />
+                                  <DetailCard theme={theme}
+                                    label="Số điện thoại" 
+                                    value={(editApp || selectedApp).phoneNumber} 
+                                    editable={isFieldEditable('phoneNumber')}
+                                    isEditing={isEditing}
+                                    onChange={(val) => handleFieldChange('phoneNumber', val)}
+                                  />
+                                  <DetailCard theme={theme}
+                                    label="Loại tài sản" 
+                                    value={(editApp || selectedApp).propertyType === 'Dat_Nen' ? 'Quyền sử dụng đất (Nhà đất/Đất nền)' : 'Căn hộ'} 
+                                    type="select"
+                                    editable={isFieldEditable('propertyType')}
+                                    isEditing={isEditing}
+                                    options={['Quyền sử dụng đất (Nhà đất/Đất nền)', 'Căn hộ']}
+                                    onChange={(val) => handleFieldChange('propertyType', val === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen')}
+                                  />
+                                  <DetailCard theme={theme}
+                                    label="Sử dụng gói vay" 
+                                    value={(editApp || selectedApp).loanStatus === 'Co_Vay' ? 'Có vay' : 'Không vay'} 
+                                    type="select"
+                                    editable={isFieldEditable('loanStatus')}
+                                    isEditing={isEditing}
+                                    options={['Có vay', 'Không vay']}
+                                    onChange={(val) => handleFieldChange('loanStatus', val === 'Có vay' ? 'Co_Vay' : 'Khong_Vay')}
+                                  />
+                                  {(editApp || selectedApp).loanStatus === 'Co_Vay' && (
+                                    <DetailCard theme={theme}
+                                      label="Ngày cam kết hoàn thành (Ngân hàng)" 
+                                      value={(editApp || selectedApp).bankCommitmentDeadline} 
+                                      type="date"
+                                      editable={isFieldEditable('bankCommitmentDeadline')}
+                                      isEditing={isEditing}
+                                      onChange={(val) => handleFieldChange('bankCommitmentDeadline', val)}
+                                    />
+                                  )}
+                                </div>
+                              </section>
 
-                  {/* Row 2: Procedural */}
-                  <section className="space-y-6">
-                    <div className={cn("flex items-center justify-between border-b pb-4", theme === 'dark' ? "border-slate-800/50" : "border-slate-200")}>
-                      <div className="flex items-center gap-3">
-                        <div className="w-1 h-6 bg-amber-500 rounded-full"></div>
-                        <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-white" : "text-slate-900")}>Quy trình Thủ tục (PTT)</h4>
-                      </div>
-                      {userRole === 'PTT' && <span className="text-[10px] bg-amber-500/10 text-amber-500 px-3 py-1 rounded-full font-black uppercase border border-amber-500/20">Cấp quyền chỉnh sửa</span>}
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <DetailCard theme={theme}
-                        label="Ngày nhận hồ sơ KH" 
-                        value={(editApp || selectedApp).receivedDate} 
-                        type="date"
-                        editable={isFieldEditable('receivedDate')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('receivedDate', val)}
-                      />
-                      <DetailCard theme={theme}
-                        label="Ngày ký HĐCN/HĐMB" 
-                        value={(editApp || selectedApp).contractSigningDate} 
-                        type="date"
-                        editable={isFieldEditable('contractSigningDate')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('contractSigningDate', val)}
-                      />
-                      <DetailCard theme={theme}
-                        label="Ngày BG HS nội bộ" 
-                        value={(editApp || selectedApp).accountingHandoverDate} 
-                        type="date"
-                        editable={isFieldEditable('accountingHandoverDate')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('accountingHandoverDate', val)}
-                      />
-                      <DetailCard theme={theme}
-                        label="KH tự làm sổ" 
-                        value={(editApp || selectedApp).isSelfService ? 'Có' : 'Không'} 
-                        valueColor={(editApp || selectedApp).isSelfService ? 'text-amber-500' : theme === 'dark' ? 'text-slate-200' : 'text-slate-900'}
-                        editable={isFieldEditable('isSelfService')}
-                        isEditing={isEditing}
-                        type="select"
-                        options={['Có', 'Không']}
-                        onChange={(val) => handleFieldChange('isSelfService', val === 'Có')}
-                      />
-                      <DetailCard theme={theme}
-                        label="Ngày nhận TB Thuế"
-                        value={(editApp || selectedApp).taxNotificationReceivedDate}
-                        type="date"
-                        editable={isFieldEditable('taxNotificationReceivedDate')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('taxNotificationReceivedDate', val)}
-                      />
-                      <DetailCard theme={theme}
-                        label="Ngày cam kết hoàn thành (Ngân hàng)" 
-                        value={(editApp || selectedApp).bankCommitmentDeadline} 
-                        type="date"
-                        editable={isFieldEditable('bankCommitmentDeadline')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('bankCommitmentDeadline', val)}
-                      />
-                      <DetailCard theme={theme}
-                        label="Ngày BG GCN cho khách" 
-                        value={(editApp || selectedApp).customerHandoverDate} 
-                        type="date"
-                        editable={isFieldEditable('customerHandoverDate')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('customerHandoverDate', val)}
-                      />
-                      {(userRole !== 'PTT' && userRole !== 'KT') && (
-                        <DetailCard theme={theme}
-                          label="Tình trạng nộp NVTC" 
-                          value={getTaxStatus(editApp || selectedApp).label} 
-                          valueColor={getTaxStatus(editApp || selectedApp).color} 
-                          editable={false}
-                          isEditing={isEditing}
-                        />
-                      )}
-                    </div>
-                  </section>
+                              {/* Row 2: Procedural */}
+                              <section className="space-y-6">
+                                <div className={cn("flex items-center justify-between border-b pb-4", theme === 'dark' ? "border-slate-800/50" : "border-slate-200")}>
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-1 h-6 bg-amber-500 rounded-full opacity-50"></div>
+                                    <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-slate-300" : "text-slate-700")}>Quy trình Thủ tục</h4>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                  <DetailCard theme={theme}
+                                    label="Ngày nhận hồ sơ KH" 
+                                    value={(editApp || selectedApp).receivedDate} 
+                                    type="date"
+                                    editable={isFieldEditable('receivedDate')}
+                                    isEditing={isEditing}
+                                    onChange={(val) => handleFieldChange('receivedDate', val)}
+                                  />
+                                  <DetailCard theme={theme}
+                                    label="Ngày ký HĐCN/HĐMB" 
+                                    value={(editApp || selectedApp).contractSigningDate} 
+                                    type="date"
+                                    editable={isFieldEditable('contractSigningDate')}
+                                    isEditing={isEditing}
+                                    onChange={(val) => handleFieldChange('contractSigningDate', val)}
+                                  />
+                                  <DetailCard theme={theme}
+                                    label="Ngày BG HS nội bộ" 
+                                    value={(editApp || selectedApp).accountingHandoverDate} 
+                                    type="date"
+                                    editable={isFieldEditable('accountingHandoverDate')}
+                                    isEditing={isEditing}
+                                    onChange={(val) => handleFieldChange('accountingHandoverDate', val)}
+                                  />
+                                  <DetailCard theme={theme}
+                                    label="KH tự làm sổ" 
+                                    value={(editApp || selectedApp).isSelfService ? 'Có' : 'Không'} 
+                                    valueColor={(editApp || selectedApp).isSelfService ? 'text-amber-500' : theme === 'dark' ? 'text-slate-200' : 'text-slate-900'}
+                                    editable={isFieldEditable('isSelfService')}
+                                    isEditing={isEditing}
+                                    type="select"
+                                    options={['Có', 'Không']}
+                                    onChange={(val) => handleFieldChange('isSelfService', val === 'Có')}
+                                  />
+                                  <DetailCard theme={theme}
+                                    label="Ngày nhận TB Thuế"
+                                    value={(editApp || selectedApp).taxNotificationReceivedDate}
+                                    type="date"
+                                    editable={isFieldEditable('taxNotificationReceivedDate')}
+                                    isEditing={isEditing}
+                                    onChange={(val) => handleFieldChange('taxNotificationReceivedDate', val)}
+                                  />
+                                  <DetailCard theme={theme}
+                                    label="Ngày cam kết hoàn thành (Ngân hàng)" 
+                                    value={(editApp || selectedApp).bankCommitmentDeadline} 
+                                    type="date"
+                                    editable={isFieldEditable('bankCommitmentDeadline')}
+                                    isEditing={isEditing}
+                                    onChange={(val) => handleFieldChange('bankCommitmentDeadline', val)}
+                                  />
+                                  <DetailCard theme={theme}
+                                    label="Ngày BG GCN cho khách" 
+                                    value={(editApp || selectedApp).customerHandoverDate} 
+                                    type="date"
+                                    editable={isFieldEditable('customerHandoverDate')}
+                                    isEditing={isEditing}
+                                    onChange={(val) => handleFieldChange('customerHandoverDate', val)}
+                                  />
+                                  {(userRole !== 'PTT' && userRole !== 'KT') && (
+                                    <DetailCard theme={theme}
+                                      label="Tình trạng nộp NVTC" 
+                                      value={getTaxStatus(editApp || selectedApp).label} 
+                                      valueColor={getTaxStatus(editApp || selectedApp).color} 
+                                      editable={false}
+                                      isEditing={isEditing}
+                                    />
+                                  )}
+                                </div>
+                              </section>
+                           </div>
+                         </motion.div>
+                       )}
+                     </AnimatePresence>
+                   </div>
 
-                  {/* Row 3: Accounting & Tax */}
-                  <section className="space-y-6">
-                    <div className={cn("flex items-center justify-between border-b pb-4", theme === 'dark' ? "border-slate-800/50" : "border-slate-200")}>
-                      <div className="flex items-center gap-3">
-                        <div className="w-1 h-6 bg-emerald-500 rounded-full"></div>
-                        <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-white" : "text-slate-900")}>Thông tin xử lý hồ sơ theo chức năng (Kế toán)</h4>
-                      </div>
-                      {userRole === 'KT' && <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full font-black uppercase border border-indigo-500/20">Cấp quyền chỉnh sửa</span>}
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <DetailCard theme={theme}
-                        label="Nơi nộp hồ sơ" 
-                        value={(editApp || selectedApp).submissionLocation === 'TP_DANANG' ? 'Tỉnh/Thành phố' : (editApp || selectedApp).submissionLocation === 'PHUONG' ? 'Phường/Xã' : '---'} 
-                        type="select"
-                        field="submissionLocation"
-                        editable={isFieldEditable('submissionLocation')}
-                        isEditing={isEditing}
-                        options={['Phường/Xã', 'Tỉnh/Thành phố']}
-                        onChange={(val) => handleFieldChange('submissionLocation', val === 'Tỉnh/Thành phố' ? 'TP_DANANG' : 'PHUONG')}
-                      />
-                      <DetailCard theme={theme}
-                        label="Mã HS / Số phiếu hẹn" 
-                        value={(editApp || selectedApp).vpdkCode} 
-                        editable={isFieldEditable('vpdkCode')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('vpdkCode', val)}
-                      />
-                      <DetailCard theme={theme}
-                        label="Ngày nộp VPĐK" 
-                        value={(editApp || selectedApp).submissionDate} 
-                        type="date"
-                        editable={isFieldEditable('submissionDate')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('submissionDate', val)}
-                      />
+                  {/* KT Section */}
+                   <div className={cn("border rounded-3xl overflow-hidden transition-all", theme === 'dark' ? "border-slate-800 bg-slate-900/20" : "border-slate-200 bg-white")}>
+                     <div 
+                       className={cn("flex flex-wrap items-center justify-between p-5 cursor-pointer hover:bg-emerald-500/5 transition-colors", expandedSections.includes('KT_SECTION') && (theme === 'dark' ? "border-b border-slate-800" : "border-b border-slate-200"))}
+                       onClick={() => toggleSection('KT_SECTION')}
+                     >
+                        <div className="flex items-center gap-3">
+                            <div className="w-1.5 h-6 bg-emerald-500 rounded-full"></div>
+                            <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-white" : "text-slate-900")}>2. Xử lý chức năng (Kế toán)</h4>
+                        </div>
+                        <div className="flex items-center gap-4">
+                           {userRole === 'KT' && <span className="text-[10px] bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-full font-black uppercase border border-emerald-500/20">Vùng của bạn</span>}
+                           {expandedSections.includes('KT_SECTION') ? <ChevronUp size={20} className="text-slate-500" /> : <ChevronDown size={20} className="text-slate-500" />}
+                        </div>
+                     </div>
+                     <AnimatePresence>
+                       {expandedSections.includes('KT_SECTION') && (
+                         <motion.div
+                           initial={{ height: 0, opacity: 0 }}
+                           animate={{ height: 'auto', opacity: 1 }}
+                           exit={{ height: 0, opacity: 0 }}
+                           className="overflow-hidden"
+                         >
+                           <div className="p-6 space-y-6">
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <DetailCard theme={theme}
+                                  label="Nơi nộp hồ sơ" 
+                                  value={(editApp || selectedApp).submissionLocation === 'TP_DANANG' ? 'Tỉnh/Thành phố' : (editApp || selectedApp).submissionLocation === 'PHUONG' ? 'Phường/Xã' : '---'} 
+                                  type="select"
+                                  field="submissionLocation"
+                                  editable={isFieldEditable('submissionLocation')}
+                                  isEditing={isEditing}
+                                  options={['Phường/Xã', 'Tỉnh/Thành phố']}
+                                  onChange={(val) => handleFieldChange('submissionLocation', val === 'Tỉnh/Thành phố' ? 'TP_DANANG' : 'PHUONG')}
+                                />
+                                <DetailCard theme={theme}
+                                  label="Mã HS / Số phiếu hẹn" 
+                                  value={(editApp || selectedApp).vpdkCode} 
+                                  editable={isFieldEditable('vpdkCode')}
+                                  isEditing={isEditing}
+                                  onChange={(val) => handleFieldChange('vpdkCode', val)}
+                                />
+                                <DetailCard theme={theme}
+                                  label="Ngày nộp VPĐK" 
+                                  value={(editApp || selectedApp).submissionDate} 
+                                  type="date"
+                                  editable={isFieldEditable('submissionDate')}
+                                  isEditing={isEditing}
+                                  onChange={(val) => handleFieldChange('submissionDate', val)}
+                                />
 
-                          <DetailCard theme={theme}
-                            label="Ngày nhận NVTC" 
-                            value={(editApp || selectedApp).taxReceiptDate} 
-                            type="date"
-                            editable={isFieldEditable('taxReceiptDate')}
-                            isEditing={isEditing}
-                            onChange={(val) => handleFieldChange('taxReceiptDate', val)}
-                          />
-                          <DetailCard theme={theme}
-                            label="Ngày KT nộp HS lấy sổ vô VPĐK" 
-                            value={(editApp || selectedApp).taxVpdkSubmissionDate} 
-                            type="date"
-                            editable={isFieldEditable('taxVpdkSubmissionDate')}
-                            isEditing={isEditing}
-                            onChange={(val) => handleFieldChange('taxVpdkSubmissionDate', val)}
-                          />
-                      <DetailCard theme={theme}
-                        label="Ngày nhận GCN thực tế" 
-                        value={(editApp || selectedApp).gcnReceivedDate} 
-                        type="date"
-                        editable={isFieldEditable('gcnReceivedDate')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('gcnReceivedDate', val)}
-                      />
-                      <DetailCard theme={theme}
-                        label="Ngày bàn giao GCN PTT" 
-                        value={(editApp || selectedApp).ptdaHandoverDate} 
-                        type="date"
-                        editable={isFieldEditable('ptdaHandoverDate')}
-                        isEditing={isEditing}
-                        onChange={(val) => handleFieldChange('ptdaHandoverDate', val)}
-                      />
-                    </div>
-                  </section>
+                                  <DetailCard theme={theme}
+                                    label="Ngày nhận NVTC" 
+                                    value={(editApp || selectedApp).taxReceiptDate} 
+                                    type="date"
+                                    editable={isFieldEditable('taxReceiptDate')}
+                                    isEditing={isEditing}
+                                    onChange={(val) => handleFieldChange('taxReceiptDate', val)}
+                                  />
+                                  <DetailCard theme={theme}
+                                    label="Ngày KT nộp HS lấy sổ vô VPĐK" 
+                                    value={(editApp || selectedApp).taxVpdkSubmissionDate} 
+                                    type="date"
+                                    editable={isFieldEditable('taxVpdkSubmissionDate')}
+                                    isEditing={isEditing}
+                                    onChange={(val) => handleFieldChange('taxVpdkSubmissionDate', val)}
+                                  />
+                                <DetailCard theme={theme}
+                                  label="Ngày nhận GCN thực tế" 
+                                  value={(editApp || selectedApp).gcnReceivedDate} 
+                                  type="date"
+                                  editable={isFieldEditable('gcnReceivedDate')}
+                                  isEditing={isEditing}
+                                  onChange={(val) => handleFieldChange('gcnReceivedDate', val)}
+                                />
+                                <DetailCard theme={theme}
+                                  label="Ngày bàn giao GCN PTT" 
+                                  value={(editApp || selectedApp).ptdaHandoverDate} 
+                                  type="date"
+                                  editable={isFieldEditable('ptdaHandoverDate')}
+                                  isEditing={isEditing}
+                                  onChange={(val) => handleFieldChange('ptdaHandoverDate', val)}
+                                />
+                              </div>
+                           </div>
+                         </motion.div>
+                       )}
+                     </AnimatePresence>
+                   </div>
                 </div>
 
-                {/* Section 4: PTDA & Milestone chuyên sâu */}
-                <section className={cn(
-                  "space-y-4 p-4 rounded-3xl border",
-                  theme === 'dark' ? "bg-fuchsia-500/5 border-fuchsia-500/10" : "bg-fuchsia-50/50 border-fuchsia-100"
-                )}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-1 h-4 bg-fuchsia-500 rounded-full"></div>
-                      <h4 className={cn("text-[10px] font-black uppercase tracking-[0.2em]", theme === 'dark' ? "text-slate-400" : "text-fuchsia-600")}>Thông tin ngày tháng xử lý hồ sơ (PTDA)</h4>
-                    </div>
-                    {userRole === 'PTDA' && <span className="text-[9px] bg-fuchsia-500/20 text-fuchsia-400 px-2 py-0.5 rounded-md font-bold uppercase">Bạn có quyền sửa</span>}
-                  </div>
-                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                    <DetailCard theme={theme}
-                      label="Ngày TB Thuế" 
-                      value={(editApp || selectedApp).taxNotificationDate} 
-                      type="date"
-                      editable={isFieldEditable('taxNotificationDate')}
-                      isEditing={isEditing}
-                      onChange={(val) => handleFieldChange('taxNotificationDate', val)}
-                    />
-                    <DetailCard theme={theme}
-                      label="Ngày cung cấp TB Thuế" 
-                      value={(editApp || selectedApp).taxNoticeProvisionDate} 
-                      type="date"
-                      editable={isFieldEditable('taxNoticeProvisionDate')}
-                      isEditing={isEditing}
-                      onChange={(val) => handleFieldChange('taxNoticeProvisionDate', val)}
-                    />
-                    <DetailCard theme={theme}
-                      label="Ngày trình ký/In GCN" 
-                      value={(editApp || selectedApp).gcnSignedDate} 
-                      type="date"
-                      editable={isFieldEditable('gcnSignedDate')}
-                      isEditing={isEditing}
-                      onChange={(val) => handleFieldChange('gcnSignedDate', val)}
-                    />
-                  </div>
-                </section>
+                  {/* PTDA Section */}
+                   <div className={cn("border rounded-3xl overflow-hidden transition-all", theme === 'dark' ? "border-slate-800 bg-slate-900/20" : "border-slate-200 bg-white")}>
+                     <div 
+                       className={cn("flex flex-wrap items-center justify-between p-5 cursor-pointer hover:bg-fuchsia-500/5 transition-colors", expandedSections.includes('PTDA_SECTION') && (theme === 'dark' ? "border-b border-slate-800" : "border-b border-slate-200"))}
+                       onClick={() => toggleSection('PTDA_SECTION')}
+                     >
+                        <div className="flex items-center gap-3">
+                            <div className="w-1.5 h-6 bg-fuchsia-500 rounded-full"></div>
+                            <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-white" : "text-slate-900")}>3. Thông tin In GCN (PTDA)</h4>
+                        </div>
+                        <div className="flex items-center gap-4">
+                           {userRole === 'PTDA' && <span className="text-[10px] bg-fuchsia-500/10 text-fuchsia-500 px-3 py-1 rounded-full font-black uppercase border border-fuchsia-500/20">Vùng của bạn</span>}
+                           {expandedSections.includes('PTDA_SECTION') ? <ChevronUp size={20} className="text-slate-500" /> : <ChevronDown size={20} className="text-slate-500" />}
+                        </div>
+                     </div>
+                     <AnimatePresence>
+                       {expandedSections.includes('PTDA_SECTION') && (
+                         <motion.div
+                           initial={{ height: 0, opacity: 0 }}
+                           animate={{ height: 'auto', opacity: 1 }}
+                           exit={{ height: 0, opacity: 0 }}
+                           className="overflow-hidden"
+                         >
+                           <div className="p-6">
+                              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                                <DetailCard theme={theme}
+                                  label="Ngày TB Thuế" 
+                                  value={(editApp || selectedApp).taxNotificationDate} 
+                                  type="date"
+                                  editable={isFieldEditable('taxNotificationDate')}
+                                  isEditing={isEditing}
+                                  onChange={(val) => handleFieldChange('taxNotificationDate', val)}
+                                />
+                                <DetailCard theme={theme}
+                                  label="Ngày cung cấp TB Thuế" 
+                                  value={(editApp || selectedApp).taxNoticeProvisionDate} 
+                                  type="date"
+                                  editable={isFieldEditable('taxNoticeProvisionDate')}
+                                  isEditing={isEditing}
+                                  onChange={(val) => handleFieldChange('taxNoticeProvisionDate', val)}
+                                />
+                                <DetailCard theme={theme}
+                                  label="Ngày trình ký/In GCN" 
+                                  value={(editApp || selectedApp).gcnSignedDate} 
+                                  type="date"
+                                  editable={isFieldEditable('gcnSignedDate')}
+                                  isEditing={isEditing}
+                                  onChange={(val) => handleFieldChange('gcnSignedDate', val)}
+                                />
+                              </div>
+                           </div>
+                         </motion.div>
+                       )}
+                     </AnimatePresence>
+                   </div>
 
-                {/* Section 5: Vướng mắc & Sai sót (Visible to KT, PTDA, ADMIN) */}
-                {(userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                  <section className="space-y-4 bg-rose-500/5 p-4 rounded-3xl border border-rose-500/20">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle size={14} className="text-rose-500" />
-                        <h4 className="text-[10px] font-bold text-rose-400 uppercase tracking-[0.2em]">Vướng mắc & Sai sót</h4>
-                      </div>
-                      {(userRole === 'KT' || userRole === 'PTDA') && isEditing && <span className="text-[9px] bg-rose-500/20 text-rose-400 px-2 py-0.5 rounded-md font-bold uppercase">Ghi nhận vướng mắc</span>}
-                    </div>
-                    <div className="space-y-3">
-                    <DetailCard 
-                      label="Loại vướng mắc" 
-                      value={
-                        (editApp || selectedApp).issueType === 'Paperwork' ? 'Hồ sơ pháp lý' :
-                        (editApp || selectedApp).issueType === 'Financial' ? 'Nghĩa vụ tài chính' :
-                        (editApp || selectedApp).issueType === 'Authority' ? 'Cơ quan nhà nước' :
-                        (editApp || selectedApp).issueType === 'Other' ? 'Vướng mắc khác' : 'Chưa có vướng mắc'
-                      } 
-                      type="select"
-                      editable={(userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'DIRECTOR') && isEditing}
-                      isEditing={isEditing}
-                      options={['Chưa có vướng mắc', 'Hồ sơ pháp lý', 'Nghĩa vụ tài chính', 'Cơ quan nhà nước', 'Vướng mắc khác']}
-                      onChange={(val) => {
-                        const mapping: any = {
-                          'Chưa có vướng mắc': 'None',
-                          'Hồ sơ pháp lý': 'Paperwork',
-                          'Nghĩa vụ tài chính': 'Financial',
-                          'Cơ quan nhà nước': 'Authority',
-                          'Vướng mắc khác': 'Other'
-                        };
-                        handleFieldChange('issueType', mapping[val]);
-                      }}
-                    />
-                    <DetailCard 
-                      label="Mức độ nghiêm trọng" 
-                      value={
-                        (editApp || selectedApp).issueSeverity === 'Minor' ? 'Thấp (Nhân viên tự xử lý)' :
-                        (editApp || selectedApp).issueSeverity === 'Moderate' ? 'Trung bình' :
-                        (editApp || selectedApp).issueSeverity === 'Critical' ? 'Cao (Cần lãnh đạo can thiệp)' : 'Chưa xác định'
-                      } 
-                      type="select"
-                      valueColor={(editApp || selectedApp).issueSeverity === 'Critical' ? 'text-rose-500 font-black' : (editApp || selectedApp).issueSeverity === 'Moderate' ? 'text-amber-500' : 'text-slate-400'}
-                      editable={(userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'DIRECTOR') && isEditing}
-                      isEditing={isEditing}
-                      options={['Chưa xác định', 'Thấp (Nhân viên tự xử lý)', 'Trung bình', 'Cao (Cần lãnh đạo can thiệp)']}
-                      onChange={(val) => {
-                        const mapping: any = {
-                          'Chưa xác định': undefined,
-                          'Thấp (Nhân viên tự xử lý)': 'Minor',
-                          'Trung bình': 'Moderate',
-                          'Cao (Cần lãnh đạo can thiệp)': 'Critical'
-                        };
-                        handleFieldChange('issueSeverity', mapping[val]);
-                      }}
-                    />
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Ghi chú sai sót vướng mắc</label>
-                        {((userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'DIRECTOR') && isEditing) ? (
-                          <textarea 
-                            className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-xs text-slate-300 focus:ring-2 focus:ring-rose-500/20 outline-none transition-all resize-none min-h-[100px]"
-                            value={(editApp || selectedApp).issueNotes || ''}
-                            onChange={(e) => handleFieldChange('issueNotes', e.target.value)}
-                            placeholder="Mô tả chi tiết sai sót hoặc lý do chậm trễ hồ sơ..."
-                          />
-                        ) : (
-                          <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 min-h-[60px]">
-                            <p className="text-xs text-slate-400 italic">{(editApp || selectedApp).issueNotes || 'Không có ghi chú.'}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </section>
-                )}
+                  {/* OTHER Section */}
+                   <div className={cn("border rounded-3xl overflow-hidden transition-all", theme === 'dark' ? "border-slate-800 bg-slate-900/20" : "border-slate-200 bg-white")}>
+                     <div 
+                       className={cn("flex flex-wrap items-center justify-between p-5 cursor-pointer hover:bg-slate-800/10 transition-colors", expandedSections.includes('OTHER_SECTION') && (theme === 'dark' ? "border-b border-slate-800" : "border-b border-slate-200"))}
+                       onClick={() => toggleSection('OTHER_SECTION')}
+                     >
+                        <div className="flex items-center gap-3">
+                            <div className="w-1.5 h-6 bg-slate-500 rounded-full"></div>
+                            <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-white" : "text-slate-900")}>4. Vướng mắc & Lịch sử Hồ sơ</h4>
+                        </div>
+                        <div className="flex items-center gap-4">
+                           {expandedSections.includes('OTHER_SECTION') ? <ChevronUp size={20} className="text-slate-500" /> : <ChevronDown size={20} className="text-slate-500" />}
+                        </div>
+                     </div>
+                     <AnimatePresence>
+                       {expandedSections.includes('OTHER_SECTION') && (
+                         <motion.div
+                           initial={{ height: 0, opacity: 0 }}
+                           animate={{ height: 'auto', opacity: 1 }}
+                           exit={{ height: 0, opacity: 0 }}
+                           className="overflow-hidden"
+                         >
+                           <div className="p-6 space-y-10">
+                              {/* Section 5: Vướng mắc & Sai sót (Visible to KT, PTDA, ADMIN) */}
+                              {(userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
+                                <section className="space-y-4 bg-error/5 p-5 rounded-2xl border border-error/20">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <AlertTriangle size={16} className="text-error" />
+                                      <h4 className="text-xs font-bold text-error uppercase tracking-[0.2em]">Cập nhật Vướng mắc & Sai sót</h4>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      {((editApp || selectedApp).status === 'Error' || (editApp || selectedApp).isRejected) && (
+                                        <button 
+                                          onClick={async (e) => {
+                                            e.stopPropagation();
+                                            if (confirm("Xác nhận hồ sơ đã khắc phục xong vướng mắc?")) {
+                                              const app = editApp || selectedApp;
+                                              const updatedApp = {
+                                                ...app,
+                                                status: stepConfig[app.currentStep]?.status || 'Processing',
+                                                issueType: 'None' as IssueType,
+                                                issueNotes: '',
+                                                isRejected: false,
+                                                history: [
+                                                  {
+                                                    id: `hist-${Date.now()}`,
+                                                    stepName: 'Giải quyết vướng mắc',
+                                                    dept: userRole as Dept,
+                                                    receivedDate: new Date().toISOString().split('T')[0],
+                                                    note: 'Vướng mắc đã được giải quyết / khắc phục.',
+                                                    performedBy: currentUser?.id,
+                                                    performedByName: currentUser?.name
+                                                  },
+                                                  ...app.history
+                                                ]
+                                              };
+                                              setIsSavingApp(true);
+                                              try {
+                                                await syncRecordToSupabase(updatedApp);
+                                                setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
+                                                setSelectedApp(updatedApp);
+                                                setEditApp(null);
+                                                setIsEditing(false);
+                                                showToast('Đã giải quyết vướng mắc.', 'success');
+                                              } catch (err) {
+                                                showToast('Lỗi khi cập nhật.', 'error');
+                                              } finally {
+                                                setIsSavingApp(false);
+                                              }
+                                            }
+                                          }}
+                                          className="text-[9px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-md font-bold uppercase border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all"
+                                        >
+                                          Đã khắc phục
+                                        </button>
+                                      )}
+                                      {(userRole === 'KT' || userRole === 'PTDA') && isEditing && <span className="text-[9px] bg-error/10 text-error px-2 py-0.5 rounded-md font-bold uppercase border border-error/20">Ghi nhận vướng mắc</span>}
+                                    </div>
+                                  </div>
+                                  <div className="space-y-4">
+                                  <DetailCard theme={theme}
+                                    label="Loại vướng mắc" 
+                                    value={
+                                      (editApp || selectedApp).issueType === 'Paperwork' ? 'Hồ sơ pháp lý' :
+                                      (editApp || selectedApp).issueType === 'Financial' ? 'Nghĩa vụ tài chính' :
+                                      (editApp || selectedApp).issueType === 'Authority' ? 'Cơ quan nhà nước' :
+                                      (editApp || selectedApp).issueType === 'Other' ? 'Vướng mắc khác' : 'Chưa có vướng mắc'
+                                    } 
+                                    type="select"
+                                    editable={(userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'DIRECTOR') && isEditing}
+                                    isEditing={isEditing}
+                                    options={['Chưa có vướng mắc', 'Hồ sơ pháp lý', 'Nghĩa vụ tài chính', 'Cơ quan nhà nước', 'Vướng mắc khác']}
+                                    onChange={(val) => {
+                                      const mapping: any = {
+                                        'Chưa có vướng mắc': 'None',
+                                        'Hồ sơ pháp lý': 'Paperwork',
+                                        'Nghĩa vụ tài chính': 'Financial',
+                                        'Cơ quan nhà nước': 'Authority',
+                                        'Vướng mắc khác': 'Other'
+                                      };
+                                      handleFieldChange('issueType', mapping[val]);
+                                    }}
+                                  />
+                                  <DetailCard theme={theme}
+                                    label="Mức độ nghiêm trọng" 
+                                    value={
+                                      (editApp || selectedApp).issueSeverity === 'Minor' ? 'Thấp (Nhân viên tự xử lý)' :
+                                      (editApp || selectedApp).issueSeverity === 'Moderate' ? 'Trung bình' :
+                                      (editApp || selectedApp).issueSeverity === 'Critical' ? 'Cao (Cần lãnh đạo can thiệp)' : 'Chưa xác định'
+                                    } 
+                                    type="select"
+                                    valueColor={(editApp || selectedApp).issueSeverity === 'Critical' ? 'text-error font-black' : (editApp || selectedApp).issueSeverity === 'Moderate' ? 'text-warning' : 'text-slate-400'}
+                                    editable={(userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'DIRECTOR') && isEditing}
+                                    isEditing={isEditing}
+                                    options={['Chưa xác định', 'Thấp (Nhân viên tự xử lý)', 'Trung bình', 'Cao (Cần lãnh đạo can thiệp)']}
+                                    onChange={(val) => {
+                                      const mapping: any = {
+                                        'Chưa xác định': undefined,
+                                        'Thấp (Nhân viên tự xử lý)': 'Minor',
+                                        'Trung bình': 'Moderate',
+                                        'Cao (Cần lãnh đạo can thiệp)': 'Critical'
+                                      };
+                                      handleFieldChange('issueSeverity', mapping[val]);
+                                    }}
+                                  />
+                                    <div className="space-y-1.5">
+                                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Ghi chú chi tiết</label>
+                                      {((userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'DIRECTOR') && isEditing) ? (
+                                        <textarea 
+                                          className={cn("w-full border rounded-xl p-4 text-xs focus:ring-2 focus:ring-error/20 outline-none transition-all resize-none min-h-[100px]", theme === 'dark' ? "bg-slate-900 border-slate-700 text-slate-300" : "bg-white border-slate-200 text-slate-900")}
+                                          value={(editApp || selectedApp).issueNotes || ''}
+                                          onChange={(e) => handleFieldChange('issueNotes', e.target.value)}
+                                          placeholder="Mô tả chi tiết sai sót hoặc lý do chậm trễ hồ sơ..."
+                                        />
+                                      ) : (
+                                        <div className={cn("p-4 rounded-xl border min-h-[60px]", theme === 'dark' ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200")}>
+                                          <p className={cn("text-xs italic", theme === 'dark' ? "text-slate-400" : "text-slate-500")}>{(editApp || selectedApp).issueNotes || 'Không có ghi chú.'}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </section>
+                              )}
 
-                {/* History & Audit Trail Tabs */}
-                <section className="space-y-6">
+                              {/* History & Audit Trail Tabs */}
+                              <section className="space-y-6">
                   <div className="flex gap-4 border-b border-slate-800">
                     <button 
                       onClick={() => setDetailTab('Workflow')}
@@ -8124,6 +8512,11 @@ export default function App() {
                     </div>
                   )}
                 </section>
+                           </div>
+                         </motion.div>
+                       )}
+                     </AnimatePresence>
+                   </div>
               </div>
 
               {/* Actions & Workflow Transition */}
@@ -8441,8 +8834,11 @@ export default function App() {
                 )}
 
                 <div className="grid grid-cols-2 gap-4">
-                  <button className="w-full py-3 border border-slate-700 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:bg-slate-800 transition-colors">
-                    Xuất phiếu BĐ
+                  <button 
+                    onClick={handlePrintHandoverTicket}
+                    className="w-full py-3 border border-slate-700 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-white hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <FileText size={14} /> Xuất phiếu BĐ
                   </button>
                   {isEditing ? (
                     <button 
@@ -8468,6 +8864,14 @@ export default function App() {
           </>
         )}
       </AnimatePresence>
+
+      {/* Handover Ticket Modal */}
+      <HandoverTicketModal 
+        isOpen={isHandoverTicketOpen} 
+        onClose={() => setIsHandoverTicketOpen(false)} 
+        app={editApp || selectedApp} 
+        theme={theme} 
+      />
 
       {/* Create Application Modal */}
       <AnimatePresence>
@@ -9087,9 +9491,9 @@ export default function App() {
             exit={{ opacity: 0, y: 50, x: '-50%' }}
             className={cn(
               "fixed bottom-24 left-1/2 z-[200] px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 backdrop-blur-md border min-w-[320px] justify-center",
-              toast.type === 'success' ? "bg-emerald-500/90 border-emerald-400 text-white" : 
-              toast.type === 'error' ? "bg-rose-500/90 border-rose-400 text-white" : 
-              "bg-amber-500/90 border-amber-400 text-white"
+              toast.type === 'success' ? "bg-success/90 border-success/40 text-white" : 
+              toast.type === 'error' ? "bg-error/90 border-error/40 text-white" : 
+              "bg-warning/90 border-warning/40 text-white"
             )}
           >
             {toast.type === 'success' && <CheckCircle2 size={18} />}
