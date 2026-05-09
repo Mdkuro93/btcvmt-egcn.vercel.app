@@ -535,14 +535,14 @@ const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Appli
   const configs: Record<string, { label: string, classes: string }> = {
     Processing: { label: 'Đang xử lý', classes: 'bg-info/10 text-info border border-info/20' },
     Submitted: { label: 'Đã nộp VPĐK', classes: 'bg-info/20 text-info border border-info/30' },
-    TaxPending: { label: 'Chờ thông báo thuế', classes: 'bg-warning/10 text-warning border border-warning/20' },
-    TaxPaymentPending_Dynamic: { label: 'Chờ nộp thuế', classes: 'bg-warning/10 text-warning border border-warning/20' },
+    TaxPending: { label: 'Chờ thông báo thuế', classes: 'bg-warning text-white font-bold' },
+    TaxPaymentPending_Dynamic: { label: 'Chờ nộp thuế', classes: 'bg-warning text-white font-bold' },
     TaxCompleted: { label: 'Đã hoàn thành NVTC', classes: 'bg-success/10 text-success border border-success/20' },
     TaxCompleted_Dynamic: { label: 'Đã nộp thuế', classes: 'bg-success/10 text-success border border-success/20' },
     GCN_SignPending_Dynamic: { label: 'Chờ ký/in GCN', classes: 'bg-blue-500/10 text-blue-400 border border-blue-500/20' },
     GCN_Issued: { label: 'Đã ra GCN', classes: 'bg-blue-500/20 text-blue-500 border border-blue-500/30' },
     Completed: { label: 'Hoàn tất', classes: 'bg-success text-white font-bold shadow-lg shadow-success/20' },
-    Error: { label: 'Sai sót/Vướng', classes: 'bg-error/10 text-error border border-error/20' },
+    Error: { label: 'Sai sót/Vướng', classes: 'bg-error text-white font-bold' },
     Draft: { label: 'Nháp', classes: 'bg-slate-800 text-slate-400 border border-slate-700' },
   };
 
@@ -3783,7 +3783,11 @@ export default function App() {
 
   const [filterSLAStatus, setFilterSLAStatus] = useState<'ALL' | 'OVERDUE'>('ALL');
   const [isBulkNoteOpen, setIsBulkNoteOpen] = useState(false);
+  const [isBulkErrorOpen, setIsBulkErrorOpen] = useState(false);
   const [bulkNoteText, setBulkNoteText] = useState('');
+  const [bulkErrorCause, setBulkErrorCause] = useState('Paperwork');
+  const [bulkErrorSeverity, setBulkErrorSeverity] = useState('Minor');
+  const [bulkErrorNote, setBulkErrorNote] = useState('');
   
   const [isBulkTransitionModalOpen, setIsBulkTransitionModalOpen] = useState(false);
   const [bulkTransitionTarget, setBulkTransitionTarget] = useState<StepName | null>(null);
@@ -7218,6 +7222,13 @@ export default function App() {
                           >
                             <MessageSquare size={16} />
                           </button>
+                          <button 
+                            onClick={() => setIsBulkErrorOpen(true)}
+                            className="w-10 h-10 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-full transition-all flex items-center justify-center border border-rose-500/20"
+                            title="Báo lỗi/vướng mắc hàng loạt"
+                          >
+                            <AlertTriangle size={16} />
+                          </button>
 
                           {(userRole === 'ADMIN' || userRole === 'DIRECTOR' || userRole === 'PTT') && (
                             <button 
@@ -7267,7 +7278,7 @@ export default function App() {
                             ))
                           ) : (
                             <>
-                              <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Đối tượng ký</th>
+                              <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Phân loại</th>
                               <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Trạng thái</th>
                               {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                                 <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nộp VPĐK</th>
@@ -7506,7 +7517,13 @@ export default function App() {
                               ) : (
                                 <>
                                   <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
-                                    <span className={cn("text-xs font-medium", theme === 'light' ? "text-slate-600" : "text-slate-400")}>
+                                    <span className={cn(
+                                      "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                                      app.contractSignerType === 'Chủ đầu tư' ? "bg-indigo-500/10 text-indigo-500" :
+                                      app.contractSignerType === 'Nhà nước' ? "bg-amber-500/10 text-amber-500" :
+                                      app.contractSignerType === 'Nội bộ' ? "bg-emerald-500/10 text-emerald-500" :
+                                      "bg-slate-500/10 text-slate-500"
+                                    )}>
                                       {app.contractSignerType || '---'}
                                     </span>
                                   </td>
@@ -7514,9 +7531,9 @@ export default function App() {
                                     <div className="flex flex-col gap-1">
                                       <StatusBadge status={app.status} app={app} />
                                       {(app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None')) && (
-                                        <div className="flex items-center gap-1 text-rose-500 animate-pulse">
+                                        <div className="flex items-center gap-1 text-rose-600 font-black">
                                           <AlertTriangle size={10} />
-                                          <span className="text-[9px] font-bold uppercase truncate max-w-[120px]">{app.issueNotes || 'Vướng mắc'}</span>
+                                          <span className="text-[9px] uppercase truncate max-w-[120px]">{app.issueNotes || 'Vướng mắc'}</span>
                                         </div>
                                       )}
                                     </div>
@@ -9621,6 +9638,104 @@ export default function App() {
       )}
 
       {/* Bulk Note Modal */}
+      {/* Bulk Error Modal */}
+      <AnimatePresence>
+        {isBulkErrorOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800"
+            >
+              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950/20">
+                <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">Báo sai sót hàng loạt ({selectedAppIds.length})</h3>
+                <button 
+                  onClick={() => setIsBulkErrorOpen(false)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                   <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 tracking-widest pl-1">Nguyên nhân</label>
+                   <select className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm outline-none dark:text-slate-200"
+                           value={bulkErrorCause} onChange={(e) => setBulkErrorCause(e.target.value)}>
+                     <option value="Paperwork">Hồ sơ pháp lý</option>
+                     <option value="Financial">Nghĩa vụ tài chính</option>
+                     <option value="Authority">Cơ quan nhà nước</option>
+                     <option value="Other">Vướng mắc khác</option>
+                   </select>
+                </div>
+                <div>
+                   <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 tracking-widest pl-1">Mức độ nghiêm trọng</label>
+                   <select className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm outline-none dark:text-slate-200"
+                           value={bulkErrorSeverity} onChange={(e) => setBulkErrorSeverity(e.target.value)}>
+                     <option value="Minor">Thấp</option>
+                     <option value="Moderate">Trung bình</option>
+                     <option value="Critical">Cao</option>
+                   </select>
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase mb-1 tracking-widest pl-1">Nội dung sai sót/vướng mắc</p>
+                  <textarea 
+                    className="w-full h-24 px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-rose-500/20 outline-none transition-all resize-none dark:text-slate-200"
+                    placeholder="Mô tả sai sót cho tất cả hồ sơ đã chọn..."
+                    value={bulkErrorNote}
+                    onChange={(e) => setBulkErrorNote(e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button 
+                    onClick={() => setIsBulkErrorOpen(false)}
+                    className="flex-1 py-3 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-slate-200 dark:border-slate-800"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button 
+                    onClick={async () => {
+                      // Logic for bulk update
+                      const updates = selectedAppIds.map(id => ({
+                        id,
+                        issueType: bulkErrorCause,
+                        issueSeverity: bulkErrorSeverity,
+                        issueNotes: bulkErrorNote,
+                        status: 'Error'
+                      }));
+                      
+                      setIsSavingApp(true);
+                      try {
+                        await Promise.all(updates.map(u => {
+                            const app = applications.find(a => a.id === u.id);
+                            if (app) {
+                                return syncRecordToSupabase({...app, ...u});
+                            }
+                            return Promise.resolve();
+                        }));
+                        setApplications(prev => prev.map(a => {
+                            const update = updates.find(u => u.id === a.id);
+                            return update ? {...a, ...update} : a;
+                        }));
+                        showToast(`Đã cập nhật ${selectedAppIds.length} hồ sơ lỗi.`, 'success');
+                      } catch (err) {
+                        showToast('Lỗi khi cập nhật hàng loạt.', 'error');
+                      } finally {
+                        setIsSavingApp(false);
+                        setIsBulkErrorOpen(false);
+                      }
+                    }}
+                    disabled={!bulkErrorNote.trim()}
+                    className="flex-[2] py-3 px-4 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-rose-600/20"
+                  >
+                    Cập nhật sai sót
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {isBulkNoteOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
