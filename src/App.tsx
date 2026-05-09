@@ -535,14 +535,14 @@ const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Appli
   const configs: Record<string, { label: string, classes: string }> = {
     Processing: { label: 'Đang xử lý', classes: 'bg-info/10 text-info border border-info/20' },
     Submitted: { label: 'Đã nộp VPĐK', classes: 'bg-info/20 text-info border border-info/30' },
-    TaxPending: { label: 'Chờ thông báo thuế', classes: 'bg-warning text-white font-bold' },
-    TaxPaymentPending_Dynamic: { label: 'Chờ nộp thuế', classes: 'bg-warning text-white font-bold' },
+    TaxPending: { label: 'Chờ thông báo thuế', classes: 'bg-warning/10 text-warning border border-warning/20' },
+    TaxPaymentPending_Dynamic: { label: 'Chờ nộp thuế', classes: 'bg-warning/10 text-warning border border-warning/20' },
     TaxCompleted: { label: 'Đã hoàn thành NVTC', classes: 'bg-success/10 text-success border border-success/20' },
     TaxCompleted_Dynamic: { label: 'Đã nộp thuế', classes: 'bg-success/10 text-success border border-success/20' },
     GCN_SignPending_Dynamic: { label: 'Chờ ký/in GCN', classes: 'bg-blue-500/10 text-blue-400 border border-blue-500/20' },
     GCN_Issued: { label: 'Đã ra GCN', classes: 'bg-blue-500/20 text-blue-500 border border-blue-500/30' },
     Completed: { label: 'Hoàn tất', classes: 'bg-success text-white font-bold shadow-lg shadow-success/20' },
-    Error: { label: 'Sai sót/Vướng', classes: 'bg-error text-white font-bold' },
+    Error: { label: 'Sai sót/Vướng', classes: 'bg-error/10 text-error border border-error/20' },
     Draft: { label: 'Nháp', classes: 'bg-slate-800 text-slate-400 border border-slate-700' },
   };
 
@@ -3783,11 +3783,7 @@ export default function App() {
 
   const [filterSLAStatus, setFilterSLAStatus] = useState<'ALL' | 'OVERDUE'>('ALL');
   const [isBulkNoteOpen, setIsBulkNoteOpen] = useState(false);
-  const [isBulkErrorOpen, setIsBulkErrorOpen] = useState(false);
   const [bulkNoteText, setBulkNoteText] = useState('');
-  const [bulkErrorCause, setBulkErrorCause] = useState('Paperwork');
-  const [bulkErrorSeverity, setBulkErrorSeverity] = useState('Minor');
-  const [bulkErrorNote, setBulkErrorNote] = useState('');
   
   const [isBulkTransitionModalOpen, setIsBulkTransitionModalOpen] = useState(false);
   const [bulkTransitionTarget, setBulkTransitionTarget] = useState<StepName | null>(null);
@@ -4447,6 +4443,11 @@ export default function App() {
     const app = editApp || selectedApp;
     if (!app) return;
 
+    if (app.status === 'Error' || app.isRejected) {
+      showToast('Hồ sơ đang bị sai sót/vướng mắc hoặc bị trả về. Hãy hoàn thành khắc phục trước khi chuyển bước.', 'error');
+      return;
+    }
+
     // Field validations
     const isMovingForward = Object.keys(stepConfig).indexOf(nextStep) > (Object.keys(stepConfig).indexOf(app.currentStep) === -1 ? 0 : Object.keys(stepConfig).indexOf(app.currentStep));
     
@@ -4523,7 +4524,10 @@ export default function App() {
     const autoDates: Partial<Application> = {};
     if (targetStep === 'GD1_Cho_KT_TiepNhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
     
-    if (targetStep === 'GD4_Cho_Nop_NVTC' && !app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
+    if (targetStep === 'GD4_Cho_Nop_NVTC') {
+      if (!app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
+      if (!app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
+    }
     if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
     if (targetStep === 'GD6_Cho_BG_Khach' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
     
@@ -4562,9 +4566,21 @@ export default function App() {
     }
   };
 
-  const handleBulkStepTransition = (nextStep: StepName) => {
-    if (selectedAppIds.length === 0) return;
+  const handleBulkStepTransition = (nextStep: StepName, overrideIds?: string[]) => {
+    const idsToProcess = overrideIds || selectedAppIds;
+    if (idsToProcess.length === 0) return;
     
+    if (overrideIds) {
+      setSelectedAppIds(overrideIds);
+    }
+    
+    // Prevent bulk transition if any of the selected apps have unresolved errors
+    const appsWithError = applications.filter(app => idsToProcess.includes(app.id) && (app.status === 'Error' || app.isRejected));
+    if (appsWithError.length > 0) {
+      showToast(`Không thể chuyển bước hàng loạt. Có ${appsWithError.length} hồ sơ đang bị sai sót/vướng mắc hoặc bị trả về cần được khắc phục trước (Ví dụ căn ${appsWithError[0].unitCode}).`, 'error');
+      return;
+    }
+
     // Determine the relevant date field to update for this transition
     let updateField: {key: keyof Application, label: string} | null = null;
     
@@ -4572,14 +4588,17 @@ export default function App() {
     if (nextStep === 'GD1_Cho_KT_TiepNhan') updateField = { key: 'accountingHandoverDate', label: 'Ngày bàn giao KT' };
     else if (nextStep === 'GD2_Cho_Nop_VPDK') updateField = { key: 'receivedDate', label: 'Ngày KT tiếp nhận' };
     else if (nextStep === 'GD2_Cho_PTDA_TiepNhan' || nextStep === 'GD3_Cho_TBThue') updateField = { key: 'submissionDate', label: 'Ngày nộp VPĐK' };
-    else if (nextStep === 'GD4_Cho_Nop_NVTC') updateField = { key: 'taxNotificationReceivedDate', label: 'Ngày nhận Thông báo thuế' };
+    else if (nextStep === 'GD4_Cho_Nop_NVTC') updateField = { key: 'taxNoticeProvisionDate', label: 'Ngày cung cấp TB Thuế' };
     else if (nextStep === 'GD4_Cho_KT_TiepNhan_LaySo') updateField = { key: 'taxReceiptDate', label: 'Ngày nộp tiền/chứng từ' };
     else if (nextStep === 'GD5_Cho_PTDA_TiepNhan_KyGCN') updateField = { key: 'taxReceiptDate', label: 'Ngày KT xác nhận nộp tiền' };
     else if (nextStep === 'GD5_Cho_Ky_In_GCN') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN' };
     else if (nextStep === 'GD5_Cho_KT_Nhan_GCN_Thuc_Te') updateField = { key: 'gcnReceivedDate', label: 'Ngày nhận GCN thực tế' };
-    else if (nextStep === 'GD5_Cho_PTT_TiepNhan_BG') updateField = { key: 'ptdaHandoverDate', label: 'Ngày PTDA bàn giao PTT' };
-    else if (nextStep === 'GD6_Cho_BG_Khach') updateField = { key: 'customerHandoverDate', label: 'Ngày bàn giao khách hàng' };
+    else if (nextStep === 'GD5_Cho_PTT_TiepNhan_BG') updateField = null; // Just transition state, wait for PTT to receive
+    else if (nextStep === 'GD6_Cho_BG_Khach') updateField = { key: 'ptdaHandoverDate', label: 'Ngày PTT nhận bàn giao' };
+    else if (nextStep === 'Hoan_Tat') updateField = { key: 'customerHandoverDate', label: 'Ngày bàn giao khách hàng' };
 
+    // If there is no specific field to update, we can either skip the modal and transition directly 
+    // or keep the modal just for confirmation. Here we just show the modal without a required date.
     setBulkTransitionTarget(nextStep);
     setBulkTransitionField(updateField);
     setBulkTransitionValue(new Date().toISOString().split('T')[0]);
@@ -4707,7 +4726,10 @@ export default function App() {
         const autoDates: Partial<Application> = {};
         if (targetStep === 'GD1_Cho_KT_TiepNhan' && !appWithDate.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
         
-        if (targetStep === 'GD4_Cho_Nop_NVTC' && !appWithDate.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
+        if (targetStep === 'GD4_Cho_Nop_NVTC') {
+          if (!appWithDate.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
+          if (!appWithDate.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
+        }
         if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !appWithDate.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
         if (targetStep === 'GD6_Cho_BG_Khach' && !appWithDate.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
 
@@ -7222,13 +7244,6 @@ export default function App() {
                           >
                             <MessageSquare size={16} />
                           </button>
-                          <button 
-                            onClick={() => setIsBulkErrorOpen(true)}
-                            className="w-10 h-10 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-full transition-all flex items-center justify-center border border-rose-500/20"
-                            title="Báo lỗi/vướng mắc hàng loạt"
-                          >
-                            <AlertTriangle size={16} />
-                          </button>
 
                           {(userRole === 'ADMIN' || userRole === 'DIRECTOR' || userRole === 'PTT') && (
                             <button 
@@ -7278,7 +7293,7 @@ export default function App() {
                             ))
                           ) : (
                             <>
-                              <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Phân loại</th>
+                              <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Đối tượng ký</th>
                               <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Trạng thái</th>
                               {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                                 <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nộp VPĐK</th>
@@ -7517,13 +7532,7 @@ export default function App() {
                               ) : (
                                 <>
                                   <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
-                                    <span className={cn(
-                                      "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
-                                      app.contractSignerType === 'Chủ đầu tư' ? "bg-indigo-500/10 text-indigo-500" :
-                                      app.contractSignerType === 'Nhà nước' ? "bg-amber-500/10 text-amber-500" :
-                                      app.contractSignerType === 'Nội bộ' ? "bg-emerald-500/10 text-emerald-500" :
-                                      "bg-slate-500/10 text-slate-500"
-                                    )}>
+                                    <span className={cn("text-xs font-medium", theme === 'light' ? "text-slate-600" : "text-slate-400")}>
                                       {app.contractSignerType || '---'}
                                     </span>
                                   </td>
@@ -7531,9 +7540,9 @@ export default function App() {
                                     <div className="flex flex-col gap-1">
                                       <StatusBadge status={app.status} app={app} />
                                       {(app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None')) && (
-                                        <div className="flex items-center gap-1 text-rose-600 font-black">
+                                        <div className="flex items-center gap-1 text-rose-500 animate-pulse">
                                           <AlertTriangle size={10} />
-                                          <span className="text-[9px] uppercase truncate max-w-[120px]">{app.issueNotes || 'Vướng mắc'}</span>
+                                          <span className="text-[9px] font-bold uppercase truncate max-w-[120px]">{app.issueNotes || 'Vướng mắc'}</span>
                                         </div>
                                       )}
                                     </div>
@@ -8831,7 +8840,7 @@ export default function App() {
                         if (app.isSelfService) {
                           return (
                             <button 
-                              onClick={() => handleStepTransition('GD6_Cho_BG_Khach')}
+                              onClick={() => handleBulkStepTransition('GD6_Cho_BG_Khach', [app.id])}
                               className="w-full py-3 bg-cyan-600 text-white rounded-xl text-sm font-bold hover:bg-cyan-700 shadow-lg shadow-cyan-900/20 transition-all flex items-center justify-center gap-2"
                             >
                               Khách tự làm sổ &rarr; Bàn giao khách <ChevronRight size={16} />
@@ -8853,10 +8862,7 @@ export default function App() {
                         return (
                           <div className="flex flex-col gap-3">
                             <button 
-                              onClick={() => {
-                                setSelectedAppIds([app.id]);
-                                handleBulkStepTransition('GD2_Cho_Nop_VPDK');
-                              }}
+                              onClick={() => handleBulkStepTransition('GD2_Cho_Nop_VPDK', [app.id])}
                               className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
                             >
                               Tiếp nhận hồ sơ (Kế toán) <CheckCircle2 size={16} />
@@ -8881,10 +8887,7 @@ export default function App() {
                         const targetStep: StepName = app.currentStep === 'GD1_Cho_KT_TiepNhan' ? 'GD2_Cho_Nop_VPDK' : 'GD3_Cho_TBThue';
                         return (
                           <button 
-                            onClick={() => {
-                              setSelectedAppIds([app.id]);
-                              handleBulkStepTransition(targetStep);
-                            }}
+                            onClick={() => handleBulkStepTransition(targetStep, [app.id])}
                             className={cn(
                                 "w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2",
                                 "bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-900/20"
@@ -8900,10 +8903,7 @@ export default function App() {
                         return (
                           <div className="flex flex-col gap-3">
                             <button 
-                              onClick={() => {
-                                setSelectedAppIds([app.id]);
-                                handleBulkStepTransition('GD3_Cho_TBThue');
-                              }}
+                              onClick={() => handleBulkStepTransition('GD3_Cho_TBThue', [app.id])}
                               className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
                             >
                               Tiếp nhận theo dõi Thuế (PTDA) <CheckCircle2 size={16} />
@@ -8925,10 +8925,7 @@ export default function App() {
                       if (app.currentStep === 'GD3_Cho_TBThue') {
                         return (
                           <button 
-                            onClick={() => {
-                              setSelectedAppIds([app.id]);
-                              handleBulkStepTransition('GD4_Cho_Nop_NVTC');
-                            }}
+                            onClick={() => handleBulkStepTransition('GD4_Cho_Nop_NVTC', [app.id])}
                             className={cn(
                                 "w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2",
                                 "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20"
@@ -8943,11 +8940,11 @@ export default function App() {
                       if (app.currentStep === 'GD4_Cho_Nop_NVTC') {
                         return (
                           <div className="flex flex-col gap-3">
-                            {!app.taxNoticeProvisionDate ? (
+                            {!app.taxNotificationReceivedDate ? (
                               <button 
                                 onClick={() => {
                                   const now = new Date().toISOString().split('T')[0];
-                                  handleFieldChange('taxNoticeProvisionDate', now);
+                                  handleFieldChange('taxNotificationReceivedDate', now);
                                 }}
                                 className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
                               >
@@ -8955,10 +8952,7 @@ export default function App() {
                               </button>
                             ) : (
                               <button 
-                                onClick={() => {
-                                  setSelectedAppIds([app.id]);
-                                  handleBulkStepTransition('GD4_Cho_KT_TiepNhan_LaySo');
-                                }}
+                                onClick={() => handleBulkStepTransition('GD4_Cho_KT_TiepNhan_LaySo', [app.id])}
                                 className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
                               >
                                 Bàn giao HS đóng thuế cho KT <ChevronRight size={16} />
@@ -8974,20 +8968,14 @@ export default function App() {
           <div className="flex flex-col gap-3">
             {!app.taxReceiptDate ? (
               <button 
-                onClick={() => {
-                  setSelectedAppIds([app.id]);
-                  handleBulkStepTransition('GD4_Cho_KT_TiepNhan_LaySo'); // Open modal for taxReceiptDate
-                }}
+                onClick={() => handleBulkStepTransition('GD4_Cho_KT_TiepNhan_LaySo', [app.id])}
                 className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
               >
                 Xác nhận đã đóng thuế & nhận chứng từ (KT) <CheckCircle2 size={16} />
               </button>
             ) : (
               <button 
-                onClick={() => {
-                  setSelectedAppIds([app.id]);
-                  handleBulkStepTransition('GD5_Cho_PTDA_TiepNhan_KyGCN');
-                }}
+                onClick={() => handleBulkStepTransition('GD5_Cho_PTDA_TiepNhan_KyGCN', [app.id])}
                 className={cn(
                     "w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2",
                     "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20"
@@ -9005,10 +8993,7 @@ export default function App() {
                         return (
                           <div className="flex flex-col gap-3">
                             <button 
-                              onClick={() => {
-                                setSelectedAppIds([app.id]);
-                                handleBulkStepTransition('GD5_Cho_Ky_In_GCN');
-                              }}
+                              onClick={() => handleBulkStepTransition('GD5_Cho_Ky_In_GCN', [app.id])}
                               className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
                             >
                               Tiếp nhận trình ký GCN (PTDA) <CheckCircle2 size={16} />
@@ -9030,10 +9015,7 @@ export default function App() {
                       if (app.currentStep === 'GD5_Cho_Ky_In_GCN') {
                         return (
                           <button 
-                            onClick={() => {
-                              setSelectedAppIds([app.id]);
-                              handleBulkStepTransition('GD5_Cho_KT_Nhan_GCN_Thuc_Te');
-                            }}
+                            onClick={() => handleBulkStepTransition('GD5_Cho_KT_Nhan_GCN_Thuc_Te', [app.id])}
                             className={cn(
                                 "w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2",
                                 "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20"
@@ -9049,19 +9031,13 @@ export default function App() {
                         return (
                           <div className="flex flex-col gap-3">
                             <button 
-                              onClick={() => {
-                                setSelectedAppIds([app.id]);
-                                handleBulkStepTransition('GD5_Cho_KT_Nhan_GCN_Thuc_Te'); // or handleBulkStepTransition('GD5_Cho_PTT_TiepNhan_BG')?
-                              }}
+                              onClick={() => handleBulkStepTransition('GD5_Cho_KT_Nhan_GCN_Thuc_Te', [app.id])}
                               className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
                             >
                               Xác nhận đã nhận GCN thực tế (KT) <CheckCircle2 size={16} />
                             </button>
                             <button 
-                              onClick={() => {
-                                setSelectedAppIds([app.id]);
-                                handleBulkStepTransition('GD5_Cho_PTT_TiepNhan_BG');
-                              }}
+                              onClick={() => handleBulkStepTransition('GD5_Cho_PTT_TiepNhan_BG', [app.id])}
                               className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
                             >
                               Chuyển hồ sơ cho PTT (Bàn giao khách) <ChevronRight size={16} />
@@ -9084,7 +9060,7 @@ export default function App() {
                          return (
                           <div className="flex flex-col gap-3">
                             <button 
-                              onClick={() => handleStepTransition('GD6_Cho_BG_Khach')}
+                              onClick={() => handleBulkStepTransition('GD6_Cho_BG_Khach', [app.id])}
                               className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
                             >
                               Tiếp nhận GCN thực tế (PTT) <CheckCircle2 size={16} />
@@ -9106,7 +9082,7 @@ export default function App() {
                       if (app.currentStep === 'GD6_Cho_BG_Khach') {
                         return (
                           <button 
-                            onClick={() => handleStepTransition('Hoan_Tat')}
+                            onClick={() => handleBulkStepTransition('Hoan_Tat', [app.id])}
                             className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
                           >
                             Hoàn tất bàn giao Khách hàng <CheckCircle2 size={16} />
@@ -9638,104 +9614,6 @@ export default function App() {
       )}
 
       {/* Bulk Note Modal */}
-      {/* Bulk Error Modal */}
-      <AnimatePresence>
-        {isBulkErrorOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800"
-            >
-              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950/20">
-                <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">Báo sai sót hàng loạt ({selectedAppIds.length})</h3>
-                <button 
-                  onClick={() => setIsBulkErrorOpen(false)}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-              <div className="p-6 space-y-4">
-                <div>
-                   <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 tracking-widest pl-1">Nguyên nhân</label>
-                   <select className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm outline-none dark:text-slate-200"
-                           value={bulkErrorCause} onChange={(e) => setBulkErrorCause(e.target.value)}>
-                     <option value="Paperwork">Hồ sơ pháp lý</option>
-                     <option value="Financial">Nghĩa vụ tài chính</option>
-                     <option value="Authority">Cơ quan nhà nước</option>
-                     <option value="Other">Vướng mắc khác</option>
-                   </select>
-                </div>
-                <div>
-                   <label className="text-[10px] text-slate-500 font-bold uppercase mb-1 tracking-widest pl-1">Mức độ nghiêm trọng</label>
-                   <select className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm outline-none dark:text-slate-200"
-                           value={bulkErrorSeverity} onChange={(e) => setBulkErrorSeverity(e.target.value)}>
-                     <option value="Minor">Thấp</option>
-                     <option value="Moderate">Trung bình</option>
-                     <option value="Critical">Cao</option>
-                   </select>
-                </div>
-                <div>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase mb-1 tracking-widest pl-1">Nội dung sai sót/vướng mắc</p>
-                  <textarea 
-                    className="w-full h-24 px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-rose-500/20 outline-none transition-all resize-none dark:text-slate-200"
-                    placeholder="Mô tả sai sót cho tất cả hồ sơ đã chọn..."
-                    value={bulkErrorNote}
-                    onChange={(e) => setBulkErrorNote(e.target.value)}
-                  />
-                </div>
-                <div className="flex gap-3 pt-2">
-                  <button 
-                    onClick={() => setIsBulkErrorOpen(false)}
-                    className="flex-1 py-3 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-slate-200 dark:border-slate-800"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button 
-                    onClick={async () => {
-                      // Logic for bulk update
-                      const updates = selectedAppIds.map(id => ({
-                        id,
-                        issueType: bulkErrorCause,
-                        issueSeverity: bulkErrorSeverity,
-                        issueNotes: bulkErrorNote,
-                        status: 'Error'
-                      }));
-                      
-                      setIsSavingApp(true);
-                      try {
-                        await Promise.all(updates.map(u => {
-                            const app = applications.find(a => a.id === u.id);
-                            if (app) {
-                                return syncRecordToSupabase({...app, ...u});
-                            }
-                            return Promise.resolve();
-                        }));
-                        setApplications(prev => prev.map(a => {
-                            const update = updates.find(u => u.id === a.id);
-                            return update ? {...a, ...update} : a;
-                        }));
-                        showToast(`Đã cập nhật ${selectedAppIds.length} hồ sơ lỗi.`, 'success');
-                      } catch (err) {
-                        showToast('Lỗi khi cập nhật hàng loạt.', 'error');
-                      } finally {
-                        setIsSavingApp(false);
-                        setIsBulkErrorOpen(false);
-                      }
-                    }}
-                    disabled={!bulkErrorNote.trim()}
-                    className="flex-[2] py-3 px-4 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-rose-600/20"
-                  >
-                    Cập nhật sai sót
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
       <AnimatePresence>
         {isBulkNoteOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
