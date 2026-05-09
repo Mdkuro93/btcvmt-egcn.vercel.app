@@ -143,6 +143,7 @@ const mapFromSnakeCase = (item: any): Application => {
     handoverDate: item.handover_date,
     taxNoticeProvisionDate: item.tax_notice_provision_date,
     gcnSignedDate: item.gcn_signed_date,
+    issueSource: item.issue_source,
     issueType: item.issue_type,
     issueSeverity: item.issue_severity,
     issueNotes: item.issue_notes,
@@ -196,6 +197,7 @@ const mapToSnakeCase = (app: Application) => {
     handover_date: app.handoverDate,
     tax_notice_provision_date: app.taxNoticeProvisionDate,
     gcn_signed_date: app.gcnSignedDate,
+    issue_source: app.issueSource,
     issue_type: app.issueType,
     issue_severity: app.issueSeverity,
     issue_notes: app.issueNotes,
@@ -2807,6 +2809,176 @@ const BulkTransitionModal = ({
   );
 };
 
+const BulkIssueModal = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  selectedCount,
+  unitCodes,
+  note,
+  onChangeNote,
+  issueType,
+  onChangeIssueType,
+  severity,
+  onChangeSeverity,
+  source,
+  onChangeSource,
+  theme
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  selectedCount: number;
+  unitCodes: string[];
+  note: string;
+  onChangeNote: (v: string) => void;
+  issueType: IssueType;
+  onChangeIssueType: (v: IssueType) => void;
+  severity: IssueSeverity;
+  onChangeSeverity: (v: IssueSeverity) => void;
+  source: IssueCategory;
+  onChangeSource: (v: IssueCategory) => void;
+  theme: 'light' | 'dark';
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60]"
+      />
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+        className={cn(
+          "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-xl z-[70] rounded-[2.5rem] shadow-2xl border p-8 max-h-[90vh] overflow-y-auto custom-scrollbar",
+          theme === 'dark' ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900"
+        )}
+      >
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h2 className="text-xl font-black uppercase tracking-tight mb-1 text-rose-500">Báo cáo sai sót hàng loạt</h2>
+            <p className={cn("text-xs font-medium", theme === 'dark' ? "text-slate-400" : "text-slate-500")}>
+              Ghi nhận vướng mắc cho {selectedCount} hồ sơ đã chọn.
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className={cn("mb-6 p-4 rounded-2xl text-xs font-mono max-h-24 overflow-y-auto", theme === 'dark' ? "bg-slate-950 border border-slate-800" : "bg-slate-50 border border-slate-200")}>
+          <div className="flex flex-wrap gap-2 text-slate-400">
+            {unitCodes.join(", ")}
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Phân loại lỗi</label>
+              <select 
+                value={issueType}
+                onChange={(e) => onChangeIssueType(e.target.value as IssueType)}
+                className={cn(
+                  "w-full px-4 py-3 rounded-2xl text-sm font-bold border outline-none focus:ring-2 focus:ring-rose-500/20 transition-all",
+                  theme === 'dark' ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                )}
+              >
+                <option value="Paperwork">HS Pháp lý / Thủ tục</option>
+                <option value="Financial">Tài chính / Công nợ / Thuế</option>
+                <option value="Authority">Cơ quan nhà nước</option>
+                <option value="Other">Khác (Internal / Project)</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Nguồn gốc vướng mắc</label>
+              <select 
+                value={source}
+                onChange={(e) => onChangeSource(e.target.value as IssueCategory)}
+                className={cn(
+                  "w-full px-4 py-3 rounded-2xl text-sm font-bold border outline-none focus:ring-2 focus:ring-rose-500/20 transition-all",
+                  theme === 'dark' ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                )}
+              >
+                <option value="None">-- Chưa phân loại --</option>
+                <option value="Chu_Dau_Tu">Chủ đầu tư</option>
+                <option value="Nha_Nuoc">Nhà nước</option>
+                <option value="Noi_Bo">Nội bộ</option>
+                <option value="Khach_Hang">Khách hàng</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Mức độ nghiêm trọng</label>
+            <div className="flex gap-2">
+              {(['Minor', 'Moderate', 'Critical'] as IssueSeverity[]).map(s => (
+                <button
+                  key={s}
+                  onClick={() => onChangeSeverity(s)}
+                  className={cn(
+                    "flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all",
+                    severity === s 
+                      ? (s === 'Critical' ? "bg-rose-600 border-rose-600 text-white shadow-lg shadow-rose-900/20" : 
+                         s === 'Moderate' ? "bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-900/20" : 
+                         "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-900/20")
+                      : (theme === 'dark' ? "bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-600" : "bg-slate-50 border-slate-200 text-slate-400 hover:border-slate-300")
+                  )}
+                >
+                  {s === 'Critical' ? 'Nghiêm trọng' : s === 'Moderate' ? 'Trung bình' : 'Nhẹ'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Nội dung vướng mắc (Bắt buộc)</label>
+            <textarea 
+              value={note}
+              onChange={(e) => onChangeNote(e.target.value)}
+              placeholder="Mô tả chi tiết vướng mắc, sai sót là gì..."
+              className={cn(
+                "w-full px-6 py-4 rounded-3xl text-sm font-bold border outline-none focus:ring-2 focus:ring-rose-500/20 transition-all min-h-[120px] resize-none",
+                theme === 'dark' ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+              )}
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-4 mt-8">
+          <button 
+            onClick={onClose}
+            className={cn(
+              "flex-1 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest border transition-all",
+              theme === 'dark' ? "border-slate-800 text-slate-500 hover:bg-slate-800" : "border-slate-200 text-slate-500 hover:bg-slate-100"
+            )}
+          >
+            Hủy bỏ
+          </button>
+          <button 
+            disabled={!note.trim()}
+            onClick={onConfirm}
+            className={cn(
+              "flex-1 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
+              !note.trim()
+                ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700" 
+                : "bg-rose-600 text-white hover:bg-rose-500 shadow-xl shadow-rose-900/40"
+            )}
+          >
+            Ghi nhận sai sót <AlertTriangle size={14} />
+          </button>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
 const ProjectModal = ({ 
   isOpen, 
   onClose, 
@@ -3785,6 +3957,12 @@ export default function App() {
   const [isBulkNoteOpen, setIsBulkNoteOpen] = useState(false);
   const [bulkNoteText, setBulkNoteText] = useState('');
   
+  const [isBulkIssueOpen, setIsBulkIssueOpen] = useState(false);
+  const [bulkIssueNote, setBulkIssueNote] = useState('');
+  const [bulkIssueType, setBulkIssueType] = useState<IssueType>('Other');
+  const [bulkIssueSeverity, setBulkIssueSeverity] = useState<IssueSeverity>('Moderate');
+  const [bulkIssueSource, setBulkIssueSource] = useState<IssueCategory>('None');
+
   const [isBulkTransitionModalOpen, setIsBulkTransitionModalOpen] = useState(false);
   const [bulkTransitionTarget, setBulkTransitionTarget] = useState<StepName | null>(null);
   const [bulkTransitionField, setBulkTransitionField] = useState<{key: keyof Application, label: string} | null>(null);
@@ -4592,8 +4770,8 @@ export default function App() {
     else if (nextStep === 'GD4_Cho_KT_TiepNhan_LaySo') updateField = { key: 'taxReceiptDate', label: 'Ngày nộp tiền/chứng từ' };
     else if (nextStep === 'GD5_Cho_PTDA_TiepNhan_KyGCN') updateField = { key: 'taxReceiptDate', label: 'Ngày KT xác nhận nộp tiền' };
     else if (nextStep === 'GD5_Cho_Ky_In_GCN') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN' };
-    else if (nextStep === 'GD5_Cho_KT_Nhan_GCN_Thuc_Te') updateField = { key: 'gcnReceivedDate', label: 'Ngày nhận GCN thực tế' };
-    else if (nextStep === 'GD5_Cho_PTT_TiepNhan_BG') updateField = null; // Just transition state, wait for PTT to receive
+    else if (nextStep === 'GD5_Cho_KT_Nhan_GCN_Thuc_Te') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN' };
+    else if (nextStep === 'GD5_Cho_PTT_TiepNhan_BG') updateField = { key: 'gcnReceivedDate', label: 'Ngày nhận GCN thực tế (KT)' };
     else if (nextStep === 'GD6_Cho_BG_Khach') updateField = { key: 'ptdaHandoverDate', label: 'Ngày PTT nhận bàn giao' };
     else if (nextStep === 'Hoan_Tat') updateField = { key: 'customerHandoverDate', label: 'Ngày bàn giao khách hàng' };
 
@@ -4793,6 +4971,33 @@ export default function App() {
     }
   };
 
+  const handleBulkReportIssue = async () => {
+    if (selectedAppIds.length === 0 || !bulkIssueNote.trim()) return;
+
+    try {
+      const appsToUpdate = applications.filter(app => selectedAppIds.includes(app.id));
+      const updatedApps = appsToUpdate.map(app => 
+        updateAppIssue(app, bulkIssueNote, bulkIssueType, bulkIssueSource, bulkIssueSeverity)
+      );
+
+      setApplications(prev => prev.map(app => {
+        const updated = updatedApps.find(u => u.id === app.id);
+        return updated || app;
+      }));
+
+      // Sync to Supabase
+      await Promise.all(updatedApps.map(app => syncRecordToSupabase(app)));
+
+      showToast(`Đã ghi nhận vướng mắc cho ${selectedAppIds.length} hồ sơ.`, 'success');
+      setIsBulkIssueOpen(false);
+      setBulkIssueNote('');
+      setSelectedAppIds([]);
+    } catch (err) {
+      console.error('Error reporting bulk issue:', err);
+      showToast('Có lỗi xảy ra khi ghi nhận vướng mắc hàng loạt.', 'error');
+    }
+  };
+
   const handleBulkDelete = async () => {
     if (selectedAppIds.length === 0) return;
     
@@ -4985,14 +5190,20 @@ export default function App() {
     );
   };
 
-  const updateAppIssue = (app: Application, note: string, type: IssueType = 'Other'): Application => {
+  const updateAppIssue = (
+    app: Application, 
+    note: string, 
+    type: IssueType = 'Other', 
+    source: IssueCategory = 'None',
+    severity: IssueSeverity = 'Moderate'
+  ): Application => {
     const newHistory = [
       {
         id: `hist-${Date.now()}`,
         stepName: 'Ghi nhận Sai sót/Vướng mắc',
         dept: userRole as Dept,
         receivedDate: new Date().toISOString().split('T')[0],
-        note: `Vướng mắc mới: ${note}`,
+        note: `[${source}] Vướng mắc mới: ${note}`,
         performedBy: currentUser?.id,
         performedByName: currentUser?.name
       },
@@ -5004,6 +5215,8 @@ export default function App() {
       status: 'Error' as const,
       issueNotes: note,
       issueType: type,
+      issueSource: source,
+      issueSeverity: severity,
       history: newHistory
     };
   };
@@ -7245,6 +7458,14 @@ export default function App() {
                             <MessageSquare size={16} />
                           </button>
 
+                          <button 
+                            onClick={() => setIsBulkIssueOpen(true)}
+                            className="w-10 h-10 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-full transition-all flex items-center justify-center border border-rose-500/20"
+                            title="Báo lỗi / Sai sót hàng loạt"
+                          >
+                            <AlertTriangle size={16} />
+                          </button>
+
                           {(userRole === 'ADMIN' || userRole === 'DIRECTOR' || userRole === 'PTT') && (
                             <button 
                               onClick={handleBulkDelete}
@@ -7537,12 +7758,32 @@ export default function App() {
                                     </span>
                                   </td>
                                   <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
-                                    <div className="flex flex-col gap-1">
+                                    <div className="flex flex-col gap-1.5">
                                       <StatusBadge status={app.status} app={app} />
                                       {(app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None')) && (
-                                        <div className="flex items-center gap-1 text-rose-500 animate-pulse">
-                                          <AlertTriangle size={10} />
-                                          <span className="text-[9px] font-bold uppercase truncate max-w-[120px]">{app.issueNotes || 'Vướng mắc'}</span>
+                                        <div className="flex flex-col gap-1 group/issue">
+                                          <div className="flex items-center gap-1.5">
+                                            {app.issueSource && app.issueSource !== 'None' && (
+                                              <span className={cn(
+                                                "text-[8px] font-black uppercase px-1.5 py-0.5 rounded border leading-none shrink-0",
+                                                app.issueSource === 'Chu_Dau_Tu' ? "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" :
+                                                app.issueSource === 'Nha_Nuoc' ? "bg-amber-500/10 text-amber-500 border-amber-500/20" :
+                                                app.issueSource === 'Noi_Bo' ? "bg-slate-500/10 text-slate-500 border-slate-500/20" :
+                                                "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                                              )}>
+                                                {app.issueSource === 'Chu_Dau_Tu' ? 'CĐT' : 
+                                                 app.issueSource === 'Nha_Nuoc' ? 'Nhà nước' : 
+                                                 app.issueSource === 'Noi_Bo' ? 'Nội bộ' : 'Khách'}
+                                              </span>
+                                            )}
+                                            <span className={cn(
+                                              "text-[9px] font-black uppercase truncate max-w-[100px]",
+                                              app.issueSeverity === 'Critical' ? "text-rose-600 animate-bounce" : 
+                                              app.issueSeverity === 'Moderate' ? "text-amber-500" : "text-slate-400"
+                                            )}>
+                                              {app.issueNotes || 'Vướng mắc'}
+                                            </span>
+                                          </div>
                                         </div>
                                       )}
                                     </div>
@@ -8589,6 +8830,29 @@ export default function App() {
                                       handleFieldChange('issueSeverity', mapping[val]);
                                     }}
                                   />
+                                  <DetailCard theme={theme}
+                                    label="Phân loại nguồn gốc" 
+                                    value={
+                                      (editApp || selectedApp).issueSource === 'Chu_Dau_Tu' ? 'Chủ đầu tư' :
+                                      (editApp || selectedApp).issueSource === 'Nha_Nuoc' ? 'Nhà nước' :
+                                      (editApp || selectedApp).issueSource === 'Noi_Bo' ? 'Nội bộ' :
+                                      (editApp || selectedApp).issueSource === 'Khach_Hang' ? 'Khách hàng' : 'Chưa phân loại'
+                                    } 
+                                    type="select"
+                                    editable={(userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'DIRECTOR') && isEditing}
+                                    isEditing={isEditing}
+                                    options={['Chưa phân loại', 'Chủ đầu tư', 'Nhà nước', 'Nội bộ', 'Khách hàng']}
+                                    onChange={(val) => {
+                                      const mapping: any = {
+                                        'Chưa phân loại': 'None',
+                                        'Chủ đầu tư': 'Chu_Dau_Tu',
+                                        'Nhà nước': 'Nha_Nuoc',
+                                        'Nội bộ': 'Noi_Bo',
+                                        'Khách hàng': 'Khach_Hang'
+                                      };
+                                      handleFieldChange('issueSource', mapping[val]);
+                                    }}
+                                  />
                                     <div className="space-y-1.5">
                                       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Ghi chú chi tiết</label>
                                       {((userRole === 'KT' || userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'DIRECTOR') && isEditing) ? (
@@ -9030,26 +9294,29 @@ export default function App() {
                       if (app.currentStep === 'GD5_Cho_KT_Nhan_GCN_Thuc_Te' || app.currentStep === 'GD5_Cho_GCN' as any) {
                         return (
                           <div className="flex flex-col gap-3">
-                            <button 
-                              onClick={() => handleBulkStepTransition('GD5_Cho_KT_Nhan_GCN_Thuc_Te', [app.id])}
-                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                            >
-                              Xác nhận đã nhận GCN thực tế (KT) <CheckCircle2 size={16} />
-                            </button>
-                            <button 
-                              onClick={() => handleBulkStepTransition('GD5_Cho_PTT_TiepNhan_BG', [app.id])}
-                              className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
-                            >
-                              Chuyển hồ sơ cho PTT (Bàn giao khách) <ChevronRight size={16} />
-                            </button>
+                            {!app.gcnReceivedDate ? (
+                              <button 
+                                onClick={() => handleBulkStepTransition('GD5_Cho_PTT_TiepNhan_BG', [app.id])}
+                                className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
+                              >
+                                Xác nhận đã nhận GCN thực tế (KT) <CheckCircle2 size={16} />
+                              </button>
+                            ) : (
+                              <button 
+                                onClick={() => handleBulkStepTransition('GD5_Cho_PTT_TiepNhan_BG', [app.id])}
+                                className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
+                              >
+                                Chuyển hồ sơ cho PTT (Bàn giao khách) <ChevronRight size={16} />
+                              </button>
+                            )}
                             <button 
                               onClick={() => {
-                                const reason = prompt("Lý do trả hồ sơ / Yêu cầu bổ sung:");
+                                const reason = prompt("Lý do trả hồ sơ / Yêu cầu in/ký lại (về PTDA):");
                                 if (reason) handleRejectApp(reason);
                               }}
                               className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
                             >
-                              <RotateCcw size={16} /> Trả hồ sơ về PTDA
+                              <RotateCcw size={16} /> Trả hồ sơ về PTDA (Chỉnh sửa GCN)
                             </button>
                           </div>
                         );
@@ -9758,6 +10025,23 @@ export default function App() {
         onChangeRefCode={setBulkTransitionRefCode}
         theme={theme}
         showToast={showToast}
+      />
+
+      <BulkIssueModal
+        isOpen={isBulkIssueOpen}
+        onClose={() => setIsBulkIssueOpen(false)}
+        onConfirm={handleBulkReportIssue}
+        selectedCount={selectedAppIds.length}
+        unitCodes={applications.filter(a => selectedAppIds.includes(a.id)).map(a => a.unitCode)}
+        note={bulkIssueNote}
+        onChangeNote={setBulkIssueNote}
+        issueType={bulkIssueType}
+        onChangeIssueType={setBulkIssueType}
+        severity={bulkIssueSeverity}
+        onChangeSeverity={setBulkIssueSeverity}
+        source={bulkIssueSource}
+        onChangeSource={setBulkIssueSource}
+        theme={theme}
       />
 
       {/* Toast Notification */}

@@ -73,6 +73,8 @@ export type IssueSeverity = 'Minor' | 'Moderate' | 'Critical';
 
 export type IssueType = 'None' | 'Paperwork' | 'Financial' | 'Authority' | 'Other';
 
+export type IssueCategory = 'None' | 'Chu_Dau_Tu' | 'Nha_Nuoc' | 'Noi_Bo' | 'Khach_Hang';
+
 export type ScannedFile = {
   id: string;
   name: string;
@@ -123,6 +125,7 @@ export type Application = {
   taxNoticeProvisionDate?: string; // Ngày cung cấp TB Thuế
   taxVpdkSubmissionDate?: string; // Ngày KT nộp hồ sơ NVTC & hồ sơ lấy sổ vô VPĐK
   gcnSignedDate?: string; // Ngày hoàn thành in / trình ký GCN
+  issueSource?: IssueCategory; // Classification: Chu_Dau_Tu, Nha_Nuoc, Noi_Bo, Khach_Hang
   issueType?: 'None' | 'Paperwork' | 'Financial' | 'Authority' | 'Other';
   issueSeverity?: IssueSeverity;
   issueNotes?: string;
