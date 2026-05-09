@@ -115,6 +115,10 @@ export type Application = {
   ptdaHandoverDate?: string; // Ngày bàn giao GCN PTT
   customerHandoverDate?: string; // Ngày bàn giao GCN cho khách
   
+  // Handover status
+  isHandedOver?: boolean;
+  handoverDate?: string;
+  
   // New fields
   taxNoticeProvisionDate?: string; // Ngày cung cấp TB Thuế
   taxVpdkSubmissionDate?: string; // Ngày KT nộp hồ sơ NVTC & hồ sơ lấy sổ vô VPĐK

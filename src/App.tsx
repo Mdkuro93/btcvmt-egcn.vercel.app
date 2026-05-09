@@ -139,6 +139,8 @@ const mapFromSnakeCase = (item: any): Application => {
     gcnReceivedDate: item.gcn_received_date,
     ptdaHandoverDate: item.ptda_handover_date,
     customerHandoverDate: item.customer_handover_date,
+    isHandedOver: item.is_handed_over,
+    handoverDate: item.handover_date,
     taxNoticeProvisionDate: item.tax_notice_provision_date,
     gcnSignedDate: item.gcn_signed_date,
     issueType: item.issue_type,
@@ -190,6 +192,8 @@ const mapToSnakeCase = (app: Application) => {
     gcn_received_date: app.gcnReceivedDate,
     ptda_handover_date: app.ptdaHandoverDate,
     customer_handover_date: app.customerHandoverDate,
+    is_handed_over: app.isHandedOver,
+    handover_date: app.handoverDate,
     tax_notice_provision_date: app.taxNoticeProvisionDate,
     gcn_signed_date: app.gcnSignedDate,
     issue_type: app.issueType,
@@ -2629,7 +2633,12 @@ const BulkTransitionModal = ({
   updateField,
   value,
   onChangeValue,
-  theme
+  location,
+  onChangeLocation,
+  refCode,
+  onChangeRefCode,
+  theme,
+  showToast
 }: { 
   isOpen: boolean; 
   onClose: () => void; 
@@ -2640,9 +2649,16 @@ const BulkTransitionModal = ({
   updateField: {key: string, label: string} | null;
   value: string;
   onChangeValue: (v: string) => void;
-  theme: 'light' | 'dark'
+  location?: 'PHUONG' | 'TP_DANANG';
+  onChangeLocation?: (v: 'PHUONG' | 'TP_DANANG') => void;
+  refCode?: string;
+  onChangeRefCode?: (v: string) => void;
+  theme: 'light' | 'dark';
+  showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void;
 }) => {
   if (!isOpen) return null;
+
+  const isGD2ToGD3 = targetStepLabel.includes("GĐ2: Chờ PTDA tiếp nhận") || targetStepLabel.includes("GD2_Cho_PTDA_TiepNhan");
 
   return (
     <AnimatePresence>
@@ -2658,7 +2674,7 @@ const BulkTransitionModal = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: 20 }}
         className={cn(
-          "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg z-[70] rounded-[2.5rem] shadow-2xl border p-8",
+          "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg z-[70] rounded-[2.5rem] shadow-2xl border p-8 max-h-[90vh] overflow-y-auto custom-scrollbar",
           theme === 'dark' ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900"
         )}
       >
@@ -2692,30 +2708,70 @@ const BulkTransitionModal = ({
             </div>
           </div>
 
-          {updateField && (
-            <div className="space-y-3">
-              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
-                {updateField.label} (Bắt buộc)
-              </label>
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                  <Calendar size={18} />
+          <div className="space-y-4">
+            {updateField && (
+              <div className="space-y-3">
+                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
+                  {updateField.label} (Bắt buộc)
+                </label>
+                <div className="relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                    <Calendar size={18} />
+                  </div>
+                  <input 
+                    type="date"
+                    value={value}
+                    onChange={(e) => onChangeValue(e.target.value)}
+                    className={cn(
+                      "w-full pl-12 pr-4 py-4 rounded-3xl text-sm font-bold border outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all",
+                      theme === 'dark' ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                    )}
+                  />
                 </div>
-                <input 
-                  type="date"
-                  value={value}
-                  onChange={(e) => onChangeValue(e.target.value)}
-                  className={cn(
-                    "w-full pl-12 pr-4 py-4 rounded-3xl text-sm font-bold border outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all",
-                    theme === 'dark' ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                  )}
-                />
               </div>
-              <p className="text-[10px] text-slate-400 italic ml-1">
-                * Ngày này sẽ được áp dụng cho toàn bộ {selectedCount} hồ sơ đã chọn.
-              </p>
-            </div>
-          )}
+            )}
+
+            {isGD2ToGD3 && (
+              <>
+                <div className="space-y-3">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
+                    Nơi nộp hồ sơ (Bắt buộc)
+                  </label>
+                  <select 
+                    value={location}
+                    onChange={(e) => onChangeLocation?.(e.target.value as 'PHUONG' | 'TP_DANANG')}
+                    className={cn(
+                      "w-full px-4 py-4 rounded-3xl text-sm font-bold border outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all",
+                      theme === 'dark' ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                    )}
+                  >
+                    <option value="PHUONG">Phường/Xã</option>
+                    <option value="TP_DANANG">Tỉnh/Thành phố</option>
+                  </select>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
+                    Mã hồ sơ / Số phiếu hẹn (Bắt buộc)
+                  </label>
+                  <input 
+                    type="text"
+                    value={refCode}
+                    onChange={(e) => onChangeRefCode?.(e.target.value)}
+                    placeholder="Nhập mã hồ sơ / số phiếu hẹn..."
+                    className={cn(
+                      "w-full px-6 py-4 rounded-3xl text-sm font-bold border outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all",
+                      theme === 'dark' ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                    )}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          <p className="text-[10px] text-slate-400 italic ml-1">
+            * Thông tin này sẽ được áp dụng cho toàn bộ {selectedCount} hồ sơ đã chọn.
+          </p>
         </div>
 
         <div className="flex gap-4 mt-10">
@@ -2729,8 +2785,19 @@ const BulkTransitionModal = ({
             Hủy bỏ
           </button>
           <button 
-            onClick={onConfirm}
-            className="flex-1 py-4 bg-indigo-600 text-white rounded-3xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-500 shadow-xl shadow-indigo-900/40 transition-all flex items-center justify-center gap-2"
+            disabled={
+              (updateField && !value) || 
+              (isGD2ToGD3 && (!location || !refCode))
+            }
+            onClick={() => {
+              onConfirm();
+            }}
+            className={cn(
+              "flex-1 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
+              ((updateField && !value) || (isGD2ToGD3 && (!location || !refCode)))
+                ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700" 
+                : "bg-indigo-600 text-white hover:bg-indigo-500 shadow-xl shadow-indigo-900/40"
+            )}
           >
             Xác nhận & Chuyển <ArrowRight size={14} />
           </button>
@@ -3722,6 +3789,8 @@ export default function App() {
   const [bulkTransitionTarget, setBulkTransitionTarget] = useState<StepName | null>(null);
   const [bulkTransitionField, setBulkTransitionField] = useState<{key: keyof Application, label: string} | null>(null);
   const [bulkTransitionValue, setBulkTransitionValue] = useState(new Date().toISOString().split('T')[0]);
+  const [bulkTransitionLocation, setBulkTransitionLocation] = useState<'PHUONG' | 'TP_DANANG'>('PHUONG');
+  const [bulkTransitionRefCode, setBulkTransitionRefCode] = useState('');
 
   // SPREADSHEET MODE STATES
   const [isSpreadsheetMode, setIsSpreadsheetMode] = useState(false);
@@ -4405,35 +4474,6 @@ export default function App() {
         showToast(`Lỗi trình tự ngày: ${chronoError}`, 'warning');
         return;
       }
-
-      // Enhanced contract signing date validation: PTT must fill when in tax notification stage, PTDA is exempt
-      const isPTT = userRole === 'PTT';
-      const isPTDA = userRole === 'PTDA';
-      
-      const ptdaSteps: StepName[] = ['GD2_Cho_PTDA_TiepNhan', 'GD5_Cho_PTDA_TiepNhan_KyGCN'];
-      if (ptdaSteps.includes(nextStep) && !app.submissionDate && !app.taxVpdkSubmissionDate) {
-        showToast('Yêu cầu điền "Ngày nộp VPĐK" trước khi bàn giao PTDA.', 'error');
-        return;
-      }
-      
-      if (['GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD5_Cho_PTDA_TiepNhan_KyGCN', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_KT_Nhan_GCN_Thuc_Te', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Hoan_Tat'].includes(app.currentStep) && !app.contractSigningDate) {
-        if (!isPTDA) {
-          showToast('PTT: Vui lòng điền "Ngày ký HĐCN/HĐMB".', 'warning');
-          return;
-        }
-      }
-      if (app.currentStep === 'GD3_Cho_TBThue' && !app.taxNotificationReceivedDate && userRole !== 'PTDA') {
-        showToast('Vui lòng điền "Ngày nhận TB Thuế" trước khi chuyển tiếp.', 'warning');
-        return;
-      }
-      if (app.currentStep === 'GD4_Cho_Nop_NVTC' && !app.taxReceiptDate && userRole !== 'KT') {
-        showToast('Vui lòng điền "Ngày nộp tiền/chứng từ" trước khi chuyển tiếp.', 'warning');
-        return;
-      }
-      if (app.currentStep === 'GD5_Cho_Ky_In_GCN' && !app.gcnSignedDate) {
-        showToast('Vui lòng điền "Ngày trình ký/In GCN" trước khi chuyển tiếp.', 'warning');
-        return;
-      }
     }
 
     // Smart logic for self-service: jump over intermediate processing steps
@@ -4459,30 +4499,35 @@ export default function App() {
       prevHistory[0] = { ...prevHistory[0], completedDate: nowStr };
     }
 
+    const nextDeptLabel = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).dept;
+    const handoverNote = `Hồ sơ đã được hoàn tất và tự động bàn giao sang bộ phận ${nextDeptLabel}`;
+
     const newHistory = [
       {
-        id: `hist-${Date.now()}`,
+        id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         stepName: (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label,
-        dept: (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).dept,
+        dept: nextDeptLabel,
         receivedDate: nowStr,
+        note: handoverNote,
         performedBy: currentUser?.id,
         performedByName: currentUser?.name
       },
       ...prevHistory
     ];
 
-    // Auto-populate dates based on transition if not already set (Removed auto-fill for critical dates as requested)
+    // Auto-populate dates based on transition
     const autoDates: Partial<Application> = {};
     if (targetStep === 'GD1_Cho_KT_TiepNhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
-    // Removed: if (targetStep === 'GD2_Cho_PTDA_TiepNhan' && !app.submissionDate) autoDates.submissionDate = nowStr;
-    // Removed: if (targetStep === 'GD4_Cho_Nop_NVTC') { ... }
     
-    if (targetStep === 'GD3_Cho_TBThue' && !app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
+    if (targetStep === 'GD4_Cho_Nop_NVTC' && !app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
     if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
     if (targetStep === 'GD6_Cho_BG_Khach' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
     
-    // GĐ4: Ngày kế toán xác nhận hồ sơ là ngày nhận NVTC
     if (app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo' && !app.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
+
+    // Auto handover status
+    autoDates.isHandedOver = true;
+    autoDates.handoverDate = nowStr;
 
     let targetStatus = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).status;
     if (targetStatus === 'TaxCompleted' && !app.taxReceiptDate && !autoDates.taxReceiptDate) {
@@ -4520,8 +4565,9 @@ export default function App() {
     let updateField: {key: keyof Application, label: string} | null = null;
     
     // Mapping transition to field
-    if (nextStep === 'GD2_Cho_Nop_VPDK') updateField = { key: 'taxVpdkSubmissionDate', label: 'Ngày nộp hồ sơ VPĐK' };
-    else if (nextStep === 'GD3_Cho_TBThue') updateField = { key: 'submissionDate', label: 'Ngày nộp hồ sơ' };
+    if (nextStep === 'GD1_Cho_KT_TiepNhan') updateField = { key: 'accountingHandoverDate', label: 'Ngày bàn giao KT' };
+    else if (nextStep === 'GD2_Cho_Nop_VPDK') updateField = { key: 'receivedDate', label: 'Ngày KT tiếp nhận' };
+    else if (nextStep === 'GD2_Cho_PTDA_TiepNhan' || nextStep === 'GD3_Cho_TBThue') updateField = { key: 'submissionDate', label: 'Ngày nộp VPĐK' };
     else if (nextStep === 'GD4_Cho_Nop_NVTC') updateField = { key: 'taxNotificationReceivedDate', label: 'Ngày nhận Thông báo thuế' };
     else if (nextStep === 'GD4_Cho_KT_TiepNhan_LaySo') updateField = { key: 'taxReceiptDate', label: 'Ngày nộp tiền/chứng từ' };
     else if (nextStep === 'GD5_Cho_PTDA_TiepNhan_KyGCN') updateField = { key: 'taxReceiptDate', label: 'Ngày KT xác nhận nộp tiền' };
@@ -4533,83 +4579,38 @@ export default function App() {
     setBulkTransitionTarget(nextStep);
     setBulkTransitionField(updateField);
     setBulkTransitionValue(new Date().toISOString().split('T')[0]);
+    setBulkTransitionLocation('PHUONG');
+    setBulkTransitionRefCode('');
     setIsBulkTransitionModalOpen(true);
   };
 
   const executeBulkStepTransition = async (nextStep: StepName, dateValue: string | null) => {
     if (selectedAppIds.length === 0) return;
     
+    // Check if mandatory date is provided
+    if (bulkTransitionField && !dateValue) {
+      showToast(`Vui lòng nhập ${bulkTransitionField.label} trước khi xác nhận.`, 'warning');
+      return;
+    }
+
+    // Special check for GĐ2 -> GĐ3 (or PTDA receipt)
+    const isGD2ToGD3 = nextStep === 'GD2_Cho_PTDA_TiepNhan' || nextStep === 'GD3_Cho_TBThue';
+    if (isGD2ToGD3) {
+      if (!bulkTransitionLocation) {
+        showToast(`Vui lòng chọn nơi nộp hồ sơ`, 'warning');
+        return;
+      }
+      if (!bulkTransitionRefCode) {
+        showToast(`Vui lòng nhập mã hồ sơ / số phiếu hẹn`, 'warning');
+        return;
+      }
+    }
+
     const nowStr = new Date().toISOString().split('T')[0];
     const updatedCount = selectedAppIds.length;
     setIsSavingApp(true);
     
     try {
-      // Check validation for all apps before transition
-      const ptdaSteps: StepName[] = ['GD2_Cho_PTDA_TiepNhan', 'GD5_Cho_PTDA_TiepNhan_KyGCN'];
-      if (ptdaSteps.includes(nextStep)) {
-        const missingSub = applications.filter(a => selectedAppIds.includes(a.id) && !a.submissionDate && !a.taxVpdkSubmissionDate);
-        if (missingSub.length > 0) {
-          showToast(`Lỗi: Căn ${missingSub[0].unitCode} thiếu "Ngày nộp VPĐK", vui lòng bổ sung trước khi bàn giao PTDA.`, 'error');
-          setIsSavingApp(false);
-          return;
-        }
-      }
-
-      // Check validation for tax notification step
-      if (nextStep === 'GD4_Cho_Nop_NVTC') {
-        const missingTax = applications.filter(a => 
-          selectedAppIds.includes(a.id) && 
-          !a.taxNotificationDate && 
-          !a.taxNotificationReceivedDate && 
-          userRole !== 'PTDA'
-        );
-        if (missingTax.length > 0) {
-          showToast(`Lỗi: Căn ${missingTax[0].unitCode} thiếu thông tin Thuế, vui lòng bổ sung trước khi chuyển sang bước nộp NVTC.`, 'error');
-          setIsSavingApp(false);
-          return;
-        }
-      }
-
-      // Check validation for GCN received
-      if (nextStep === 'GD5_Cho_PTT_TiepNhan_BG') {
-        const missingGCN = applications.filter(a => selectedAppIds.includes(a.id) && !a.gcnReceivedDate);
-        if (missingGCN.length > 0) {
-          showToast(`Lỗi: Căn ${missingGCN[0].unitCode} thiếu "Ngày nhận GCN", vui lòng bổ sung trước khi bàn giao PTT.`, 'error');
-          setIsSavingApp(false);
-          return;
-        }
-      }
-
-      // Check validation for tax receipt before moving from GĐ4
-      if (nextStep === 'GD4_Cho_KT_TiepNhan_LaySo') {
-        const missingReceipt = applications.filter(a => selectedAppIds.includes(a.id) && !a.taxReceiptDate);
-        if (missingReceipt.length > 0) {
-          showToast(`Lỗi: Căn ${missingReceipt[0].unitCode} chưa có "Ngày nộp tiền/chứng từ", vui lòng bổ sung.`, 'error');
-          setIsSavingApp(false);
-          return;
-        }
-      }
-
-      // Check validation for tax receipt before moving from KT (Lấy số) to PTDA (Trình ký)
-      if (nextStep === 'GD5_Cho_PTDA_TiepNhan_KyGCN') {
-        const missingReceipt = applications.filter(a => selectedAppIds.includes(a.id) && !a.taxReceiptDate);
-        if (missingReceipt.length > 0) {
-          showToast(`Lỗi: Căn ${missingReceipt[0].unitCode} chưa có "Ngày KT xác nhận nộp tiền", không thể chuyển GĐ5.`, 'error');
-          setIsSavingApp(false);
-          return;
-        }
-      }
-
-      // Check validation for GCN signed before moving from GĐ5 KyGCN
-      if (nextStep === 'GD5_Cho_KT_Nhan_GCN_Thuc_Te') {
-        const missingSigned = applications.filter(a => selectedAppIds.includes(a.id) && !a.gcnSignedDate);
-        if (missingSigned.length > 0) {
-          showToast(`Lỗi: Căn ${missingSigned[0].unitCode} chưa có "Ngày trình ký/In GCN", không thể chuyển tiếp.`, 'error');
-          setIsSavingApp(false);
-          return;
-        }
-      }
-
       const chronoErrors: string[] = [];
       let actuallyUpdatedCount = 0;
 
@@ -4642,10 +4643,14 @@ export default function App() {
         // Apply bulk date update if provided
         let appWithDate = { ...app };
         if (bulkTransitionField && dateValue) {
-          appWithDate = {
-            ...appWithDate,
-            [bulkTransitionField.key]: dateValue
-          } as Application;
+          (appWithDate as any)[bulkTransitionField.key] = dateValue;
+        }
+
+        // Apply extra fields for GD2 -> GD3 (or PTDA receipt)
+        if (isGD2ToGD3) {
+          appWithDate.submissionDate = dateValue || undefined;
+          appWithDate.submissionLocation = bulkTransitionLocation;
+          appWithDate.vpdkCode = bulkTransitionRefCode;
         }
         
         // Check chronology for all selected apps
@@ -4675,13 +4680,20 @@ export default function App() {
           prevHistory[0] = { ...prevHistory[0], completedDate: nowStr };
         }
         
+        const note = isGD2ToGD3 
+          ? `Cập nhật thông tin nộp hồ sơ và chuyển bước hàng loạt: Ngày ${dateValue}, Nơi: ${bulkTransitionLocation === 'TP_DANANG' ? 'Tỉnh/Thành phố' : 'Phường/Xã'}, Mã HS: ${bulkTransitionRefCode}` 
+          : `Chuyển hàng loạt ${dateValue ? `(Cập nhật ${bulkTransitionField?.label}: ${dateValue})` : ''}`;
+
+        const nextDeptLabel = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).dept;
+        const handoverNote = `Hồ sơ đã hoàn tất và tự động bàn giao sang bộ phận ${nextDeptLabel}`;
+        
         const newHistory = [
           {
             id: `hist-${Date.now()}-${appWithDate.id}`,
             stepName: (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label,
-            dept: (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).dept,
+            dept: nextDeptLabel,
             receivedDate: nowStr,
-            note: `Chuyển hàng loạt ${dateValue ? `(Cập nhật ${bulkTransitionField?.label}: ${dateValue})` : ''}`,
+            note: `${note}. ${handoverNote}`,
             performedBy: currentUser?.id,
             performedByName: currentUser?.name
           },
@@ -4691,11 +4703,15 @@ export default function App() {
         const autoDates: Partial<Application> = {};
         if (targetStep === 'GD1_Cho_KT_TiepNhan' && !appWithDate.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
         
-        if (targetStep === 'GD3_Cho_TBThue' && !appWithDate.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
+        if (targetStep === 'GD4_Cho_Nop_NVTC' && !appWithDate.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
         if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !appWithDate.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
         if (targetStep === 'GD6_Cho_BG_Khach' && !appWithDate.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
 
         if (appWithDate.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo' && !appWithDate.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
+
+        // Auto handover logic
+        autoDates.isHandedOver = true;
+        autoDates.handoverDate = bulkTransitionField && dateValue ? dateValue : nowStr;
 
         let targetStatus = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).status;
         if (targetStatus === 'TaxCompleted' && !appWithDate.taxReceiptDate && !autoDates.taxReceiptDate) {
@@ -7196,17 +7212,6 @@ export default function App() {
                           )}
                           
                           <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPrintHandoverApps(filteredApps.filter(a => selectedAppIds.includes(a.id)));
-                              setIsPrintingHandover(true);
-                            }}
-                            className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
-                          >
-                            <FileText size={14} /> Bàn giao
-                          </button>
-
-                          <button 
                             onClick={() => setIsBulkNoteOpen(true)}
                             className="w-10 h-10 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full transition-all flex items-center justify-center border border-slate-700/50"
                             title="Ghi chú hàng loạt"
@@ -7302,7 +7307,7 @@ export default function App() {
                                   className="w-4 h-4 rounded border-slate-700 bg-slate-900 accent-festive-gold"
                                   checked={selectedAppIds.includes(app.id)}
                                   onChange={(e) => {
-                                    if (e.target.checked) setSelectedAppIds(prev => [...prev, app.id]);
+                                    if (e.target.checked) setSelectedAppIds(prev => Array.from(new Set([...prev, app.id])));
                                     else setSelectedAppIds(prev => prev.filter(id => id !== app.id));
                                   }}
                                 />
@@ -8624,7 +8629,7 @@ export default function App() {
                             <p className="text-sm font-bold text-slate-200">{h.stepName}</p>
                             <span className="text-[10px] font-mono text-slate-500">{formatDate(h.receivedDate)}</span>
                           </div>
-                          <p className="text-xs text-slate-400 italic mb-1">Phòng chịu trách nhiệm: {h.dept}</p>
+                          <p className="text-xs text-slate-400 italic mb-1">Phòng chịu trách nhiệm: {h.dept} {h.performedByName ? `(${h.performedByName})` : ''}</p>
                           {h.note && (
                             <div className="bg-slate-900 border border-slate-800 p-2 rounded-lg text-[11px] text-slate-400 italic border-l-2 border-l-emerald-500">
                               {h.note}
@@ -8826,15 +8831,18 @@ export default function App() {
                         );
                       }
 
-                      // GĐ 1: KT xác nhận (Tiếp nhận)
+                      // GĐ 1: Kế toán tiếp nhận
                       if (app.currentStep === 'GD1_Cho_KT_TiepNhan') {
                         return (
                           <div className="flex flex-col gap-3">
                             <button 
-                              onClick={() => handleStepTransition('GD2_Cho_Nop_VPDK')}
+                              onClick={() => {
+                                setSelectedAppIds([app.id]);
+                                handleBulkStepTransition('GD2_Cho_Nop_VPDK');
+                              }}
                               className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
                             >
-                              Tiếp nhận hồ sơ đầu vào (KT) <CheckCircle2 size={16} />
+                              Tiếp nhận hồ sơ (Kế toán) <CheckCircle2 size={16} />
                             </button>
                             {['KT', 'MANAGER', 'DIRECTOR', 'ADMIN'].includes(userRole) && (
                               <button 
@@ -8852,18 +8860,20 @@ export default function App() {
                       }
 
                       // GĐ 2: KT đã nộp VPĐK
-                      if (app.currentStep === 'GD2_Cho_Nop_VPDK') {
+                      if (app.currentStep === 'GD2_Cho_Nop_VPDK' || app.currentStep === 'GD1_Cho_KT_TiepNhan') {
+                        const targetStep: StepName = app.currentStep === 'GD1_Cho_KT_TiepNhan' ? 'GD2_Cho_Nop_VPDK' : 'GD3_Cho_TBThue';
                         return (
                           <button 
-                            disabled={!app.submissionDate}
-                            onClick={() => handleStepTransition('GD3_Cho_TBThue')}
+                            onClick={() => {
+                              setSelectedAppIds([app.id]);
+                              handleBulkStepTransition(targetStep);
+                            }}
                             className={cn(
                                 "w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2",
-                                app.submissionDate ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20" : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+                                "bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-900/20"
                             )}
                           >
-                            {!app.submissionDate && <Clock size={16} />}
-                            {app.submissionDate ? "Cập nhật chuyển theo dõi Thuế (PTDA)" : "Cần nhập Ngày nộp VPĐK để Chuyển bước"} <ChevronRight size={16} />
+                            {app.currentStep === 'GD1_Cho_KT_TiepNhan' ? "KT Xác nhận hồ sơ" : "Chuyển PTDA Theo dõi Thuế"} <ChevronRight size={16} />
                           </button>
                         );
                       }
@@ -8873,7 +8883,10 @@ export default function App() {
                         return (
                           <div className="flex flex-col gap-3">
                             <button 
-                              onClick={() => handleStepTransition('GD3_Cho_TBThue')}
+                              onClick={() => {
+                                setSelectedAppIds([app.id]);
+                                handleBulkStepTransition('GD3_Cho_TBThue');
+                              }}
                               className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
                             >
                               Tiếp nhận theo dõi Thuế (PTDA) <CheckCircle2 size={16} />
@@ -8895,15 +8908,16 @@ export default function App() {
                       if (app.currentStep === 'GD3_Cho_TBThue') {
                         return (
                           <button 
-                            disabled={!app.taxNotificationDate}
-                            onClick={() => handleStepTransition('GD4_Cho_Nop_NVTC')}
+                            onClick={() => {
+                              setSelectedAppIds([app.id]);
+                              handleBulkStepTransition('GD4_Cho_Nop_NVTC');
+                            }}
                             className={cn(
                                 "w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2",
-                                app.taxNotificationDate ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20" : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+                                "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20"
                             )}
                           >
-                            {!app.taxNotificationDate && <Clock size={16} />}
-                            {app.taxNotificationDate ? "Gửi TB Thuế cho PTT" : "Cần có Ngày TB Thuế để Chuyển bước"} <ChevronRight size={16} />
+                            Gửi TB Thuế cho PTT <ChevronRight size={16} />
                           </button>
                         );
                       }
@@ -8924,7 +8938,10 @@ export default function App() {
                               </button>
                             ) : (
                               <button 
-                                onClick={() => handleStepTransition('GD4_Cho_KT_TiepNhan_LaySo')}
+                                onClick={() => {
+                                  setSelectedAppIds([app.id]);
+                                  handleBulkStepTransition('GD4_Cho_KT_TiepNhan_LaySo');
+                                }}
                                 className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
                               >
                                 Bàn giao HS đóng thuế cho KT <ChevronRight size={16} />
@@ -8941,8 +8958,8 @@ export default function App() {
             {!app.taxReceiptDate ? (
               <button 
                 onClick={() => {
-                  const now = new Date().toISOString().split('T')[0];
-                  handleFieldChange('taxReceiptDate', now);
+                  setSelectedAppIds([app.id]);
+                  handleBulkStepTransition('GD4_Cho_KT_TiepNhan_LaySo'); // Open modal for taxReceiptDate
                 }}
                 className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
               >
@@ -8950,15 +8967,16 @@ export default function App() {
               </button>
             ) : (
               <button 
-                disabled={!(app.taxVpdkSubmissionDate || app.submissionDate)}
-                onClick={() => handleStepTransition('GD5_Cho_PTDA_TiepNhan_KyGCN')}
+                onClick={() => {
+                  setSelectedAppIds([app.id]);
+                  handleBulkStepTransition('GD5_Cho_PTDA_TiepNhan_KyGCN');
+                }}
                 className={cn(
                     "w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2",
-                    (app.taxVpdkSubmissionDate || app.submissionDate) ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20" : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+                    "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20"
                 )}
               >
-                {!(app.taxVpdkSubmissionDate || app.submissionDate) && <Clock size={16} />}
-                {(app.taxVpdkSubmissionDate || app.submissionDate) ? "Đã nộp VPĐK (Lấy sổ) -> Chuyển PTDA" : "Cần Ngày nộp hồ sơ VPĐK để Chuyển bước"} <ChevronRight size={16} />
+                Đã nộp NVTC đến VPĐK &rarr; Chuyển PTDA <ChevronRight size={16} />
               </button>
             )}
           </div>
@@ -8970,7 +8988,10 @@ export default function App() {
                         return (
                           <div className="flex flex-col gap-3">
                             <button 
-                              onClick={() => handleStepTransition('GD5_Cho_Ky_In_GCN')}
+                              onClick={() => {
+                                setSelectedAppIds([app.id]);
+                                handleBulkStepTransition('GD5_Cho_Ky_In_GCN');
+                              }}
                               className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
                             >
                               Tiếp nhận trình ký GCN (PTDA) <CheckCircle2 size={16} />
@@ -8992,15 +9013,16 @@ export default function App() {
                       if (app.currentStep === 'GD5_Cho_Ky_In_GCN') {
                         return (
                           <button 
-                            disabled={!app.gcnSignedDate}
-                            onClick={() => handleStepTransition('GD5_Cho_KT_Nhan_GCN_Thuc_Te')}
+                            onClick={() => {
+                              setSelectedAppIds([app.id]);
+                              handleBulkStepTransition('GD5_Cho_KT_Nhan_GCN_Thuc_Te');
+                            }}
                             className={cn(
                                 "w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all flex items-center justify-center gap-2",
-                                app.gcnSignedDate ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20" : "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
+                                "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-900/20"
                             )}
                           >
-                            {!app.gcnSignedDate && <Clock size={16} />}
-                            {app.gcnSignedDate ? "Hoàn thành trình ký -> Chuyển KT lấy sổ" : "Cần nhập Ngày trình ký/In GCN để Chuyển bước"} <ChevronRight size={16} />
+                            Hoàn thành trình ký &rarr; Bàn giao KT lấy sổ <ChevronRight size={16} />
                           </button>
                         );
                       }
@@ -9009,24 +9031,24 @@ export default function App() {
                       if (app.currentStep === 'GD5_Cho_KT_Nhan_GCN_Thuc_Te' || app.currentStep === 'GD5_Cho_GCN' as any) {
                         return (
                           <div className="flex flex-col gap-3">
-                            {!app.gcnReceivedDate ? (
-                              <button 
-                                onClick={() => {
-                                  const now = new Date().toISOString().split('T')[0];
-                                  handleFieldChange('gcnReceivedDate', now);
-                                }}
-                                className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                              >
-                                Xác nhận đã nhận GCN thực tế (KT) <CheckCircle2 size={16} />
-                              </button>
-                            ) : (
-                              <button 
-                                onClick={() => handleStepTransition('GD5_Cho_PTT_TiepNhan_BG')}
-                                className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
-                              >
-                                Chuyển hồ sơ cho PTT (Bàn giao khách) <ChevronRight size={16} />
-                              </button>
-                            )}
+                            <button 
+                              onClick={() => {
+                                setSelectedAppIds([app.id]);
+                                handleBulkStepTransition('GD5_Cho_KT_Nhan_GCN_Thuc_Te'); // or handleBulkStepTransition('GD5_Cho_PTT_TiepNhan_BG')?
+                              }}
+                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
+                            >
+                              Xác nhận đã nhận GCN thực tế (KT) <CheckCircle2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => {
+                                setSelectedAppIds([app.id]);
+                                handleBulkStepTransition('GD5_Cho_PTT_TiepNhan_BG');
+                              }}
+                              className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
+                            >
+                              Chuyển hồ sơ cho PTT (Bàn giao khách) <ChevronRight size={16} />
+                            </button>
                             <button 
                               onClick={() => {
                                 const reason = prompt("Lý do trả hồ sơ / Yêu cầu bổ sung:");
@@ -9080,13 +9102,7 @@ export default function App() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
-                  <button 
-                    onClick={handlePrintHandoverTicket}
-                    className="w-full py-3 border border-slate-700 rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-white hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <FileText size={14} /> Xuất phiếu BĐ
-                  </button>
+                <div>
                   {isEditing ? (
                     <button 
                       onClick={handleUpdateApp}
@@ -9743,7 +9759,12 @@ export default function App() {
         updateField={bulkTransitionField}
         value={bulkTransitionValue}
         onChangeValue={setBulkTransitionValue}
+        location={bulkTransitionLocation}
+        onChangeLocation={setBulkTransitionLocation}
+        refCode={bulkTransitionRefCode}
+        onChangeRefCode={setBulkTransitionRefCode}
         theme={theme}
+        showToast={showToast}
       />
 
       {/* Toast Notification */}
