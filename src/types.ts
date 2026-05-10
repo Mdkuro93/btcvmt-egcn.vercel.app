@@ -6,6 +6,7 @@ export type Project = {
   region: string;
   totalUnits: number;
   workflowType?: WorkflowType;
+  originalDocumentChecklist?: string[]; // Danh mục hồ sơ gốc tham khảo
 };
 
 export type StepName = 
@@ -16,6 +17,7 @@ export type StepName =
   | 'S3_Nop_VPDK'
   | 'S4_Cho_Thong_Bao_Thue'
   | 'S5_Tai_Chinh_Khach_Hang'
+  | 'S5_1_PTDA_TiepNhan'
   | 'S6_Nhan_So_GCN'
   | 'S7_Ban_Giao_Luu_Kho'
   | 'Hoan_Tat'

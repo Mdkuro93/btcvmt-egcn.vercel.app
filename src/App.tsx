@@ -21,6 +21,7 @@ import {
   History,
   RotateCcw,
   FileText,
+  BookOpen,
   ChevronRight,
   Download,
   Upload,
@@ -2835,22 +2836,25 @@ const BulkTransitionModal = ({
               </div>
             )}
 
-            {targetStepLabel?.toUpperCase().includes('2.1 CHỜ NỘP VPĐK') && (
+            {targetStepLabel?.toUpperCase().includes('2. TIẾP NHẬN') && (
               <div className={cn("space-y-3 p-4 rounded-2xl border", theme === 'dark' ? "bg-amber-500/10 border-amber-500/20" : "bg-amber-50 border-amber-200")}>
                 <label className={cn("block text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2", theme === 'dark' ? "text-amber-500" : "text-amber-700")}>
-                  <CheckCircle2 size={14} /> Kiểm tra danh mục hồ sơ bàn giao (Không bắt buộc)
+                  <BookOpen size={14} /> Danh mục hồ sơ gốc tham khảo
                 </label>
                 <div className={cn("space-y-3 text-xs font-medium", theme === 'dark' ? "text-slate-300" : "text-slate-700")}>
-                  <label className="flex items-center gap-3 cursor-pointer p-1 hover:opacity-80"><input type="checkbox" className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-500 focus:ring-indigo-500/20" /> HĐMB/HĐCN Gốc</label>
-                  <label className="flex items-center gap-3 cursor-pointer p-1 hover:opacity-80"><input type="checkbox" className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-500 focus:ring-indigo-500/20" /> Văn bản chuyển nhượng</label>
-                  <label className="flex items-center gap-3 cursor-pointer p-1 hover:opacity-80"><input type="checkbox" className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-500 focus:ring-indigo-500/20" /> Lệ phí trước bạ</label>
-                  <label className="flex items-center gap-3 cursor-pointer p-1 hover:opacity-80"><input type="checkbox" className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-500 focus:ring-indigo-500/20" /> Sổ hộ khẩu/CCCD/ĐKKD</label>
-                  <label className="flex items-center gap-3 cursor-pointer p-1 hover:opacity-80"><input type="checkbox" className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-500 focus:ring-indigo-500/20" /> Các biên bản liên quan</label>
+                  <p className="italic text-[10px] opacity-70 mb-2 underline decoration-amber-500/30">Danh sách các hồ sơ cần chuẩn bị:</p>
+                  <ul className="list-disc pl-4 space-y-1">
+                    <li>HĐMB/HĐCN Gốc</li>
+                    <li>Văn bản chuyển nhượng</li>
+                    <li>Lệ phí trước bạ</li>
+                    <li>Sổ hộ khẩu/CCCD/ĐKKD</li>
+                    <li>Các biên bản liên quan (Bàn giao, Quyết toán...)</li>
+                  </ul>
                 </div>
               </div>
             )}
 
-            {(targetStepLabel?.toUpperCase().includes('4. THÔNG BÁO') || targetStepLabel?.toUpperCase().includes('3. NỘP VPĐK')) && (
+            {(targetStepLabel?.toUpperCase().includes('4. THÔNG BÁO') || targetStepLabel?.toUpperCase().includes('3. NỘP VPĐK') || targetStepLabel?.toUpperCase().includes('3. NOP VPDK')) && (
               <>
                 <div className="space-y-3">
                   <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
@@ -2905,7 +2909,7 @@ const BulkTransitionModal = ({
           </button>
           <button 
             disabled={
-              (updateField && !value) || false
+              (updateField?.isRequired !== false && updateField && !value) || false
             }
             onClick={() => {
               onConfirm();
@@ -3232,6 +3236,45 @@ const ProjectModal = ({
                   <option value="Quy_trinh_2">Quy trình thông thường (S_)</option>
                 </select>
                 {project && <p className="text-[9px] text-amber-500 font-bold mt-2 italic">* Không thể thay đổi quy trình sau khi dự án đã được tạo.</p>}
+              </div>
+
+              <div className="mt-4">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Danh mục hồ sơ gốc (Tham khảo)</label>
+                <div className="space-y-2">
+                  {(formData.originalDocumentChecklist || []).map((item, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <input 
+                        type="text"
+                        value={item}
+                        onChange={e => {
+                          const newList = [...(formData.originalDocumentChecklist || [])];
+                          newList[idx] = e.target.value;
+                          setFormData({ ...formData, originalDocumentChecklist: newList });
+                        }}
+                        placeholder="Tên hồ sơ..."
+                        className={cn(
+                          "flex-1 px-4 py-2 rounded-xl border text-xs font-bold transition-all focus:ring-1 focus:ring-indigo-500",
+                          theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900" : "bg-slate-950 border-slate-800 text-white"
+                        )}
+                      />
+                      <button 
+                        onClick={() => {
+                          const newList = (formData.originalDocumentChecklist || []).filter((_, i) => i !== idx);
+                          setFormData({ ...formData, originalDocumentChecklist: newList });
+                        }}
+                        className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                  <button 
+                    onClick={() => setFormData({ ...formData, originalDocumentChecklist: [...(formData.originalDocumentChecklist || []), ''] })}
+                    className="w-full py-2 border-2 border-dashed border-slate-700/50 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:border-indigo-500/50 hover:text-indigo-500 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Plus size={14} /> Thêm hạng mục hồ sơ
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -4830,9 +4873,15 @@ export default function App() {
             // But we keep this as a general check.
           }
         }
-        if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' && nextStep === 'S6_Nhan_So_GCN') {
+        if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' && nextStep === 'S5_1_PTDA_TiepNhan') {
           if (!app.taxReceiptDate) {
             showToast('Bắt buộc nhập Ngày nhận GNT / Nộp thuế trước khi chuyển bước.', 'warning');
+            return;
+          }
+        }
+        if (app.currentStep === 'S5_1_PTDA_TiepNhan' && nextStep === 'S6_Nhan_So_GCN') {
+          if (!app.gcnSignedDate) {
+            showToast('Bắt buộc nhập Ngày trình ký/In GCN trước khi chuyển bước.', 'warning');
             return;
           }
         }
@@ -4910,6 +4959,7 @@ export default function App() {
         if (!app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
         if (!app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
       }
+      if (targetStep === 'S5_1_PTDA_TiepNhan' && !app.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
       if (targetStep === 'S6_Nhan_So_GCN' && !app.gcnSignedDate) autoDates.gcnSignedDate = nowStr;
       if (targetStep === 'S7_Ban_Giao_Luu_Kho' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
       if (targetStep === 'Hoan_Tat' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
@@ -4975,7 +5025,8 @@ export default function App() {
     else if (nextStep === 'S3_Nop_VPDK') updateField = { key: 'submissionDate', label: 'Ngày nộp VPĐK', isRequired: true };
     else if (nextStep === 'S4_Cho_Thong_Bao_Thue') updateField = { key: 'taxNotificationReceivedDate', label: 'Ngày nhận TB Thuế' };
     else if (nextStep === 'S5_Tai_Chinh_Khach_Hang') updateField = { key: 'taxNoticeProvisionDate', label: 'Ngày cung cấp phiếu nộp tiền' };
-    else if (nextStep === 'S6_Nhan_So_GCN') updateField = { key: 'taxReceiptDate', label: 'Ngày nhận GNT / Nộp thuế', isRequired: true };
+    else if (nextStep === 'S5_1_PTDA_TiepNhan') updateField = { key: 'taxReceiptDate', label: 'Ngày nhận GNT / Nộp thuế', isRequired: true };
+    else if (nextStep === 'S6_Nhan_So_GCN') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN', isRequired: true };
     else if (nextStep === 'S7_Ban_Giao_Luu_Kho') updateField = { key: 'ptdaHandoverDate', label: 'Ngày bàn giao GCN cho PTT', isRequired: true };
     else if (nextStep === 'Hoan_Tat') updateField = { key: 'customerHandoverDate', label: 'Ngày BG GCN cho khách', isRequired: true };
 
@@ -5107,8 +5158,9 @@ export default function App() {
           if (!appWithDate.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
           if (!appWithDate.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
         }
+        if (targetStep === 'S5_1_PTDA_TiepNhan' && !appWithDate.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
         if (targetStep === 'S6_Nhan_So_GCN') {
-          // If we are at S6, we should have taxReceiptDate (set by bulk modal)
+          // If we are at S6, we should have gcnSignedDate (set by bulk modal)
           if (!appWithDate.gcnSignedDate) autoDates.gcnSignedDate = nowStr;
         }
         if (targetStep === 'S7_Ban_Giao_Luu_Kho' && !appWithDate.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
@@ -5494,6 +5546,45 @@ export default function App() {
     }
   };
 
+  const handleResolveIssue = async (appId: string) => {
+    try {
+      const app = applications.find(a => a.id === appId);
+      if (!app) return;
+      
+      const stepCfg = stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep];
+      
+      const newHistory = [
+        {
+          id: `resolve-${Date.now()}`,
+          stepName: stepCfg.label,
+          dept: userRole as Dept,
+          receivedDate: new Date().toISOString(),
+          note: 'Đã khắc phục xong sai sót/vướng mắc. Sẵn sàng chuyển bước tiếp theo.',
+          performedBy: currentUser?.id,
+          performedByName: currentUser?.name
+        },
+        ...app.history
+      ];
+
+      const updatedApp = {
+        ...app,
+        status: stepCfg.status,
+        isRejected: false,
+        issueType: 'None' as const,
+        issueSeverity: 'Minor' as const,
+        history: newHistory
+      };
+
+      await syncRecordToSupabase(updatedApp);
+      setApplications(prev => prev.map(a => a.id === appId ? updatedApp : a));
+      setSelectedApp(updatedApp);
+      showToast('Đã xác nhận khắc phục xong vướng khoán.', 'success');
+    } catch (error) {
+      console.error(error);
+      showToast('Lỗi khi cập nhật trạng thái.', 'error');
+    }
+  };
+
   const handleRejectApp = async (reason: string) => {
     const app = editApp || selectedApp;
     if (!app) return;
@@ -5853,12 +5944,16 @@ export default function App() {
   };
 
   const filteredByProjectApps = useMemo(() => {
-    const baseApps = ((userRole === 'ADMIN' || userRole === 'DIRECTOR' || userRole === 'MANAGER' || userRole === 'PTDA') 
-      ? applications 
-      : applications.filter(app => {
-          const project = projects.find(p => p.name === app.projectName);
-          return project && (currentUser?.assignedProjectIds || []).includes(project.id);
-        }));
+    const hasProjectAssignments = currentUser?.assignedProjectIds && currentUser.assignedProjectIds.length > 0;
+    
+    const baseApps = applications.filter(app => {
+      // If ADMIN and no specific projects assigned, show all. 
+      // If has assignments, show ONLY assigned projects.
+      if (userRole === 'ADMIN' && !hasProjectAssignments) return true;
+      
+      const project = projects.find(p => p.name === app.projectName);
+      return project && (currentUser?.assignedProjectIds || []).includes(project.id);
+    });
 
     if (!selectedProjectId) return baseApps;
     return baseApps.filter(app => app.projectName === selectedProject?.name);
@@ -8520,10 +8615,22 @@ export default function App() {
                   </p>
                   
                   {((editApp || selectedApp).isRejected || (editApp || selectedApp).status === 'Error' || ((editApp || selectedApp).issueType && (editApp || selectedApp).issueType !== 'None')) && (
-                    <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-error/10 border border-error/20 text-error rounded-lg">
-                      <AlertTriangle size={14} className="animate-pulse" />
-                      <span className="text-xs font-bold">Vướng mắc: {(editApp || selectedApp).issueNotes || 'Có sai sót cần xử lý'}</span>
-                      {selectedApp.rejectionCount > 0 && <span className="ml-2 text-[10px] font-mono bg-error/20 px-1.5 py-0.5 rounded">Trả về: {selectedApp.rejectionCount} lần</span>}
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-error/10 border border-error/20 text-error rounded-lg">
+                        <AlertTriangle size={14} className="animate-pulse" />
+                        <span className="text-xs font-bold">Vướng mắc: {(editApp || selectedApp).issueNotes || 'Có sai sót cần xử lý'}</span>
+                        {(editApp || selectedApp).rejectionCount > 0 && <span className="ml-2 text-[10px] font-mono bg-error/20 px-1.5 py-0.5 rounded">Trả về: {(editApp || selectedApp).rejectionCount} lần</span>}
+                      </div>
+                      
+                      {currentUser?.permission !== 'VIEW' && (
+                        <button 
+                          onClick={() => handleResolveIssue((editApp || selectedApp).id)}
+                          className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md flex items-center gap-2"
+                        >
+                          <CheckCircle2 size={14} />
+                          Xác nhận khắc phục xong
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -9886,7 +9993,8 @@ export default function App() {
                   name: p.name || '', 
                   region: p.region || 'TP. Đà Nẵng',
                   totalUnits: p.totalUnits || 0,
-                  workflowType: p.workflowType || 'Quy_trinh_1'
+                  workflowType: p.workflowType || 'Quy_trinh_1',
+                  originalDocumentChecklist: p.originalDocumentChecklist || []
                 };
                 updatedProjects = [...projects, newP];
                 if (newP.region) {

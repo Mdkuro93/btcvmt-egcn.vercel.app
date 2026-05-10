@@ -135,6 +135,7 @@ export const WORKFLOW_2_STEPS: StepName[] = [
   'S3_Nop_VPDK',
   'S4_Cho_Thong_Bao_Thue',
   'S5_Tai_Chinh_Khach_Hang',
+  'S5_1_PTDA_TiepNhan',
   'S6_Nhan_So_GCN',
   'S7_Ban_Giao_Luu_Kho',
   'Hoan_Tat'
@@ -152,10 +153,11 @@ export const getNextStep = (currentStep: StepName, workflowType: WorkflowType): 
 export const STEP_CONFIG: Record<string, { label: string, dept: Dept, status: UnitStatus, slaDays?: number, active: boolean }> = {
   S1_ChuanBi: { label: '1. CHUẨN BỊ (PTT)', dept: 'PTT', status: 'Processing', slaDays: 25, active: true },
   S2_KT_Tiep_Nhan: { label: '2. TIẾP NHẬN (KT)', dept: 'KT', status: 'WaitingVPDK', slaDays: 5, active: true },
-  S2_KT_Ban_giao: { label: '2.5 HOÀN THIỆN HS (PTDA)', dept: 'PTDA', status: 'WaitingVPDK', slaDays: 2, active: true },
+  S2_KT_Ban_giao: { label: '2.1 BÀN GIAO HS HOÀN THIỆN (PTDA)', dept: 'PTDA', status: 'WaitingVPDK', slaDays: 2, active: true },
   S3_Nop_VPDK: { label: '3. NỘP VPĐK (PTDA)', dept: 'PTDA', status: 'Submitted', slaDays: 5, active: true },
   S4_Cho_Thong_Bao_Thue: { label: '4. THÔNG BÁO (PTDA)', dept: 'PTDA', status: 'TaxPending', slaDays: 15, active: true },
   S5_Tai_Chinh_Khach_Hang: { label: '5. TÀI CHÍNH (PTT)', dept: 'PTT', status: 'TaxCompleted', slaDays: 10, active: true },
+  S5_1_PTDA_TiepNhan: { label: '5.1 TIẾP NHẬN GNT (PTDA)', dept: 'PTDA', status: 'TaxCompleted', slaDays: 2, active: true },
   S6_Nhan_So_GCN: { label: '6. NHẬN SỔ (PTDA)', dept: 'PTDA', status: 'GCN_Issued', slaDays: 7, active: true },
   S7_Ban_Giao_Luu_Kho: { label: '7. BÀN GIAO LƯU KHO (PTT)', dept: 'PTT', status: 'Completed', slaDays: 2, active: true },
   GD1_ChuanBi: { label: 'GĐ1: Đang chuẩn bị hồ sơ (PTT)', dept: 'PTT', status: 'Processing', slaDays: 25, active: true },
