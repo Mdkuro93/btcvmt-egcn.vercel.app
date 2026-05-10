@@ -77,7 +77,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
-import { MOCK_APPLICATIONS, PROJECTS, STEP_CONFIG as INITIAL_STEP_CONFIG, MOCK_USERS } from './constants';
+import { MOCK_APPLICATIONS, PROJECTS, STEP_CONFIG as INITIAL_STEP_CONFIG, MOCK_USERS, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS, getNextStep, CONST_QUY_TRINH_1, CONST_QUY_TRINH_2 } from './constants';
 import { Application, UnitStatus, KPI, Dept, UserProfile, UserPermission, PropertyType, StepName, AppNotification, Project, ApplicationStepHistory, AuditTrailEntry, ScannedFile, IssueType, IssueCategory, IssueSeverity } from './types';
 
 type ApplicationHistory = {
@@ -116,6 +116,7 @@ const mapFromSnakeCase = (item: any): Application => {
     id: item.id,
     unitCode: item.unit_code,
     projectName: item.project_name,
+    workflowType: item.current_step?.startsWith('GD') || item.status?.startsWith('GD') ? 'Quy_trinh_1' : 'Quy_trinh_2',
     customerName: item.customer_name,
     contractSignerType: item.contract_signer_type,
     phoneNumber: item.phone_number,
@@ -129,8 +130,8 @@ const mapFromSnakeCase = (item: any): Application => {
     isSelfService: item.is_self_service,
     submissionLocation: item.submission_location,
     vpdkCode: item.vpdk_code,
-    currentStep: item.current_step,
-    status: item.status,
+    currentStep: item.current_step || item.status,
+    status: (INITIAL_STEP_CONFIG[item.current_step as string] || INITIAL_STEP_CONFIG[item.status as string])?.status || item.status || 'Processing',
     receivedDate: item.received_date,
     taxNotificationDate: item.tax_notification_date,
     taxNotificationReceivedDate: item.tax_notification_received_date,
@@ -184,7 +185,7 @@ const mapToSnakeCase = (app: Application) => {
     submission_location: app.submissionLocation,
     vpdk_code: app.vpdkCode,
     current_step: app.currentStep,
-    status: app.status,
+    status: app.currentStep, // Use step code as status for compatibility
     received_date: app.receivedDate,
     tax_notification_date: app.taxNotificationDate,
     tax_notification_received_date: app.taxNotificationReceivedDate,
@@ -699,6 +700,37 @@ const SettingsView = ({
   onRefreshStorage: () => void
 }) => {
   const [newChecklistItem, setNewChecklistItem] = useState('');
+  const [workflowTab, setWorkflowTab] = useState<'GD' | 'S'>('S');
+  const [showDisabledSteps, setShowDisabledSteps] = useState(false);
+
+  const checkLogic = () => {
+    const activeSteps = Object.entries(stepConfig)
+      .filter(([key, config]: [string, any]) => config.active && (workflowTab === 'GD' ? key.startsWith('GD') : key.startsWith('S')))
+      .sort(([a], [b]) => a.localeCompare(b));
+
+    if (activeSteps.length < 2) {
+      alert(`Quy trình ${workflowTab === 'GD' ? 'GCN' : 'Dự án mới'} quá ngắn hoặc chưa kích hoạt đủ bước.`);
+      return;
+    }
+
+    // Basic continuity check based on numeric sequence in keys if possible
+    let issues = [];
+    activeSteps.forEach(([key], idx) => {
+      if (idx > 0) {
+        const prevNum = parseInt(activeSteps[idx-1][0].replace(/\D/g, '')) || 0;
+        const currNum = parseInt(key.replace(/\D/g, '')) || 0;
+        if (currNum < prevNum) {
+          issues.push(`Thứ tự bước có thể không logic: ${activeSteps[idx-1][0]} đứng trước ${key}`);
+        }
+      }
+    });
+
+    if (issues.length > 0) {
+      alert("Phát hiện các điểm cần lưu ý:\n- " + issues.join("\n- "));
+    } else {
+      alert(`Quy trình ${workflowTab === 'GD' ? 'GCN' : 'Dự án mới'} hợp lệ và tuân thủ luồng nghiệp vụ.`);
+    }
+  };
 
   const formatSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -1069,12 +1101,47 @@ const SettingsView = ({
             <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
               <GitMerge className="text-indigo-500" size={20} />
             </div>
-            <h3 className="text-base font-black text-white uppercase tracking-tight">Cấu hình Quy trình Xử lý (Workflow)</h3>
+            <div>
+               <h3 className="text-base font-black text-white uppercase tracking-tight">Cấu hình Quy trình Xử lý (Workflow)</h3>
+               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Quản lý các bước thực hiện & SLA</p>
+            </div>
           </div>
-          <Settings className="text-slate-700 animate-spin-slow" size={20} />
+          <div className="flex items-center gap-4">
+             <button 
+               onClick={checkLogic}
+               className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 border border-amber-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+             >
+               <ShieldCheck size={14} />
+               Kiểm tra tính logic
+             </button>
+             <Settings className="text-slate-700 animate-spin-slow" size={20} />
+          </div>
         </div>
+        
         <div className="p-8">
-          <div className="overflow-x-auto">
+           {/* Tabs */}
+           <div className="flex gap-2 p-1 bg-slate-950/50 border border-slate-800 rounded-2xl mb-8 w-fit">
+              <button 
+                onClick={() => setWorkflowTab('GD')}
+                className={cn(
+                  "px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                  workflowTab === 'GD' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-500 hover:text-slate-300"
+                )}
+              >
+                Quy trình Hỗ trợ (GD_)
+              </button>
+              <button 
+                onClick={() => setWorkflowTab('S')}
+                className={cn(
+                  "px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                  workflowTab === 'S' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-500 hover:text-slate-300"
+                )}
+              >
+                Quy trình Thông thường (S_)
+              </button>
+           </div>
+
+          <div className="overflow-x-auto min-h-[400px]">
             <table className="w-full text-left">
               <thead>
                 <tr className="border-b border-slate-800">
@@ -1083,38 +1150,47 @@ const SettingsView = ({
                   <th className="pb-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Phòng ban</th>
                   <th className="pb-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Trạng thái gắn kèm</th>
                   <th className="pb-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">SLA (Ngày)</th>
+                  <th className="pb-4 text-[10px] font-black text-slate-500 uppercase tracking-widest pr-4">Hành động</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/50">
-                {Object.entries(stepConfig).map(([key, config]: [string, any]) => (
-                  <tr key={key} className="group/row hover:bg-slate-800/10 transition-colors">
-                    <td className="py-4 pl-4 text-xs font-mono text-slate-500">{key}</td>
+                {(workflowTab === 'GD' ? CONST_QUY_TRINH_1 : CONST_QUY_TRINH_2).map((key) => {
+                  const config = (stepConfig as any)[key];
+                  if (!config) return null;
+                  if (!config.active && !showDisabledSteps) return null;
+                  return (
+                    <tr key={`${workflowTab}-${key}`} className={cn(
+                    "group/row hover:bg-slate-800/10 transition-colors",
+                    !config.active && "opacity-40 grayscale"
+                  )}>
+                    <td className="py-4 pl-4 text-[10px] font-mono text-slate-500">{key}</td>
                     <td className="py-4">
                       <input 
                         type="text" 
                         value={config.label}
                         onChange={(e) => setStepConfig({...stepConfig, [key]: {...config, label: e.target.value}})}
-                        className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:ring-1 focus:ring-indigo-500/50 outline-none w-full max-w-[200px]"
+                        className="bg-slate-950/50 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:ring-1 focus:ring-indigo-500/50 outline-none w-full max-w-[180px] font-bold"
                       />
                     </td>
                     <td className="py-4">
                       <select 
                         value={config.dept}
                         onChange={(e) => setStepConfig({...stepConfig, [key]: {...config, dept: e.target.value}})}
-                        className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-[10px] font-black uppercase text-indigo-400 outline-none"
+                        className="bg-slate-950/50 border border-slate-800 rounded-lg px-2 py-1.5 text-[10px] font-black uppercase text-indigo-400 outline-none"
                       >
                         <option value="PTT">PTT</option>
                         <option value="KT">KT</option>
                         <option value="PTDA">PTDA</option>
                         <option value="MANAGER">MANAGER</option>
                         <option value="DIRECTOR">DIRECTOR</option>
+                        <option value="ADMIN">ADMIN</option>
                       </select>
                     </td>
                     <td className="py-4">
                       <select 
                         value={config.status}
                         onChange={(e) => setStepConfig({...stepConfig, [key]: {...config, status: e.target.value}})}
-                        className="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-[10px] font-black uppercase text-slate-400 outline-none"
+                        className="bg-slate-950/50 border border-slate-800 rounded-lg px-2 py-1.5 text-[10px] font-black uppercase text-slate-400 outline-none"
                       >
                         <option value="Processing">Đang xử lý</option>
                         <option value="Submitted">Đã nộp hồ sơ</option>
@@ -1125,15 +1201,33 @@ const SettingsView = ({
                       </select>
                     </td>
                     <td className="py-4">
-                       <input 
+                      <input 
                         type="number" 
                         value={config.slaDays || 0}
                         onChange={(e) => setStepConfig({...stepConfig, [key]: {...config, slaDays: parseInt(e.target.value) || 0}})}
-                        className="w-16 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-center text-xs font-black text-amber-500 outline-none"
+                        className="w-16 bg-slate-950/50 border border-slate-800 rounded-lg px-3 py-1.5 text-center text-xs font-black text-amber-500 outline-none"
                       />
                     </td>
+                    <td className="py-4 pr-4">
+                       <button 
+                         onClick={() => setStepConfig({
+                           ...stepConfig, 
+                           [key]: { ...config, active: !config.active }
+                         })}
+                         className={cn(
+                           "flex items-center gap-2 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all",
+                           config.active 
+                             ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20" 
+                             : "bg-slate-800 text-slate-500 border border-slate-700"
+                         )}
+                       >
+                         {config.active ? <Check size={10} /> : <EyeOff size={10} />}
+                         {config.active ? "Kích hoạt" : "Vô hiệu"}
+                       </button>
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -3017,13 +3111,14 @@ const ProjectModal = ({
   const [formData, setFormData] = useState<Partial<Project>>({
     name: '',
     region: 'Quảng Trị',
-    totalUnits: 0
+    totalUnits: 0,
+    workflowType: 'Quy_trinh_1'
   });
 
   useEffect(() => {
     if (project) {
       // Deep check or just name check to avoid loop if parent re-renders and passes "new" project
-      if (formData.name !== project.name || formData.region !== project.region || formData.totalUnits !== project.totalUnits) {
+      if (formData.name !== project.name || formData.region !== project.region || formData.totalUnits !== project.totalUnits || formData.workflowType !== project.workflowType) {
         setFormData(project);
       }
     } else if (isOpen) {
@@ -3032,7 +3127,8 @@ const ProjectModal = ({
         setFormData({
           name: '',
           region: 'Quảng Trị',
-          totalUnits: 0
+          totalUnits: 0,
+          workflowType: 'Quy_trinh_1'
         });
       }
     }
@@ -3117,6 +3213,25 @@ const ProjectModal = ({
                     theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900" : "bg-slate-950 border-slate-800 text-white"
                   )}
                 />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 mt-4">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Loại quy trình</label>
+                <select 
+                  value={formData.workflowType || 'Quy_trinh_1'}
+                  onChange={e => setFormData({ ...formData, workflowType: e.target.value as any })}
+                  disabled={!!project}
+                  className={cn(
+                    "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none transition-all",
+                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900 focus:border-indigo-500" : "bg-slate-950 border-slate-800 text-white focus:border-festive-gold",
+                    !!project && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <option value="Quy_trinh_1">Quy trình hỗ trợ (GD_)</option>
+                  <option value="Quy_trinh_2">Quy trình thông thường (S_)</option>
+                </select>
+                {project && <p className="text-[9px] text-amber-500 font-bold mt-2 italic">* Không thể thay đổi quy trình sau khi dự án đã được tạo.</p>}
               </div>
             </div>
           </div>
@@ -3473,7 +3588,7 @@ export default function App() {
   const [isPrintingHandover, setIsPrintingHandover] = useState(false);
   const [printHandoverApps, setPrintHandoverApps] = useState<Application[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [stepConfig, setStepConfig] = useState<Record<string, { label: string, dept: Dept, status: UnitStatus, slaDays?: number }>>(INITIAL_STEP_CONFIG);
+  const [stepConfig, setStepConfig] = useState<Record<string, { label: string, dept: Dept, status: UnitStatus, slaDays?: number, active: boolean }>>(INITIAL_STEP_CONFIG);
   const [projects, setProjects] = useState<Project[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
   const [isLoadingApps, setIsLoadingApps] = useState(true);
@@ -4681,27 +4796,18 @@ export default function App() {
     }
 
     // Field validations
-    const isMovingForward = Object.keys(stepConfig).indexOf(nextStep) > (Object.keys(stepConfig).indexOf(app.currentStep) === -1 ? 0 : Object.keys(stepConfig).indexOf(app.currentStep));
+    const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+    const currentIdx = workflowSteps.indexOf(app.currentStep);
+    const nextIdx = workflowSteps.indexOf(nextStep);
+    const isMovingForward = nextIdx > currentIdx;
     
     if (isMovingForward) {
-      // Security check: Strict department flow
-      const bulkSourceMapping: Record<string, string[]> = {
-        'S2_KT_Tiep_Nhan': ['S1_ChuanBi'],
-        'S2_KT_Hoan_Thien_HS': ['S2_KT_Tiep_Nhan'],
-        'S3_PTDA_Tiep_Nhan': ['S2_KT_Hoan_Thien_HS', 'S2_KT_Tiep_Nhan'],
-        'S3_Nop_VPDK': ['S3_PTDA_Tiep_Nhan'],
-        'S4_Cho_Thong_Bao_Thue': ['S3_Nop_VPDK'],
-        'S5_Tai_Chinh_Khach_Hang': ['S4_Cho_Thong_Bao_Thue'],
-        'S6_Nhan_So_GCN': ['S5_Tai_Chinh_Khach_Hang'],
-        'S7_PTDA_Ban_Giao_PTT': ['S6_Nhan_So_GCN'],
-        'S7_PTT_Ban_Giao_Khach': ['S7_PTDA_Ban_Giao_PTT'],
-        'Hoan_Tat': ['S7_PTT_Ban_Giao_Khach']
-      };
-
-      const allowedSources = bulkSourceMapping[nextStep];
-      if (allowedSources && !allowedSources.includes(app.currentStep) && userRole !== 'ADMIN' && userRole !== 'MANAGER') {
-        showToast('Hồ sơ chưa ở trạng thái sẵn sàng cho bước này. Vui lòng kiểm tra lại luồng bàn giao.', 'error');
-        return;
+      if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
+        if (nextIdx > currentIdx + 1) {
+          showToast('Không được nhảy cóc quá trình. Vui lòng chuyển đúng bước tuần tự.', 'error');
+          // We can allow ADMIN/MANAGER to jump steps, but others must be step by step.
+          return;
+        }
       }
 
     // Date order validation for single transition
@@ -4711,20 +4817,35 @@ export default function App() {
         return;
       }
 
-      // Step 2/2.5 logic
-      const ktSteps = ['S2_KT_Tiep_Nhan', 'S2_KT_Hoan_Thien_HS'];
-      if (ktSteps.concat('S3_Nop_VPDK').includes(nextStep) && ktSteps.includes(app.currentStep) && nextStep !== app.currentStep) {
-        if (!app.contractSigningDate) {
-          showToast('Bắt buộc nhập Ngày ký HĐCN/HĐMB trước khi chuyển bước.', 'warning');
-          return;
+      // Workflow validations
+      if (app.workflowType === 'Quy_trinh_2') {
+        if (app.currentStep === 'S2_PTDA_Hoan_Thien_HS' && nextStep === 'S3_Nop_VPDK') {
+          if (!app.contractSigningDate) {
+            showToast('Bắt buộc nhập Ngày ký HĐCN/HĐMB trước khi chuyển bước.', 'warning');
+            return;
+          }
         }
-      }
-
-      // Step 3 -> Step 4
-      if (app.currentStep === 'S3_Nop_VPDK' && nextStep === 'S4_Cho_Thong_Bao_Thue') {
-        if (!app.submissionLocation || !app.vpdkCode || !app.submissionDate) {
-          showToast('Yêu cầu nhập đầy đủ: Nơi nộp, Mã hồ sơ/Số phiếu hẹn và Ngày nộp VPĐK.', 'warning');
-          return;
+        if (app.currentStep === 'S3_Nop_VPDK' && nextStep === 'S4_Cho_Thong_Bao_Thue') {
+          if (!app.submissionLocation || !app.vpdkCode || !app.submissionDate) {
+            showToast('Quy trình 2: Yêu cầu nhập đầy đủ: Nơi nộp, Mã hồ sơ/Số phiếu hẹn và Ngày nộp VPĐK.', 'warning');
+            return;
+          }
+        }
+      } else {
+        // Workflow 1 validations (assuming similar to previous)
+        const ktSteps = ['S2_KT_Tiep_Nhan', 'S2_KT_Hoan_Thien_HS', 'GD1_KT_HoanThien'];
+        if (ktSteps.concat(['S3_Nop_VPDK', 'GD1_Nop_VPDK']).includes(nextStep) && ktSteps.includes(app.currentStep) && nextStep !== app.currentStep) {
+          if (!app.contractSigningDate) {
+            showToast('Bắt buộc nhập Ngày ký HĐCN/HĐMB trước khi chuyển bước.', 'warning');
+            return;
+          }
+        }
+        
+        if ((app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD1_Nop_VPDK') && (nextStep === 'S4_Cho_Thong_Bao_Thue' || nextStep === 'GD1_Cho_Thong_Bao_Thue')) {
+          if (!app.submissionLocation || !app.vpdkCode || !app.submissionDate) {
+            showToast('Yêu cầu nhập đầy đủ: Nơi nộp, Mã hồ sơ/Số phiếu hẹn và Ngày nộp VPĐK.', 'warning');
+            return;
+          }
         }
       }
     }
@@ -4894,22 +5015,14 @@ export default function App() {
         
         // Security check: Only move apps that are in the expected source step for this bulk action
         // This prevents the issue where one dept accepts apps that haven't been handed over by the previous dept
-        const bulkSourceMapping: Record<string, string[]> = {
-          'S2_KT_Tiep_Nhan': ['S1_ChuanBi'],
-          'S2_KT_Hoan_Thien_HS': ['S2_KT_Tiep_Nhan'],
-          'S3_PTDA_Tiep_Nhan': ['S2_KT_Hoan_Thien_HS', 'S2_KT_Tiep_Nhan'],
-          'S3_Nop_VPDK': ['S3_PTDA_Tiep_Nhan'],
-          'S4_Cho_Thong_Bao_Thue': ['S3_Nop_VPDK'],
-          'S5_Tai_Chinh_Khach_Hang': ['S4_Cho_Thong_Bao_Thue'],
-          'S6_Nhan_So_GCN': ['S5_Tai_Chinh_Khach_Hang'],
-          'S7_PTDA_Ban_Giao_PTT': ['S6_Nhan_So_GCN'],
-          'S7_PTT_Ban_Giao_Khach': ['S7_PTDA_Ban_Giao_PTT'],
-          'Hoan_Tat': ['S7_PTT_Ban_Giao_Khach']
-        };
-
-        const allowedSources = bulkSourceMapping[nextStep];
-        if (allowedSources && !allowedSources.includes(app.currentStep) && userRole !== 'ADMIN' && userRole !== 'MANAGER') {
-          return app;
+        const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+        const currentIdx = workflowSteps.indexOf(app.currentStep);
+        const nextIdx = workflowSteps.indexOf(nextStep);
+        
+        if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
+          if (nextIdx !== currentIdx + 1) {
+            return app;
+          }
         }
 
         actuallyUpdatedCount++;
@@ -5567,18 +5680,24 @@ export default function App() {
     setIsSavingApp(true);
     
     try {
+      const parentProject = projects.find(p => p.name === newApp.projectName);
+      const inheritedWorkflowType = parentProject?.workflowType || 'Quy_trinh_1';
+      const initialStep = inheritedWorkflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
+      const initialStatus = (stepConfig as any)[initialStep]?.status || 'Processing';
+
       const appToAddTemp: any = {
         unitCode: newApp.unitCode,
         customerName: newApp.customerName,
         contractSignerType: newApp.contractSignerType,
         projectName: newApp.projectName,
+        workflowType: inheritedWorkflowType,
         propertyType: newApp.propertyType,
         loanStatus: newApp.loanStatus,
         submissionLocation: newApp.submissionLocation,
         isSelfService: newApp.isSelfService,
         commitmentDate: newApp.commitmentDate,
-        currentStep: 'S1_ChuanBi',
-        status: 'Processing',
+        currentStep: initialStep,
+        status: initialStatus,
         receivedDate: new Date().toISOString().split('T')[0],
         taxPaymentStatus: 'Unpaid',
         history: [
@@ -7461,7 +7580,7 @@ export default function App() {
                                 onChange={(e) => setFilterStep(e.target.value as any)}
                               >
                                 <option value="ALL">Tất cả giai đoạn</option>
-                                {Object.keys(stepConfig).map(step => (
+                                {Object.keys(stepConfig).filter(step => stepConfig[step].active).map(step => (
                                   <option key={step} value={step}>{stepConfig[step].label}</option>
                                 ))}
                                 <option value="Hoan_Tat">Hồ sơ đã hoàn tất</option>
@@ -7569,92 +7688,48 @@ export default function App() {
                         </div>
 
                         <div className="flex items-center gap-1">
-                          {userRole === 'PTT' && applications.some(a => selectedAppIds.includes(a.id) && a.currentStep === 'S1_ChuanBi') && (
-                            <button 
-                              onClick={() => handleBulkStepTransition('S2_KT_Tiep_Nhan')}
-                              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
-                            >
-                              Gửi KT &rarr;
-                            </button>
-                          )}
-                          {userRole === 'KT' && applications.some(a => selectedAppIds.includes(a.id) && a.currentStep === 'S2_KT_Tiep_Nhan') && (
-                            <button 
-                              onClick={() => handleBulkStepTransition('S2_KT_Hoan_Thien_HS')}
-                              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
-                            >
-                              Chuyển Hoàn thiện &rarr;
-                            </button>
-                          )}
-                          {userRole === 'KT' && applications.some(a => selectedAppIds.includes(a.id) && a.currentStep === 'S2_KT_Hoan_Thien_HS') && (
-                            <button 
-                              onClick={() => handleBulkStepTransition('S3_PTDA_Tiep_Nhan')}
-                              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
-                            >
-                              Bàn giao PTDA &rarr;
-                            </button>
-                          )}
-                          {userRole === 'PTDA' && applications.some(a => selectedAppIds.includes(a.id) && a.currentStep === 'S3_PTDA_Tiep_Nhan') && (
-                            <button 
-                              onClick={() => handleBulkStepTransition('S3_Nop_VPDK')}
-                              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
-                            >
-                              PTDA Đã tiếp nhận & Nộp VPĐK
-                            </button>
-                          )}
-                          {userRole === 'PTDA' && applications.some(a => selectedAppIds.includes(a.id) && a.currentStep === 'S3_Nop_VPDK') && (
-                            <button 
-                              onClick={() => handleStepTransition('S4_Cho_Thong_Bao_Thue')}
-                              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
-                            >
-                              Đã nộp VPĐK &rarr;
-                            </button>
-                          )}
-                          {userRole === 'PTDA' && applications.some(a => selectedAppIds.includes(a.id) && a.currentStep === 'S4_Cho_Thong_Bao_Thue') && (
-                            <button 
-                              onClick={() => handleBulkStepTransition('S5_Tai_Chinh_Khach_Hang')}
-                              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
-                            >
-                              Đã có TB Thuế &rarr;
-                            </button>
-                          )}
-                          {(userRole === 'PTT' || userRole === 'KT' || userRole === 'ADMIN') && applications.some(a => selectedAppIds.includes(a.id) && a.currentStep === 'S5_Tai_Chinh_Khach_Hang') && (
-                            <button 
-                              onClick={() => handleBulkStepTransition('S5_Tai_Chinh_Khach_Hang')}
-                              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
-                            >
-                              Hoàn thành NVTC &rarr;
-                            </button>
-                          )}
-                          {(userRole === 'KT' || userRole === 'ADMIN') && applications.some(a => selectedAppIds.includes(a.id) && a.currentStep === 'S5_Tai_Chinh_Khach_Hang') && (
-                            <button 
-                              onClick={() => handleBulkStepTransition('S6_Nhan_So_GCN')}
-                              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
-                            >
-                              Bàn giao PTDA Trình ký &rarr;
-                            </button>
-                          )}
-                          {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
-                            <div className="flex items-center gap-1">
-                               <button 
-                                onClick={() => handleBulkStepTransition('S2_KT_Tiep_Nhan')}
-                                className="px-4 py-2.5 bg-indigo-600/50 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
-                              >
-                                Chuyển Nộp VPĐK
-                              </button>
-                              <button 
-                                onClick={() => handleBulkStepTransition('S5_Tai_Chinh_Khach_Hang')}
-                                className="px-4 py-2.5 bg-indigo-600/50 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
-                              >
-                                Chuyển NVTC
-                              </button>
-                              <button 
-                                onClick={() => handleBulkStepTransition('S6_Nhan_So_GCN')}
-                                className="px-4 py-2.5 bg-indigo-600/50 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
-                              >
-                                Chuyển Có sổ
-                              </button>
-                            </div>
-                          )}
+                          {(() => {
+                            const selectedApps = applications.filter(a => selectedAppIds.includes(a.id));
+                            if (selectedApps.length === 0) return null;
+                            const firstApp = selectedApps[0];
+                            const allSameStepAndWorkflow = selectedApps.every(a => a.currentStep === firstApp.currentStep && a.workflowType === firstApp.workflowType);
+                            
+                            if (allSameStepAndWorkflow) {
+                              const workflowType = firstApp.workflowType || 'Quy_trinh_1';
+                              const nextStep = getNextStep(firstApp.currentStep, workflowType);
+                              const roleDept = (stepConfig[firstApp.currentStep] || INITIAL_STEP_CONFIG[firstApp.currentStep])?.dept;
+                              
+                              // Step 7 Quy_trinh_2 custom logic
+                              if (workflowType === 'Quy_trinh_2' && firstApp.currentStep === 'S7_Ban_Giao_Luu_Kho') {
+                                 if (userRole === 'PTT' || userRole === 'ADMIN') {
+                                    return (
+                                       <button 
+                                        onClick={() => handleBulkStepTransition('Hoan_Tat')}
+                                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
+                                      >
+                                        Xác nhận Giao Khách & Hoàn tất
+                                      </button>
+                                    )
+                                 }
+                                 return null;
+                              }
+                              
+                              if (nextStep && (userRole === 'ADMIN' || userRole === 'MANAGER' || roleDept === userRole || (firstApp.currentStep === 'S1_ChuanBi' && userRole === 'PTT') || (firstApp.currentStep === 'GD1_ChuanBi' && userRole === 'PTT'))) {
+                                return (
+                                  <button 
+                                    onClick={() => handleBulkStepTransition(nextStep)}
+                                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
+                                  >
+                                    Chuyển tiếp {(stepConfig[nextStep] || INITIAL_STEP_CONFIG[nextStep])?.label} &rarr;
+                                  </button>
+                                );
+                              }
+                            } else {
+                              return <span className="text-[10px] font-bold text-slate-500 italic pr-4">Chọn các hồ sơ cùng bước/luồng để thao tác</span>;
+                            }
+                            return null;
+                          })()}
+                        </div>
                           
                           <button 
                             onClick={() => setIsBulkNoteOpen(true)}
@@ -7689,7 +7764,6 @@ export default function App() {
                           >
                             <X size={16} />
                           </button>
-                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -7805,6 +7879,9 @@ export default function App() {
                                       )}
                                     </div>
                                   )}
+                                  <span className="text-[9px] text-slate-500 font-bold uppercase mt-0.5">
+                                    {app.workflowType === 'Quy_trinh_2' ? 'QT2 (Rút gọn)' : 'QT1 (Chuẩn)'}
+                                  </span>
                                   {overdue.isOverdue && (
                                     <span className="text-[9px] text-amber-500 font-bold uppercase tracking-tighter flex items-center gap-1 mt-1">
                                       <AlertTriangle size={10} /> {overdue.label} ({overdue.daysLate} ngày)
@@ -9196,194 +9273,11 @@ export default function App() {
 
                       if (!canAction) return null;
 
-                      // Step 1: Chuẩn bị (PTT)
-                      if (app.currentStep === 'S1_ChuanBi') {
-                        return (
-                          <button 
-                            onClick={() => handleBulkStepTransition('S2_KT_Tiep_Nhan', [app.id])}
-                            className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
-                          >
-                            Chuyển sang Bước 2 (KT) <ChevronRight size={16} />
-                          </button>
-                        );
-                      }
+                      const nextStep = getNextStep(app.currentStep, app.workflowType || 'Quy_trinh_1');
+                      const workflowType = app.workflowType || 'Quy_trinh_1';
 
-                      // Step 2: Kế toán tiếp nhận (KT)
-                      if (app.currentStep === 'S2_KT_Tiep_Nhan') {
-                        return (
-                          <div className="flex flex-col gap-3">
-                            <button 
-                              onClick={() => handleStepTransition('S2_KT_Hoan_Thien_HS')}
-                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                            >
-                              KT: Hoàn thiện hồ sơ (Chuyển Step 2.2) &rarr;
-                            </button>
-                            <button 
-                              onClick={() => {
-                                const reason = prompt("Lý do trả hồ sơ về PTT:");
-                                if (reason) handleRejectApp(reason);
-                              }}
-                              className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
-                            >
-                              <RotateCcw size={16} /> Trả hồ sơ về Bước 1
-                            </button>
-                          </div>
-                        );
-                      }
-
-                      // Step 2.2: KT Hoàn Thiện
-                      if (app.currentStep === 'S2_KT_Hoan_Thien_HS') {
-                        return (
-                          <div className="flex flex-col gap-3">
-                            <button 
-                              onClick={() => handleBulkStepTransition('S3_PTDA_Tiep_Nhan', [app.id])}
-                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                            >
-                              Xác nhận chuyển PTDA (Step 3.1) <CheckCircle2 size={16} />
-                            </button>
-                            <button 
-                              onClick={() => {
-                                const reason = prompt("Lý do trả hồ sơ về KT:");
-                                if (reason) {
-                                   handleBulkStepTransition('S2_KT_Tiep_Nhan', [app.id]);
-                                }
-                              }}
-                              className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
-                            >
-                              <RotateCcw size={16} /> Trả hồ sơ về Bộ phận KT
-                            </button>
-                          </div>
-                        );
-                      }
-
-                      // Step 3.1: Tiếp nhận (PTDA)
-                      if (app.currentStep === 'S3_PTDA_Tiep_Nhan') {
-                        return (
-                          <div className="flex flex-col gap-3">
-                            <button 
-                              onClick={() => handleBulkStepTransition('S3_Nop_VPDK', [app.id])}
-                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                            >
-                              Đã tiếp nhận & Nộp VPĐK (Step 3.2) <CheckCircle2 size={16} />
-                            </button>
-                            <button 
-                              onClick={() => {
-                                const reason = prompt("Lý do trả hồ sơ về KT:");
-                                if (reason) {
-                                   handleBulkStepTransition('S2_KT_Tiep_Nhan', [app.id]);
-                                }
-                              }}
-                              className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
-                            >
-                              <RotateCcw size={16} /> Trả hồ sơ về Bước 2
-                            </button>
-                          </div>
-                        );
-                      }
-
-                      // Step 3.2: Nộp VPĐK (PTDA)
-                      if (app.currentStep === 'S3_Nop_VPDK') {
-                        return (
-                          <div className="flex flex-col gap-3">
-                            <button 
-                              onClick={() => handleBulkStepTransition('S4_Cho_Thong_Bao_Thue', [app.id])}
-                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                            >
-                              Xác nhận đã nộp VPĐK &rarr; Bước 4 <CheckCircle2 size={16} />
-                            </button>
-                            <button 
-                              onClick={() => {
-                                const reason = prompt("Lý do trả hồ sơ về KT:");
-                                if (reason) {
-                                   handleBulkStepTransition('S2_KT_Tiep_Nhan', [app.id]);
-                                }
-                              }}
-                              className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
-                            >
-                              <RotateCcw size={16} /> Trả hồ sơ về Bước 2
-                            </button>
-                          </div>
-                        );
-                      }
-
-                      // Step 4: Thông báo (PTDA)
-                      if (app.currentStep === 'S4_Cho_Thong_Bao_Thue') {
-                        return (
-                          <button 
-                            onClick={() => handleStepTransition('S5_Tai_Chinh_Khach_Hang')}
-                            className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                          >
-                            Đã có Thông báo thuế &rarr; Chuyển Bước 5 (PTT) <ChevronRight size={16} />
-                          </button>
-                        );
-                      }
-
-                      // Step 5: Tài chính (PTT)
-                      if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang') {
-                        return (
-                          <div className="flex flex-col gap-3">
-                            <button 
-                              onClick={() => handleBulkStepTransition('S6_Nhan_So_GCN', [app.id])}
-                              className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
-                            >
-                              Đã nộp tiền &rarr; Chuyển Bước 6 (PTDA nhận sổ) <ChevronRight size={16} />
-                            </button>
-                            <button 
-                               onClick={() => {
-                                 const reason = prompt("Thông báo thuế sai, trả hồ sơ về Bước 4:");
-                                 if (reason) {
-                                   handleStepTransition('S4_Cho_Thong_Bao_Thue');
-                                 }
-                               }}
-                               className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
-                             >
-                               <RotateCcw size={14} /> Trả về Bước 4
-                             </button>
-                          </div>
-                        );
-                      }
-
-                      // Step 6: Nhận sổ (PTDA)
-                      if (app.currentStep === 'S6_Nhan_So_GCN') {
-                        return (
-                          <div className="flex flex-col gap-3">
-                            <button 
-                              onClick={() => handleBulkStepTransition('S7_PTDA_Ban_Giao_PTT', [app.id])}
-                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                            >
-                              Đã có GCN &rarr; Bàn giao PTT (Bước 7.1) <ChevronRight size={16} />
-                            </button>
-                            <button 
-                               onClick={() => {
-                                 const reason = prompt("Lý do trả hồ sơ về NVTC:");
-                                 if (reason) {
-                                   handleStepTransition('S5_Tai_Chinh_Khach_Hang');
-                                 }
-                               }}
-                               className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
-                             >
-                               <RotateCcw size={14} /> Trả về Bước 5
-                             </button>
-                          </div>
-                        );
-                      }
-
-                      // Step 7.1: Bàn giao PTT (PTDA)
-                      if (app.currentStep === 'S7_PTDA_Ban_Giao_PTT') {
-                        return (
-                          <div className="flex flex-col gap-3">
-                            <button 
-                              onClick={() => handleBulkStepTransition('S7_PTT_Ban_Giao_Khach', [app.id])}
-                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                            >
-                              PTDA: Đã bàn giao GCN cho PTT <ChevronRight size={16} />
-                            </button>
-                          </div>
-                        );
-                      }
-
-                      // Step 7.2: Bàn giao Khách (PTT)
-                      if (app.currentStep === 'S7_PTT_Ban_Giao_Khach') {
+                      // Bước 7 - Quy trình 2: Rút gọn - Ban giao luu kho
+                      if (workflowType === 'Quy_trinh_2' && app.currentStep === 'S7_Ban_Giao_Luu_Kho') {
                         return (
                           <div className="flex flex-col gap-3">
                             {role === 'PTT' && (
@@ -9397,7 +9291,7 @@ export default function App() {
                                 }}
                                 className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
                               >
-                                PTT: Xác nhận bàn giao GCN cho khách & Hoàn tất <CheckCircle2 size={16} />
+                                Xác nhận đã nhận GCN & Giao khách <CheckCircle2 size={16} />
                               </button>
                             )}
                             {role !== 'PTT' && (
@@ -9405,18 +9299,67 @@ export default function App() {
                                  Đang chờ PTT xác nhận bàn giao cho khách
                                </p>
                             )}
+                          </div>
+                        );
+                      }
+
+                      if (nextStep) {
+                        return (
+                          <div className="flex flex-col gap-3">
                             <button 
                               onClick={() => {
-                                const reason = prompt("Phát hiện sổ lỗi, trả hồ sơ đi in/ký lại (về Bước 6):");
-                                if (reason) {
-                                  handleStepTransition('S6_Nhan_So_GCN');
-                                }
+                                 // Define standard steps that require bulk modal for dates
+                                 const bulkSteps = ['S2_KT_Tiep_Nhan', 'S3_PTDA_Tiep_Nhan', 'S3_Nop_VPDK', 'S4_Cho_Thong_Bao_Thue', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao_PTT', 'S7_PTT_Ban_Giao_Khach', 'Hoan_Tat', 'GD1_Cho_KT_TiepNhan', 'GD1_Cho_PTDA_TiepNhan', 'GD1_Nop_VPDK', 'GD1_Cho_Thong_Bao_Thue', 'GD1_Nhan_So_GCN', 'GD1_PTDA_Ban_Giao_PTT', 'GD1_PTT_Ban_Giao_Khach'];
+                                 if (bulkSteps.includes(nextStep) || (workflowType === 'Quy_trinh_2' && nextStep === 'S7_Ban_Giao_Luu_Kho')) {
+                                   handleBulkStepTransition(nextStep, [app.id]);
+                                 } else {
+                                   handleStepTransition(nextStep);
+                                 }
                               }}
-                              className="w-full py-3 bg-rose-500 text-white rounded-xl text-sm font-bold hover:bg-rose-600 shadow-lg transition-all flex items-center justify-center gap-2"
+                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
                             >
-                              <RotateCcw size={16} /> Trả hồ sơ lỗi về Bước 6
+                              Chuyển sang bước tiếp theo: {(stepConfig[nextStep] || INITIAL_STEP_CONFIG[nextStep])?.label} <ChevronRight size={16} />
                             </button>
+                            
+                            {/* Generic Reject Logic */}
+                            {app.currentStep !== 'S1_ChuanBi' && app.currentStep !== 'GD1_ChuanBi' && (
+                              <button 
+                                onClick={() => {
+                                  let returnStep = '';
+                                  const steps = workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+                                  const currentIdx = steps.indexOf(app.currentStep);
+                                  if (currentIdx > 0) returnStep = steps[currentIdx - 1];
+                                  
+                                  const reason = prompt("Lý do trả hồ sơ / quay lại bước trước:");
+                                  if (reason) {
+                                     if (currentIdx === 1) { // Returning to first step
+                                        handleRejectApp(reason);
+                                     } else {
+                                        // Standard revert
+                                        const bulkSteps = ['S2_KT_Tiep_Nhan', 'S3_PTDA_Tiep_Nhan', 'S3_Nop_VPDK', 'GD1_Cho_KT_TiepNhan'];
+                                        if (bulkSteps.includes(returnStep)) {
+                                          handleBulkStepTransition(returnStep as StepName, [app.id]);
+                                        } else {
+                                          handleStepTransition(returnStep as StepName);
+                                        }
+                                     }
+                                  }
+                                }}
+                                className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
+                              >
+                                <RotateCcw size={16} /> Trả về bước trước
+                              </button>
+                            )}
                           </div>
+                        );
+                      }
+
+                      // If no nextStep and currentStep is Hoan_Tat
+                      if (app.currentStep === 'Hoan_Tat') {
+                        return (
+                           <div className="w-full py-3 bg-emerald-900/20 text-emerald-500 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
+                             <CheckCircle2 size={16} /> Đã hoàn tất quy trình
+                           </div>
                         );
                       }
 
@@ -9922,7 +9865,8 @@ export default function App() {
                   id: `PJ-${Math.random().toString(36).substr(2, 5).toUpperCase()}`, 
                   name: p.name || '', 
                   region: p.region || 'TP. Đà Nẵng',
-                  totalUnits: p.totalUnits || 0
+                  totalUnits: p.totalUnits || 0,
+                  workflowType: p.workflowType || 'Quy_trinh_1'
                 };
                 updatedProjects = [...projects, newP];
                 if (newP.region) {

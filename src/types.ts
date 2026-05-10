@@ -1,22 +1,38 @@
+export type WorkflowType = 'Quy_trinh_1' | 'Quy_trinh_2';
+
 export type Project = {
   id: string;
   name: string;
   region: string;
   totalUnits: number;
+  workflowType?: WorkflowType;
 };
 
 export type StepName = 
+  // Workflow Quy trình Thông thường (S_)
   | 'S1_ChuanBi' 
   | 'S2_KT_Tiep_Nhan'
-  | 'S2_KT_Hoan_Thien_HS'
-  | 'S3_PTDA_Tiep_Nhan'
+  | 'S2_KT_Ban_giao'
   | 'S3_Nop_VPDK'
   | 'S4_Cho_Thong_Bao_Thue'
   | 'S5_Tai_Chinh_Khach_Hang'
   | 'S6_Nhan_So_GCN'
-  | 'S7_PTDA_Ban_Giao_PTT'
-  | 'S7_PTT_Ban_Giao_Khach'
-  | 'Hoan_Tat';
+  | 'S7_Ban_Giao_Luu_Kho'
+  | 'Hoan_Tat'
+  // Workflow Quy trình Hỗ trợ (GD_)
+  | 'GD1_ChuanBi'
+  | 'GD1_Cho_KT_TiepNhan'
+  | 'GD2_Cho_Nop_VPDK'
+  | 'GD2_Cho_PTDA_TiepNhan'
+  | 'GD3_Cho_TBThue'
+  | 'GD4_Cho_Nop_NVTC'
+  | 'GD4_Cho_KT_TiepNhan_LaySo'
+  | 'GD5_Cho_PTDA_TiepNhan_KyGCN'
+  | 'GD5_Cho_Ky_In_GCN'
+  | 'GD5_Cho_KT_Nhan_GCN_Thuc_Te'
+  | 'GD5_Cho_PTT_TiepNhan_BG'
+  | 'GD5_Cho_GCN'
+  | 'GD6_Cho_BG_Khach';
 
 export type Dept = 'PTT' | 'KT' | 'PTDA' | 'MANAGER' | 'DIRECTOR' | 'ADMIN';
 
@@ -87,6 +103,7 @@ export type Application = {
   id: string;
   unitCode: string; // Mã lô/căn
   projectName: string;
+  workflowType?: WorkflowType; // Thêm loại quy trình
   customerName: string;
   contractSignerType?: string; // Đối tượng ký HĐCN
   phoneNumber?: string;
