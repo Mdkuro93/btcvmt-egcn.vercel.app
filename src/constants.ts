@@ -152,7 +152,7 @@ export const getNextStep = (currentStep: StepName, workflowType: WorkflowType): 
 export const STEP_CONFIG: Record<string, { label: string, dept: Dept, status: UnitStatus, slaDays?: number, active: boolean }> = {
   S1_ChuanBi: { label: '1. CHUẨN BỊ (PTT)', dept: 'PTT', status: 'Processing', slaDays: 25, active: true },
   S2_KT_Tiep_Nhan: { label: '2. TIẾP NHẬN (KT)', dept: 'KT', status: 'WaitingVPDK', slaDays: 5, active: true },
-  S2_KT_Ban_giao: { label: '2.5 HOÀN THIỆN HS (KT)', dept: 'KT', status: 'WaitingVPDK', slaDays: 2, active: true },
+  S2_KT_Ban_giao: { label: '2.5 HOÀN THIỆN HS (PTDA)', dept: 'PTDA', status: 'WaitingVPDK', slaDays: 2, active: true },
   S3_Nop_VPDK: { label: '3. NỘP VPĐK (PTDA)', dept: 'PTDA', status: 'Submitted', slaDays: 5, active: true },
   S4_Cho_Thong_Bao_Thue: { label: '4. THÔNG BÁO (PTDA)', dept: 'PTDA', status: 'TaxPending', slaDays: 15, active: true },
   S5_Tai_Chinh_Khach_Hang: { label: '5. TÀI CHÍNH (PTT)', dept: 'PTT', status: 'TaxCompleted', slaDays: 10, active: true },

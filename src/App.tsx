@@ -533,7 +533,7 @@ const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Appli
       effectiveStatus = (app.vpdkCode && app.submissionLocation && app.submissionDate) ? 'Submitted' : 'WaitingVPDK';
     } else if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang') {
       effectiveStatus = app.taxReceiptDate ? 'TaxCompleted_Dynamic' : 'TaxPaymentPending_Dynamic';
-    } else if (['S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao_PTT', 'S7_PTT_Ban_Giao_Khach'].includes(app.currentStep)) {
+    } else if (['S6_Nhan_So_GCN', 'S7_Ban_Giao_Luu_Kho'].includes(app.currentStep)) {
       effectiveStatus = app.gcnSignedDate ? 'GCN_Issued' : 'GCN_SignPending_Dynamic';
     }
   }
@@ -3272,12 +3272,12 @@ const calculateDaysBetweenDates = (start: string, end: string) => {
 
 const getPhaseIndex = (step: StepName) => {
   if (step === 'S1_ChuanBi') return 0;
-  if (['S2_KT_Tiep_Nhan', 'S2_KT_Hoan_Thien_HS'].includes(step)) return 1;
+  if (['S2_KT_Tiep_Nhan'].includes(step)) return 1;
   if (step === 'S3_Nop_VPDK') return 2;
   if (step === 'S4_Cho_Thong_Bao_Thue') return 3;
   if (step === 'S5_Tai_Chinh_Khach_Hang') return 4;
   if (step === 'S6_Nhan_So_GCN') return 5;
-  if (['S7_PTDA_Ban_Giao_PTT', 'S7_PTT_Ban_Giao_Khach', 'Hoan_Tat'].includes(step)) return 6;
+  if (['S7_Ban_Giao_Luu_Kho', 'Hoan_Tat'].includes(step)) return 6;
   return -1;
 };
 
@@ -3826,7 +3826,7 @@ export default function App() {
           const processedApps = appsData.map(app => {
             const mapped = mapFromSnakeCase(app);
             if (mapped.currentStep === 'GD5_Cho_GCN' as any) {
-              mapped.currentStep = 'S7_PTDA_Ban_Giao_PTT';
+              mapped.currentStep = 'S7_Ban_Giao_Luu_Kho';
             }
             return mapped;
           });
@@ -4786,21 +4786,23 @@ export default function App() {
     }
   };
 
-  const handleStepTransition = async (nextStep: StepName) => {
+  const handleStepTransition = async (nextStep: StepName, note?: string) => {
     const app = editApp || selectedApp;
     if (!app) return;
+    
+    // Allow transition if returning (nextIdx < currentIdx) even if there are errors, 
+    // because returning is often the way to flag an error.
+    const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+    const currentIdx = workflowSteps.indexOf(app.currentStep);
+    const nextIdx = workflowSteps.indexOf(nextStep);
+    const isMovingForward = nextIdx > currentIdx;
 
-    if (app.status === 'Error' || app.isRejected) {
+    if (isMovingForward && (app.status === 'Error' || app.isRejected)) {
       showToast('Hồ sơ đang bị sai sót/vướng mắc hoặc bị trả về. Hãy hoàn thành khắc phục trước khi chuyển bước.', 'error');
       return;
     }
 
     // Field validations
-    const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
-    const currentIdx = workflowSteps.indexOf(app.currentStep);
-    const nextIdx = workflowSteps.indexOf(nextStep);
-    const isMovingForward = nextIdx > currentIdx;
-    
     if (isMovingForward) {
       if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
         if (nextIdx > currentIdx + 1) {
@@ -4819,7 +4821,10 @@ export default function App() {
 
       // Workflow validations
       if (app.workflowType === 'Quy_trinh_2') {
-        if (app.currentStep === 'S2_PTDA_Hoan_Thien_HS' && nextStep === 'S3_Nop_VPDK') {
+        if (app.currentStep === 'S2_KT_Tiep_Nhan' && nextStep === 'S2_KT_Ban_giao') {
+           // Allow
+        }
+        if (app.currentStep === 'S2_KT_Ban_giao' && nextStep === 'S3_Nop_VPDK') {
           if (!app.contractSigningDate) {
             showToast('Bắt buộc nhập Ngày ký HĐCN/HĐMB trước khi chuyển bước.', 'warning');
             return;
@@ -4831,9 +4836,27 @@ export default function App() {
             return;
           }
         }
+        if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' && nextStep === 'S6_Nhan_So_GCN') {
+          if (!app.taxReceiptDate) {
+            showToast('Bắt buộc nhập Ngày nhận GNT / Nộp thuế trước khi chuyển bước.', 'warning');
+            return;
+          }
+        }
+        if (app.currentStep === 'S6_Nhan_So_GCN' && nextStep === 'S7_Ban_Giao_Luu_Kho') {
+          if (!app.gcnReceivedDate) {
+            showToast('Bắt buộc nhập Ngày nhận GCN thực tế trước khi chuyển bước.', 'warning');
+            return;
+          }
+        }
+        if (app.currentStep === 'S7_Ban_Giao_Luu_Kho' && nextStep === 'Hoan_Tat') {
+          if (!app.customerHandoverDate) {
+            showToast('Bắt buộc nhập Ngày BG GCN cho khách trước khi hoàn tất.', 'warning');
+            return;
+          }
+        }
       } else {
         // Workflow 1 validations (assuming similar to previous)
-        const ktSteps = ['S2_KT_Tiep_Nhan', 'S2_KT_Hoan_Thien_HS', 'GD1_KT_HoanThien'];
+        const ktSteps = ['S2_KT_Tiep_Nhan', 'GD1_KT_HoanThien'];
         if (ktSteps.concat(['S3_Nop_VPDK', 'GD1_Nop_VPDK']).includes(nextStep) && ktSteps.includes(app.currentStep) && nextStep !== app.currentStep) {
           if (!app.contractSigningDate) {
             showToast('Bắt buộc nhập Ngày ký HĐCN/HĐMB trước khi chuyển bước.', 'warning');
@@ -4841,7 +4864,7 @@ export default function App() {
           }
         }
         
-        if ((app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD1_Nop_VPDK') && (nextStep === 'S4_Cho_Thong_Bao_Thue' || nextStep === 'GD1_Cho_Thong_Bao_Thue')) {
+        if ((app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD1_Nop_VPDK') && (nextStep === 'S4_Cho_Thong_Bao_Thue' || nextStep === 'GD3_Cho_TBThue')) {
           if (!app.submissionLocation || !app.vpdkCode || !app.submissionDate) {
             showToast('Yêu cầu nhập đầy đủ: Nơi nộp, Mã hồ sơ/Số phiếu hẹn và Ngày nộp VPĐK.', 'warning');
             return;
@@ -4854,8 +4877,8 @@ export default function App() {
     let targetStep = nextStep;
 
     const intermediateSteps: StepName[] = [
-      'S2_KT_Tiep_Nhan', 'S2_KT_Hoan_Thien_HS', 'S3_PTDA_Tiep_Nhan', 'S3_Nop_VPDK',
-      'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao_PTT', 'S7_PTT_Ban_Giao_Khach'
+      'S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK',
+      'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'S6_Nhan_So_GCN', 'S7_Ban_Giao_Luu_Kho'
     ];
     if (app.isSelfService && intermediateSteps.includes(nextStep)) {
       targetStep = 'Hoan_Tat';
@@ -4868,7 +4891,7 @@ export default function App() {
     }
 
     const nextDeptLabel = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).dept;
-    const handoverNote = `Hồ sơ đã được hoàn tất và tự động bàn giao sang bộ phận ${nextDeptLabel}`;
+    const handoverNote = note || `Hồ sơ đã được hoàn tất và tự động bàn giao sang bộ phận ${nextDeptLabel}`;
 
     const newHistory = [
       {
@@ -4885,16 +4908,18 @@ export default function App() {
 
     // Auto-populate dates based on transition
     const autoDates: Partial<Application> = {};
-    if (targetStep === 'S2_KT_Tiep_Nhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
-    if (targetStep === 'S3_Nop_VPDK' && !app.submissionDate) autoDates.submissionDate = nowStr;
-    
-    if (targetStep === 'S4_Cho_Thong_Bao_Thue') {
-      if (!app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
-      if (!app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
+    if (isMovingForward) {
+      if (targetStep === 'S2_KT_Tiep_Nhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
+      if (targetStep === 'S3_Nop_VPDK' && !app.submissionDate) autoDates.submissionDate = nowStr;
+      
+      if (targetStep === 'S4_Cho_Thong_Bao_Thue') {
+        if (!app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
+        if (!app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
+      }
+      if (targetStep === 'S6_Nhan_So_GCN' && !app.gcnSignedDate) autoDates.gcnSignedDate = nowStr;
+      if (targetStep === 'S7_Ban_Giao_Luu_Kho' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
+      if (targetStep === 'Hoan_Tat' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
     }
-    if (targetStep === 'S6_Nhan_So_GCN' && !app.gcnSignedDate) autoDates.gcnSignedDate = nowStr;
-    if (targetStep === 'S7_PTDA_Ban_Giao_PTT' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
-    if (targetStep === 'Hoan_Tat' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
 
     // Auto handover status
     autoDates.isHandedOver = true;
@@ -4904,14 +4929,17 @@ export default function App() {
     if (targetStatus === 'TaxCompleted' && !app.taxReceiptDate && !autoDates.taxReceiptDate) {
       targetStatus = 'TaxPending'; // Fallback if no receipt date yet
     }
+    
+    // If it's a return, set status to Error/Rejection
+    const finalStatus = !isMovingForward ? 'Error' : (targetStep === 'S1_ChuanBi' ? 'Error' : targetStatus);
 
     const updatedApp = {
       ...app,
       ...autoDates,
       currentStep: targetStep,
-      status: targetStep === 'S1_ChuanBi' ? 'Error' : targetStatus,
-      isRejected: targetStep === 'S1_ChuanBi' ? app.isRejected : false,
-      rejectionReason: targetStep === 'S1_ChuanBi' ? app.rejectionReason : '',
+      status: finalStatus,
+      isRejected: !isMovingForward || (targetStep === 'S1_ChuanBi' ? app.isRejected : false),
+      rejectionReason: !isMovingForward ? note : (targetStep === 'S1_ChuanBi' ? app.rejectionReason : ''),
       history: newHistory
     };
 
@@ -4949,13 +4977,13 @@ export default function App() {
     
     // Mapping transition to field
     if (nextStep === 'S2_KT_Tiep_Nhan') updateField = { key: 'contractSigningDate', label: 'Ngày ký HĐCN/HĐMB', isRequired: false };
-    else if (nextStep === 'S3_PTDA_Tiep_Nhan') updateField = { key: 'contractSigningDate', label: 'Ngày ký HĐCN/HĐMB', isRequired: true };
+    else if (nextStep === 'S2_KT_Ban_giao') updateField = { key: 'contractSigningDate', label: 'Ngày ký HĐCN/HĐMB', isRequired: true };
     else if (nextStep === 'S3_Nop_VPDK') updateField = { key: 'submissionDate', label: 'Ngày nộp VPĐK', isRequired: true };
     else if (nextStep === 'S4_Cho_Thong_Bao_Thue') updateField = { key: 'taxNotificationReceivedDate', label: 'Ngày nhận TB Thuế' };
     else if (nextStep === 'S5_Tai_Chinh_Khach_Hang') updateField = { key: 'taxNoticeProvisionDate', label: 'Ngày cung cấp phiếu nộp tiền' };
-    else if (nextStep === 'S6_Nhan_So_GCN') updateField = { key: 'gcnSignedDate', label: 'Ngày PTDA trình ký/In GCN' };
-    else if (nextStep === 'S7_PTDA_Ban_Giao_PTT') updateField = { key: 'ptdaHandoverDate', label: 'Ngày PTDA bàn giao PTT' };
-    else if (nextStep === 'Hoan_Tat') updateField = { key: 'customerHandoverDate', label: 'Ngày BG GCN cho khách' };
+    else if (nextStep === 'S6_Nhan_So_GCN') updateField = { key: 'taxReceiptDate', label: 'Ngày nhận GNT / Nộp thuế', isRequired: true };
+    else if (nextStep === 'S7_Ban_Giao_Luu_Kho') updateField = { key: 'gcnReceivedDate', label: 'Ngày nhận GCN thực tế', isRequired: true };
+    else if (nextStep === 'Hoan_Tat') updateField = { key: 'customerHandoverDate', label: 'Ngày BG GCN cho khách', isRequired: true };
 
     // If there is no specific field to update, we can either skip the modal and transition directly 
     // or keep the modal just for confirmation. Here we just show the modal without a required date.
@@ -4993,7 +5021,7 @@ export default function App() {
     }
 
     // Check if transition from KT requires contractSigningDate, wait we update it via bulk transition field anyway!
-    // But if we transition to S3_PTDA_Tiep_Nhan, it is required, which is already enforced by bulkTransitionField.isRequired.
+    // But if we transition to S2_KT_Ban_giao, it is required, which is already enforced by bulkTransitionField.isRequired.
     if (nextStep === 'S4_Cho_Thong_Bao_Thue') {
       if (!location || !refCode) {
         showToast(`Vui lòng nhập nơi nộp hồ sơ và mã hồ sơ/phiếu hẹn.`, 'warning');
@@ -5047,8 +5075,8 @@ export default function App() {
         let targetStep = nextStep;
 
         const intermediateSteps: StepName[] = [
-          'S2_KT_Tiep_Nhan', 'S2_KT_Hoan_Thien_HS', 'S3_PTDA_Tiep_Nhan', 'S3_Nop_VPDK',
-          'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao_PTT', 'S7_PTT_Ban_Giao_Khach'
+          'S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK',
+          'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'S6_Nhan_So_GCN', 'S7_Ban_Giao_Luu_Kho'
         ];
         if (appWithDate.isSelfService && intermediateSteps.includes(nextStep)) {
           targetStep = 'Hoan_Tat';
@@ -5085,8 +5113,11 @@ export default function App() {
           if (!appWithDate.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
           if (!appWithDate.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
         }
-        if (targetStep === 'S6_Nhan_So_GCN' && !appWithDate.gcnSignedDate) autoDates.gcnSignedDate = nowStr;
-        if (targetStep === 'S7_PTDA_Ban_Giao_PTT' && !appWithDate.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
+        if (targetStep === 'S6_Nhan_So_GCN') {
+          // If we are at S6, we should have taxReceiptDate (set by bulk modal)
+          if (!appWithDate.gcnSignedDate) autoDates.gcnSignedDate = nowStr;
+        }
+        if (targetStep === 'S7_Ban_Giao_Luu_Kho' && !appWithDate.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
         if (targetStep === 'Hoan_Tat' && !appWithDate.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
 
         // Auto handover logic
@@ -5888,14 +5919,14 @@ export default function App() {
     // Hồ sơ cần tiếp nhận: PTT đã chuyển nhưng KT chưa tiếp nhận (đang ở S2_KT_Tiep_Nhan)
     const ktNeedReceive = apps.filter(a => a.currentStep === 'S2_KT_Tiep_Nhan').length;
     // Hồ sơ đang xử lý: Đã tiếp nhận nhưng chưa bàn giao PTDA
-    const ktProcessing = apps.filter(a => a.currentStep === 'S2_KT_Hoan_Thien_HS').length;
+    const ktProcessing = apps.filter(a => a.currentStep === 'S2_KT_Tiep_Nhan').length;
     // Hồ sơ sai sót
     const ktIssues = apps.filter(a => (a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None')) && stepConfig[a.currentStep]?.dept === 'KT').length;
 
     // PTDA
     const ptdaApps = apps.filter(a => stepConfig[a.currentStep]?.dept === 'PTDA');
     // Hồ sơ đã tiếp nhận: Các hồ sơ tiếp nhận từ KT (bước 3.1)
-    const ptdaReceived = apps.filter(a => a.currentStep === 'S3_PTDA_Tiep_Nhan').length;
+    const ptdaReceived = apps.filter(a => a.currentStep === 'S2_KT_Ban_giao').length;
     // Chờ TB Thuế: các hồ sơ ở S3_Nop_VPDK
     const ptdaNoTax = apps.filter(a => a.currentStep === 'S3_Nop_VPDK').length;
     // Chờ hoàn thành NVTC: Các căn ở bước 5 chưa có ngày nhận GNT / Nộp thuế
@@ -6224,9 +6255,9 @@ export default function App() {
       (dashboardFilter === 'PTT_WAITING_HANDOVER' && app.currentStep === 'S6_Nhan_So_GCN' && !app.customerHandoverDate) ||
       (dashboardFilter === 'KT_ALL' && true) ||
       (dashboardFilter === 'KT_NEED_RECEIVE' && app.currentStep === 'S2_KT_Tiep_Nhan') ||
-      (dashboardFilter === 'KT_PROCESSING' && app.currentStep === 'S2_KT_Hoan_Thien_HS') ||
+      (dashboardFilter === 'KT_PROCESSING' && app.currentStep === 'S2_KT_Tiep_Nhan') ||
       (dashboardFilter === 'KT_ISSUES' && (app.isRejected || app.status === 'Error' || (app.issueType && app.issueType !== 'None')) && stepConfig[app.currentStep]?.dept === 'KT') ||
-      (dashboardFilter === 'PTDA_RECEIVED' && app.currentStep === 'S3_PTDA_Tiep_Nhan') ||
+      (dashboardFilter === 'PTDA_RECEIVED' && app.currentStep === 'S2_KT_Ban_giao') ||
       (dashboardFilter === 'PTDA_NO_TAX' && app.currentStep === 'S3_Nop_VPDK') ||
       (dashboardFilter === 'PTDA_TAX_PENDING' && app.currentStep === 'S5_Tai_Chinh_Khach_Hang' && !app.taxReceiptDate) ||
       (dashboardFilter === 'PTDA_GCN_WAITING' && app.currentStep === 'S6_Nhan_So_GCN' && !app.gcnSignedDate) ||
@@ -6846,7 +6877,7 @@ export default function App() {
                     <StatCard title="Hồ sơ đang xử lý" value={roleKpis.kt.processing} icon={Activity} colorClass="bg-cyan-500 shadow-cyan-500/40" delay={0.2} theme={theme} onClick={() => { 
                       setActiveTab('applications'); 
                       setDashboardFilter('KT_PROCESSING');
-                      setFilterStep('S2_KT_Hoan_Thien_HS');
+                      setFilterStep('S2_KT_Tiep_Nhan');
                       setFilterStatus('ALL');
                       setSearch('');
                     }} />
@@ -6865,7 +6896,7 @@ export default function App() {
                     <StatCard title="Hồ sơ cần tiếp nhận" value={roleKpis.ptda.received} icon={Files} colorClass="bg-blue-500 shadow-blue-500/40" delay={0.05} theme={theme} onClick={() => { 
                       setActiveTab('applications'); 
                       setDashboardFilter('PTDA_RECEIVED');
-                      setFilterStep('S3_PTDA_Tiep_Nhan');
+                      setFilterStep('S2_KT_Ban_giao');
                       setFilterStatus('ALL');
                       setSearch('');
                     }} />
@@ -9267,7 +9298,7 @@ export default function App() {
                       }
 
                       let canAction = role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER' || (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.dept === role;
-                      if (app.currentStep === 'S7_PTT_Ban_Giao_Khach' && role === 'PTT') {
+                      if (app.currentStep === 'S7_Ban_Giao_Luu_Kho' && role === 'PTT') {
                         canAction = true;
                       }
 
@@ -9309,8 +9340,8 @@ export default function App() {
                             <button 
                               onClick={() => {
                                  // Define standard steps that require bulk modal for dates
-                                 const bulkSteps = ['S2_KT_Tiep_Nhan', 'S3_PTDA_Tiep_Nhan', 'S3_Nop_VPDK', 'S4_Cho_Thong_Bao_Thue', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao_PTT', 'S7_PTT_Ban_Giao_Khach', 'Hoan_Tat', 'GD1_Cho_KT_TiepNhan', 'GD1_Cho_PTDA_TiepNhan', 'GD1_Nop_VPDK', 'GD1_Cho_Thong_Bao_Thue', 'GD1_Nhan_So_GCN', 'GD1_PTDA_Ban_Giao_PTT', 'GD1_PTT_Ban_Giao_Khach'];
-                                 if (bulkSteps.includes(nextStep) || (workflowType === 'Quy_trinh_2' && nextStep === 'S7_Ban_Giao_Luu_Kho')) {
+                                 const bulkSteps = ['S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK', 'S4_Cho_Thong_Bao_Thue', 'S6_Nhan_So_GCN', 'S7_Ban_Giao_Luu_Kho', 'Hoan_Tat', 'GD1_Cho_KT_TiepNhan', 'GD2_Cho_PTDA_TiepNhan', 'GD2_Cho_Nop_VPDK', 'GD3_Cho_TBThue', 'GD5_Cho_PTDA_TiepNhan_KyGCN', 'GD6_Cho_BG_Khach'];
+                                 if (bulkSteps.includes(nextStep)) {
                                    handleBulkStepTransition(nextStep, [app.id]);
                                  } else {
                                    handleStepTransition(nextStep);
@@ -9335,13 +9366,8 @@ export default function App() {
                                      if (currentIdx === 1) { // Returning to first step
                                         handleRejectApp(reason);
                                      } else {
-                                        // Standard revert
-                                        const bulkSteps = ['S2_KT_Tiep_Nhan', 'S3_PTDA_Tiep_Nhan', 'S3_Nop_VPDK', 'GD1_Cho_KT_TiepNhan'];
-                                        if (bulkSteps.includes(returnStep)) {
-                                          handleBulkStepTransition(returnStep as StepName, [app.id]);
-                                        } else {
-                                          handleStepTransition(returnStep as StepName);
-                                        }
+                                        // Standard revert: only use handleStepTransition with reason as note
+                                        handleStepTransition(returnStep as StepName, reason);
                                      }
                                   }
                                 }}
