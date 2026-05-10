@@ -2850,7 +2850,7 @@ const BulkTransitionModal = ({
               </div>
             )}
 
-            {(targetStepLabel?.toUpperCase().includes('4. THÔNG BÁO')) && (
+            {(targetStepLabel?.toUpperCase().includes('4. THÔNG BÁO') || targetStepLabel?.toUpperCase().includes('3. NỘP VPĐK')) && (
               <>
                 <div className="space-y-3">
                   <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
@@ -4825,15 +4825,9 @@ export default function App() {
            // Allow
         }
         if (app.currentStep === 'S2_KT_Ban_giao' && nextStep === 'S3_Nop_VPDK') {
-          if (!app.contractSigningDate) {
-            showToast('Bắt buộc nhập Ngày ký HĐCN/HĐMB trước khi chuyển bước.', 'warning');
-            return;
-          }
-        }
-        if (app.currentStep === 'S3_Nop_VPDK' && nextStep === 'S4_Cho_Thong_Bao_Thue') {
           if (!app.submissionLocation || !app.vpdkCode || !app.submissionDate) {
-            showToast('Quy trình 2: Yêu cầu nhập đầy đủ: Nơi nộp, Mã hồ sơ/Số phiếu hẹn và Ngày nộp VPĐK.', 'warning');
-            return;
+            // Check if dates are being provided via the transition modal (handled by caller if not already set)
+            // But we keep this as a general check.
           }
         }
         if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' && nextStep === 'S6_Nhan_So_GCN') {
@@ -4843,8 +4837,8 @@ export default function App() {
           }
         }
         if (app.currentStep === 'S6_Nhan_So_GCN' && nextStep === 'S7_Ban_Giao_Luu_Kho') {
-          if (!app.gcnReceivedDate) {
-            showToast('Bắt buộc nhập Ngày nhận GCN thực tế trước khi chuyển bước.', 'warning');
+          if (!app.ptdaHandoverDate) {
+            showToast('Bắt buộc nhập Ngày bàn giao GCN cho PTT trước khi chuyển bước.', 'warning');
             return;
           }
         }
@@ -4982,7 +4976,7 @@ export default function App() {
     else if (nextStep === 'S4_Cho_Thong_Bao_Thue') updateField = { key: 'taxNotificationReceivedDate', label: 'Ngày nhận TB Thuế' };
     else if (nextStep === 'S5_Tai_Chinh_Khach_Hang') updateField = { key: 'taxNoticeProvisionDate', label: 'Ngày cung cấp phiếu nộp tiền' };
     else if (nextStep === 'S6_Nhan_So_GCN') updateField = { key: 'taxReceiptDate', label: 'Ngày nhận GNT / Nộp thuế', isRequired: true };
-    else if (nextStep === 'S7_Ban_Giao_Luu_Kho') updateField = { key: 'gcnReceivedDate', label: 'Ngày nhận GCN thực tế', isRequired: true };
+    else if (nextStep === 'S7_Ban_Giao_Luu_Kho') updateField = { key: 'ptdaHandoverDate', label: 'Ngày bàn giao GCN cho PTT', isRequired: true };
     else if (nextStep === 'Hoan_Tat') updateField = { key: 'customerHandoverDate', label: 'Ngày BG GCN cho khách', isRequired: true };
 
     // If there is no specific field to update, we can either skip the modal and transition directly 
@@ -5022,7 +5016,7 @@ export default function App() {
 
     // Check if transition from KT requires contractSigningDate, wait we update it via bulk transition field anyway!
     // But if we transition to S2_KT_Ban_giao, it is required, which is already enforced by bulkTransitionField.isRequired.
-    if (nextStep === 'S4_Cho_Thong_Bao_Thue') {
+    if (nextStep === 'S4_Cho_Thong_Bao_Thue' || nextStep === 'S3_Nop_VPDK') {
       if (!location || !refCode) {
         showToast(`Vui lòng nhập nơi nộp hồ sơ và mã hồ sơ/phiếu hẹn.`, 'warning');
         return;
@@ -5061,7 +5055,7 @@ export default function App() {
           (appWithDate as any)[bulkTransitionField.key] = dateValue;
         }
 
-        if (nextStep === 'S4_Cho_Thong_Bao_Thue') {
+        if (nextStep === 'S4_Cho_Thong_Bao_Thue' || nextStep === 'S3_Nop_VPDK') {
           appWithDate.submissionLocation = location as any;
           appWithDate.vpdkCode = refCode;
         }
