@@ -34,14 +34,13 @@ export const MOCK_APPLICATIONS: Application[] = [
     isSelfService: true,
     contractSigningDate: '2026-03-10',
     submissionLocation: 'PHUONG',
-    currentStep: 'GD1_ChuanBi',
+    currentStep: 'S1_ChuanBi',
     status: 'Processing',
     receivedDate: '2026-03-15',
     taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h1', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-03-15', performedBy: '550e8400-e29b-41d4-a716-446655440001', performedByName: 'Nguyễn Thu Thủ Tục' }],
+    history: [{ id: 'h1', stepName: 'BƯỚC 1: CHUẨN BỊ', dept: 'PTT', receivedDate: '2026-03-15', performedBy: '550e8400-e29b-41d4-a716-446655440001', performedByName: 'Nguyễn Thu Thủ Tục' }],
     auditTrail: [
-      { id: 'at1', userId: '550e8400-e29b-41d4-a716-446655440000', userName: 'Admin', action: 'Khởi tạo hồ sơ', timestamp: '2026-03-15 08:00' },
-      { id: 'at2', userId: '550e8400-e29b-41d4-a716-446655440001', userName: 'Nguyễn Thu Thủ Tục', action: 'Cập nhật Ngày ký HĐCN', timestamp: '2026-03-15 09:30', changes: 'Ngày ký HĐCN -> 2026-03-10' }
+      { id: 'at1', userId: '550e8400-e29b-41d4-a716-446655440000', userName: 'Admin', action: 'Khởi tạo hồ sơ', timestamp: '2026-03-15 08:00' }
     ]
   },
   {
@@ -53,15 +52,11 @@ export const MOCK_APPLICATIONS: Application[] = [
     phoneNumber: '0987654321',
     propertyType: 'Dat_Nen',
     loanStatus: 'Co_Vay',
-    currentStep: 'GD3_Cho_TBThue',
+    currentStep: 'S4_Cho_Thong_Bao_Thue',
     status: 'TaxPending',
     receivedDate: '2026-02-10',
     taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h2', stepName: 'GĐ3: Chờ Thông báo thuế', dept: 'PTDA', receivedDate: '2026-02-15', performedBy: '550e8400-e29b-41d4-a716-446655440003', performedByName: 'Lê Phát Triển' }],
-    auditTrail: [
-      { id: 'at3', userId: '550e8400-e29b-41d4-a716-446655440000', userName: 'Admin', action: 'Khởi tạo hồ sơ', timestamp: '2026-02-10 10:00' },
-      { id: 'at4', userId: '550e8400-e29b-41d4-a716-446655440002', userName: 'Trần Kế Toán', action: 'Chuyển giai đoạn sang PTDA', timestamp: '2026-02-15 14:00' }
-    ]
+    history: [{ id: 'h2', stepName: 'BƯỚC 4: THÔNG BÁO', dept: 'PTDA', receivedDate: '2026-02-15', performedBy: '550e8400-e29b-41d4-a716-446655440003', performedByName: 'Lê Phát Triển' }]
   },
   {
     id: '550e8400-e29b-41d4-a716-446655440012',
@@ -72,11 +67,11 @@ export const MOCK_APPLICATIONS: Application[] = [
     phoneNumber: '0912334455',
     propertyType: 'Can_Ho',
     loanStatus: 'Khong_Vay',
-    currentStep: 'GD6_Cho_BG_Khach',
+    currentStep: 'Hoan_Tat',
     status: 'Completed',
     receivedDate: '2026-01-05',
     taxPaymentStatus: 'Paid',
-    history: [{ id: 'h4', stepName: 'GĐ6: Đang bàn giao khách hàng', dept: 'PTT', receivedDate: '2026-03-15', completedDate: '2026-03-20', performedBy: '550e8400-e29b-41d4-a716-446655440001', performedByName: 'Nguyễn Thu Thủ Tục' }]
+    history: [{ id: 'h4', stepName: 'ĐÃ HOÀN TẤT', dept: 'ADMIN', receivedDate: '2026-03-15', completedDate: '2026-03-20', performedBy: '550e8400-e29b-41d4-a716-446655440001', performedByName: 'Nguyễn Thu Thủ Tục' }]
   },
   {
     id: '550e8400-e29b-41d4-a716-446655440013',
@@ -87,17 +82,14 @@ export const MOCK_APPLICATIONS: Application[] = [
     phoneNumber: '0944556677',
     propertyType: 'Can_Ho',
     loanStatus: 'Co_Vay',
-    currentStep: 'GD2_Cho_Nop_VPDK',
+    currentStep: 'S2_KT_Tiep_Nhan',
     status: 'Error',
     issueType: 'Paperwork',
     issueSeverity: 'Critical',
     issueNotes: 'Thiếu CMND bản sao công chứng của chủ sở hữu, đã yêu cầu bổ sung 3 lần.',
     receivedDate: '2026-02-01',
     taxPaymentStatus: 'Paid',
-    history: [{ id: 'h6', stepName: 'Đang xử lý sai sót/vướng', dept: 'KT', receivedDate: '2026-02-20', performedBy: '550e8400-e29b-41d4-a716-446655440002', performedByName: 'Trần Kế Toán' }],
-    auditTrail: [
-      { id: 'at_err_1', userId: '550e8400-e29b-41d4-a716-446655440002', userName: 'Trần Kế Toán', action: 'Báo cáo sai sót hồ sơ', timestamp: '2026-02-20 11:00', changes: 'Status -> Error, Issue -> Paperwork' }
-    ]
+    history: [{ id: 'h6', stepName: 'BƯỚC 2: CHỜ NỘP VPĐK (KT)', dept: 'KT', receivedDate: '2026-02-20', performedBy: '550e8400-e29b-41d4-a716-446655440002', performedByName: 'Trần Kế Toán' }]
   },
   {
     id: '550e8400-e29b-41d4-a716-446655440014',
@@ -108,72 +100,25 @@ export const MOCK_APPLICATIONS: Application[] = [
     propertyType: 'Can_Ho',
     loanStatus: 'Khong_Vay',
     vpdkCode: 'PN-2026-001',
-    currentStep: 'GD2_Cho_Nop_VPDK',
-    status: 'Processing',
+    currentStep: 'S2_KT_Tiep_Nhan',
+    status: 'WaitingVPDK',
     receivedDate: '2026-03-01',
     submissionDate: '2026-03-05',
     taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h7', stepName: 'GĐ2: Chờ nộp VPĐK', dept: 'KT', receivedDate: '2026-03-05', performedBy: '550e8400-e29b-41d4-a716-446655440002', performedByName: 'Trần Kế Toán' }]
-  },
-  {
-    id: '550e8400-e29b-41d4-a716-446655440015',
-    unitCode: 'SI-L1-0022',
-    projectName: 'Dự án Sunneva Island',
-    customerName: 'Nguyễn Hải M',
-    phoneNumber: '0905998877',
-    propertyType: 'Dat_Nen',
-    loanStatus: 'Khong_Vay',
-    currentStep: 'GD1_ChuanBi',
-    status: 'Processing',
-    receivedDate: '2026-04-15',
-    taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h10', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-04-15', performedBy: '550e8400-e29b-41d4-a716-446655440001', performedByName: 'Nguyễn Thu Thủ Tục' }]
-  },
-  {
-    id: '550e8400-e29b-41d4-a716-446655440016',
-    unitCode: 'DH-K1-010',
-    projectName: 'Dự án trung tâm thành phố Đồng Hới',
-    customerName: 'Lý Kim Quy',
-    phoneNumber: '0988123123',
-    propertyType: 'Dat_Nen',
-    loanStatus: 'Co_Vay',
-    currentStep: 'GD1_ChuanBi',
-    status: 'Processing',
-    receivedDate: '2026-04-20',
-    taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h11', stepName: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', receivedDate: '2026-04-20', performedBy: '550e8400-e29b-41d4-a716-446655440001', performedByName: 'Nguyễn Thu Thủ Tục' }]
-  },
-  {
-    id: '550e8400-e29b-41d4-a716-446655440017',
-    unitCode: 'NNT-A1-005',
-    projectName: 'Nam Nha Trang',
-    customerName: 'Vũ Mạnh Thắng',
-    phoneNumber: '0977889900',
-    propertyType: 'Can_Ho',
-    loanStatus: 'Co_Vay',
-    currentStep: 'GD4_Cho_Nop_NVTC',
-    status: 'TaxCompleted',
-    receivedDate: '2026-01-15',
-    taxPaymentStatus: 'Paid',
-    taxNotificationDate: '2026-02-10',
-    taxReceiptDate: '2026-02-15',
-    history: [{ id: 'h12', stepName: 'GĐ4: Chờ hoàn thành NVTC', dept: 'PTT', receivedDate: '2026-01-15', performedBy: '550e8400-e29b-41d4-a716-446655440001', performedByName: 'Nguyễn Thu Thủ Tục' }]
+    history: [{ id: 'h7', stepName: 'BƯỚC 2: CHỜ NỘP VPĐK (KT)', dept: 'KT', receivedDate: '2026-03-05', performedBy: '550e8400-e29b-41d4-a716-446655440002', performedByName: 'Trần Kế Toán' }]
   }
 ];
 
 export const STEP_CONFIG: Record<string, { label: string, dept: Dept, status: UnitStatus, slaDays?: number }> = {
-  GD1_ChuanBi: { label: 'GĐ1: Đang chuẩn bị hồ sơ', dept: 'PTT', status: 'Processing', slaDays: 25 },
-  GD1_Cho_KT_TiepNhan: { label: 'GĐ1: Chờ Kế toán tiếp nhận bàn giao', dept: 'KT', status: 'Processing' },
-  GD2_Cho_Nop_VPDK: { label: 'GĐ2: Chờ nộp VPĐK', dept: 'KT', status: 'Processing', slaDays: 5 },
-  GD2_Cho_PTDA_TiepNhan: { label: 'GĐ2: Chờ PTDA tiếp nhận (Theo dõi thuế)', dept: 'PTDA', status: 'Submitted' },
-  GD3_Cho_TBThue: { label: 'GĐ3: Chờ Thông báo thuế', dept: 'PTDA', status: 'TaxPending', slaDays: 15 },
-  GD4_Cho_Nop_NVTC: { label: 'GĐ4: Chờ hoàn thành NVTC', dept: 'PTT', status: 'TaxCompleted', slaDays: 10 },
-  GD4_Cho_KT_TiepNhan_LaySo: { label: 'GĐ4: Chờ KT tiếp nhận (Lấy sổ)', dept: 'KT', status: 'TaxCompleted' },
-  GD5_Cho_PTDA_TiepNhan_KyGCN: { label: 'GĐ5: Chờ PTDA tiếp nhận (Trình ký GCN)', dept: 'PTDA', status: 'GCN_Issued' },
-  GD5_Cho_Ky_In_GCN: { label: 'GĐ5: Chờ ký / In GCN', dept: 'PTDA', status: 'GCN_Issued', slaDays: 5 },
-  GD5_Cho_KT_Nhan_GCN_Thuc_Te: { label: 'GĐ5: Chờ KT tiếp nhận GCN thực tế', dept: 'KT', status: 'GCN_Issued' },
-  GD5_Cho_PTT_TiepNhan_BG: { label: 'GĐ5: Chờ PTT tiếp nhận (Bàn giao khách)', dept: 'PTT', status: 'GCN_Issued' },
-  GD5_Cho_GCN: { label: 'GĐ5: Chờ lấy GCN (Cũ)', dept: 'KT', status: 'GCN_Issued' },
-  GD6_Cho_BG_Khach: { label: 'GĐ6: Đang bàn giao khách hàng', dept: 'PTT', status: 'Completed' },
-  Hoan_Tat: { label: 'Đã hoàn tất quy trình', dept: 'ADMIN', status: 'Completed' },
+  S1_ChuanBi: { label: '1. CHUẨN BỊ (PTT)', dept: 'PTT', status: 'Processing', slaDays: 25 },
+  S2_KT_Tiep_Nhan: { label: '2.1 CHỜ NỘP VPĐK (KT)', dept: 'KT', status: 'WaitingVPDK', slaDays: 5 },
+  S2_KT_Hoan_Thien_HS: { label: '2.2. HOÀN THIỆN HS (KT)', dept: 'KT', status: 'WaitingVPDK', slaDays: 2 },
+  S3_PTDA_Tiep_Nhan: { label: '3.1 TIẾP NHẬN (PTDA)', dept: 'PTDA', status: 'Submitted', slaDays: 2 },
+  S3_Nop_VPDK: { label: '3.2 NỘP VPĐK (PTDA)', dept: 'PTDA', status: 'Submitted', slaDays: 5 },
+  S4_Cho_Thong_Bao_Thue: { label: '4. THÔNG BÁO (PTDA)', dept: 'PTDA', status: 'TaxPending', slaDays: 15 },
+  S5_Tai_Chinh_Khach_Hang: { label: '5. TÀI CHÍNH (PTT)', dept: 'PTT', status: 'TaxCompleted', slaDays: 10 },
+  S6_Nhan_So_GCN: { label: '6. NHẬN SỔ (PTDA)', dept: 'PTDA', status: 'GCN_Issued', slaDays: 7 },
+  S7_PTDA_Ban_Giao_PTT: { label: '7.1 BÀN GIAO PTT (PTDA)', dept: 'PTDA', status: 'Completed', slaDays: 1 },
+  S7_PTT_Ban_Giao_Khach: { label: '7.2 BÀN GIAO KHÁCH (PTT)', dept: 'PTT', status: 'Completed', slaDays: 2 },
+  Hoan_Tat: { label: 'ĐÃ HOÀN TẤT', dept: 'ADMIN', status: 'Completed' },
 };
