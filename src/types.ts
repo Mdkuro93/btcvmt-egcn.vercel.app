@@ -164,12 +164,13 @@ export type Application = {
 
 export type AppNotification = {
   id: string;
+  recipientId: string; // user_id in DB
   title: string;
-  message: string;
-  time: string;
+  message: string; // content in DB
+  time: string; // created_at in DB
   type: 'Urgent' | 'Info' | 'Success' | 'Warning';
   isRead: boolean;
-  appId?: string;
+  appId?: string; // record_id in DB
 };
 
 export type KPI = {

@@ -266,6 +266,31 @@ const mapProjectToSnakeCase = (project: Project) => {
   };
 };
 
+const mapNotificationFromSnakeCase = (item: any): AppNotification => {
+  return {
+    id: item.id,
+    recipientId: item.user_id,
+    title: item.title,
+    message: item.content,
+    time: item.created_at,
+    type: item.type,
+    isRead: item.is_read || false,
+    appId: item.record_id
+  };
+};
+
+const mapNotificationToSnakeCase = (noti: Partial<AppNotification>) => {
+  return {
+    user_id: noti.recipientId,
+    title: noti.title,
+    content: noti.message,
+    created_at: noti.time || new Date().toISOString(),
+    type: noti.type,
+    is_read: noti.isRead || false,
+    record_id: noti.appId
+  };
+};
+
 const syncRecordToSupabase = async (app: Application) => {
   const snakeData = mapToSnakeCase(app);
   const { error } = await supabase.from('records').upsert(snakeData);
@@ -683,7 +708,8 @@ const SettingsView = ({
   isLoading,
   storageStats,
   isFetchingStorage,
-  onRefreshStorage
+  onRefreshStorage,
+  onClearNotifications
 }: { 
   slaConfig: Record<string, number>, 
   setSlaConfig: any, 
@@ -698,7 +724,8 @@ const SettingsView = ({
   isLoading: boolean,
   storageStats: { totalSize: number, fileCount: number, folders: string[], dbSize: number },
   isFetchingStorage: boolean,
-  onRefreshStorage: () => void
+  onRefreshStorage: () => void,
+  onClearNotifications: () => void
 }) => {
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [workflowTab, setWorkflowTab] = useState<'GD' | 'S'>('S');
@@ -1245,6 +1272,43 @@ const SettingsView = ({
              >
                Lưu quy trình lên Supabase
              </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Maintenance Section */}
+      <section className={cn(
+        "bg-rose-500/5 backdrop-blur-xl border rounded-[2.5rem] overflow-hidden group border-rose-500/20",
+        theme === 'light' ? "bg-rose-50/30 shadow-sm" : ""
+      )}>
+        <div className={cn(
+          "p-8 border-b flex items-center justify-between border-rose-500/10",
+          theme === 'light' ? "bg-rose-50/50" : "bg-rose-500/5"
+        )}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
+              <Trash2 className="text-rose-500" size={20} />
+            </div>
+            <h3 className={cn("text-base font-black uppercase tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Bảo trì & Dọn dẹp</h3>
+          </div>
+        </div>
+        <div className="p-8 space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 p-6 rounded-3xl border border-rose-500/10 bg-rose-500/5">
+            <div>
+              <h4 className="text-sm font-black text-rose-500 uppercase tracking-widest mb-1">Dọn dẹp Thông báo hệ thống</h4>
+              <p className="text-xs text-slate-500 font-medium">Xóa toàn bộ các thông báo cũ và hiện có trong hệ thống của tất cả người dùng.</p>
+            </div>
+            <button 
+              onClick={() => {
+                if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ thông báo? Hành động này không thể hoàn tác.')) {
+                  onClearNotifications();
+                }
+              }}
+              className="px-6 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-lg shadow-rose-600/20 flex items-center gap-2 whitespace-nowrap active:scale-95"
+            >
+              <Trash2 size={14} />
+              Xóa tất cả thông báo
+            </button>
           </div>
         </div>
       </section>
@@ -2043,12 +2107,13 @@ const ReportsView = ({
   );
 };
 
-const NotificationPanel = ({ notifications, taskReminders, onClose, onRead, onAction, theme }: { 
+const NotificationPanel = ({ notifications, taskReminders, onClose, onRead, onMarkAllRead, onAction, theme }: { 
   notifications: AppNotification[], 
   taskReminders: AppNotification[],
   onClose: () => void, 
   onRead: (id: string) => void, 
-  onAction: (appId?: string) => void,
+  onMarkAllRead: () => void,
+  onAction: (appId?: string, notiId?: string) => void,
   theme: 'light' | 'dark' 
 }) => {
   const [filterUnreadOnly, setFilterUnreadOnly] = useState(false);
@@ -2078,7 +2143,7 @@ const NotificationPanel = ({ notifications, taskReminders, onClose, onRead, onAc
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
-                  notifications.forEach(n => !n.isRead && onRead(n.id));
+                  onMarkAllRead();
                 }}
                 className="text-[10px] text-indigo-500 hover:text-indigo-600 font-black uppercase tracking-tighter transition-colors"
               >
@@ -2167,7 +2232,10 @@ const NotificationPanel = ({ notifications, taskReminders, onClose, onRead, onAc
             displayedNotifications.map(n => (
               <div 
                 key={n.id} 
-                onClick={() => onRead(n.id)}
+                onClick={() => {
+                   if (!n.isRead) onRead(n.id);
+                   if (n.appId) onAction(n.appId, n.id);
+                }}
                 className={cn(
                   "p-5 rounded-[1.5rem] transition-all relative group cursor-pointer",
                   theme === 'dark' 
@@ -2187,20 +2255,29 @@ const NotificationPanel = ({ notifications, taskReminders, onClose, onRead, onAc
                     </div>
                     <p className={cn("text-xs leading-relaxed line-clamp-2", theme === 'dark' ? (n.isRead ? "text-slate-600" : "text-slate-400") : (n.isRead ? "text-slate-400" : "text-slate-600"))}>{n.message}</p>
                     <div className="flex items-center justify-between mt-3">
-                      <p className={cn("text-[10px] font-black uppercase tracking-tighter", theme === 'dark' ? "text-slate-600" : "text-slate-400")}>{n.time}</p>
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRead(n.id);
-                        }}
-                        className={cn(
-                          "p-1.5 rounded-lg transition-all shadow-sm",
-                          theme === 'dark' ? "hover:bg-slate-800 bg-slate-950 border border-slate-800" : "hover:bg-white bg-slate-100 border border-slate-200"
-                        )}
-                        title={n.isRead ? "Đánh dấu chưa đọc" : "Đánh dấu đã đọc"}
-                      >
-                        {n.isRead ? <EyeOff size={14} className="text-slate-500" /> : <Check size={14} className="text-indigo-500" />}
-                      </button>
+                      <p className={cn("text-[10px] font-black uppercase tracking-tighter", theme === 'dark' ? "text-slate-600" : "text-slate-400")}>
+                        {new Date(n.time).toLocaleString('vi-VN', { 
+                          hour: '2-digit', 
+                          minute: '2-digit', 
+                          day: '2-digit', 
+                          month: '2-digit' 
+                        })}
+                      </p>
+                      {!n.isRead && (
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRead(n.id);
+                          }}
+                          className={cn(
+                            "p-1.5 rounded-lg transition-all shadow-sm",
+                            theme === 'dark' ? "hover:bg-slate-800 bg-slate-950 border border-slate-800" : "hover:bg-white bg-slate-100 border border-slate-200"
+                          )}
+                          title="Đánh dấu đã đọc"
+                        >
+                          <Check size={14} className="text-indigo-500" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2218,6 +2295,7 @@ const NotificationPanel = ({ notifications, taskReminders, onClose, onRead, onAc
           )}
         </div>
       </div>
+
       <button className={cn(
         "w-full py-6 text-[10px] font-black uppercase tracking-[0.3em] transition-all border-t",
         theme === 'dark' 
@@ -3622,10 +3700,11 @@ const HandoverRecord = ({ apps, user, template }: { apps: Application[], user: U
 export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [notifications, setNotifications] = useState<AppNotification[]>([
-    { id: '1', title: 'Hồ sơ trễ hạn', message: 'Lô A1.1205 đã quá hạn xử lý 2 ngày', time: '5 phút trước', type: 'Urgent', isRead: false },
-    { id: '2', title: 'Cập nhật trạng thái', message: 'Căn hộ B2.0504 đã hoàn tất nộp thuế', time: '1 giờ trước', type: 'Success', isRead: false },
-  ]);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [totalCount, setTotalCount] = useState(0);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isNotiOpen, setIsNotiOpen] = useState(false);
   const [taskReminders, setTaskReminders] = useState<AppNotification[]>([]);
   const [isPrintingHandover, setIsPrintingHandover] = useState(false);
@@ -3936,6 +4015,153 @@ export default function App() {
     }
   }, [currentUser]);
 
+  const deleteAllNotificationsForRecord = async (recordId: string) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('record_id', recordId);
+      if (error) throw error;
+      setNotifications(prev => prev.filter(n => n.appId !== recordId));
+    } catch (error) {
+      console.error('Error deleting notifications for record:', error);
+    }
+  };
+
+  const deleteNotification = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
+  };
+
+  const clearAllAppNotifications = async () => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete everything
+      if (error) throw error;
+      setNotifications([]);
+      showToast('Đã xóa toàn bộ thông báo hệ thống.', 'success');
+    } catch (error) {
+      console.error('Error clearing all notifications:', error);
+      showToast('Lỗi khi dọn dẹp thông báo.', 'error');
+    }
+  };
+
+  const fetchNotifications = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      
+      if (error) throw error;
+      if (data) {
+        setNotifications(data.map(mapNotificationFromSnakeCase));
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  };
+
+  const createNotification = async (noti: Partial<AppNotification>) => {
+    try {
+      const snakeData = mapNotificationToSnakeCase(noti);
+      const { error } = await supabase.from('notifications').insert(snakeData);
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error creating notification:', error);
+    }
+  };
+
+  const notifyNextDepartment = async (app: Application, targetStep: StepName) => {
+    const step = stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep];
+    const targetDept = step.dept;
+    
+    // Find all users in the target department
+    const targetUsers = users.filter(u => u.dept === targetDept && u.id !== currentUser?.id);
+    
+    if (targetUsers.length > 0) {
+      const promises = targetUsers.map(u => 
+        createNotification({
+          recipientId: u.id,
+          title: 'Bàn giao hồ sơ mới',
+          message: `Hồ sơ ${app.unitCode} đã được chuyển đến bộ phận của bạn từ ${currentUser?.name}.`,
+          type: 'Info',
+          appId: app.id
+        })
+      );
+      await Promise.all(promises);
+    }
+  };
+
+  const markNotificationAsRead = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', id);
+      
+      if (error) throw error;
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    if (!currentUser) return;
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('user_id', currentUser.id)
+        .eq('is_read', false);
+      
+      if (error) throw error;
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    fetchNotifications(currentUser.id);
+
+    const channel = supabase
+      .channel(`user-notifications-${currentUser.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${currentUser.id}`,
+        },
+        (payload: any) => {
+          const newNoti = mapNotificationFromSnakeCase(payload.new);
+          setNotifications(prev => [newNoti, ...prev]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser]);
+
   // Load current user on boot
   useEffect(() => {
     const saved = localStorage.getItem('procedural_current_user');
@@ -3961,6 +4187,7 @@ export default function App() {
         if (app.status === 'Error' || app.isRejected) {
           reminders.push({
             id: `rem-err-${app.id}`,
+            recipientId: currentUser.id,
             title: 'Khắc phục sai sót',
             message: `Lô ${app.unitCode} đang có lỗi hoặc bị trả về. Cần xử lý ngay.`,
             time: 'Yêu cầu ưu tiên',
@@ -3971,6 +4198,7 @@ export default function App() {
         } else if (isNew) {
           reminders.push({
             id: `rem-new-${app.id}`,
+            recipientId: currentUser.id,
             title: 'Tiếp nhận hồ sơ mới',
             message: `Bạn có hồ sơ ${app.unitCode} mới chuyển đến giai đoạn ${step.label}.`,
             time: 'Chờ tiếp nhận',
@@ -3986,6 +4214,7 @@ export default function App() {
       if (overdueInfo.isOverdue) {
         reminders.push({
           id: `rem-sla-${app.id}`,
+          recipientId: currentUser.id,
           title: 'Trễ hạn SLA',
           message: `Hồ sơ ${app.unitCode}: ${overdueInfo.label} (${overdueInfo.daysLate} ngày). Cần xử lý gấp.`,
           time: 'Quá hạn',
@@ -4989,6 +5218,12 @@ export default function App() {
 
     try {
       await syncRecordToSupabase(updatedApp);
+      await notifyNextDepartment(updatedApp, targetStep);
+
+      // Cleanup notifications if complete
+      if (targetStep === 'Hoan_Tat') {
+        await deleteAllNotificationsForRecord(app.id);
+      }
 
       setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
       setSelectedApp(updatedApp);
@@ -5209,6 +5444,14 @@ export default function App() {
         .upsert(appsToSync.map(app => mapToSnakeCase(app)));
 
       if (error) throw error;
+
+      // Notifications for bulk transition
+      await Promise.all(appsToSync.map(app => notifyNextDepartment(app, app.currentStep)));
+
+      // Cleanup notifications for finished apps
+      if (nextStep === 'Hoan_Tat') {
+        await Promise.all(selectedAppIds.map(id => deleteAllNotificationsForRecord(id)));
+      }
 
       setApplications(updatedApps);
       setSelectedAppIds([]);
@@ -5624,15 +5867,21 @@ export default function App() {
 
     setIsSavingApp(true);
     try {
-      // Add notification
-      const newNotification: AppNotification = {
-        id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        title: 'Hồ sơ bị trả về / Cần bổ sung',
-        message: `Hồ sơ lô ${app.unitCode} (${app.projectName}) bị Kế toán trả về: ${reason}`,
-        time: 'Vừa xong',
-        type: 'Urgent',
-        isRead: false
-      };
+      // Create notification for users in the previous step's department
+      const prevStepConfig = stepConfig[prevStep] || INITIAL_STEP_CONFIG[prevStep];
+      const targetDept = prevStepConfig.dept;
+      const targetUsers = users.filter(u => u.dept === targetDept && u.id !== currentUser?.id);
+      
+      const promises = targetUsers.map(u => 
+        createNotification({
+          recipientId: u.id,
+          title: 'Hồ sơ bị trả về / Cần bổ sung',
+          message: `Hồ sơ lô ${app.unitCode} (${app.projectName}) bị Kế toán trả về: ${reason}`,
+          type: 'Urgent',
+          appId: app.id
+        })
+      );
+      await Promise.all(promises);
 
       const { error } = await supabase
         .from('records')
@@ -5640,7 +5889,6 @@ export default function App() {
 
       if (error) throw error;
 
-      setNotifications(prev => [newNotification, ...prev]);
       setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
       setSelectedApp(updatedApp);
       setEditApp(null);
@@ -6796,8 +7044,10 @@ export default function App() {
                         taskReminders={taskReminders}
                         theme={theme}
                         onClose={() => setIsNotiOpen(false)} 
-                        onRead={(id) => setNotifications(prev => prev.map(n => n.id === id ? {...n, isRead: true} : n))}
-                        onAction={(appId) => {
+                        onRead={markNotificationAsRead}
+                        onMarkAllRead={markAllNotificationsAsRead}
+                        onAction={(appId, notiId) => {
+                          if (notiId) deleteNotification(notiId);
                           if (appId) {
                             const app = applications.find(a => a.id === appId);
                             if (app) setSelectedApp(app);
@@ -8437,6 +8687,7 @@ export default function App() {
                   storageStats={storageStats}
                   isFetchingStorage={isFetchingStorage}
                   onRefreshStorage={fetchStorageUsage}
+                  onClearNotifications={clearAllAppNotifications}
                 />
               </motion.div>
             )}
