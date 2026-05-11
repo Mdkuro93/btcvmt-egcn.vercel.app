@@ -15,7 +15,7 @@ import {
   Filter, 
   ArrowRight, 
   LayoutDashboard,
-  Map,
+  Map as MapIcon,
   User,
   MoreVertical,
   History,
@@ -4025,7 +4025,10 @@ export default function App() {
           if (currentHandover.companyName === 'CÔNG TY CỔ PHẦN ĐẦU TƯ LIÊN CHIỂU') {
             currentHandover.companyName = 'TẬP ĐOÀN SUNGROUP';
           }
-          const currentProjects = Array.from(new Map((configMap.projects || PROJECTS).map((p: any) => [p.id, p])).values());
+          const allProjectsRaw = (configMap.projects || PROJECTS) as any[];
+          const currentProjects = allProjectsRaw.filter((p, index, self) => 
+            p && p.id && index === self.findIndex((t) => t && t.id === p.id)
+          );
 
           setSlaConfig(currentSla);
           setChecklistTemplates(currentChecklist);
@@ -7006,7 +7009,7 @@ export default function App() {
                   : (theme === 'light' ? "text-slate-500 hover:bg-slate-50" : "text-slate-400 hover:bg-slate-800/50")
               )}
             >
-              <Map size={16} className={selectedProjectId === null ? (theme === 'light' ? "text-indigo-600" : "text-festive-gold") : "text-slate-500"} />
+              <MapIcon size={16} className={selectedProjectId === null ? (theme === 'light' ? "text-indigo-600" : "text-festive-gold") : "text-slate-500"} />
               <span className="truncate whitespace-nowrap overflow-hidden">Tất cả dự án</span>
             </button>
             
@@ -10047,7 +10050,7 @@ export default function App() {
                     <div className="space-y-1.5 flex-1">
                       <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Dự án</label>
                       <div className="relative group">
-                        <Map size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-emerald-500 transition-colors" />
+                        <MapIcon size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-emerald-500 transition-colors" />
                         <select 
                           className={cn(
                             "w-full pl-10 pr-10 py-3 border rounded-2xl text-sm focus:ring-2 transition-all outline-none appearance-none cursor-pointer",
