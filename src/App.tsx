@@ -559,7 +559,7 @@ const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Appli
       effectiveStatus = (app.vpdkCode && app.submissionLocation && app.submissionDate) ? 'Submitted' : 'WaitingVPDK';
     } else if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' || app.currentStep === 'GD4_Cho_Nop_NVTC' || app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') {
       effectiveStatus = app.taxReceiptDate ? 'TaxCompleted_Dynamic' : 'TaxPaymentPending_Dynamic';
-    } else if (['S6_Nhan_So_GCN', 'S7_Ban_Giao_Luu_Kho', 'GD5_Cho_Ky_In_GCN'].includes(app.currentStep)) {
+    } else if (['S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach', 'GD5_Cho_Ky_In_GCN'].includes(app.currentStep)) {
       effectiveStatus = app.gcnSignedDate ? 'GCN_Issued' : 'GCN_SignPending_Dynamic';
     }
   }
@@ -1976,8 +1976,8 @@ const ReportsView = ({
                    </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                   {stats.slice(0, 4).map((user: any, i: number) => (
-                     <div key={i} className={cn(
+                   {stats.slice(0, 4).map((user: any) => (
+                     <div key={`top-card-${user.id}`} className={cn(
                        "p-5 rounded-[2rem] border relative overflow-hidden group",
                        theme === 'light' ? "bg-slate-50" : "bg-slate-950/20 border-slate-800"
                      )}>
@@ -3451,7 +3451,7 @@ const getPhaseIndex = (step: StepName): number => {
   if (step === 'S4_Cho_Thong_Bao_Thue') return 3;
   if (['S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan'].includes(step)) return 4;
   if (step === 'S6_Nhan_So_GCN') return 5;
-  if (['S7_Ban_Giao_Luu_Kho'].includes(step)) return 6;
+  if (['S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach'].includes(step)) return 6;
   
   // Quy trình 1 (6 bước)
   if (['GD1_ChuanBi', 'GD1_Cho_KT_TiepNhan'].includes(step)) return 0;
@@ -3492,7 +3492,9 @@ const getOverdueInfo = (app: Application, stepConfig: Record<string, any>, slaCo
     S4_Cho_Thong_Bao_Thue: 'submissionDate',
     S5_Tai_Chinh_Khach_Hang: 'taxNotificationDate',
     S6_Nhan_So_GCN: 'taxReceiptDate',
-    S7_Ban_Giao_Luu_Kho: 'gcnReceivedDate',
+    S7_PTDA_Ban_Giao: 'gcnReceivedDate',
+    S7_1_PTT_Tiep_Nhan: 'gcnReceivedDate',
+    S7_2_Ban_Giao_Khach: 'customerHandoverDate',
     
     // Workflow 1
     GD1_ChuanBi: 'contractSigningDate',
@@ -4023,7 +4025,7 @@ export default function App() {
           if (currentHandover.companyName === 'CÔNG TY CỔ PHẦN ĐẦU TƯ LIÊN CHIỂU') {
             currentHandover.companyName = 'TẬP ĐOÀN SUNGROUP';
           }
-          const currentProjects = configMap.projects || PROJECTS;
+          const currentProjects = Array.from(new Map((configMap.projects || PROJECTS).map((p: any) => [p.id, p])).values());
 
           setSlaConfig(currentSla);
           setChecklistTemplates(currentChecklist);
@@ -5244,7 +5246,7 @@ export default function App() {
         }
         if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' && nextStep === 'S5_1_PTDA_TiepNhan') {
           if (!app.taxReceiptDate) {
-            showToast('Bắt buộc nhập Ngày nhận GNT / Nộp thuế trước khi chuyển bước.', 'warning');
+            showToast('Bắt buộc nhập Ngày nhận/cung cấp GNT / Nộp thuế trước khi chuyển bước.', 'warning');
             return;
           }
         }
@@ -5254,13 +5256,13 @@ export default function App() {
             return;
           }
         }
-        if (app.currentStep === 'S6_Nhan_So_GCN' && nextStep === 'S7_Ban_Giao_Luu_Kho') {
+        if (app.currentStep === 'S6_Nhan_So_GCN' && nextStep === 'S7_PTDA_Ban_Giao') {
           if (!app.ptdaHandoverDate) {
             showToast('Bắt buộc nhập Ngày bàn giao GCN cho PTT trước khi chuyển bước.', 'warning');
             return;
           }
         }
-        if (app.currentStep === 'S7_Ban_Giao_Luu_Kho' && nextStep === 'Hoan_Tat') {
+        if (app.currentStep === 'S7_2_Ban_Giao_Khach' && nextStep === 'Hoan_Tat') {
           if (!app.customerHandoverDate) {
             showToast('Bắt buộc nhập Ngày BG GCN cho khách trước khi hoàn tất.', 'warning');
             return;
@@ -5290,7 +5292,7 @@ export default function App() {
 
     const intermediateSteps: StepName[] = [
       'S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK',
-      'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'S6_Nhan_So_GCN', 'S7_Ban_Giao_Luu_Kho'
+      'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach'
     ];
     if (app.isSelfService && intermediateSteps.includes(nextStep)) {
       targetStep = 'Hoan_Tat';
@@ -5330,7 +5332,8 @@ export default function App() {
       }
       if ((targetStep === 'S5_1_PTDA_TiepNhan' || targetStep === 'GD4_Cho_KT_TiepNhan_LaySo') && !app.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
       if ((targetStep === 'S6_Nhan_So_GCN' || targetStep === 'GD5_Cho_Ky_In_GCN') && !app.gcnSignedDate) autoDates.gcnSignedDate = nowStr;
-      if ((targetStep === 'S7_Ban_Giao_Luu_Kho' || targetStep === 'GD6_Cho_BG_Khach') && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
+      if ((targetStep === 'S7_PTDA_Ban_Giao' || targetStep === 'GD6_Cho_BG_Khach') && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
+      if (targetStep === 'S7_1_PTT_Tiep_Nhan' && !app.gcnReceivedDate) autoDates.gcnReceivedDate = nowStr;
       if (targetStep === 'Hoan_Tat' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
     }
 
@@ -5400,19 +5403,21 @@ export default function App() {
     else if (nextStep === 'S3_Nop_VPDK') updateField = { key: 'submissionDate', label: 'Ngày nộp VPĐK', isRequired: true };
     else if (nextStep === 'S4_Cho_Thong_Bao_Thue') updateField = { key: 'taxNotificationReceivedDate', label: 'Ngày nhận TB Thuế' };
     else if (nextStep === 'S5_Tai_Chinh_Khach_Hang') updateField = { key: 'taxNoticeProvisionDate', label: 'Ngày cung cấp phiếu nộp tiền' };
-    else if (nextStep === 'S5_1_PTDA_TiepNhan') updateField = { key: 'taxReceiptDate', label: 'Ngày nhận GNT / Nộp thuế', isRequired: true };
+    else if (nextStep === 'S5_1_PTDA_TiepNhan') updateField = { key: 'taxReceiptDate', label: 'Ngày nhận/cung cấp GNT / Nộp thuế', isRequired: true };
     else if (nextStep === 'S6_Nhan_So_GCN') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN', isRequired: true };
-    else if (nextStep === 'S7_Ban_Giao_Luu_Kho') updateField = { key: 'ptdaHandoverDate', label: 'Ngày bàn giao GCN cho PTT', isRequired: true };
+    else if (nextStep === 'S7_PTDA_Ban_Giao') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN', isRequired: true };
+    else if (nextStep === 'S7_1_PTT_Tiep_Nhan') updateField = { key: 'ptdaHandoverDate', label: 'Ngày bàn giao GCN cho PTT', isRequired: true };
+    else if (nextStep === 'S7_2_Ban_Giao_Khach') updateField = { key: 'gcnReceivedDate', label: 'Ngày nhận GCN thực tế', isRequired: true };
+    else if (nextStep === 'Hoan_Tat') updateField = { key: 'customerHandoverDate', label: 'Ngày BG GCN cho khách', isRequired: true };
     
     // GD workflow
     else if (nextStep === 'GD1_Cho_KT_TiepNhan') updateField = { key: 'contractSigningDate', label: 'Ngày ký HĐCN/HĐMB', isRequired: false };
     else if (nextStep === 'GD3_Cho_TBThue') updateField = { key: 'submissionDate', label: 'Ngày nộp VPĐK', isRequired: true };
     else if (nextStep === 'GD4_Cho_Nop_NVTC') updateField = { key: 'taxNotificationDate', label: 'Ngày TB Thuế', isRequired: true };
-    else if (nextStep === 'GD4_Cho_KT_TiepNhan_LaySo') updateField = { key: 'taxReceiptDate', label: 'Ngày nhận GNT / Nộp thuế', isRequired: true };
+    else if (nextStep === 'GD4_Cho_KT_TiepNhan_LaySo') updateField = { key: 'taxReceiptDate', label: 'Ngày nhận/cung cấp GNT / Nộp thuế', isRequired: true };
     else if (nextStep === 'GD5_Cho_GCN') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN', isRequired: true };
     else if (nextStep === 'GD5_Cho_PTT_TiepNhan_BG') updateField = { key: 'gcnReceivedDate', label: 'Ngày nhận GCN thực tế', isRequired: true };
     else if (nextStep === 'GD6_Cho_BG_Khach') updateField = { key: 'ptdaHandoverDate', label: 'Ngày BG GCN cho PTT', isRequired: true };
-    else if (nextStep === 'Hoan_Tat') updateField = { key: 'customerHandoverDate', label: 'Ngày BG GCN cho khách', isRequired: true };
 
     // If there is no specific field to update, we can either skip the modal and transition directly 
     // or keep the modal just for confirmation. Here we just show the modal without a required date.
@@ -5505,7 +5510,7 @@ export default function App() {
 
         const intermediateSteps: StepName[] = [
           'S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK',
-          'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'S6_Nhan_So_GCN', 'S7_Ban_Giao_Luu_Kho'
+          'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach'
         ];
         if (appWithDate.isSelfService && intermediateSteps.includes(nextStep)) {
           targetStep = 'Hoan_Tat';
@@ -5547,7 +5552,9 @@ export default function App() {
           // If we are at S6, we should have gcnSignedDate (set by bulk modal)
           if (!appWithDate.gcnSignedDate) autoDates.gcnSignedDate = nowStr;
         }
-        if (targetStep === 'S7_Ban_Giao_Luu_Kho' && !appWithDate.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
+        if (targetStep === 'S7_PTDA_Ban_Giao' && !appWithDate.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
+        if (targetStep === 'S7_1_PTT_Tiep_Nhan' && !appWithDate.gcnReceivedDate) autoDates.gcnReceivedDate = nowStr;
+        if (targetStep === 'S7_2_Ban_Giao_Khach' && !appWithDate.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
         if (targetStep === 'Hoan_Tat' && !appWithDate.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
 
         // Auto handover logic
@@ -6738,7 +6745,7 @@ export default function App() {
       (dashboardFilter === 'PTT_HOLDING' && stepConfig[app.currentStep]?.dept === 'PTT') ||
       (dashboardFilter === 'PTT_ISSUES' && (app.isRejected || app.status === 'Error')) ||
       (dashboardFilter === 'PTT_TAX_UNPAID' && !!app.taxNotificationDate && !app.taxReceiptDate) ||
-      (dashboardFilter === 'PTT_WAITING_HANDOVER' && app.currentStep === 'S6_Nhan_So_GCN' && !app.customerHandoverDate) ||
+      (dashboardFilter === 'PTT_WAITING_HANDOVER' && ['S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach'].includes(app.currentStep) && !app.customerHandoverDate) ||
       (dashboardFilter === 'KT_ALL' && true) ||
       (dashboardFilter === 'KT_NEED_RECEIVE' && (app.currentStep === 'S2_KT_Tiep_Nhan' || app.currentStep === 'GD1_Cho_KT_TiepNhan')) ||
       (dashboardFilter === 'KT_PROCESSING' && (app.currentStep === 'S2_KT_Tiep_Nhan' || app.currentStep === 'GD2_Cho_Nop_VPDK' || app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo')) ||
@@ -8087,7 +8094,7 @@ export default function App() {
                                 value={selectedProjectId || 'ALL'}
                                 onChange={(e) => setSelectedProjectId(e.target.value === 'ALL' ? null : e.target.value)}
                               >
-                                <option value="ALL">Tất cả dự án</option>
+                                <option key="all-projects" value="ALL">Tất cả dự án</option>
                                 {projects.map(p => (
                                   <option key={p.id} value={p.id}>{p.name}</option>
                                 ))}
@@ -8104,7 +8111,7 @@ export default function App() {
                                 value={filterStatus}
                                 onChange={(e) => setFilterStatus(e.target.value as any)}
                               >
-                                <option value="ALL">Tất cả trạng thái</option>
+                                <option key="all-status" value="ALL">Tất cả trạng thái</option>
                                 <option value="Processing">Đang xử lý</option>
                                 <option value="Submitted">Đã nộp VPĐK</option>
                                 <option value="TaxPending">Đang chờ thuế</option>
@@ -8124,11 +8131,11 @@ export default function App() {
                                 value={filterStep}
                                 onChange={(e) => setFilterStep(e.target.value as any)}
                               >
-                                <option value="ALL">Tất cả giai đoạn</option>
-                                {Object.keys(stepConfig).filter(step => stepConfig[step].active).map(step => (
-                                  <option key={step} value={step}>{stepConfig[step].label}</option>
+                                <option key="all-steps" value="ALL">Tất cả giai đoạn</option>
+                                {Object.keys(stepConfig).filter(step => stepConfig[step].active && step !== 'Hoan_Tat').map(step => (
+                                  <option key={`filter-step-${step}`} value={step}>{stepConfig[step].label}</option>
                                 ))}
-                                <option value="Hoan_Tat">Hồ sơ đã hoàn tất</option>
+                                <option key="filter-step-hoan-tat" value="Hoan_Tat">Hồ sơ đã hoàn tất</option>
                               </select>
                             </div>
 
@@ -8244,8 +8251,8 @@ export default function App() {
                               const nextStep = getNextStep(firstApp.currentStep, workflowType);
                               const roleDept = (stepConfig[firstApp.currentStep] || INITIAL_STEP_CONFIG[firstApp.currentStep])?.dept;
                               
-                              // Step 7 Quy_trinh_2 custom logic
-                              if (workflowType === 'Quy_trinh_2' && firstApp.currentStep === 'S7_Ban_Giao_Luu_Kho') {
+                              // Step 7.2 Quy_trinh_2 custom logic
+                              if (workflowType === 'Quy_trinh_2' && firstApp.currentStep === 'S7_2_Ban_Giao_Khach') {
                                  if (userRole === 'PTT' || userRole === 'ADMIN') {
                                     return (
                                        <button 
@@ -9518,7 +9525,7 @@ export default function App() {
                                  </div>
                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                    <DetailCard theme={theme}
-                                     label="Ngày nhận GNT / Nộp thuế" 
+                                     label="Ngày nhận/cung cấp GNT / Nộp thuế" 
                                      value={(editApp || selectedApp).taxReceiptDate} 
                                      type="date"
                                      editable={isFieldEditable('taxReceiptDate')}
@@ -9839,7 +9846,7 @@ export default function App() {
                       }
 
                       let canAction = role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER' || (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.dept === role;
-                      if (app.currentStep === 'S7_Ban_Giao_Luu_Kho' && role === 'PTT') {
+                      if (app.currentStep === 'S7_2_Ban_Giao_Khach' && role === 'PTT') {
                         canAction = true;
                       }
 
@@ -9848,8 +9855,8 @@ export default function App() {
                       const nextStep = getNextStep(app.currentStep, app.workflowType || 'Quy_trinh_1');
                       const workflowType = app.workflowType || 'Quy_trinh_1';
 
-                      // Bước 7 - Quy trình 2: Rút gọn - Ban giao luu kho
-                      if (workflowType === 'Quy_trinh_2' && app.currentStep === 'S7_Ban_Giao_Luu_Kho') {
+                      // Bước 7.2 - Quy trình 2: Bàn giao khách hàng
+                      if (workflowType === 'Quy_trinh_2' && app.currentStep === 'S7_2_Ban_Giao_Khach') {
                         return (
                           <div className="flex flex-col gap-3">
                             {role === 'PTT' && (
@@ -9863,7 +9870,7 @@ export default function App() {
                                 }}
                                 className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
                               >
-                                Xác nhận đã nhận GCN & Giao khách <CheckCircle2 size={16} />
+                                Xác nhận Giao khách & Hoàn tất <CheckCircle2 size={16} />
                               </button>
                             )}
                             {role !== 'PTT' && (
@@ -9881,7 +9888,7 @@ export default function App() {
                             <button 
                               onClick={() => {
                                  // Define standard steps that require bulk modal for dates
-                                 const bulkSteps = ['S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK', 'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan', 'S6_Nhan_So_GCN', 'S7_Ban_Giao_Luu_Kho', 'Hoan_Tat', 'GD1_Cho_KT_TiepNhan', 'GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo', 'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Cho_BG_Khach'];
+                                 const bulkSteps = ['S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK', 'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach', 'Hoan_Tat', 'GD1_Cho_KT_TiepNhan', 'GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo', 'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Cho_BG_Khach'];
                                  if (bulkSteps.includes(nextStep)) {
                                    handleBulkStepTransition(nextStep, [app.id]);
                                  } else {

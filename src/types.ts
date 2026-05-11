@@ -19,7 +19,9 @@ export type StepName =
   | 'S5_Tai_Chinh_Khach_Hang'
   | 'S5_1_PTDA_TiepNhan'
   | 'S6_Nhan_So_GCN'
-  | 'S7_Ban_Giao_Luu_Kho'
+  | 'S7_PTDA_Ban_Giao'
+  | 'S7_1_PTT_Tiep_Nhan'
+  | 'S7_2_Ban_Giao_Khach'
   | 'Hoan_Tat'
   // Workflow Quy trình Hỗ trợ (GD_)
   | 'GD1_ChuanBi'
