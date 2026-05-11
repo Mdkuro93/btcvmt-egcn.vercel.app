@@ -3890,20 +3890,16 @@ export default function App() {
       try {
         // 1. Fetch data in parallel
         const responses = await Promise.allSettled([
-          supabase.from('records').select('*').order('created_at', { ascending: false }),
           supabase.from('users').select('*'),
           supabase.from('system_configs').select('*')
         ]);
 
-        const appsRes = responses[0].status === 'fulfilled' ? responses[0].value : { data: null, error: (responses[0] as any).reason };
-        const usersRes = responses[1].status === 'fulfilled' ? responses[1].value : { data: null, error: (responses[1] as any).reason };
-        const configRes = responses[2].status === 'fulfilled' ? responses[2].value : { data: null, error: (responses[2] as any).reason };
+        const usersRes = responses[0].status === 'fulfilled' ? responses[0].value : { data: null, error: (responses[0] as any).reason };
+        const configRes = responses[1].status === 'fulfilled' ? responses[1].value : { data: null, error: (responses[1] as any).reason };
 
-        if (appsRes.error) console.error('Error fetching records:', appsRes.error);
         if (usersRes.error) console.error('Error fetching users:', usersRes.error);
         if (configRes.error) console.error('Error fetching config:', configRes.error);
 
-        const appsData = appsRes.data;
         const usersData = usersRes.data;
         const configData = configRes.data;
 
@@ -3915,85 +3911,88 @@ export default function App() {
           });
         }
           
-          if (configData) {
-            // Initialize missing Configs or use defaults
-            const currentSla = configMap.slaConfig || Object.values(INITIAL_STEP_CONFIG).reduce((acc: any, s: any) => ({ ...acc, [s.label]: 10 }), {});
-            const currentChecklist = configMap.checklistTemplates || DOC_CHECKLIST_ITEMS;
-            const currentSteps = { ...INITIAL_STEP_CONFIG, ...(configMap.stepConfig || {}) };
-            const currentHandover = configMap.handoverTemplate || {};
-            const currentProjects = configMap.projects || PROJECTS;
+        if (configData) {
+          const currentSla = configMap.slaConfig || Object.values(INITIAL_STEP_CONFIG).reduce((acc: any, s: any) => ({ ...acc, [s.label]: 10 }), {});
+          const currentChecklist = configMap.checklistTemplates || DOC_CHECKLIST_ITEMS;
+          const currentSteps = { ...INITIAL_STEP_CONFIG, ...(configMap.stepConfig || {}) };
+          const currentHandover = configMap.handoverTemplate || {};
+          const currentProjects = configMap.projects || PROJECTS;
 
-            setSlaConfig(currentSla);
-            setChecklistTemplates(currentChecklist);
-            setStepConfig(currentSteps);
-            setHandoverTemplate(currentHandover);
-            setProjects(currentProjects);
+          setSlaConfig(currentSla);
+          setChecklistTemplates(currentChecklist);
+          setStepConfig(currentSteps);
+          setHandoverTemplate(currentHandover);
+          setProjects(currentProjects);
 
-            // Bootstrap missing configs to Supabase
-            const requiredKeys = ['slaConfig', 'checklistTemplates', 'stepConfig', 'handoverTemplate', 'projects'];
-            for (const key of requiredKeys) {
-              if (!configMap[key]) {
-                let val = key === 'slaConfig' ? currentSla 
-                        : key === 'checklistTemplates' ? currentChecklist
-                        : key === 'stepConfig' ? currentSteps
-                        : key === 'handoverTemplate' ? currentHandover
-                        : currentProjects;
-                
-                await supabase.from('system_configs').upsert({ key, value: val, updated_at: new Date().toISOString() }, { onConflict: 'key' });
-              }
-            }
-          }
-
-        if (appsData && appsData.length > 0) {
-          const processedApps = appsData.map(app => {
-            const mapped = mapFromSnakeCase(app);
-            if (mapped.currentStep === 'GD5_Cho_GCN' as any) {
-              mapped.currentStep = 'S7_Ban_Giao_Luu_Kho';
-            }
-            return mapped;
-          });
-          setApplications(processedApps);
-        } else {
-          setApplications(MOCK_APPLICATIONS);
-          if (appsData && appsData.length === 0) {
-            // Seed mock apps using valid UUIDs from constants
-            const appsToSeed = MOCK_APPLICATIONS.map(app => mapToSnakeCase(app));
-            const { data: seededApps, error: seedError } = await supabase.from('records').insert(appsToSeed).select();
-            if (!seedError && seededApps) {
-              setApplications(seededApps.map(mapFromSnakeCase));
+          // Bootstrap missing configs to Supabase
+          const requiredKeys = ['slaConfig', 'checklistTemplates', 'stepConfig', 'handoverTemplate', 'projects'];
+          for (const key of requiredKeys) {
+            if (!configMap[key]) {
+              let val = key === 'slaConfig' ? currentSla 
+                      : key === 'checklistTemplates' ? currentChecklist
+                      : key === 'stepConfig' ? currentSteps
+                      : key === 'handoverTemplate' ? currentHandover
+                      : currentProjects;
+              
+              await supabase.from('system_configs').upsert({ key, value: val, updated_at: new Date().toISOString() }, { onConflict: 'key' });
             }
           }
         }
+        if (usersData) setUsers(usersData.map(mapUserFromSnakeCase));
+        else setUsers(MOCK_USERS);
 
-        // Process Users
-        if (usersData && usersData.length > 0) {
-          setUsers(usersData.map(mapUserFromSnakeCase));
-        } else {
-          setUsers(MOCK_USERS);
-          if (usersData && usersData.length === 0) {
-             // Seed mock users using valid UUIDs from constants
-             const usersToSeed = MOCK_USERS.map(user => mapUserToSnakeCase(user));
-             const { data: seededUsers, error: seedError } = await supabase.from('users').insert(usersToSeed).select();
-             if (!seedError && seededUsers) {
-               setUsers(seededUsers.map(mapUserFromSnakeCase));
-             }
-          }
-        }
-      } catch (err) {
-        console.error('Unexpected error fetching initial data:', err);
-        setApplications(MOCK_APPLICATIONS);
-        setUsers(MOCK_USERS);
-        setProjects(PROJECTS);
-        showToast('Không thể kết nối đến Supabase. Đang sử dụng dữ liệu tạm thời.', 'warning');
-      } finally {
-        setIsLoadingApps(false);
+        // Fetch records is handled separately, just ensure pagination is triggered
+        fetchApplications();
+        
         setIsLoadingConfig(false);
         setIsInitialLoading(false);
+      } catch (e) {
+         console.error('Error initializing:', e);
+         setIsLoadingConfig(false);
+         setIsInitialLoading(false);
+         setApplications(MOCK_APPLICATIONS);
+         setUsers(MOCK_USERS);
+         setProjects(PROJECTS);
       }
+      setIsLoadingApps(false); 
     };
-
     fetchInitialData();
   }, []);
+
+  const fetchApplications = async () => {
+    setIsLoadingApps(true);
+    try {
+      let query = supabase.from('records').select('*', { count: 'exact' });
+      
+      if (searchTerm) {
+        query = query.or(`unitCode.ilike.%${searchTerm}%,customerName.ilike.%${searchTerm}%`);
+      }
+      
+      const { data, count, error } = await query
+        .order('created_at', { ascending: false })
+        .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
+        
+      if (error) throw error;
+      
+      console.log('Fetched data:', data);
+      
+      setApplications((data || []).map(mapFromSnakeCase));
+      setTotalCount(count || 0);
+    } catch (error) {
+      console.error('Error fetching paginated records:', error);
+      showToast('Lỗi tải dữ liệu hồ sơ.', 'error');
+    } finally {
+      setIsLoadingApps(false);
+    }
+  };
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      fetchApplications();
+    }, 500);
+    
+    return () => clearTimeout(handler);
+  }, [searchTerm, currentPage, pageSize]);
 
   useEffect(() => {
     if (applications.length > 0) localStorage.setItem('procedural_apps', JSON.stringify(applications));
@@ -7847,8 +7846,34 @@ export default function App() {
                   theme === 'light' ? "bg-white border-slate-200 shadow-slate-900/5" : "bg-slate-900/40 border-slate-800/50"
                 )}>
                   <div className={cn("p-6 border-b", theme === 'light' ? "border-slate-100 shadow-inner bg-slate-50/50" : "border-slate-800/50")}>
-                    <div className="flex items-center justify-between gap-4 mb-4">
-                      <div className="flex items-center gap-4">
+                    <div className="flex flex-col gap-4 mb-4">
+                      <div className="flex justify-between items-center">
+                        <input 
+                          type="text"
+                          placeholder="Tìm theo Mã HS, Tên..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className={cn("px-4 py-2 rounded-full text-xs font-bold border outline-none", theme === 'light' ? "bg-white border-slate-200 text-slate-800" : "bg-slate-950 border-slate-800 text-white")}
+                        />
+                        <div className="flex items-center gap-4 text-[11px]">
+                          <select 
+                            value={pageSize}
+                            onChange={(e) => {setPageSize(Number(e.target.value)); setCurrentPage(0);}}
+                            className={cn("px-2 py-1 rounded-lg text-[10px]", theme === 'light' ? "bg-slate-100" : "bg-slate-800")}
+                          >
+                            <option value={20}>20 / trang</option>
+                            <option value={50}>50 / trang</option>
+                            <option value={100}>100 / trang</option>
+                          </select>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className="p-1 disabled:opacity-30">Trước</button>
+                            <span className="font-bold">Trang {currentPage + 1}</span>
+                            <button onClick={() => setCurrentPage(p => ( (p+1)*pageSize < totalCount ? p + 1 : p))} disabled={(currentPage+1)*pageSize >= totalCount} className="p-1 disabled:opacity-30">Sau</button>
+                          </div>
+                          <span className="text-slate-500 italic">Tổng: {totalCount} hồ sơ</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
                         {selectedAppIds.length > 0 && (
                           <button 
                             onClick={handleBulkPrint}
@@ -8149,9 +8174,9 @@ export default function App() {
                             <input 
                               type="checkbox" 
                               className="w-4 h-4 rounded border-slate-700 bg-slate-900 accent-festive-gold"
-                              checked={selectedAppIds.length === filteredApps.length && filteredApps.length > 0}
+                              checked={selectedAppIds.length === applications.length && applications.length > 0}
                               onChange={(e) => {
-                                if (e.target.checked) setSelectedAppIds(filteredApps.map(a => a.id));
+                                if (e.target.checked) setSelectedAppIds(applications.map(a => a.id));
                                 else setSelectedAppIds([]);
                               }}
                             />
@@ -8187,7 +8212,7 @@ export default function App() {
                         "divide-y transition-all",
                         theme === 'light' ? "text-slate-700 divide-slate-100" : "text-slate-300 divide-slate-800/40"
                       )}>
-                        {filteredApps.map(app => {
+                        {applications.map(app => {
                           const overdue = getOverdueInfo(app);
                           return (
                             <tr 
