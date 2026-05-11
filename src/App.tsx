@@ -1372,7 +1372,8 @@ const ReportsView = ({
   setActiveTab,
   setDashboardFilter,
   setFilterLoanStatus,
-  stepConfig
+  stepConfig,
+  slaConfig
 }: { 
   applications: Application[], 
   projects: Project[], 
@@ -1381,7 +1382,8 @@ const ReportsView = ({
   setActiveTab: (tab: any) => void,
   setDashboardFilter: (filter: any) => void,
   setFilterLoanStatus: (filter: any) => void,
-  stepConfig: any
+  stepConfig: any,
+  slaConfig: Record<string, number>
 }) => {
   const [reportType, setReportType] = useState<'PROJECT' | 'REGION' | 'LOAN' | 'SLA' | 'PERFORMANCE'>('LOAN');
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
@@ -1727,7 +1729,7 @@ const ReportsView = ({
                     </div>
                     <div>
                       <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Đang xử lý đúng hạn</p>
-                      <p className="text-2xl font-black text-white italic">{loanApps.filter(a => a.status !== 'Completed' && !getOverdueInfo(a).isOverdue).length}</p>
+                      <p className="text-2xl font-black text-white italic">{loanApps.filter(a => a.status !== 'Completed' && !getOverdueInfo(a, stepConfig, slaConfig).isOverdue).length}</p>
                     </div>
                   </div>
                 </div>
@@ -2363,7 +2365,9 @@ const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: {
   
   const filteredApps = applications.filter(a => 
     String(a.unitCode || '').toLowerCase().includes(search.toLowerCase()) || 
-    String(a.customerName || '').toLowerCase().includes(search.toLowerCase())
+    String(a.customerName || '').toLowerCase().includes(search.toLowerCase()) ||
+    String(a.projectName || '').toLowerCase().includes(search.toLowerCase()) ||
+    String(a.phoneNumber || '').toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -3457,37 +3461,45 @@ const getTaxStatus = (app: Application) => {
   return { label: 'Hoàn thành', color: 'text-emerald-500' };
 };
 
-const getOverdueInfo = (app: Application) => {
-  const phaseIndex = getPhaseIndex(app.currentStep);
+const getOverdueInfo = (app: Application, stepConfig: Record<string, any>, slaConfig: Record<string, number>) => {
+  const currentStep = app.currentStep;
+  const config = stepConfig[currentStep];
+  if (!config || currentStep === 'Hoan_Tat') return { isOverdue: false, daysLate: 0 };
 
-  // SLA: HĐCN -> Bàn giao hồ sơ (25 ngày)
-  if (phaseIndex === 0 && app.contractSigningDate && !app.accountingHandoverDate) {
-    const days = calculateDaysDiff(app.contractSigningDate);
-    if (days > 25) return { isOverdue: true, daysLate: days - 25, label: 'Trễ bàn giao HS' };
-  }
+  const sla = slaConfig[config.label] || config.slaDays || 10;
+  
+  let comparisonDate: string | undefined;
+  
+  // Mapping current step to the date it started (or the date of the previous step)
+  const mapping: Record<string, keyof Application> = {
+    // Workflow 2
+    S1_ChuanBi: 'contractSigningDate',
+    S2_KT_Tiep_Nhan: 'receivedDate',
+    S2_KT_Ban_giao: 'receivedDate',
+    S3_Nop_VPDK: 'accountingHandoverDate', // Or receivedDate if not set
+    S4_Cho_Thong_Bao_Thue: 'submissionDate',
+    S5_Tai_Chinh_Khach_Hang: 'taxNotificationDate',
+    S6_Nhan_So_GCN: 'taxReceiptDate',
+    S7_Ban_Giao_Luu_Kho: 'gcnReceivedDate',
+    
+    // Workflow 1
+    GD1_ChuanBi: 'contractSigningDate',
+    GD1_Cho_KT_TiepNhan: 'receivedDate',
+    GD2_Cho_Nop_VPDK: 'receivedDate',
+    GD2_Cho_PTDA_TiepNhan: 'submissionDate',
+    GD3_Cho_TBThue: 'submissionDate',
+    GD4_Cho_Nop_NVTC: 'taxNotificationDate',
+    GD5_Cho_GCN: 'taxReceiptDate',
+    GD6_Cho_BG_Khach: 'gcnReceivedDate'
+  };
 
-  // SLA: Tiếp nhận -> Nộp (5 ngày)
-  if (phaseIndex === 1 && app.accountingHandoverDate && !app.submissionDate) {
-    const days = calculateDaysDiff(app.accountingHandoverDate);
-    if (days > 5) return { isOverdue: true, daysLate: days - 5, label: 'Trễ nộp VPĐK' };
-  }
-
-  // SLA: Nộp -> TB Thuế (15 ngày)
-  if (phaseIndex === 2 && app.submissionDate && !app.taxNotificationDate) {
-    const days = calculateDaysDiff(app.submissionDate);
-    if (days > 15) return { isOverdue: true, daysLate: days - 15, label: 'Trễ TB Thuế' };
-  }
-
-  // SLA: TB Thuế -> NVTC (10 ngày)
-  if (phaseIndex === 3 && app.taxNotificationDate && !app.taxReceiptDate) {
-    const days = calculateDaysDiff(app.taxNotificationDate);
-    if (days > 10) return { isOverdue: true, daysLate: days - 10, label: 'Trễ nộp thuế' };
-  }
-
-  // SLA: Hoàn thành thuế -> Có sổ (10 ngày)
-  if (phaseIndex === 4 && app.taxReceiptDate && !app.gcnReceivedDate) {
-    const days = calculateDaysDiff(app.taxReceiptDate);
-    if (days > 10) return { isOverdue: true, daysLate: days - 10, label: 'Trễ nhận GCN' };
+  comparisonDate = app[mapping[currentStep] || 'receivedDate'] as string | undefined;
+  
+  if (comparisonDate) {
+    const days = calculateDaysDiff(comparisonDate);
+    if (days > sla) {
+      return { isOverdue: true, daysLate: days - sla, label: `Trễ ${config.label}` };
+    }
   }
 
   return { isOverdue: false, daysLate: 0 };
@@ -3772,6 +3784,24 @@ export default function App() {
     newPassword: '',
     confirmPassword: ''
   });
+
+  // System Configuration States
+  const [slaConfig, setSlaConfig] = useState<Record<string, number>>({});
+  const [checklistTemplates, setChecklistTemplates] = useState<string[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [handoverTemplate, setHandoverTemplate] = useState(() => {
+    const saved = localStorage.getItem('procedural_handover_template');
+    return saved ? JSON.parse(saved) : {
+      companyName: 'TẬP ĐOÀN SUNGROUP',
+      subTitle: 'Vùng Đà Nẵng',
+      docCode: 'Mẫu HC-09-BM04',
+      title: 'BIÊN BẢN BÀN GIAO',
+      subTitle2: 'Nội dung bàn giao',
+      address: 'Phường Hòa Hiệp Nam, Quận Liên Chiểu, TP Đà Nẵng',
+      footerNote1: 'Người bàn giao: Ký và ghi rõ họ tên.',
+      footerNote2: 'Người nhận: Ký và ghi rõ họ tên.'
+    };
+  });
   
   const handleUpdatePassword = async () => {
     if (!currentUser) return;
@@ -3973,6 +4003,11 @@ export default function App() {
             footerNote1: 'Ghi chú 1',
             footerNote2: 'Ghi chú 2'
           };
+          
+          // Force update company name if it's the old one
+          if (currentHandover.companyName === 'CÔNG TY CỔ PHẦN ĐẦU TƯ LIÊN CHIỂU') {
+            currentHandover.companyName = 'TẬP ĐOÀN SUNGROUP';
+          }
           const currentProjects = configMap.projects || PROJECTS;
 
           setSlaConfig(currentSla);
@@ -4022,7 +4057,11 @@ export default function App() {
       let query = supabase.from('records').select('*', { count: 'exact' });
       
       if (searchTerm) {
-        query = query.or(`unitCode.ilike.%${searchTerm}%,customerName.ilike.%${searchTerm}%`);
+        query = query.or(`unit_code.ilike.%${searchTerm}%,customer_name.ilike.%${searchTerm}%,project_name.ilike.%${searchTerm}%,phone_number.ilike.%${searchTerm}%`);
+      }
+
+      if (selectedProjectId && selectedProject) {
+        query = query.eq('project_name', selectedProject.name);
       }
       
       const { data, count, error } = await query
@@ -4049,7 +4088,7 @@ export default function App() {
     }, 500);
     
     return () => clearTimeout(handler);
-  }, [searchTerm, currentPage, pageSize]);
+  }, [searchTerm, currentPage, pageSize, selectedProjectId]);
 
   useEffect(() => {
     if (applications.length > 0) localStorage.setItem('procedural_apps', JSON.stringify(applications));
@@ -4115,9 +4154,15 @@ export default function App() {
   const cleanupJunkFiles = async () => {
     setIsLoadingConfig(true);
     try {
+      // For Supabase Storage v2+ list() can take recursive in options if supported, 
+      // but in some environments it causes issues if not handled by the specific client version.
       const { data: allFiles, error: listError } = await supabase.storage
         .from('Documents-GCN')
-        .list(undefined, { recursive: true });
+        .list('', { 
+          limit: 1000, 
+          offset: 0,
+          sortBy: { column: 'name', order: 'asc' }
+        });
       
       if (listError) throw listError;
 
@@ -4134,7 +4179,7 @@ export default function App() {
         .map(file => file.name);
 
       if (filesToDelete.length === 0) {
-        showToast('Không tìm thấy file rác nào.', 'info');
+        showToast('Không tìm thấy file rác nào.', 'warning');
         return;
       }
 
@@ -4145,7 +4190,7 @@ export default function App() {
       if (removeError) throw removeError;
 
       showToast(`Đã dọn dẹp ${filesToDelete.length} file rác thành công.`, 'success');
-      onRefreshStorage();
+      fetchStorageUsage();
     } catch (e) {
       console.error('Error cleaning up junk files:', e);
       showToast('Có lỗi xảy ra khi dọn dẹp file rác.', 'error');
@@ -4308,7 +4353,7 @@ export default function App() {
       }
 
       // 2. SLA Check
-      const overdueInfo = getOverdueInfo(app);
+      const overdueInfo = getOverdueInfo(app, stepConfig, slaConfig);
       if (overdueInfo.isOverdue) {
         reminders.push({
           id: `rem-sla-${app.id}`,
@@ -4414,10 +4459,6 @@ export default function App() {
     setExpandedSidebarRegions(prev => ({ ...prev, [region]: !prev[region] }));
   };
   
-  // System Configuration States
-  const [slaConfig, setSlaConfig] = useState<Record<string, number>>({});
-  const [checklistTemplates, setChecklistTemplates] = useState<string[]>([]);
-
   const handleSaveConfig = async (key: string, value: any) => {
     console.log(`Saving ${key}:`, value);
     setIsSavingApp(true);
@@ -4440,7 +4481,6 @@ export default function App() {
     return ["VPĐK Phường", "VPĐK TP Đà Nẵng", "VPĐK Quận Liên Chiểu"];
   }, []);
   const [detailTab, setDetailTab] = useState<'Workflow' | 'Audit' | 'Documents'>('Workflow');
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [quickEditId, setQuickEditId] = useState<string | null>(null);
   const [quickEditData, setQuickEditData] = useState<Partial<Application>>({});
 
@@ -4474,20 +4514,6 @@ export default function App() {
       setIsSavingApp(false);
     }
   };
-
-  const [handoverTemplate, setHandoverTemplate] = useState(() => {
-    const saved = localStorage.getItem('procedural_handover_template');
-    return saved ? JSON.parse(saved) : {
-      companyName: 'CÔNG TY CỔ PHẦN ĐẦU TƯ LIÊN CHIỂU',
-      subTitle: 'Vùng Đà Nẵng',
-      docCode: 'Mẫu HC-09-BM04',
-      title: 'BIÊN BẢN BÀN GIAO',
-      subTitle2: 'Giấy chứng nhận QSD đất',
-      address: 'Tòa nhà Novotel, 36 Bạch Đẳng, Đà Nẵng',
-      footerNote1: '* Biên bản được lập thành 02 bản, mỗi bên giữ 01 bản để làm căn cứ.',
-      footerNote2: '* Vui lòng kiểm tra kỹ thông tin trên GCN trước khi ký nhận bàn giao.'
-    };
-  });
 
   useEffect(() => {
     localStorage.setItem('procedural_handover_template', JSON.stringify(handoverTemplate));
@@ -6322,12 +6348,12 @@ export default function App() {
       gcnIssued: filteredByProjectApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'GCN_Issued').length,
       completed: filteredByProjectApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'Completed').length,
       error: filteredByProjectApps.filter(a => a.status === 'Error').length,
-      overdue: filteredByProjectApps.filter(a => getOverdueInfo(a).isOverdue).length,
+      overdue: filteredByProjectApps.filter(a => getOverdueInfo(a, stepConfig, slaConfig).isOverdue).length,
       loanCount: processingApps.filter(a => a.loanStatus === 'Co_Vay').length,
       regularCount: processingApps.filter(a => a.loanStatus === 'Khong_Vay').length,
       rejectedCount: processingApps.filter(a => a.isRejected && a.currentStep === 'S1_ChuanBi').length,
     };
-  }, [filteredByProjectApps, stepConfig]);
+  }, [filteredByProjectApps, stepConfig, slaConfig]);
 
   const roleKpis = useMemo(() => {
     // Exclude completed records for active workload analysis
@@ -6344,7 +6370,7 @@ export default function App() {
     // PTT Tax Pending: Has tax notification (from PTDA) but not yet completed payment (no receipt date)
     const pttTaxPending = apps.filter(a => !!a.taxNotificationDate && !a.taxReceiptDate).length;
     const pttSlowest = apps.filter(a => stepConfig[a.currentStep]?.dept === 'PTT')
-        .map(a => ({ ...a, overdue: getOverdueInfo(a) }))
+        .map(a => ({ ...a, overdue: getOverdueInfo(a, stepConfig, slaConfig) }))
         .filter(a => a.overdue.isOverdue)
         .sort((a, b) => (b.overdue.daysLate || 0) - (a.overdue.daysLate || 0))
         .slice(0, 5);
@@ -6379,7 +6405,7 @@ export default function App() {
             return acc + (end - start);
           }, 0) / ptdaAppsWithTax.length / (1000 * 60 * 60 * 24)
         : 0;
-    const ptdaStuck = apps.filter(a => stepConfig[a.currentStep]?.dept === 'PTDA' && getOverdueInfo(a).isOverdue).length;
+    const ptdaStuck = apps.filter(a => stepConfig[a.currentStep]?.dept === 'PTDA' && getOverdueInfo(a, stepConfig, slaConfig).isOverdue).length;
 
     // Simplified Bottleneck Stats by Department
     const depts: Dept[] = ['PTT', 'KT', 'PTDA'];
@@ -6412,7 +6438,7 @@ export default function App() {
         const seed = selectedProjectId || 'global';
         const hash = seed.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
         const variance = (hash % 10) - 4; 
-        const avg = Math.max(1, stage.sla + variance + (apps.filter(a => getOverdueInfo(a).isOverdue).length / (apps.length || 1)) * 5);
+        const avg = Math.max(1, stage.sla + variance + (apps.filter(a => getOverdueInfo(a, stepConfig, slaConfig).isOverdue).length / (apps.length || 1)) * 5);
         return {
             ...stage,
             avg: Math.round(avg),
@@ -6421,7 +6447,7 @@ export default function App() {
     });
 
     const adminWarnings = [];
-    const overdueCount = apps.filter(a => getOverdueInfo(a).isOverdue).length;
+    const overdueCount = apps.filter(a => getOverdueInfo(a, stepConfig, slaConfig).isOverdue).length;
     const errorCount = apps.filter(a => a.status === 'Error').length;
     
     // Check 2-day KT receipt warning
@@ -6508,7 +6534,7 @@ export default function App() {
         },
         admin: { slaStats: adminSlaStats, warnings: adminWarnings, deptStats }
     };
-  }, [filteredByProjectApps, selectedProjectId, selectedProject]);
+  }, [filteredByProjectApps, selectedProjectId, selectedProject, stepConfig, slaConfig]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -6677,11 +6703,11 @@ export default function App() {
     const matchesLoan = filterLoanStatus === 'ALL' || app.loanStatus === filterLoanStatus;
     const matchesSelfService = filterSelfService === 'ALL' || 
       (filterSelfService === 'YES' ? app.isSelfService === true : app.isSelfService !== true);
-    const matchesSLA = filterSLAStatus === 'ALL' || (filterSLAStatus === 'OVERDUE' && getOverdueInfo(app).isOverdue);
+    const matchesSLA = filterSLAStatus === 'ALL' || (filterSLAStatus === 'OVERDUE' && getOverdueInfo(app, stepConfig, slaConfig).isOverdue);
     
     const matchesDashboardFilter = 
       dashboardFilter === 'ALL' ||
-      (dashboardFilter === 'OVERDUE' && getOverdueInfo(app).isOverdue) ||
+      (dashboardFilter === 'OVERDUE' && getOverdueInfo(app, stepConfig, slaConfig).isOverdue) ||
       (dashboardFilter === 'ERROR' && app.status === 'Error') ||
       (dashboardFilter === 'COMPLETED' && app.status === 'Completed') ||
       (dashboardFilter === 'PTT_PROCESSING' && app.status === 'Processing') ||
@@ -8313,7 +8339,7 @@ export default function App() {
                         theme === 'light' ? "text-slate-700 divide-slate-100" : "text-slate-300 divide-slate-800/40"
                       )}>
                         {applications.map(app => {
-                          const overdue = getOverdueInfo(app);
+                          const overdue = getOverdueInfo(app, stepConfig, slaConfig);
                           return (
                             <tr 
                               key={app.id} 
@@ -8781,6 +8807,7 @@ export default function App() {
                   setDashboardFilter={setDashboardFilter}
                   setFilterLoanStatus={setFilterLoanStatus}
                   stepConfig={stepConfig}
+                  slaConfig={slaConfig}
                 />
               </motion.div>
             )}
