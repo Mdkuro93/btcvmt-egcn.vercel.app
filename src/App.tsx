@@ -2984,7 +2984,7 @@ const BulkTransitionModal = ({
               </div>
             )}
 
-            {(targetStepLabel?.toUpperCase().includes('4. THÔNG BÁO') || targetStepLabel?.toUpperCase().includes('3. NỘP VPĐK') || targetStepLabel?.toUpperCase().includes('3. NOP VPDK')) && (
+            {(targetStepLabel?.toUpperCase().includes('4. THÔNG BÁO') || targetStepLabel?.toUpperCase().includes('3. NỘP VPĐK') || targetStepLabel?.toUpperCase().includes('3. NOP VPDK') || targetStepLabel?.toUpperCase().includes('GĐ3: CHỜ THÔNG BÁO THUẾ') || targetStepLabel?.toUpperCase().includes('GD3: CHO THONG BAO THUE')) && (
               <>
                 <div className="space-y-3">
                   <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
@@ -3443,14 +3443,26 @@ const calculateDaysBetweenDates = (start: string, end: string) => {
   return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 };
 
-const getPhaseIndex = (step: StepName) => {
+const getPhaseIndex = (step: StepName): number => {
+  // Quy trình 2 (7 bước)
   if (step === 'S1_ChuanBi') return 0;
-  if (['S2_KT_Tiep_Nhan'].includes(step)) return 1;
+  if (['S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao'].includes(step)) return 1;
   if (step === 'S3_Nop_VPDK') return 2;
   if (step === 'S4_Cho_Thong_Bao_Thue') return 3;
-  if (step === 'S5_Tai_Chinh_Khach_Hang') return 4;
+  if (['S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan'].includes(step)) return 4;
   if (step === 'S6_Nhan_So_GCN') return 5;
-  if (['S7_Ban_Giao_Luu_Kho', 'Hoan_Tat'].includes(step)) return 6;
+  if (['S7_Ban_Giao_Luu_Kho'].includes(step)) return 6;
+  
+  // Quy trình 1 (6 bước)
+  if (['GD1_ChuanBi', 'GD1_Cho_KT_TiepNhan'].includes(step)) return 0;
+  if (['GD2_Cho_Nop_VPDK'].includes(step)) return 1;
+  if (step === 'GD3_Cho_TBThue') return 2;
+  if (['GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo'].includes(step)) return 3;
+  if (['GD5_Cho_Ky_In_GCN', 'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG'].includes(step)) return 4;
+  if (['GD6_Cho_BG_Khach'].includes(step)) return 5;
+
+  if (step === 'Hoan_Tat') return 6;
+  
   return -1;
 };
 
@@ -3486,11 +3498,14 @@ const getOverdueInfo = (app: Application, stepConfig: Record<string, any>, slaCo
     GD1_ChuanBi: 'contractSigningDate',
     GD1_Cho_KT_TiepNhan: 'receivedDate',
     GD2_Cho_Nop_VPDK: 'receivedDate',
-    GD2_Cho_PTDA_TiepNhan: 'submissionDate',
     GD3_Cho_TBThue: 'submissionDate',
     GD4_Cho_Nop_NVTC: 'taxNotificationDate',
-    GD5_Cho_GCN: 'taxReceiptDate',
-    GD6_Cho_BG_Khach: 'gcnReceivedDate'
+    GD4_Cho_KT_TiepNhan_LaySo: 'taxReceiptDate',
+    GD5_Cho_Ky_In_GCN: 'taxReceiptDate',
+    GD5_Cho_GCN: 'gcnSignedDate',
+    GD5_Cho_PTT_TiepNhan_BG: 'gcnReceivedDate',
+    GD6_Cho_BG_Khach: 'ptdaHandoverDate',
+    Hoan_Tat: 'customerHandoverDate'
   };
 
   comparisonDate = app[mapping[currentStep] || 'receivedDate'] as string | undefined;
@@ -4400,11 +4415,11 @@ export default function App() {
   useEffect(() => {
     if (userRole) {
       if (userRole === 'PTT') {
-        setExpandedSections(['PTT_SECTION']);
+        setExpandedSections(['PTT_SECTION', 'OTHER_SECTION']);
       } else if (userRole === 'KT') {
-        setExpandedSections(['KT_SECTION']);
+        setExpandedSections(['KT_SECTION', 'OTHER_SECTION']);
       } else if (userRole === 'PTDA') {
-        setExpandedSections(['PTDA_SECTION']);
+        setExpandedSections(['PTDA_SECTION', 'OTHER_SECTION']);
       } else {
         setExpandedSections(['PTT_SECTION', 'KT_SECTION', 'PTDA_SECTION', 'OTHER_SECTION']);
       }
@@ -5388,6 +5403,15 @@ export default function App() {
     else if (nextStep === 'S5_1_PTDA_TiepNhan') updateField = { key: 'taxReceiptDate', label: 'Ngày nhận GNT / Nộp thuế', isRequired: true };
     else if (nextStep === 'S6_Nhan_So_GCN') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN', isRequired: true };
     else if (nextStep === 'S7_Ban_Giao_Luu_Kho') updateField = { key: 'ptdaHandoverDate', label: 'Ngày bàn giao GCN cho PTT', isRequired: true };
+    
+    // GD workflow
+    else if (nextStep === 'GD1_Cho_KT_TiepNhan') updateField = { key: 'contractSigningDate', label: 'Ngày ký HĐCN/HĐMB', isRequired: false };
+    else if (nextStep === 'GD3_Cho_TBThue') updateField = { key: 'submissionDate', label: 'Ngày nộp VPĐK', isRequired: true };
+    else if (nextStep === 'GD4_Cho_Nop_NVTC') updateField = { key: 'taxNotificationDate', label: 'Ngày TB Thuế', isRequired: true };
+    else if (nextStep === 'GD4_Cho_KT_TiepNhan_LaySo') updateField = { key: 'taxReceiptDate', label: 'Ngày nhận GNT / Nộp thuế', isRequired: true };
+    else if (nextStep === 'GD5_Cho_GCN') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN', isRequired: true };
+    else if (nextStep === 'GD5_Cho_PTT_TiepNhan_BG') updateField = { key: 'gcnReceivedDate', label: 'Ngày nhận GCN thực tế', isRequired: true };
+    else if (nextStep === 'GD6_Cho_BG_Khach') updateField = { key: 'ptdaHandoverDate', label: 'Ngày BG GCN cho PTT', isRequired: true };
     else if (nextStep === 'Hoan_Tat') updateField = { key: 'customerHandoverDate', label: 'Ngày BG GCN cho khách', isRequired: true };
 
     // If there is no specific field to update, we can either skip the modal and transition directly 
@@ -5427,7 +5451,7 @@ export default function App() {
 
     // Check if transition from KT requires contractSigningDate, wait we update it via bulk transition field anyway!
     // But if we transition to S2_KT_Ban_giao, it is required, which is already enforced by bulkTransitionField.isRequired.
-    if (nextStep === 'S4_Cho_Thong_Bao_Thue' || nextStep === 'S3_Nop_VPDK') {
+    if (['S4_Cho_Thong_Bao_Thue', 'S3_Nop_VPDK', 'GD3_Cho_TBThue'].includes(nextStep)) {
       if (!location || !refCode) {
         showToast(`Vui lòng nhập nơi nộp hồ sơ và mã hồ sơ/phiếu hẹn.`, 'warning');
         return;
@@ -5466,7 +5490,7 @@ export default function App() {
           (appWithDate as any)[bulkTransitionField.key] = dateValue;
         }
 
-        if (nextStep === 'S4_Cho_Thong_Bao_Thue' || nextStep === 'S3_Nop_VPDK') {
+        if (['S4_Cho_Thong_Bao_Thue', 'S3_Nop_VPDK', 'GD3_Cho_TBThue'].includes(nextStep)) {
           appWithDate.submissionLocation = location as any;
           appWithDate.vpdkCode = refCode;
         }
@@ -6192,7 +6216,7 @@ export default function App() {
         history: [
           {
             id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            stepName: 'Chuẩn bị',
+            stepName: (stepConfig[initialStep] || INITIAL_STEP_CONFIG[initialStep]).label,
             dept: 'PTT',
             receivedDate: new Date().toISOString().split('T')[0],
             note: 'Khởi tạo hồ sơ mới'
@@ -9151,12 +9175,16 @@ export default function App() {
                     
                     <div className="flex justify-between relative z-10">
                       {['01', '02', '03', '04', '05', '06', '07'].map((label, idx) => {
-                        const currentPhase = getPhaseIndex((editApp || selectedApp).currentStep);
-                        const isCompleted = idx < currentPhase || (editApp || selectedApp).currentStep === 'Hoan_Tat';
-                        const isActive = idx === currentPhase && (editApp || selectedApp).currentStep !== 'Hoan_Tat';
+                        const appData = editApp || selectedApp;
+                        const currentPhase = getPhaseIndex(appData.currentStep);
+                        const isCompleted = idx < currentPhase || appData.currentStep === 'Hoan_Tat';
+                        const isActive = idx === currentPhase && appData.currentStep !== 'Hoan_Tat';
+                        
+                        // Nếu là Quy_trinh_1 thì không hiện label 07 (Hoàn tất không có icon riêng),
+                        // Nhưng mà Hoan_Tat là phase 6, tức là index 6 (07).
                         
                         return (
-                          <div key={label} className="flex flex-col items-center gap-4">
+                          <div key={label} className={cn("flex flex-col items-center gap-4", appData.workflowType === 'Quy_trinh_1' && label === '07' ? "hidden" : "")}>
                             <div className={cn(
                               "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-700 text-sm font-black border-2",
                               isCompleted ? "bg-emerald-500 border-emerald-500 text-slate-900 rotate-12" : 
@@ -9166,16 +9194,29 @@ export default function App() {
                               {isCompleted ? <Check size={24} /> : label}
                             </div>
                             <span className={cn(
-                              "text-[10px] font-black uppercase tracking-widest absolute -bottom-2 whitespace-nowrap",
+                              "text-[10px] font-black uppercase tracking-widest absolute -bottom-2 whitespace-nowrap text-center max-w-[60px]",
                               isActive ? "text-indigo-400" : isCompleted ? (theme === 'dark' ? "text-emerald-400" : "text-emerald-600") : (theme === 'dark' ? "text-slate-600" : "text-slate-400")
                             )}>
-                              {label === '01' && 'Chuẩn bị'}
-                              {label === '02' && 'Chờ nộp'}
-                              {label === '03' && 'Nộp VPĐK'}
-                              {label === '04' && 'Thông báo'}
-                              {label === '05' && 'Tài chính'}
-                              {label === '06' && 'Nhận sổ'}
-                              {label === '07' && 'Bàn giao'}
+                              {appData.workflowType === 'Quy_trinh_1' ? (
+                                <>
+                                  {label === '01' && 'Chuẩn bị'}
+                                  {label === '02' && 'Nộp VPĐK'}
+                                  {label === '03' && 'TB Thuế'}
+                                  {label === '04' && 'Cấp SN/NVTC'}
+                                  {label === '05' && 'Lấy GCN'}
+                                  {label === '06' && 'Bàn Giao'}
+                                </>
+                              ) : (
+                                <>
+                                  {label === '01' && 'Chuẩn bị'}
+                                  {label === '02' && 'Chờ nộp'}
+                                  {label === '03' && 'Nộp VPĐK'}
+                                  {label === '04' && 'Thông báo'}
+                                  {label === '05' && 'Tài chính'}
+                                  {label === '06' && 'Nhận sổ'}
+                                  {label === '07' && 'Bàn giao'}
+                                </>
+                              )}
                             </span>
                           </div>
                         );
@@ -9381,11 +9422,13 @@ export default function App() {
                             className="overflow-hidden"
                           >
                             <div className="p-6 space-y-10">
-                               {/* Step 2: CHỜ NỘP VPĐK */}
+                               {/* Step 2/GĐ1 */}
                                <section className="space-y-4">
                                  <div className="flex items-center gap-2 border-b border-slate-800/30 pb-2">
                                    <div className="w-1 h-3 bg-emerald-500 rounded-full opacity-50"></div>
-                                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Bước 2: CHỜ NỘP VPĐK (KT)</h4>
+                                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                     {(editApp || selectedApp).workflowType === 'Quy_trinh_1' ? 'GĐ1: BÀN GIAO & TIẾP NHẬN' : 'Bước 2: CHỜ NỘP VPĐK (KT)'}
+                                   </h4>
                                  </div>
                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                    <DetailCard theme={theme}
@@ -9399,11 +9442,13 @@ export default function App() {
                                  </div>
                                </section>
 
-                               {/* Step 3: NỘP VPĐK */}
+                               {/* Step 3/GĐ2 */}
                                <section className="space-y-4">
                                  <div className="flex items-center gap-2 border-b border-slate-800/30 pb-2">
                                    <div className="w-1 h-3 bg-emerald-500 rounded-full opacity-50"></div>
-                                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Bước 3: NỘP VPĐK (PTDA)</h4>
+                                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                     {(editApp || selectedApp).workflowType === 'Quy_trinh_1' ? 'GĐ2: NỘP VPĐK THEO DÕI THUẾ' : 'Bước 3: NỘP VPĐK (PTDA)'}
+                                   </h4>
                                  </div>
                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                    <DetailCard theme={theme}
@@ -9433,11 +9478,13 @@ export default function App() {
                                  </div>
                                </section>
 
-                               {/* Step 4: THÔNG BÁO THUẾ */}
+                               {/* Step 4/GĐ3 */}
                                <section className="space-y-4">
                                  <div className="flex items-center gap-2 border-b border-slate-800/30 pb-2">
                                    <div className="w-1 h-3 bg-emerald-500 rounded-full opacity-50"></div>
-                                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Bước 4: THÔNG BÁO THUẾ (PTDA)</h4>
+                                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                     {(editApp || selectedApp).workflowType === 'Quy_trinh_1' ? 'GĐ3: THÔNG BÁO THUẾ' : 'Bước 4: THÔNG BÁO THUẾ (PTDA)'}
+                                   </h4>
                                  </div>
                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                    <DetailCard theme={theme}
@@ -9448,22 +9495,26 @@ export default function App() {
                                      isEditing={isEditing}
                                      onChange={(val) => handleFieldChange('taxNotificationDate', val)}
                                    />
-                                   <DetailCard theme={theme}
-                                     label="Ngày cung cấp TB Thuế" 
-                                     value={(editApp || selectedApp).taxNoticeProvisionDate} 
-                                     type="date"
-                                     editable={isFieldEditable('taxNoticeProvisionDate')}
-                                     isEditing={isEditing}
-                                     onChange={(val) => handleFieldChange('taxNoticeProvisionDate', val)}
-                                   />
+                                   {(editApp || selectedApp).workflowType !== 'Quy_trinh_1' && (
+                                     <DetailCard theme={theme}
+                                       label="Ngày cung cấp TB Thuế" 
+                                       value={(editApp || selectedApp).taxNoticeProvisionDate} 
+                                       type="date"
+                                       editable={isFieldEditable('taxNoticeProvisionDate')}
+                                       isEditing={isEditing}
+                                       onChange={(val) => handleFieldChange('taxNoticeProvisionDate', val)}
+                                     />
+                                   )}
                                  </div>
                                </section>
 
-                               {/* Step 5: NỘP THUẾ & TÀI CHÍNH */}
+                               {/* Step 5/GĐ4 */}
                                <section className="space-y-4">
                                  <div className="flex items-center gap-2 border-b border-slate-800/30 pb-2">
                                    <div className="w-1 h-3 bg-emerald-500 rounded-full opacity-50"></div>
-                                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Bước 5: NỘP THUẾ & TÀI CHÍNH (KT)</h4>
+                                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                     {(editApp || selectedApp).workflowType === 'Quy_trinh_1' ? 'GĐ4: HOÀN THÀNH NVTC & LẤY SỔ' : 'Bước 5: NỘP THUẾ & TÀI CHÍNH (KT)'}
+                                   </h4>
                                  </div>
                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                    <DetailCard theme={theme}
@@ -9477,11 +9528,13 @@ export default function App() {
                                  </div>
                                </section>
 
-                               {/* Step 6: TRÌNH KÝ & NHẬN GCN */}
+                               {/* Step 6/GĐ5 */}
                                <section className="space-y-4">
                                  <div className="flex items-center gap-2 border-b border-slate-800/30 pb-2">
                                    <div className="w-1 h-3 bg-emerald-500 rounded-full opacity-50"></div>
-                                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Bước 6: TRÌNH KÝ & NHẬN GCN (PTDA)</h4>
+                                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                     {(editApp || selectedApp).workflowType === 'Quy_trinh_1' ? 'GĐ5: TRÌNH KÝ & NHẬN GCN THỰC TẾ' : 'Bước 6: TRÌNH KÝ & NHẬN GCN (PTDA)'}
+                                   </h4>
                                  </div>
                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                    <DetailCard theme={theme}
@@ -9503,11 +9556,13 @@ export default function App() {
                                  </div>
                                </section>
 
-                               {/* Step 7: BÀN GIAO */}
+                               {/* Step 7/GĐ6 */}
                                <section className="space-y-4">
                                  <div className="flex items-center gap-2 border-b border-slate-800/30 pb-2">
                                    <div className="w-1 h-3 bg-emerald-500 rounded-full opacity-50"></div>
-                                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Bước 7: BÀN GIAO</h4>
+                                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                     {(editApp || selectedApp).workflowType === 'Quy_trinh_1' ? 'GĐ6: BÀN GIAO KHÁCH HÀNG' : 'Bước 7: BÀN GIAO'}
+                                   </h4>
                                  </div>
                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                    <DetailCard theme={theme}
@@ -9537,27 +9592,15 @@ export default function App() {
                    {/* VƯỚNG MẮC & LỊCH SỬ HỒ SƠ */}
                    <div className={cn("border rounded-3xl overflow-hidden transition-all", theme === 'dark' ? "border-slate-800 bg-slate-900/20" : "border-slate-200 bg-white")}>
                       <div 
-                        className={cn("flex flex-wrap items-center justify-between p-5 cursor-pointer hover:bg-slate-800/10 transition-colors", expandedSections.includes('OTHER_SECTION') && (theme === 'dark' ? "border-b border-slate-800" : "border-b border-slate-200"))}
-                        onClick={() => toggleSection('OTHER_SECTION')}
+                        className={cn("flex flex-wrap items-center justify-between p-5 transition-colors", theme === 'dark' ? "border-b border-slate-800" : "border-b border-slate-200")}
                       >
                          <div className="flex items-center gap-3">
                              <div className="w-1.5 h-6 bg-slate-500 rounded-full"></div>
                              <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-white" : "text-slate-900")}>3. Vướng mắc & Lịch sử Hồ sơ</h4>
                          </div>
-                         <div className="flex items-center gap-4">
-                            {expandedSections.includes('OTHER_SECTION') ? <ChevronUp size={20} className="text-slate-500" /> : <ChevronDown size={20} className="text-slate-500" />}
-                         </div>
                       </div>
-                      <AnimatePresence>
-                        {expandedSections.includes('OTHER_SECTION') && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="p-6 space-y-6">
-                               {/* Tabs for Issue Tracking/History/Documents */}
+                      <div className="p-6 space-y-6">
+                         {/* Tabs for Issue Tracking/History/Documents */}
                                <div className="flex items-center gap-2 p-1 bg-slate-900/50 rounded-xl border border-slate-800 w-fit">
                                   <button 
                                     onClick={() => setDetailTab('workflow')}
@@ -9756,9 +9799,6 @@ export default function App() {
                                  </div>
                                )}
                             </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
                    </div>
                 </div>
               </div>
@@ -9841,7 +9881,7 @@ export default function App() {
                             <button 
                               onClick={() => {
                                  // Define standard steps that require bulk modal for dates
-                                 const bulkSteps = ['S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK', 'S4_Cho_Thong_Bao_Thue', 'S6_Nhan_So_GCN', 'S7_Ban_Giao_Luu_Kho', 'Hoan_Tat', 'GD1_Cho_KT_TiepNhan', 'GD2_Cho_PTDA_TiepNhan', 'GD2_Cho_Nop_VPDK', 'GD3_Cho_TBThue', 'GD5_Cho_PTDA_TiepNhan_KyGCN', 'GD6_Cho_BG_Khach'];
+                                 const bulkSteps = ['S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK', 'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan', 'S6_Nhan_So_GCN', 'S7_Ban_Giao_Luu_Kho', 'Hoan_Tat', 'GD1_Cho_KT_TiepNhan', 'GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo', 'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Cho_BG_Khach'];
                                  if (bulkSteps.includes(nextStep)) {
                                    handleBulkStepTransition(nextStep, [app.id]);
                                  } else {

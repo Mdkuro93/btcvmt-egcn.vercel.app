@@ -25,13 +25,10 @@ export type StepName =
   | 'GD1_ChuanBi'
   | 'GD1_Cho_KT_TiepNhan'
   | 'GD2_Cho_Nop_VPDK'
-  | 'GD2_Cho_PTDA_TiepNhan'
   | 'GD3_Cho_TBThue'
   | 'GD4_Cho_Nop_NVTC'
   | 'GD4_Cho_KT_TiepNhan_LaySo'
-  | 'GD5_Cho_PTDA_TiepNhan_KyGCN'
   | 'GD5_Cho_Ky_In_GCN'
-  | 'GD5_Cho_KT_Nhan_GCN_Thuc_Te'
   | 'GD5_Cho_PTT_TiepNhan_BG'
   | 'GD5_Cho_GCN'
   | 'GD6_Cho_BG_Khach';
