@@ -565,18 +565,18 @@ const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Appli
   }
 
   const configs: Record<string, { label: string, classes: string }> = {
-    Processing: { label: 'Đang chuẩn bị', classes: 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' },
-    WaitingVPDK: { label: 'Chờ nộp VPĐK', classes: 'bg-amber-500/10 text-amber-500 border border-amber-500/20' },
-    Submitted: { label: 'Đã nộp VPĐK', classes: 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' },
-    TaxPending: { label: 'Chờ thông báo thuế', classes: 'bg-rose-500/10 text-rose-500 border border-rose-500/20' },
-    TaxPaymentPending_Dynamic: { label: 'Chờ nộp thuế', classes: 'bg-rose-500/10 text-rose-500 border border-rose-500/20' },
-    TaxCompleted: { label: 'Đã hoàn thành NVTC', classes: 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' },
-    TaxCompleted_Dynamic: { label: 'Đã nộp thuế', classes: 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' },
-    GCN_SignPending_Dynamic: { label: 'Chờ ký/in GCN', classes: 'bg-sky-500/10 text-sky-400 border border-sky-500/20' },
-    GCN_Issued: { label: 'Đã ra GCN', classes: 'bg-sky-500/20 text-sky-500 border border-sky-500/30' },
-    Completed: { label: 'Hoàn tất', classes: 'bg-success text-white font-bold shadow-lg shadow-success/20' },
-    Error: { label: 'Sai sót/Vướng', classes: 'bg-error text-white font-bold animate-pulse' },
-    Draft: { label: 'Nháp', classes: 'bg-slate-800 text-slate-400 border border-slate-700' },
+    Processing: { label: 'Đang chuẩn bị', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
+    WaitingVPDK: { label: 'Chờ nộp VPĐK', classes: 'bg-amber-500/10 text-amber-600 border border-amber-500/20' },
+    Submitted: { label: 'Đã nộp VPĐK', classes: 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20' },
+    TaxPending: { label: 'Chờ thông báo thuế', classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20' },
+    TaxPaymentPending_Dynamic: { label: 'Chờ nộp thuế', classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20' },
+    TaxCompleted: { label: 'Đã hoàn thành NVTC', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
+    TaxCompleted_Dynamic: { label: 'Đã nộp thuế', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
+    GCN_SignPending_Dynamic: { label: 'Chờ ký/in GCN', classes: 'bg-sky-500/10 text-sky-600 border border-sky-500/20' },
+    GCN_Issued: { label: 'Đã ra GCN', classes: 'bg-sky-500/10 text-sky-600 border border-sky-500/20' },
+    Completed: { label: 'Hoàn tất', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
+    Error: { label: 'Sai sót/Vướng', classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20' },
+    Draft: { label: 'Nháp', classes: 'bg-slate-500/10 text-slate-600 border border-slate-500/20' },
   };
 
   const config = configs[effectiveStatus] || configs.Processing;
@@ -2984,7 +2984,7 @@ const BulkTransitionModal = ({
               </div>
             )}
 
-            {(targetStepLabel?.toUpperCase().includes('4. THÔNG BÁO') || targetStepLabel?.toUpperCase().includes('3. NỘP VPĐK') || targetStepLabel?.toUpperCase().includes('3. NOP VPDK') || targetStepLabel?.toUpperCase().includes('GĐ3: CHỜ THÔNG BÁO THUẾ') || targetStepLabel?.toUpperCase().includes('GD3: CHO THONG BAO THUE')) && (
+            {(targetStepLabel?.toUpperCase().includes('3. NỘP VPĐK') || targetStepLabel?.toUpperCase().includes('3. NOP VPDK') || targetStepLabel?.toUpperCase().includes('GĐ2:') || targetStepLabel?.toUpperCase().includes('GD2:')) && (
               <>
                 <div className="space-y-3">
                   <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
@@ -5282,8 +5282,8 @@ export default function App() {
         }
         
         if ((app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD1_Nop_VPDK') && (nextStep === 'S4_Cho_Thong_Bao_Thue' || nextStep === 'GD3_Cho_TBThue')) {
-          if (!app.submissionLocation || !app.vpdkCode || !app.submissionDate) {
-            showToast('Yêu cầu nhập đầy đủ: Nơi nộp, Mã hồ sơ/Số phiếu hẹn và Ngày nộp VPĐK.', 'warning');
+          if (!app.submissionDate) {
+            showToast('Yêu cầu nhập đầy đủ: Ngày nộp VPĐK.', 'warning');
             return;
           }
         }
@@ -5405,7 +5405,7 @@ export default function App() {
     else if (nextStep === 'S2_KT_Ban_giao') updateField = { key: 'contractSigningDate', label: 'Ngày ký HĐCN/HĐMB', isRequired: true };
     else if (nextStep === 'S3_Nop_VPDK') updateField = { key: 'submissionDate', label: 'Ngày nộp VPĐK', isRequired: true };
     else if (nextStep === 'S4_Cho_Thong_Bao_Thue') updateField = { key: 'taxNotificationReceivedDate', label: 'Ngày nhận TB Thuế' };
-    else if (nextStep === 'S5_Tai_Chinh_Khach_Hang') updateField = { key: 'taxNoticeProvisionDate', label: 'Ngày cung cấp phiếu nộp tiền' };
+    else if (nextStep === 'S5_Tai_Chinh_Khach_Hang') updateField = { key: 'taxNoticeProvisionDate', label: 'Ngày cung cấp Thông báo thuế' };
     else if (nextStep === 'S5_1_PTDA_TiepNhan') updateField = { key: 'taxReceiptDate', label: 'Ngày nhận/cung cấp GNT / Nộp thuế', isRequired: true };
     else if (nextStep === 'S6_Nhan_So_GCN') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN', isRequired: true };
     else if (nextStep === 'S7_PTDA_Ban_Giao') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN', isRequired: true };
@@ -5498,9 +5498,9 @@ export default function App() {
           (appWithDate as any)[bulkTransitionField.key] = dateValue;
         }
 
-        if (['S4_Cho_Thong_Bao_Thue', 'S3_Nop_VPDK', 'GD3_Cho_TBThue'].includes(nextStep)) {
-          appWithDate.submissionLocation = location as any;
-          appWithDate.vpdkCode = refCode;
+        if (['S4_Cho_Thong_Bao_Thue', 'S3_Nop_VPDK', 'GD3_Cho_TBThue', 'GD1_Nop_VPDK', 'GD2_Cho_Nop_VPDK'].includes(nextStep)) {
+          if (location) appWithDate.submissionLocation = location as any;
+          if (refCode) appWithDate.vpdkCode = refCode;
         }
 
         // Check chronology for all selected apps
@@ -6819,8 +6819,7 @@ export default function App() {
 
   return (
     <div className={cn(
-      "flex h-screen w-full overflow-hidden font-sans relative transition-colors duration-500",
-      theme === 'light' ? 'light bg-slate-50 text-slate-900' : 'bg-slate-950 text-slate-200'
+      "flex h-screen w-full overflow-hidden font-sans relative transition-colors duration-500 bg-slate-50 text-slate-900",
     )}>
       <PrintStyles />
       <div className="hidden">
@@ -6852,8 +6851,7 @@ export default function App() {
 
       {/* Sidebar - Enhanced Blur and border */}
       <aside className={cn(
-        "w-64 backdrop-blur-2xl border-r flex flex-col shrink-0 z-20 relative transition-all",
-        theme === 'light' ? "bg-white/80 border-slate-200 shadow-xl" : "bg-slate-900/60 border-slate-800/80 shadow-2xl"
+        "w-64 backdrop-blur-2xl border-r flex flex-col shrink-0 z-20 relative transition-all bg-slate-800 border-slate-700 shadow-2xl"
       )}>
         <div className={cn(
           "p-6 border-b mb-4 transition-all",
@@ -6879,7 +6877,7 @@ export default function App() {
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               activeTab === 'dashboard' 
                 ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
-                : (theme === 'light' ? "text-slate-500 hover:bg-slate-200/50 hover:text-slate-900" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200")
+                : "text-slate-300 hover:bg-slate-700 hover:text-white"
             )}
           >
             <LayoutDashboard size={18} />
@@ -6891,7 +6889,7 @@ export default function App() {
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               activeTab === 'applications' 
                 ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
-                : (theme === 'light' ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200")
+                : "text-slate-300 hover:bg-slate-700 hover:text-white"
             )}
           >
             <Files size={18} />
@@ -6905,11 +6903,11 @@ export default function App() {
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                 activeTab === 'reports' 
                   ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
-                  : (theme === 'light' ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200")
+                  : "text-slate-300 hover:bg-slate-700 hover:text-white"
               )}
             >
               <FileBarChart size={18} />
-              {userRole === 'ADMIN' || userRole === 'DIRECTOR' ? 'Báo cáo & Thống kê' : 'Báo cáo & Thống kê'}
+              Báo cáo & Thống kê
             </button>
           )}
 
@@ -6919,7 +6917,7 @@ export default function App() {
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               activeTab === 'resources' 
                 ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
-                : (theme === 'light' ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200")
+                : "text-slate-300 hover:bg-slate-700 hover:text-white"
             )}
           >
             <HelpCircle size={18} />
@@ -6934,7 +6932,7 @@ export default function App() {
                   "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'users' 
                     ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
-                    : (theme === 'light' ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200")
+                    : "text-slate-300 hover:bg-slate-700 hover:text-white"
                 )}
               >
                 <User size={18} />
@@ -6946,7 +6944,7 @@ export default function App() {
                   "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'projects' 
                     ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20" 
-                    : (theme === 'light' ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200")
+                    : "text-slate-300 hover:bg-slate-700 hover:text-white"
                 )}
               >
                 <Building2 size={18} />
@@ -6958,7 +6956,7 @@ export default function App() {
                   "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'settings' 
                     ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
-                    : (theme === 'light' ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200")
+                    : "text-slate-300 hover:bg-slate-700 hover:text-white"
                 )}
               >
                 <Settings size={18} />
