@@ -555,11 +555,11 @@ const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark',
 const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Application }) => {
   let effectiveStatus: string = status;
   if (app) {
-    if (app.currentStep === 'S3_Nop_VPDK') {
+    if (app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK' || app.currentStep === 'GD3_Cho_TBThue') {
       effectiveStatus = (app.vpdkCode && app.submissionLocation && app.submissionDate) ? 'Submitted' : 'WaitingVPDK';
-    } else if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang') {
+    } else if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' || app.currentStep === 'GD4_Cho_Nop_NVTC' || app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') {
       effectiveStatus = app.taxReceiptDate ? 'TaxCompleted_Dynamic' : 'TaxPaymentPending_Dynamic';
-    } else if (['S6_Nhan_So_GCN', 'S7_Ban_Giao_Luu_Kho'].includes(app.currentStep)) {
+    } else if (['S6_Nhan_So_GCN', 'S7_Ban_Giao_Luu_Kho', 'GD5_Cho_Ky_In_GCN'].includes(app.currentStep)) {
       effectiveStatus = app.gcnSignedDate ? 'GCN_Issued' : 'GCN_SignPending_Dynamic';
     }
   }
@@ -5321,16 +5321,16 @@ export default function App() {
     // Auto-populate dates based on transition
     const autoDates: Partial<Application> = {};
     if (isMovingForward) {
-      if (targetStep === 'S2_KT_Tiep_Nhan' && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
-      if (targetStep === 'S3_Nop_VPDK' && !app.submissionDate) autoDates.submissionDate = nowStr;
+      if ((targetStep === 'S2_KT_Tiep_Nhan' || targetStep === 'GD1_Cho_KT_TiepNhan') && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
+      if ((targetStep === 'S3_Nop_VPDK' || targetStep === 'GD3_Cho_TBThue') && !app.submissionDate) autoDates.submissionDate = nowStr;
       
-      if (targetStep === 'S4_Cho_Thong_Bao_Thue') {
+      if (targetStep === 'S4_Cho_Thong_Bao_Thue' || targetStep === 'GD3_Cho_TBThue') {
         if (!app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
         if (!app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
       }
-      if (targetStep === 'S5_1_PTDA_TiepNhan' && !app.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
-      if (targetStep === 'S6_Nhan_So_GCN' && !app.gcnSignedDate) autoDates.gcnSignedDate = nowStr;
-      if (targetStep === 'S7_Ban_Giao_Luu_Kho' && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
+      if ((targetStep === 'S5_1_PTDA_TiepNhan' || targetStep === 'GD4_Cho_KT_TiepNhan_LaySo') && !app.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
+      if ((targetStep === 'S6_Nhan_So_GCN' || targetStep === 'GD5_Cho_Ky_In_GCN') && !app.gcnSignedDate) autoDates.gcnSignedDate = nowStr;
+      if ((targetStep === 'S7_Ban_Giao_Luu_Kho' || targetStep === 'GD6_Cho_BG_Khach') && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
       if (targetStep === 'Hoan_Tat' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
     }
 
@@ -6740,13 +6740,13 @@ export default function App() {
       (dashboardFilter === 'PTT_TAX_UNPAID' && !!app.taxNotificationDate && !app.taxReceiptDate) ||
       (dashboardFilter === 'PTT_WAITING_HANDOVER' && app.currentStep === 'S6_Nhan_So_GCN' && !app.customerHandoverDate) ||
       (dashboardFilter === 'KT_ALL' && true) ||
-      (dashboardFilter === 'KT_NEED_RECEIVE' && app.currentStep === 'S2_KT_Tiep_Nhan') ||
-      (dashboardFilter === 'KT_PROCESSING' && app.currentStep === 'S2_KT_Tiep_Nhan') ||
+      (dashboardFilter === 'KT_NEED_RECEIVE' && (app.currentStep === 'S2_KT_Tiep_Nhan' || app.currentStep === 'GD1_Cho_KT_TiepNhan')) ||
+      (dashboardFilter === 'KT_PROCESSING' && (app.currentStep === 'S2_KT_Tiep_Nhan' || app.currentStep === 'GD2_Cho_Nop_VPDK' || app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo')) ||
       (dashboardFilter === 'KT_ISSUES' && (app.isRejected || app.status === 'Error' || (app.issueType && app.issueType !== 'None')) && stepConfig[app.currentStep]?.dept === 'KT') ||
-      (dashboardFilter === 'PTDA_RECEIVED' && app.currentStep === 'S2_KT_Ban_giao') ||
-      (dashboardFilter === 'PTDA_NO_TAX' && app.currentStep === 'S3_Nop_VPDK') ||
-      (dashboardFilter === 'PTDA_TAX_PENDING' && app.currentStep === 'S5_Tai_Chinh_Khach_Hang' && !app.taxReceiptDate) ||
-      (dashboardFilter === 'PTDA_GCN_WAITING' && app.currentStep === 'S6_Nhan_So_GCN' && !app.gcnSignedDate) ||
+      (dashboardFilter === 'PTDA_RECEIVED' && (app.currentStep === 'S2_KT_Ban_giao' || app.currentStep === 'S5_1_PTDA_TiepNhan')) ||
+      (dashboardFilter === 'PTDA_NO_TAX' && (app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD3_Cho_TBThue')) ||
+      (dashboardFilter === 'PTDA_TAX_PENDING' && (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' || app.currentStep === 'GD4_Cho_Nop_NVTC') && !app.taxReceiptDate) ||
+      (dashboardFilter === 'PTDA_GCN_WAITING' && (app.currentStep === 'S6_Nhan_So_GCN' || app.currentStep === 'GD5_Cho_Ky_In_GCN') && !app.gcnSignedDate) ||
       (dashboardFilter === 'PTDA_ISSUES' && (app.isRejected || app.status === 'Error' || (app.issueType && app.issueType !== 'None')) && stepConfig[app.currentStep]?.dept === 'PTDA');
 
     return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService && matchesDashboardFilter && matchesSLA;
