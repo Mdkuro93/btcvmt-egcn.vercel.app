@@ -709,7 +709,8 @@ const SettingsView = ({
   storageStats,
   isFetchingStorage,
   onRefreshStorage,
-  onClearNotifications
+  onClearNotifications,
+  onCleanupJunkFiles
 }: { 
   slaConfig: Record<string, number>, 
   setSlaConfig: any, 
@@ -725,11 +726,16 @@ const SettingsView = ({
   storageStats: { totalSize: number, fileCount: number, folders: string[], dbSize: number },
   isFetchingStorage: boolean,
   onRefreshStorage: () => void,
-  onClearNotifications: () => void
+  onClearNotifications: () => void,
+  onCleanupJunkFiles: () => void
 }) => {
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [workflowTab, setWorkflowTab] = useState<'GD' | 'S'>('S');
   const [showDisabledSteps, setShowDisabledSteps] = useState(false);
+  const [workflowSequences, setWorkflowSequences] = useState<{ GD: string[], S: string[] }>({
+    GD: CONST_QUY_TRINH_1,
+    S: CONST_QUY_TRINH_2
+  });
 
   const checkLogic = () => {
     const activeSteps = Object.entries(stepConfig)
@@ -1182,16 +1188,37 @@ const SettingsView = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/50">
-                {(workflowTab === 'GD' ? CONST_QUY_TRINH_1 : CONST_QUY_TRINH_2).map((key) => {
+                {workflowSequences[workflowTab].map((key, index) => {
                   const config = (stepConfig as any)[key];
                   if (!config) return null;
-                  if (!config.active && !showDisabledSteps) return null;
+                  
+                  const handleMove = (index: number, direction: 'up' | 'down') => {
+                    const newSequence = [...workflowSequences[workflowTab]];
+                    const newIndex = direction === 'up' ? index - 1 : index + 1;
+                    if (newIndex < 0 || newIndex >= newSequence.length) return;
+                    [newSequence[index], newSequence[newIndex]] = [newSequence[newIndex], newSequence[index]];
+                    setWorkflowSequences({...workflowSequences, [workflowTab]: newSequence});
+                  };
+                  
+                  const handleRemove = (index: number) => {
+                    if (confirm('Bạn có chắc muốn xóa bước này?')) {
+                      const newSequence = workflowSequences[workflowTab].filter((_, i) => i !== index);
+                      setWorkflowSequences({...workflowSequences, [workflowTab]: newSequence});
+                    }
+                  };
+                  
                   return (
                     <tr key={`${workflowTab}-${key}`} className={cn(
                     "group/row hover:bg-slate-800/10 transition-colors",
                     !config.active && "opacity-40 grayscale"
                   )}>
-                    <td className="py-4 pl-4 text-[10px] font-mono text-slate-500">{key}</td>
+                    <td className="py-4 pl-4 text-[10px] font-mono text-slate-500 flex items-center gap-2">
+                       {key}
+                       <div className="flex flex-col">
+                          <button onClick={() => handleMove(index, 'up')} className="hover:text-indigo-400" disabled={index === 0}><ChevronUp size={10} /></button>
+                          <button onClick={() => handleMove(index, 'down')} className="hover:text-indigo-400" disabled={index === workflowSequences[workflowTab].length - 1}><ChevronDown size={10} /></button>
+                       </div>
+                    </td>
                     <td className="py-4">
                       <input 
                         type="text" 
@@ -1236,7 +1263,7 @@ const SettingsView = ({
                         className="w-16 bg-slate-950/50 border border-slate-800 rounded-lg px-3 py-1.5 text-center text-xs font-black text-amber-500 outline-none"
                       />
                     </td>
-                    <td className="py-4 pr-4">
+                    <td className="py-4 pr-4 flex gap-2">
                        <button 
                          onClick={() => setStepConfig({
                            ...stepConfig, 
@@ -1252,6 +1279,7 @@ const SettingsView = ({
                          {config.active ? <Check size={10} /> : <EyeOff size={10} />}
                          {config.active ? "Kích hoạt" : "Vô hiệu"}
                        </button>
+                       <button onClick={() => handleRemove(index)} className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-full"><Trash2 size={12} /></button>
                     </td>
                   </tr>
                   );
@@ -1267,7 +1295,10 @@ const SettingsView = ({
                 </p>
              </div>
              <button 
-               onClick={() => onSaveConfig('stepConfig', stepConfig)}
+               onClick={() => {
+                 onSaveConfig('stepConfig', stepConfig);
+                 onSaveConfig('workflowSequences', workflowSequences);
+               }}
                className="px-6 py-3 bg-indigo-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-600/20"
              >
                Lưu quy trình lên Supabase
@@ -1308,6 +1339,23 @@ const SettingsView = ({
             >
               <Trash2 size={14} />
               Xóa tất cả thông báo
+            </button>
+          </div>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 p-6 rounded-3xl border border-rose-500/10 bg-rose-500/5">
+            <div>
+              <h4 className="text-sm font-black text-rose-500 uppercase tracking-widest mb-1">Dọn dẹp File rác</h4>
+              <p className="text-xs text-slate-500 font-medium">Xóa các file trong storage không còn gắn với hồ sơ nào.</p>
+            </div>
+            <button 
+              onClick={() => {
+                if (window.confirm('Bạn có chắc chắn muốn dọn dẹp file rác? Hành động này không thể hoàn tác.')) {
+                  onCleanupJunkFiles();
+                }
+              }}
+              className="px-6 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-lg shadow-rose-600/20 flex items-center gap-2 whitespace-nowrap active:scale-95"
+            >
+              <Trash2 size={14} />
+              Dọn dẹp file rác
             </button>
           </div>
         </div>
@@ -3915,7 +3963,16 @@ export default function App() {
           const currentSla = configMap.slaConfig || Object.values(INITIAL_STEP_CONFIG).reduce((acc: any, s: any) => ({ ...acc, [s.label]: 10 }), {});
           const currentChecklist = configMap.checklistTemplates || DOC_CHECKLIST_ITEMS;
           const currentSteps = { ...INITIAL_STEP_CONFIG, ...(configMap.stepConfig || {}) };
-          const currentHandover = configMap.handoverTemplate || {};
+          const currentHandover = configMap.handoverTemplate || {
+            companyName: 'TẬP ĐOÀN SUNGROUP',
+            title: 'BIÊN BẢN BÀN GIAO HỒ SƠ',
+            subTitle: 'Dự án / Địa điểm',
+            subTitle2: 'Nội dung bàn giao',
+            docCode: 'BM-XXX',
+            address: 'Địa chỉ...',
+            footerNote1: 'Ghi chú 1',
+            footerNote2: 'Ghi chú 2'
+          };
           const currentProjects = configMap.projects || PROJECTS;
 
           setSlaConfig(currentSla);
@@ -4052,6 +4109,48 @@ export default function App() {
     } catch (error) {
       console.error('Error clearing all notifications:', error);
       showToast('Lỗi khi dọn dẹp thông báo.', 'error');
+    }
+  };
+
+  const cleanupJunkFiles = async () => {
+    setIsLoadingConfig(true);
+    try {
+      const { data: allFiles, error: listError } = await supabase.storage
+        .from('Documents-GCN')
+        .list(undefined, { recursive: true });
+      
+      if (listError) throw listError;
+
+      const usedPaths = new Set();
+      applications.forEach(app => {
+        (app.scannedFiles || []).forEach(file => {
+          if (file.path) usedPaths.add(file.path);
+        });
+      });
+
+      const filesToDelete = (allFiles || [])
+        .filter(file => file.metadata !== null) // It's a file, not a folder
+        .filter(file => !usedPaths.has(file.name))
+        .map(file => file.name);
+
+      if (filesToDelete.length === 0) {
+        showToast('Không tìm thấy file rác nào.', 'info');
+        return;
+      }
+
+      const { error: removeError } = await supabase.storage
+        .from('Documents-GCN')
+        .remove(filesToDelete);
+
+      if (removeError) throw removeError;
+
+      showToast(`Đã dọn dẹp ${filesToDelete.length} file rác thành công.`, 'success');
+      onRefreshStorage();
+    } catch (e) {
+      console.error('Error cleaning up junk files:', e);
+      showToast('Có lỗi xảy ra khi dọn dẹp file rác.', 'error');
+    } finally {
+      setIsLoadingConfig(false);
     }
   };
 
@@ -4320,6 +4419,7 @@ export default function App() {
   const [checklistTemplates, setChecklistTemplates] = useState<string[]>([]);
 
   const handleSaveConfig = async (key: string, value: any) => {
+    console.log(`Saving ${key}:`, value);
     setIsSavingApp(true);
     try {
       const { error } = await supabase
@@ -8182,7 +8282,7 @@ export default function App() {
                             />
                           </th>
                           <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Mã lô/căn</th>
-                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Bước hiện tại</th>
+                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Dự án</th>
                           <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Khách hàng</th>
                           {isSpreadsheetMode ? (
                             EDITABLE_DATE_FIELDS.map(f => (
@@ -8275,27 +8375,23 @@ export default function App() {
                                     </div>
                                   )}
                                   <span className="text-[9px] text-slate-500 font-bold uppercase mt-0.5">
-                                    {app.workflowType === 'Quy_trinh_2' ? 'QT2 (Rút gọn)' : 'QT1 (Chuẩn)'}
+                                    SLA: {(stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.slaDays || 0} ngày
                                   </span>
                                   {overdue.isOverdue && (
-                                    <span className="text-[9px] text-amber-500 font-bold uppercase tracking-tighter flex items-center gap-1 mt-1">
+                                    <span className={cn(
+                                      "text-[9px] font-bold uppercase tracking-tighter flex items-center gap-1 mt-1",
+                                      overdue.daysLate > 5 ? "text-red-500" :
+                                      overdue.daysLate >= 3 ? "text-yellow-500" : "text-green-500"
+                                    )}>
                                       <AlertTriangle size={10} /> {overdue.label} ({overdue.daysLate} ngày)
                                     </span>
                                   )}
                                 </div>
                               </td>
                               <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
-                                <div className="flex flex-col gap-1 items-center">
-                                  <span className={cn(
-                                    "px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter text-center border whitespace-nowrap",
-                                    theme === 'light' ? "bg-indigo-50 border-indigo-100 text-indigo-600" : "bg-indigo-900/20 border-indigo-800 text-indigo-400"
-                                  )}>
-                                    {(stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.label}
-                                  </span>
-                                  <span className="text-[8px] text-slate-500 font-bold">
-                                    {(stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.dept}
-                                  </span>
-                                </div>
+                                <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                                  {app.projectName}
+                                </span>
                               </td>
                               <td 
                                 className="px-6 py-5" 
@@ -8713,6 +8809,7 @@ export default function App() {
                   isFetchingStorage={isFetchingStorage}
                   onRefreshStorage={fetchStorageUsage}
                   onClearNotifications={clearAllAppNotifications}
+                  onCleanupJunkFiles={cleanupJunkFiles}
                 />
               </motion.div>
             )}
