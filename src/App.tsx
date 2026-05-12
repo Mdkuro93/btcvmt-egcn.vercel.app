@@ -132,7 +132,7 @@ const mapFromSnakeCase = (item: any): Application => {
     submissionLocation: item.submission_location,
     vpdkCode: item.vpdk_code,
     currentStep: item.current_step || item.status,
-    status: (INITIAL_STEP_CONFIG[item.current_step as string] || INITIAL_STEP_CONFIG[item.status as string])?.status || item.status || 'Processing',
+    status: item.status_id || (INITIAL_STEP_CONFIG[item.current_step as string] || INITIAL_STEP_CONFIG[item.status as string])?.status || item.status || 'Processing',
     receivedDate: item.received_date,
     taxNotificationDate: item.tax_notification_date,
     taxNotificationReceivedDate: item.tax_notification_received_date,
@@ -168,8 +168,7 @@ const mapFromSnakeCase = (item: any): Application => {
 };
 
 const mapToSnakeCase = (app: Application) => {
-  return {
-    id: app.id,
+  const data: any = {
     unit_code: app.unitCode,
     project_name: app.projectName,
     customer_name: app.customerName,
@@ -186,7 +185,8 @@ const mapToSnakeCase = (app: Application) => {
     submission_location: app.submissionLocation,
     vpdk_code: app.vpdkCode,
     current_step: app.currentStep,
-    status: app.currentStep, // Use step code as status for compatibility
+    status: app.status,
+    status_id: app.status,
     received_date: app.receivedDate,
     tax_notification_date: app.taxNotificationDate,
     tax_notification_received_date: app.taxNotificationReceivedDate,
@@ -216,6 +216,13 @@ const mapToSnakeCase = (app: Application) => {
     audit_trail: app.auditTrail || [],
     updated_at: new Date().toISOString()
   };
+
+  // Only include ID if it's not a temporary ptt-imp string ID
+  if (app.id && !(typeof app.id === 'string' && app.id.includes('ptt-imp'))) {
+    data.id = app.id;
+  }
+
+  return data;
 };
 
 const mapUserFromSnakeCase = (item: any): UserProfile => {
@@ -293,9 +300,34 @@ const mapNotificationToSnakeCase = (noti: Partial<AppNotification>) => {
 
 const syncRecordToSupabase = async (app: Application) => {
   const snakeData = mapToSnakeCase(app);
-  const { error } = await supabase.from('records').upsert(snakeData);
+  const { data, error } = await supabase.from('records').upsert(snakeData).select();
   if (error) throw error;
-  return true;
+  if (data && data.length > 0) {
+    return mapFromSnakeCase(data[0]);
+  }
+  return app;
+};
+
+const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplications: Application[]) => {
+  if (appsToSync.length === 0) return allApplications;
+  
+  const snakePayloads = appsToSync.map(app => mapToSnakeCase(app));
+  const { data, error } = await supabase.from('records').upsert(snakePayloads, { onConflict: 'id' }).select();
+  
+  if (error) throw error;
+  
+  const updatedAppsLocal = [...allApplications];
+  if (data && data.length > 0) {
+    data.forEach(item => {
+      const returnedApp = mapFromSnakeCase(item);
+      // Try to find by unitCode if ID is different (could be new records with ptt-imp IDs)
+      const idx = updatedAppsLocal.findIndex(a => a.unitCode === returnedApp.unitCode);
+      if (idx !== -1) {
+        updatedAppsLocal[idx] = returnedApp;
+      }
+    });
+  }
+  return updatedAppsLocal;
 };
 
 const formatDate = (val: string | Date | undefined) => {
@@ -470,20 +502,20 @@ const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserPr
       >
         <div className="flex flex-col items-center mb-8">
           <div className="w-16 h-16 bg-festive-gold rounded-[1.5rem] flex items-center justify-center shadow-lg shadow-festive-gold/20 mb-4 animate-pulse">
-            <img src="/logo.png" className="w-24 h-24 object-contain mb-4" alt="Logo" />
+            <Building2 className="text-slate-950" size={32} />
           </div>
-          <h1 className={cn("text-2xl font-black font-serif italic tracking-tight", theme === 'dark' ? "text-white" : "text-slate-900")}>GCN Tracker Login</h1>
-          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Hệ thống quản lý tình trạng cấp GCN QSDĐ VMT</p>
+          <h1 className={cn("text-3xl font-bold tracking-tight", theme === 'dark' ? "text-white" : "text-slate-900")}>GCN Tracker</h1>
+          <p className="text-slate-500 text-sm font-medium mt-1">Hệ thống quản lý tình trạng cấp GCN QSDĐ VMT</p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6">
           <div className="space-y-2">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Tên đăng nhập / Email</label>
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider ml-1">Tên đăng nhập / Email</label>
             <input 
               type="text" 
               placeholder="VD: admin"
               className={cn(
-                "w-full rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-festive-gold/20 transition-all text-sm border",
+                "w-full rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-festive-gold/30 transition-all text-base border",
                 theme === 'dark' ? "bg-slate-950 border-slate-800 text-white placeholder:text-slate-700" : "bg-white border-slate-200 text-slate-900 placeholder:text-slate-300"
               )}
               value={username}
@@ -492,12 +524,12 @@ const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserPr
             />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Mật khẩu</label>
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider ml-1">Mật khẩu</label>
             <input 
               type="password" 
               placeholder="••••••••"
               className={cn(
-                "w-full rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-festive-gold/20 transition-all text-sm border",
+                "w-full rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-festive-gold/30 transition-all text-base border",
                 theme === 'dark' ? "bg-slate-950 border-slate-800 text-white placeholder:text-slate-700" : "bg-white border-slate-200 text-slate-900 placeholder:text-slate-300"
               )}
               value={password}
@@ -508,7 +540,7 @@ const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserPr
           
           <button 
             type="submit"
-            className="w-full bg-festive-gold text-slate-950 py-4 rounded-2xl font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-festive-gold/20 hover:scale-[1.02] active:scale-95 transition-all mt-4"
+            className="w-full bg-festive-gold text-slate-950 py-4 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-xl shadow-festive-gold/20 hover:scale-[1.01] active:scale-95 transition-all mt-4"
           >
             Đăng nhập
           </button>
@@ -543,9 +575,9 @@ const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark',
       <Icon size={28} className="text-white" />
     </div>
     <div>
-      <p className={cn("text-[10px] font-black uppercase tracking-[0.2em] mb-1", theme === 'dark' ? "text-slate-500" : "text-slate-600")}>{title}</p>
+      <p className={cn("text-xs font-bold uppercase tracking-wider mb-1", theme === 'dark' ? "text-slate-500" : "text-slate-500")}>{title}</p>
       <div className="flex items-center justify-between">
-        <p className={cn("text-3xl font-black font-serif italic tracking-tighter", theme === 'dark' ? "text-white" : "text-slate-900")}>{value}</p>
+        <p className={cn("text-3xl font-black tracking-tighter", theme === 'dark' ? "text-white" : "text-slate-900")}>{value}</p>
         {onClick && <ArrowRight size={16} className={cn("transition-all", theme === 'dark' ? "text-slate-500 group-hover:text-festive-gold" : "text-slate-400 group-hover:text-festive-gold")} />}
       </div>
     </div>
@@ -581,7 +613,7 @@ const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Appli
 
   const config = configs[effectiveStatus] || configs.Processing;
   return (
-    <span className={cn("px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest", config.classes)}>
+    <span className={cn("px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider", config.classes)}>
       {config.label}
     </span>
   );
@@ -602,8 +634,8 @@ const DetailCard = ({ label, value, field, valueColor = 'text-white', editable =
       {active && <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/5 blur-2xl -mr-8 -mt-8 rounded-full"></div>}
       
       <p className={cn(
-        "text-[10px] font-black uppercase mb-1.5 tracking-[0.15em] transition-colors leading-tight",
-        active ? "text-emerald-400" : theme === 'dark' ? "text-slate-500" : "text-slate-500"
+        "text-xs font-bold uppercase mb-1.5 tracking-wider transition-colors leading-tight",
+        active ? "text-emerald-500" : theme === 'dark' ? "text-slate-500" : "text-slate-500"
       )}>
         {label}
       </p>
@@ -883,7 +915,7 @@ const SettingsView = ({
             </div>
             <div className="space-y-2 max-h-[350px] overflow-y-auto custom-scrollbar pr-2">
               {checklistTemplates.map((item, idx) => (
-                <div key={idx} className="flex items-center justify-between p-4 bg-slate-950 rounded-2xl border border-slate-800 group/list">
+                <div key={`${item}-${idx}`} className="flex items-center justify-between p-4 bg-slate-950 rounded-2xl border border-slate-800 group/list">
                   <span className="text-xs text-slate-400 font-medium">{item}</span>
                   <button 
                     onClick={() => setChecklistTemplates(checklistTemplates.filter((_, i) => i !== idx))}
@@ -1612,7 +1644,7 @@ const ReportsView = ({
             </div>
             <div className="grid grid-cols-3 gap-8 mt-6">
                {reportConfig[reportType].kpis.map((kpi, i) => (
-                 <div key={i} className="space-y-1">
+                 <div key={kpi} className="space-y-1">
                     <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">{kpi}</p>
                     <div className="h-1 w-full bg-slate-800 rounded-full mt-2 overflow-hidden">
                       <div className="h-full bg-indigo-500" style={{ width: `${80 - i * 15}%` }} />
@@ -1946,7 +1978,7 @@ const ReportsView = ({
                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Thống kê chi tiết Nhân viên</p>
                       <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
                          {stats.length > 0 ? stats.sort((a:any, b:any) => b.total - a.total).map((user: any, i: number) => (
-                           <div key={i} className={cn(
+                           <div key={user.id} className={cn(
                              "p-4 rounded-3xl border flex items-center justify-between transition-all group",
                              theme === 'light' ? "bg-white border-slate-200" : "bg-slate-950/40 border-slate-800 hover:border-indigo-500/30"
                            )}>
@@ -2018,7 +2050,7 @@ const ReportsView = ({
                           />
                           <Bar dataKey="avgDays" name="Số ngày tb" radius={[0, 6, 6, 0]} barSize={20}>
                             {slaStats.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.isCritical ? '#f43f5e' : entry.avgDays > 5 ? '#f59e0b' : '#6366f1'} />
+                              <Cell key={`cell-${entry.name}`} fill={entry.isCritical ? '#f43f5e' : entry.avgDays > 5 ? '#f59e0b' : '#6366f1'} />
                             ))}
                           </Bar>
                         </BarChart>
@@ -2029,7 +2061,7 @@ const ReportsView = ({
                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Trách nhiệm Phòng ban & TAT</p>
                       <div className="space-y-3">
                          {slaStats.sort((a,b) => b.avgDays - a.avgDays).map((item, i) => (
-                           <div key={i} className={cn(
+                           <div key={item.name} className={cn(
                              "p-4 rounded-2xl border flex items-center justify-between transition-all group",
                              item.isCritical ? "bg-rose-500/5 border-rose-500/20" : "bg-slate-950/20 border-slate-800"
                            )}>
@@ -2141,7 +2173,7 @@ const ReportsView = ({
              </h4>
              <div className="space-y-6">
                 {stats.slice(0, 4).sort((a,b) => b.completed - a.completed).map((p, i) => (
-                  <div key={i} className="flex items-center gap-4">
+                  <div key={p.id} className="flex items-center gap-4">
                     <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-500 italic">#{i+1}</div>
                     <div className="flex-1">
                        <p className={cn("text-xs font-black", theme === 'light' ? "text-slate-800" : "text-slate-200")}>{p.name}</p>
@@ -2300,12 +2332,12 @@ const NotificationPanel = ({ notifications, taskReminders, onClose, onRead, onMa
                     n.isRead ? "bg-slate-300 dark:bg-slate-700 scale-75 opacity-50" : (n.type === 'Urgent' ? "bg-rose-500 shadow-lg shadow-rose-500/30" : n.type === 'Success' ? "bg-emerald-500" : "bg-indigo-500")
                   )} />
                   <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start gap-2">
-                      <p className={cn("text-sm font-bold leading-tight mb-1", theme === 'dark' ? (n.isRead ? "text-slate-500" : "text-slate-100") : (n.isRead ? "text-slate-400" : "text-slate-900"))}>{n.title}</p>
+            <div className="flex justify-between items-start gap-2">
+                      <p className={cn("text-sm font-semibold leading-tight mb-1", theme === 'dark' ? (n.isRead ? "text-slate-500" : "text-slate-200") : (n.isRead ? "text-slate-400" : "text-slate-900"))}>{n.title}</p>
                     </div>
                     <p className={cn("text-xs leading-relaxed line-clamp-2", theme === 'dark' ? (n.isRead ? "text-slate-600" : "text-slate-400") : (n.isRead ? "text-slate-400" : "text-slate-600"))}>{n.message}</p>
                     <div className="flex items-center justify-between mt-3">
-                      <p className={cn("text-[10px] font-black uppercase tracking-tighter", theme === 'dark' ? "text-slate-600" : "text-slate-400")}>
+                      <p className={cn("text-[10px] font-bold uppercase tracking-wider", theme === 'dark' ? "text-slate-600" : "text-slate-400")}>
                         {new Date(n.time).toLocaleString('vi-VN', { 
                           hour: '2-digit', 
                           minute: '2-digit', 
@@ -2926,7 +2958,7 @@ const BulkTransitionModal = ({
         </div>
 
         <div className={cn("mb-6 p-4 rounded-2xl text-xs font-mono max-h-32 overflow-y-auto", theme === 'dark' ? "bg-slate-950 border border-slate-800" : "bg-slate-50 border border-slate-200")}>
-          <div className="font-bold mb-2 uppercase tracking-widest text-[10px] text-indigo-500">Danh sách mã căn:</div>
+          <div className="font-bold mb-2 uppercase tracking-wider text-xs text-indigo-500">Danh sách mã căn:</div>
           <div className="flex flex-wrap gap-2 text-slate-400">
             {unitCodes.join(", ")}
           </div>
@@ -2934,19 +2966,19 @@ const BulkTransitionModal = ({
 
         <div className="space-y-6">
           <div className="p-5 rounded-3xl bg-indigo-500/5 border border-indigo-500/10">
-            <label className="block text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-2">Chuyển sang giai đoạn</label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-indigo-500 mb-2">Chuyển sang giai đoạn</label>
             <div className="flex items-center gap-3">
               <div className="p-2 bg-indigo-500 text-white rounded-lg">
                 <ChevronRight size={16} />
               </div>
-              <span className="font-black text-sm uppercase">{targetStepLabel}</span>
+              <span className="font-bold text-sm uppercase">{targetStepLabel}</span>
             </div>
           </div>
 
           <div className="space-y-4">
             {updateField && (
               <div className="space-y-3">
-                <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">
                   {updateField.label} {updateField.isRequired !== false ? '(Bắt buộc)' : '(Không bắt buộc)'}
                 </label>
                 <div className="relative">
@@ -2968,11 +3000,11 @@ const BulkTransitionModal = ({
 
             {targetStepLabel?.toUpperCase().includes('2. TIẾP NHẬN') && (
               <div className={cn("space-y-3 p-4 rounded-2xl border", theme === 'dark' ? "bg-amber-500/10 border-amber-500/20" : "bg-amber-50 border-amber-200")}>
-                <label className={cn("block text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2", theme === 'dark' ? "text-amber-500" : "text-amber-700")}>
+                <label className={cn("block text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2", theme === 'dark' ? "text-amber-500" : "text-amber-700")}>
                   <BookOpen size={14} /> Danh mục hồ sơ gốc tham khảo
                 </label>
                 <div className={cn("space-y-3 text-xs font-medium", theme === 'dark' ? "text-slate-300" : "text-slate-700")}>
-                  <p className="italic text-[10px] opacity-70 mb-2 underline decoration-amber-500/30">Danh sách các hồ sơ cần chuẩn bị:</p>
+                  <p className="italic text-xs opacity-70 mb-2 underline decoration-amber-500/30">Danh sách các hồ sơ cần chuẩn bị:</p>
                   <ul className="list-disc pl-4 space-y-1">
                     <li>HĐMB/HĐCN Gốc</li>
                     <li>Văn bản chuyển nhượng</li>
@@ -2987,7 +3019,7 @@ const BulkTransitionModal = ({
             {(targetStepLabel?.toUpperCase().includes('3. NỘP VPĐK') || targetStepLabel?.toUpperCase().includes('3. NOP VPDK') || targetStepLabel?.toUpperCase().includes('GĐ2:') || targetStepLabel?.toUpperCase().includes('GD2:')) && (
               <>
                 <div className="space-y-3">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">
                     Nơi nộp hồ sơ (Bắt buộc)
                   </label>
                   <select 
@@ -3004,7 +3036,7 @@ const BulkTransitionModal = ({
                 </div>
 
                 <div className="space-y-3">
-                  <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">
                     Mã hồ sơ / Số phiếu hẹn (Bắt buộc)
                   </label>
                   <input 
@@ -3372,7 +3404,7 @@ const ProjectModal = ({
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Danh mục hồ sơ gốc (Tham khảo)</label>
                 <div className="space-y-2">
                   {(formData.originalDocumentChecklist || []).map((item, idx) => (
-                    <div key={idx} className="flex gap-2">
+                    <div key={`${item}-${idx}`} className="flex gap-2">
                       <input 
                         type="text"
                         value={item}
@@ -3741,7 +3773,7 @@ const HandoverRecord = ({ apps, user, template }: { apps: Application[], user: U
               </React.Fragment>
             ))}
             {apps.length === 0 && Array.from({length: 5}).map((_, i) => (
-              <tr key={i}>
+              <tr key={`skeleton-${i}`}>
                 <td className="border border-black px-2 py-2 h-8"></td>
                 <td className="border border-black px-2 py-2"></td>
                 <td className="border border-black px-2 py-2"></td>
@@ -4519,10 +4551,10 @@ export default function App() {
 
     setIsSavingApp(true);
     try {
-      await syncRecordToSupabase(updatedApp);
+      const finalApp = await syncRecordToSupabase(updatedApp);
       
-      setApplications(prev => prev.map(a => a.id === id ? updatedApp : a));
-      if (selectedApp?.id === id) setSelectedApp(updatedApp);
+      setApplications(prev => prev.map(a => a.id === id ? finalApp : a));
+      if (selectedApp?.id === id) setSelectedApp(finalApp);
 
       showToast('Cập nhật nhanh và đồng bộ Supabase thành công!', 'success');
       setQuickEditId(null);
@@ -4772,7 +4804,37 @@ export default function App() {
           continue;
         }
 
-        const updated = { ...mergedApp, updated_at: nowStr };
+        let updated = { ...mergedApp, updated_at: nowStr };
+
+        // Ensure full initialization for new imported records (temporary ptt-imp ID)
+        if (typeof updated.id === 'string' && updated.id.includes('ptt-imp')) {
+          const parentProject = projects.find(p => p.name === updated.projectName);
+          const inheritedWorkflowType = parentProject?.workflowType || 'Quy_trinh_1';
+          const initialStep = inheritedWorkflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
+          const initialStatus = (stepConfig as any)[initialStep]?.status || 'Processing';
+          
+          updated = {
+            ...updated,
+            workflowType: updated.workflowType || inheritedWorkflowType,
+            currentStep: updated.currentStep || initialStep,
+            status: updated.status || initialStatus,
+            receivedDate: updated.receivedDate || nowStr,
+            taxPaymentStatus: updated.taxPaymentStatus || 'Unpaid',
+            checklist: updated.checklist || {},
+            history: updated.history && updated.history.length > 0 ? updated.history : [
+              {
+                id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                stepName: (stepConfig[initialStep] || INITIAL_STEP_CONFIG[initialStep]).label,
+                dept: 'PTT',
+                receivedDate: nowStr,
+                note: 'Khởi tạo hồ sơ từ Import'
+              }
+            ],
+            scannedFiles: updated.scannedFiles || [],
+            auditTrail: updated.auditTrail || []
+          };
+        }
+
         updatedAppsLocal[originalIndex] = updated;
         updatePayloads.push(mapToSnakeCase(updated));
         results.success++;
@@ -4788,10 +4850,8 @@ export default function App() {
       }
 
       if (updatePayloads.length > 0) {
-        const { error } = await supabase.from('records').upsert(updatePayloads, { onConflict: 'id' });
-        if (error) throw new Error(`Supabase error: ${error.message}`);
-        
-        setApplications(updatedAppsLocal);
+        const finalUpdatedApps = await bulkSyncRecordsToSupabase(updatePayloads.map(p => mapFromSnakeCase(p)), updatedAppsLocal);
+        setApplications(finalUpdatedApps);
         let msg = `Cập nhật thành công: ${results.success} căn.`;
         if (results.skipped > 0) msg += ` (Bỏ qua ${results.skipped} căn không đổi).`;
         showToast(msg, 'success');
@@ -5022,11 +5082,24 @@ export default function App() {
           const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
              id: `admin-imp-${Date.now()}-${Math.random()}`,
              unitCode: unitCode,
-             history: [{ id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, stepName: 'Quản trị viên Import', dept: 'ADMIN', receivedDate: new Date().toISOString().split('T')[0] }]
+             projectName: row[0] || (projects.length > 0 ? projects[0].name : ''),
+             customerName: row[2] || '---',
+             status: 'Processing',
+             currentStep: 'GD1_ChuanBi',
+             taxPaymentStatus: 'Unpaid',
+             history: [{ id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, stepName: 'Quản trị viên Import', dept: 'ADMIN', receivedDate: new Date().toISOString().split('T')[0] }],
+             checklist: {},
+             scannedFiles: [],
+             auditTrail: []
           } as Application;
 
-          app.projectName = row[0] || app.projectName || projects[0].name;
-          app.customerName = row[2] || app.customerName || '---';
+          if (!app.projectName && projects.length > 0) app.projectName = projects[0].name;
+          const parentProj = projects.find(p => p.name === app.projectName);
+          app.workflowType = parentProj?.workflowType || 'Quy_trinh_1';
+          if (existingIndex === -1) {
+            app.currentStep = app.workflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
+            app.status = (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.status || 'Processing';
+          }
           app.phoneNumber = row[3] || app.phoneNumber || '';
           app.loanStatus = row[4] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
           app.propertyType = row[5] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
@@ -5060,12 +5133,23 @@ export default function App() {
           const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
              id: `ptt-imp-${Date.now()}-${Math.random()}`,
              unitCode: unitCode,
+             customerName: row[2] || '---',
              status: 'Processing',
              currentStep: 'S1_ChuanBi',
-             history: [{ id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, stepName: 'PTT Import', dept: 'PTT', receivedDate: new Date().toISOString().split('T')[0] }]
+             taxPaymentStatus: 'Unpaid',
+             history: [{ id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, stepName: 'PTT Import', dept: 'PTT', receivedDate: new Date().toISOString().split('T')[0] }],
+             checklist: {},
+             scannedFiles: [],
+             auditTrail: []
           } as Application;
 
-          app.projectName = row[0] || app.projectName || projects[0].name;
+          app.projectName = row[0] || app.projectName || (projects.length > 0 ? projects[0].name : '');
+          const pProj = projects.find(p => p.name === app.projectName);
+          app.workflowType = pProj?.workflowType || 'Quy_trinh_1';
+          if (existingIndex === -1) {
+            app.currentStep = app.workflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
+            app.status = (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.status || 'Processing';
+          }
           app.customerName = row[2] || app.customerName || '---';
           app.contractSignerType = row[3] || app.contractSignerType || '';
           app.phoneNumber = row[4] || app.phoneNumber || '';
@@ -5160,10 +5244,11 @@ export default function App() {
         auditTrail: [auditEntry, ...(editApp.auditTrail || [])]
       };
 
-      await syncRecordToSupabase(updatedApp);
+      const finalApp = await syncRecordToSupabase(updatedApp);
+      const oldId = updatedApp.id;
 
-      setApplications(prev => prev.map(app => app.id === updatedApp.id ? updatedApp : app));
-      setSelectedApp(updatedApp);
+      setApplications(prev => prev.map(app => app.id === oldId ? finalApp : app));
+      setSelectedApp(finalApp);
       setEditApp(null);
       setIsEditing(false);
       showToast('Đã cập nhật thông tin hồ sơ và đồng bộ Supabase thành công!', 'success');
@@ -5175,13 +5260,46 @@ export default function App() {
     }
   };
 
+  const cleanupFilesForRecords = async (ids: string[]) => {
+    const appsToDelete = applications.filter(app => ids.includes(app.id));
+    const allFilePaths: string[] = [];
+    appsToDelete.forEach(app => {
+      (app.scannedFiles || []).forEach(file => {
+        if (file.path) allFilePaths.push(file.path);
+      });
+    });
+    
+    if (allFilePaths.length > 0) {
+      try {
+        const { error: storageError } = await supabase.storage
+          .from('Documents-GCN')
+          .remove(allFilePaths);
+        
+        if (storageError) {
+          console.warn('Storage bulk delete warning:', storageError);
+        }
+      } catch (err) {
+        console.error('Catch error in storage bulk delete:', err);
+      }
+    }
+  };
+
   const handleDeleteApp = async (id: string, code: string) => {
     if (userRole !== 'ADMIN') {
       showToast('Bạn không có quyền thực hiện thao tác này!', 'error');
       return;
     }
     if (window.confirm(`Bạn có chắc chắn muốn xóa hồ sơ căn ${code}? Thao tác này không thể hoàn tác.`)) {
+      setIsSavingApp(true);
       try {
+        // 1. Cleanup files from storage first
+        try {
+          await cleanupFilesForRecords([id]);
+        } catch (cleanupErr) {
+          console.warn('File cleanup warning (continuing with app delete):', cleanupErr);
+        }
+
+        // 2. Delete from Database
         const { error } = await supabase
           .from('records')
           .delete()
@@ -5195,10 +5313,12 @@ export default function App() {
           setIsEditing(false);
           setEditApp(null);
         }
-        showToast('Đã xóa hồ sơ khỏi Supabase thành công', 'success');
+        showToast('Đã xóa hồ sơ và tài liệu đính kèm thành công', 'success');
       } catch (error) {
         console.error('Supabase delete error:', error);
         showToast('Lỗi khi xóa dữ liệu trên Supabase.', 'error');
+      } finally {
+        setIsSavingApp(false);
       }
     }
   };
@@ -5363,16 +5483,16 @@ export default function App() {
     };
 
     try {
-      await syncRecordToSupabase(updatedApp);
-      await notifyNextDepartment(updatedApp, targetStep);
+      const finalApp = await syncRecordToSupabase(updatedApp);
+      await notifyNextDepartment(finalApp, targetStep);
 
       // Cleanup notifications if complete
       if (targetStep === 'Hoan_Tat') {
         await deleteAllNotificationsForRecord(app.id);
       }
 
-      setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
-      setSelectedApp(updatedApp);
+      setApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
+      setSelectedApp(finalApp);
       setEditApp(null);
       setIsEditing(false);
       showToast(`Đã chuyển hồ sơ sang bước: ${(stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label} (Đã đồng bộ Supabase)`, 'success');
@@ -5598,11 +5718,8 @@ export default function App() {
       });
       
       // Perform bulk upsert to Supabase
-      const { error } = await supabase
-        .from('records')
-        .upsert(appsToSync.map(app => mapToSnakeCase(app)));
-
-      if (error) throw error;
+      const finalApps = await bulkSyncRecordsToSupabase(appsToSync, updatedApps);
+      setApplications(finalApps);
 
       // Notifications for bulk transition
       await Promise.all(appsToSync.map(app => notifyNextDepartment(app, app.currentStep)));
@@ -5612,7 +5729,6 @@ export default function App() {
         await Promise.all(selectedAppIds.map(id => deleteAllNotificationsForRecord(id)));
       }
 
-      setApplications(updatedApps);
       setSelectedAppIds([]);
       setIsBulkTransitionModalOpen(false);
       setBulkTransitionTarget(null);
@@ -5635,13 +5751,9 @@ export default function App() {
         updateAppIssue(app, bulkIssueNote, bulkIssueType, bulkIssueSource, bulkIssueSeverity)
       );
 
-      setApplications(prev => prev.map(app => {
-        const updated = updatedApps.find(u => u.id === app.id);
-        return updated || app;
-      }));
-
-      // Sync to Supabase
-      await Promise.all(updatedApps.map(app => syncRecordToSupabase(app)));
+      // Sync to Supabase and update state with returned records (IDs)
+      const finalApps = await bulkSyncRecordsToSupabase(updatedApps, applications);
+      setApplications(finalApps);
 
       showToast(`Đã ghi nhận vướng mắc cho ${selectedAppIds.length} hồ sơ.`, 'success');
       setIsBulkIssueOpen(false);
@@ -5664,6 +5776,14 @@ export default function App() {
     setIsSavingApp(true);
 
     try {
+      // 1. Cleanup files from storage first
+      try {
+        await cleanupFilesForRecords(selectedAppIds);
+      } catch (cleanupErr) {
+        console.warn('Bulk file cleanup warning:', cleanupErr);
+      }
+
+      // 2. Delete from Database
       const { error } = await supabase
         .from('records')
         .delete()
@@ -5673,7 +5793,7 @@ export default function App() {
 
       setApplications(prev => prev.filter(app => !selectedAppIds.includes(app.id)));
       setSelectedAppIds([]);
-      showToast(`Đã xóa hàng loạt ${count} hồ sơ khỏi Supabase thành công.`, 'success');
+      showToast(`Đã xóa hàng loạt ${count} hồ sơ và tài liệu đính kèm thành công.`, 'success');
     } catch (error) {
       console.error('Supabase bulk delete error:', error);
       showToast('Lỗi khi xóa hàng loạt trên Supabase.', 'error');
@@ -5697,13 +5817,9 @@ export default function App() {
       const appsToSync = updatedApps.filter(app => selectedAppIds.includes(app.id));
 
       // Perform bulk upsert to Supabase
-      const { error } = await supabase
-        .from('records')
-        .upsert(appsToSync.map(app => mapToSnakeCase(app)));
+      const finalApps = await bulkSyncRecordsToSupabase(appsToSync, updatedApps);
 
-      if (error) throw error;
-
-      setApplications(updatedApps);
+      setApplications(finalApps);
       showToast(`Đã cập nhật ghi chú cho ${selectedAppIds.length} hồ sơ và đồng bộ Supabase thành công.`, 'success');
       setIsBulkNoteOpen(false);
       setBulkNoteText('');
@@ -5759,12 +5875,12 @@ export default function App() {
         };
 
         // 3. Update record in Database
-        await syncRecordToSupabase(updatedApp);
+        const finalApp = await syncRecordToSupabase(updatedApp);
 
-        const updatedApps = applications.map(a => a.id === app.id ? updatedApp : a);
+        const updatedApps = applications.map(a => a.id === app.id ? finalApp : a);
         setApplications(updatedApps);
-        if (editApp && editApp.id === app.id) setEditApp(updatedApp);
-        if (selectedApp && selectedApp.id === app.id) setSelectedApp(updatedApp);
+        if (editApp && editApp.id === app.id) setEditApp(finalApp);
+        if (selectedApp && selectedApp.id === app.id) setSelectedApp(finalApp);
         
         showToast(`Đã tải tài liệu "${file.name}" lên Supabase Storage thành công.`, 'success');
       } catch (error) {
@@ -5778,7 +5894,7 @@ export default function App() {
     e.target.value = '';
   };
 
-  const handleFileDelete = async (fileId: string) => {
+  const handleDeleteFile = async (fileId: string) => {
     const app = editApp || selectedApp;
     if (!app || !window.confirm('Bạn có chắc chắn muốn xóa tài liệu này?')) return;
 
@@ -5803,12 +5919,12 @@ export default function App() {
       }
 
       // 2. Update DB record
-      await syncRecordToSupabase(updatedApp);
+      const finalApp = await syncRecordToSupabase(updatedApp);
 
-      const updatedApps = applications.map(a => a.id === app.id ? updatedApp : a);
+      const updatedApps = applications.map(a => a.id === app.id ? finalApp : a);
       setApplications(updatedApps);
-      if (editApp && editApp.id === app.id) setEditApp(updatedApp);
-      if (selectedApp && selectedApp.id === app.id) setSelectedApp(updatedApp);
+      if (editApp && editApp.id === app.id) setEditApp(finalApp);
+      if (selectedApp && selectedApp.id === app.id) setSelectedApp(finalApp);
       showToast('Đã xóa tài liệu khỏi hệ thống thành công.', 'success');
     } catch (error) {
       console.error('Supabase file delete error:', error);
@@ -5891,10 +6007,10 @@ export default function App() {
 
     setIsSavingApp(true);
     try {
-      await syncRecordToSupabase(updatedApp);
+      const finalApp = await syncRecordToSupabase(updatedApp);
 
-      setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
-      setSelectedApp(updatedApp);
+      setApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
+      setSelectedApp(finalApp);
       setEditApp(null);
       setIsEditing(false);
       setExpandedSections(prev => prev.includes('OTHER_SECTION') ? prev : [...prev, 'OTHER_SECTION']);
@@ -5935,10 +6051,10 @@ export default function App() {
 
     setIsSavingApp(true);
     try {
-      await syncRecordToSupabase(updatedApp);
+      const finalApp = await syncRecordToSupabase(updatedApp);
 
-      setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
-      setSelectedApp(updatedApp);
+      setApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
+      setSelectedApp(finalApp);
       showToast('Đã phục hồi trạng thái và đồng bộ Supabase thành công.', 'success');
     } catch (error) {
       console.error('Supabase resolve error:', error);
@@ -5977,9 +6093,9 @@ export default function App() {
         history: newHistory
       };
 
-      await syncRecordToSupabase(updatedApp);
-      setApplications(prev => prev.map(a => a.id === appId ? updatedApp : a));
-      setSelectedApp(updatedApp);
+      const finalApp = await syncRecordToSupabase(updatedApp);
+      setApplications(prev => prev.map(a => a.id === appId ? finalApp : a));
+      setSelectedApp(finalApp);
       showToast('Đã xác nhận khắc phục xong vướng khoán.', 'success');
     } catch (error) {
       console.error(error);
@@ -6042,14 +6158,11 @@ export default function App() {
       );
       await Promise.all(promises);
 
-      const { error } = await supabase
-        .from('records')
-        .upsert(mapToSnakeCase(updatedApp));
+      const finalApp = await syncRecordToSupabase(updatedApp);
+      const oldId = app.id;
 
-      if (error) throw error;
-
-      setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
-      setSelectedApp(updatedApp);
+      setApplications(prev => prev.map(a => a.id === oldId ? finalApp : a));
+      setSelectedApp(finalApp);
       setEditApp(null);
       setIsEditing(false);
       setExpandedSections(prev => prev.includes('OTHER_SECTION') ? prev : [...prev, 'OTHER_SECTION']);
@@ -6223,6 +6336,7 @@ export default function App() {
         status: initialStatus,
         receivedDate: new Date().toISOString().split('T')[0],
         taxPaymentStatus: 'Unpaid',
+        checklist: {},
         history: [
           {
             id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -6861,11 +6975,11 @@ export default function App() {
         )}>
           <div className="flex items-center gap-3 mb-1">
             <div className="w-10 h-10 bg-festive-gold rounded-xl flex items-center justify-center shadow-lg shadow-festive-gold/20">
-              <img src="/logo.png" className="w-12 h-12 object-contain" alt="Logo" />
+              <Building2 className="text-festive-dark" size={24} />
             </div>
             <div>
                <h1 className="font-bold text-xl tracking-tight text-festive-gold font-serif italic">GCN Tracker</h1>
-               <p className={cn("text-[10px] uppercase font-bold tracking-[0.3em] leading-none", theme === 'light' ? "text-slate-500" : "text-slate-400")}>Regional</p>
+               <p className={cn("text-xs uppercase font-bold tracking-[0.2em] leading-none", theme === 'light' ? "text-slate-400" : "text-slate-500")}>Regional</p>
             </div>
           </div>
         </div>
@@ -6969,7 +7083,7 @@ export default function App() {
             <button 
               onClick={() => setIsFieldMode(true)}
               className={cn(
-                "w-full flex items-center gap-3 px-8 py-4 rounded-2xl transition-all duration-200 font-black text-[10px] uppercase tracking-widest",
+                "w-full flex items-center gap-3 px-8 py-4 rounded-2xl transition-all duration-200 font-bold text-[11px] uppercase tracking-wider",
                 "bg-indigo-600/10 text-indigo-400 border border-indigo-600/20 hover:bg-indigo-600/20"
               )}
             >
@@ -6980,7 +7094,7 @@ export default function App() {
 
           <div className="pt-4 border-t border-slate-800/10 mt-4 px-6 pb-2">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Khu vực & Dự án</p>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Khu vực & Dự án</p>
             </div>
             <div className="relative mb-4 group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={12} />
@@ -7049,7 +7163,7 @@ export default function App() {
                       expandedSidebarRegions[region] ? "text-festive-gold" : "text-slate-500"
                     )} />
                     <span className={cn(
-                      "text-[10px] font-black uppercase tracking-widest truncate transition-colors",
+                      "text-xs font-bold uppercase tracking-wider truncate transition-colors",
                       expandedSidebarRegions[region] ? (theme === 'light' ? "text-slate-900" : "text-white") : "text-slate-500"
                     )}>{region}</span>
                   </div>
@@ -7162,13 +7276,13 @@ export default function App() {
               </div>
 
               {(userRole === 'ADMIN' || userRole === 'PTT') && (
-                <button 
+                    <button 
                   onClick={() => {
                     const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
                     setNewApp(prev => ({ ...prev, projectName: defaultProj }));
                     setIsCreateModalOpen(true);
                   }}
-                  className="bg-festive-gold hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-festive-gold/10 transition-all active:scale-95"
+                  className="bg-festive-gold hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider shadow-lg shadow-festive-gold/10 transition-all active:scale-95"
                 >
                   + Hồ sơ
                 </button>
@@ -7234,12 +7348,12 @@ export default function App() {
             {/* User Profile */}
             <div className="flex items-center gap-4 pl-6 border-l border-slate-800/20">
               <div className="text-right hidden sm:block overflow-hidden max-w-[150px]">
-                <p className={cn("text-xs font-black uppercase tracking-widest truncate", theme === 'light' ? "text-slate-900" : "text-white")}>{currentUser?.name}</p>
+                <p className={cn("text-xs font-bold uppercase tracking-wider truncate", theme === 'light' ? "text-slate-900" : "text-white")}>{currentUser?.name}</p>
                 <div className="flex items-center justify-end gap-2">
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter truncate">Dept: {currentUser?.dept}</p>
+                  <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider truncate">Phòng: {currentUser?.dept}</p>
                   <button 
                     onClick={() => setIsChangePasswordModalOpen(true)}
-                    className="text-[9px] font-black text-indigo-500 hover:text-indigo-400 uppercase tracking-tighter transition-colors"
+                    className="text-[10px] font-bold text-indigo-500 hover:text-indigo-400 uppercase tracking-wider transition-colors ml-1"
                   >
                     Đổi Pass
                   </button>
@@ -8339,31 +8453,31 @@ export default function App() {
                               }}
                             />
                           </th>
-                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Mã lô/căn</th>
-                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Dự án</th>
-                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Khách hàng</th>
+                          <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase">Mã lô/căn</th>
+                          <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase">Dự án</th>
+                          <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase">Khách hàng</th>
                           {isSpreadsheetMode ? (
                             EDITABLE_DATE_FIELDS.map(f => (
-                              <th key={f.key} className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center whitespace-nowrap bg-indigo-500/5">{f.label}</th>
+                              <th key={f.key} className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase text-center whitespace-nowrap bg-indigo-500/5">{f.label}</th>
                             ))
                           ) : (
                             <>
-                              <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Đối tượng ký</th>
-                              <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic">Trạng thái</th>
+                              <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase">Đối tượng ký</th>
+                              <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase">Trạng thái</th>
                               {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nộp VPĐK</th>
+                                <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase text-center">Nộp VPĐK</th>
                               )}
                               {(userRole === 'PTT' || userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nộp thuế</th>
+                                <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase text-center">Nộp thuế</th>
                               )}
                               {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Nhận sổ</th>
+                                <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase text-center">Nhận sổ</th>
                               )}
-                              <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">BG Khách</th>
+                              <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase text-center">BG Khách</th>
                             </>
                           )}
-                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center text-indigo-400">Tài liệu</th>
-                          <th className="px-6 py-4 text-[10px] font-bold tracking-widest font-mono italic text-center">Hành động</th>
+                          <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase text-center text-indigo-500">Tài liệu</th>
+                          <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase text-center">Hành động</th>
                         </tr>
                       </thead>
                       <tbody className={cn(
@@ -8424,20 +8538,20 @@ export default function App() {
                                     />
                                   ) : (
                                     <div className="flex items-center gap-2">
-                                      <span className="text-sm font-black text-festive-gold font-mono tracking-tight">{app.unitCode}</span>
+                                      <span className="text-sm font-bold text-festive-gold tracking-tight">{app.unitCode}</span>
                                       {app.isRejected && app.currentStep === 'S1_ChuanBi' && (
-                                        <span className="animate-pulse flex items-center gap-1 text-[8px] bg-rose-500 text-white px-1.5 py-0.5 rounded-full font-black uppercase tracking-tighter">
+                                        <span className="animate-pulse flex items-center gap-1 text-[10px] bg-rose-500 text-white px-1.5 py-0.5 rounded-full font-bold uppercase tracking-tight">
                                           <RotateCcw size={8} /> Trả về
                                         </span>
                                       )}
                                     </div>
                                   )}
-                                  <span className="text-[9px] text-slate-500 font-bold uppercase mt-0.5">
+                                  <span className="text-[10px] text-slate-400 font-medium uppercase mt-0.5">
                                     SLA: {(stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.slaDays || 0} ngày
                                   </span>
                                   {overdue.isOverdue && (
                                     <span className={cn(
-                                      "text-[9px] font-bold uppercase tracking-tighter flex items-center gap-1 mt-1",
+                                      "text-[10px] font-semibold uppercase tracking-tight flex items-center gap-1 mt-1",
                                       overdue.daysLate > 5 ? "text-red-500" :
                                       overdue.daysLate >= 3 ? "text-yellow-500" : "text-green-500"
                                     )}>
@@ -8487,12 +8601,12 @@ export default function App() {
                                         }}
                                       />
                                     ) : (
-                                      <span className={cn("text-sm font-medium truncate", theme === 'light' ? "text-slate-700" : "text-slate-300")}>{app.customerName}</span>
+                                      <span className={cn("text-sm font-semibold truncate", theme === 'light' ? "text-slate-800" : "text-slate-200")}>{app.customerName}</span>
                                     )}
                                     <div className="flex gap-2 mt-1 items-center">
-                                      <span className="text-[10px] text-slate-500 font-mono italic">{formatDate(app.receivedDate)}</span>
-                                      {app.loanStatus === 'Co_Vay' && <span className="text-[8px] bg-indigo-500/20 text-indigo-400 px-1 rounded font-bold uppercase">Có vay</span>}
-                                      {app.isSelfService && <span className="text-[8px] bg-amber-500/20 text-amber-500 px-1 rounded font-bold uppercase">Tự làm</span>}
+                                      <span className="text-[11px] text-slate-500 italic">{formatDate(app.receivedDate)}</span>
+                                      {app.loanStatus === 'Co_Vay' && <span className="text-[9px] bg-indigo-500/20 text-indigo-600 px-1.5 py-0.5 rounded font-bold uppercase">Có vay</span>}
+                                      {app.isSelfService && <span className="text-[9px] bg-amber-500/20 text-amber-600 px-1.5 py-0.5 rounded font-bold uppercase">Tự làm</span>}
                                     </div>
                                   </div>
                                 </div>
@@ -8909,7 +9023,7 @@ export default function App() {
                     </div>
                     <div className="space-y-3">
                       {DOC_CHECKLIST_ITEMS.map((item, idx) => (
-                        <div key={idx} className={cn(
+                        <div key={item} className={cn(
                           "flex items-center gap-4 p-5 rounded-2xl border transition-all group",
                           theme === 'light' ? "bg-slate-50 border-slate-100 hover:border-amber-200" : "bg-slate-950/30 border-slate-800/30 hover:border-amber-500/30"
                         )}>
@@ -8976,7 +9090,7 @@ export default function App() {
                           { name: 'Tờ khai thuế thu nhập cá nhân', format: 'PDF', size: '115KB' },
                           { name: 'Mẫu giấy ủy quyền nộp HS', format: 'DOCX', size: '32KB' }
                         ].map((doc, idx) => (
-                          <button key={idx} className={cn(
+                          <button key={doc.name} className={cn(
                             "w-full flex items-center justify-between p-4 rounded-2xl border transition-all",
                             theme === 'light' ? "bg-slate-50 border-slate-100 hover:bg-slate-100" : "bg-slate-950/30 border-slate-800/30 hover:bg-slate-800/30"
                           )}>
@@ -9764,7 +9878,7 @@ export default function App() {
                                               <button 
                                                 onClick={(e) => {
                                                   e.stopPropagation();
-                                                  handleFileDelete(file.id);
+                                                  handleDeleteFile(file.id);
                                                 }}
                                                 className="p-1.5 text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"
                                               >
