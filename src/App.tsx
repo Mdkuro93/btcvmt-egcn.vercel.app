@@ -470,7 +470,7 @@ const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserPr
       >
         <div className="flex flex-col items-center mb-8">
           <div className="w-16 h-16 bg-festive-gold rounded-[1.5rem] flex items-center justify-center shadow-lg shadow-festive-gold/20 mb-4 animate-pulse">
-            <img src="https://raw.githubusercontent.com/Mdkuro93/btcvmt-egcn.vercel.app/main/logo.png" className="w-8 h-8 object-contain" alt="Logo" />
+            <img src="/logo.png" className="w-24 h-24 object-contain mb-4" alt="Logo" />
           </div>
           <h1 className={cn("text-2xl font-black font-serif italic tracking-tight", theme === 'dark' ? "text-white" : "text-slate-900")}>GCN Tracker Login</h1>
           <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Hệ thống quản lý tình trạng cấp GCN QSDĐ VMT</p>
@@ -6861,7 +6861,7 @@ export default function App() {
         )}>
           <div className="flex items-center gap-3 mb-1">
             <div className="w-10 h-10 bg-festive-gold rounded-xl flex items-center justify-center shadow-lg shadow-festive-gold/20">
-              <img src="/logo.png" className="w-6 h-6 object-contain" alt="Logo" />
+              <img src="/logo.png" className="w-12 h-12 object-contain" alt="Logo" />
             </div>
             <div>
                <h1 className="font-bold text-xl tracking-tight text-festive-gold font-serif italic">GCN Tracker</h1>
