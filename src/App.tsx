@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { motion } from 'motion/react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Cell,
   PieChart, Pie, LabelList, Legend, AreaChart, Area
@@ -30,6 +29,7 @@ import {
   AlertTriangle,
   HelpCircle,
   CreditCard,
+  Edit2,
   Edit3,
   Plus,
   X,
@@ -80,7 +80,7 @@ import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { MOCK_APPLICATIONS, PROJECTS, STEP_CONFIG as INITIAL_STEP_CONFIG, MOCK_USERS, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS, getNextStep, CONST_QUY_TRINH_1, CONST_QUY_TRINH_2 } from './constants';
-import { Application, UnitStatus, KPI, Dept, UserProfile, UserPermission, PropertyType, StepName, AppNotification, Project, ApplicationStepHistory, AuditTrailEntry, ScannedFile, IssueType, IssueCategory, IssueSeverity } from './types';
+import { Application, UnitStatus, KPI, Dept, UserProfile, UserPermission, PropertyType, StepName, AppNotification, Project, ApplicationStepHistory, AuditTrailEntry, ScannedFile, IssueType, IssueSeverity } from './types';
 
 type ApplicationHistory = {
   id: string;
@@ -147,7 +147,6 @@ const mapFromSnakeCase = (item: any): Application => {
     handoverDate: item.handover_date,
     taxNoticeProvisionDate: item.tax_notice_provision_date,
     gcnSignedDate: item.gcn_signed_date,
-    issueSource: item.issue_source,
     issueType: item.issue_type,
     issueSeverity: item.issue_severity,
     issueNotes: item.issue_notes,
@@ -166,6 +165,18 @@ const mapFromSnakeCase = (item: any): Application => {
       ? JSON.parse(item.audit_trail || item.auditTrail) 
       : (item.audit_trail || item.auditTrail || [])
   };
+};
+
+const STATUS_TO_ID_MAP: Record<UnitStatus, number> = {
+  Processing: 1,
+  WaitingVPDK: 2,
+  Submitted: 3,
+  TaxPending: 4,
+  TaxCompleted: 5,
+  GCN_Issued: 6,
+  Completed: 7,
+  Error: 8,
+  Draft: 9,
 };
 
 const mapToSnakeCase = (app: Application) => {
@@ -187,7 +198,7 @@ const mapToSnakeCase = (app: Application) => {
     vpdk_code: app.vpdkCode,
     current_step: app.currentStep,
     status: app.status,
-    status_id: app.status,
+    status_id: STATUS_TO_ID_MAP[app.status] || 1,
     received_date: app.receivedDate,
     tax_notification_date: app.taxNotificationDate,
     tax_notification_received_date: app.taxNotificationReceivedDate,
@@ -201,7 +212,6 @@ const mapToSnakeCase = (app: Application) => {
     handover_date: app.handoverDate,
     tax_notice_provision_date: app.taxNoticeProvisionDate,
     gcn_signed_date: app.gcnSignedDate,
-    issue_source: app.issueSource,
     issue_type: app.issueType,
     issue_severity: app.issueSeverity,
     issue_notes: app.issueNotes,
@@ -218,8 +228,8 @@ const mapToSnakeCase = (app: Application) => {
     updated_at: new Date().toISOString()
   };
 
-  // Only include ID if it's not a temporary ptt-imp string ID
-  if (app.id && !(typeof app.id === 'string' && app.id.includes('ptt-imp'))) {
+  // Only include ID if it's not a temporary string ID
+  if (app.id && !(typeof app.id === 'string' && app.id.includes('-imp-'))) {
     data.id = app.id;
   }
 
@@ -312,19 +322,44 @@ const syncRecordToSupabase = async (app: Application) => {
 const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplications: Application[]) => {
   if (appsToSync.length === 0) return allApplications;
   
-  const snakePayloads = appsToSync.map(app => mapToSnakeCase(app));
-  const { data, error } = await supabase.from('records').upsert(snakePayloads, { onConflict: 'id' }).select();
+  const recordsToInsert: any[] = [];
+  const recordsToUpdate: any[] = [];
+
+  appsToSync.forEach(app => {
+    const snakeObj = mapToSnakeCase(app);
+    if (typeof snakeObj.id === 'string' && snakeObj.id.includes('-imp-')) {
+      delete snakeObj.id; // Remove temporary string ID
+      recordsToInsert.push(snakeObj);
+    } else {
+      recordsToUpdate.push(snakeObj);
+    }
+  });
   
-  if (error) throw error;
+  let insertedData: any[] = [];
+  if (recordsToInsert.length > 0) {
+    const { data: insertResult, error: insertError } = await supabase.from('records').insert(recordsToInsert).select();
+    if (insertError) throw insertError;
+    insertedData = insertResult || [];
+  }
+
+  let updatedData: any[] = [];
+  if (recordsToUpdate.length > 0) {
+    const { data: updateResult, error: updateError } = await supabase.from('records').upsert(recordsToUpdate, { onConflict: 'id' }).select();
+    if (updateError) throw updateError;
+    updatedData = updateResult || [];
+  }
   
+  const allReturnedData = [...insertedData, ...updatedData];
   const updatedAppsLocal = [...allApplications];
-  if (data && data.length > 0) {
-    data.forEach(item => {
+
+  if (allReturnedData.length > 0) {
+    allReturnedData.forEach(item => {
       const returnedApp = mapFromSnakeCase(item);
-      // Try to find by unitCode if ID is different (could be new records with ptt-imp IDs)
       const idx = updatedAppsLocal.findIndex(a => a.unitCode === returnedApp.unitCode);
       if (idx !== -1) {
         updatedAppsLocal[idx] = returnedApp;
+      } else {
+        updatedAppsLocal.push(returnedApp);
       }
     });
   }
@@ -1461,6 +1496,7 @@ const ReportsView = ({
       return projects.map(p => {
         const apps = applications.filter(a => a.projectName === p.name);
         return {
+          id: p.id,
           name: p.name,
           total: apps.length,
           completed: apps.filter(a => a.currentStep === 'Hoan_Tat').length,
@@ -1476,6 +1512,7 @@ const ReportsView = ({
            return p?.region === reg;
         });
         return {
+          id: reg,
           name: reg,
           total: apps.length,
           completed: apps.filter(a => a.currentStep === 'Hoan_Tat').length,
@@ -1502,6 +1539,7 @@ const ReportsView = ({
         }).length;
 
         return {
+          id: dept,
           name: dept === 'PTT' ? 'Phòng Thủ tục' : dept === 'KT' ? 'Kế toán/Pháp lý' : 'PTDA/In sổ',
           total: totalApps,
           delayed: delayedApps,
@@ -1534,6 +1572,7 @@ const ReportsView = ({
        });
        
        return Object.entries(userStats).map(([id, s]) => ({
+         id,
          name: s.name,
          total: s.count,
          completed: s.completedCount,
@@ -3017,7 +3056,7 @@ const BulkTransitionModal = ({
               </div>
             )}
 
-            {(targetStepLabel?.toUpperCase().includes('3. NỘP VPĐK') || targetStepLabel?.toUpperCase().includes('3. NOP VPDK') || targetStepLabel?.toUpperCase().includes('GĐ2:') || targetStepLabel?.toUpperCase().includes('GD2:')) && (
+            {(targetStepLabel?.toUpperCase().includes('3. NỘP VPĐK') || targetStepLabel?.toUpperCase().includes('3. NOP VPDK') || targetStepLabel?.toUpperCase().includes('GĐ2:') || targetStepLabel?.toUpperCase().includes('GD2:') || targetStepLabel?.toUpperCase().includes('GĐ3:') || targetStepLabel?.toUpperCase().includes('GD3:')) && (
               <>
                 <div className="space-y-3">
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">
@@ -3104,8 +3143,6 @@ const BulkIssueModal = ({
   onChangeIssueType,
   severity,
   onChangeSeverity,
-  source,
-  onChangeSource,
   theme
 }: {
   isOpen: boolean;
@@ -3119,8 +3156,6 @@ const BulkIssueModal = ({
   onChangeIssueType: (v: IssueType) => void;
   severity: IssueSeverity;
   onChangeSeverity: (v: IssueSeverity) => void;
-  source: IssueCategory;
-  onChangeSource: (v: IssueCategory) => void;
   theme: 'light' | 'dark';
 }) => {
   if (!isOpen) return null;
@@ -3162,7 +3197,7 @@ const BulkIssueModal = ({
         </div>
 
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <div className="space-y-2">
               <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Phân loại lỗi</label>
               <select 
@@ -3173,27 +3208,12 @@ const BulkIssueModal = ({
                   theme === 'dark' ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
                 )}
               >
-                <option value="Paperwork">HS Pháp lý / Thủ tục</option>
-                <option value="Financial">Tài chính / Công nợ / Thuế</option>
-                <option value="Authority">Cơ quan nhà nước</option>
-                <option value="Other">Khác (Internal / Project)</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Nguồn gốc vướng mắc</label>
-              <select 
-                value={source}
-                onChange={(e) => onChangeSource(e.target.value as IssueCategory)}
-                className={cn(
-                  "w-full px-4 py-3 rounded-2xl text-sm font-bold border outline-none focus:ring-2 focus:ring-rose-500/20 transition-all",
-                  theme === 'dark' ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                )}
-              >
-                <option value="None">-- Chưa phân loại --</option>
-                <option value="Chu_Dau_Tu">Chủ đầu tư</option>
-                <option value="Nha_Nuoc">Nhà nước</option>
-                <option value="Noi_Bo">Nội bộ</option>
-                <option value="Khach_Hang">Khách hàng</option>
+                <option value="None">None</option>
+                <option value="Sai sót nội bộ">Sai sót nội bộ</option>
+                <option value="Sai sót khách hàng">Sai sót khách hàng</option>
+                <option value="Sai sót cơ quan nhà nước">Sai sót cơ quan nhà nước</option>
+                <option value="Sai sót chủ đầu tư">Sai sót chủ đầu tư</option>
+                <option value="Sai sót Khác">Sai sót Khác</option>
               </select>
             </div>
           </div>
@@ -3201,20 +3221,21 @@ const BulkIssueModal = ({
           <div className="space-y-2">
             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Mức độ nghiêm trọng</label>
             <div className="flex gap-2">
-              {(['Minor', 'Moderate', 'Critical'] as IssueSeverity[]).map(s => (
+              {(['Nghiêm trọng', 'Cao', 'Trung bình', 'Thấp'] as IssueSeverity[]).map((s, idx) => (
                 <button
-                  key={s}
+                  key={idx}
                   onClick={() => onChangeSeverity(s)}
                   className={cn(
                     "flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all",
                     severity === s 
-                      ? (s === 'Critical' ? "bg-rose-600 border-rose-600 text-white shadow-lg shadow-rose-900/20" : 
-                         s === 'Moderate' ? "bg-amber-500 border-amber-500 text-white shadow-lg shadow-amber-900/20" : 
-                         "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-900/20")
+                      ? (s === 'Nghiêm trọng' ? "bg-rose-600 border-rose-600 text-white shadow-lg shadow-rose-900/20" : 
+                         s === 'Cao' ? "bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-900/20" : 
+                         s === 'Trung bình' ? "bg-amber-400 border-amber-400 text-slate-900 shadow-lg shadow-amber-900/20" :
+                         "bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-900/20")
                       : (theme === 'dark' ? "bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-600" : "bg-slate-50 border-slate-200 text-slate-400 hover:border-slate-300")
                   )}
                 >
-                  {s === 'Critical' ? 'Nghiêm trọng' : s === 'Moderate' ? 'Trung bình' : 'Nhẹ'}
+                  {s}
                 </button>
               ))}
             </div>
@@ -3501,9 +3522,9 @@ const getPhaseIndex = (step: StepName): number => {
 
 const getTaxStatus = (app: Application) => {
   if (app.status === 'Error') return { label: 'Sai sót/Vướng mắc', color: 'text-rose-500' };
+  if (app.taxReceiptDate) return { label: 'Hoàn thành', color: 'text-emerald-500' };
   if (!app.taxNotificationReceivedDate) return { label: 'Chưa có TB thuế', color: 'text-slate-500' };
-  if (!app.taxReceiptDate) return { label: 'Chưa hoàn thành', color: 'text-amber-500' };
-  return { label: 'Hoàn thành', color: 'text-emerald-500' };
+  return { label: 'Chưa hoàn thành', color: 'text-amber-500' };
 };
 
 const getOverdueInfo = (app: Application, stepConfig: Record<string, any>, slaConfig: Record<string, number>) => {
@@ -4533,7 +4554,7 @@ export default function App() {
   const regions = useMemo(() => {
     return ["VPĐK Phường", "VPĐK TP Đà Nẵng", "VPĐK Quận Liên Chiểu"];
   }, []);
-  const [detailTab, setDetailTab] = useState<'Workflow' | 'Audit' | 'Documents'>('Workflow');
+  const [detailTab, setDetailTab] = useState<'Issues' | 'History' | 'Documents'>('History');
   const [quickEditId, setQuickEditId] = useState<string | null>(null);
   const [quickEditData, setQuickEditData] = useState<Partial<Application>>({});
 
@@ -4548,7 +4569,8 @@ export default function App() {
     const app = applications.find(a => a.id === id);
     if (!app) return;
 
-    const updatedApp = { ...app, ...editData };
+    const auditEntry = createAuditEntry('Cập nhật nhanh', false, 1, app.unitCode);
+    const updatedApp = { ...app, ...editData, auditTrail: [auditEntry, ...(app.auditTrail || [])] };
 
     setIsSavingApp(true);
     try {
@@ -4578,9 +4600,54 @@ export default function App() {
   
   const [isBulkIssueOpen, setIsBulkIssueOpen] = useState(false);
   const [bulkIssueNote, setBulkIssueNote] = useState('');
-  const [bulkIssueType, setBulkIssueType] = useState<IssueType>('Other');
-  const [bulkIssueSeverity, setBulkIssueSeverity] = useState<IssueSeverity>('Moderate');
-  const [bulkIssueSource, setBulkIssueSource] = useState<IssueCategory>('None');
+  const [bulkIssueType, setBulkIssueType] = useState<IssueType>('Sai sót Khác');
+  const [bulkIssueSeverity, setBulkIssueSeverity] = useState<IssueSeverity>('Trung bình');
+  
+  const [isReportIssueFormOpen, setIsReportIssueFormOpen] = useState(false);
+  const [reportIssueType, setReportIssueType] = useState<IssueType>('Sai sót Khác');
+  const [reportIssueSeverity, setReportIssueSeverity] = useState<IssueSeverity>('Trung bình');
+  const [reportIssueNote, setReportIssueNote] = useState('');
+
+  const handleSingleOrBulkReportIssue = async (apps: Application[]) => {
+    if (apps.length === 0 || !reportIssueNote.trim()) return;
+    
+    setIsSavingApp(true);
+    try {
+        const updatedApps = apps.map(app => {
+            const logEntry: ApplicationStepHistory = {
+                id: Math.random().toString(36).substr(2, 9),
+                stepName: app.currentStep,
+                dept: (userRole === 'ADMIN' ? 'ADMIN' : (userRole === 'MANAGER' ? 'KT' : (userRole as Dept))),
+                receivedDate: new Date().toISOString(),
+                note: `[BÁO SAI SÓT - ${reportIssueSeverity}] ${reportIssueNote}`,
+                performedByName: 'Admin', 
+            };
+            return {
+                ...app,
+                status: 'Error' as const,
+                issueType: reportIssueType,
+                issueSeverity: reportIssueSeverity,
+                issueNotes: reportIssueNote,
+                history: [logEntry, ...(app.history || [])]
+            };
+        });
+
+        const syncedApps = await Promise.all(updatedApps.map(app => syncRecordToSupabase(app)));
+        setApplications(prev => prev.map(a => {
+            const updated = syncedApps.find(sa => sa.id === a.id);
+            return updated ? updated : a;
+        }));
+        
+        setIsReportIssueFormOpen(false);
+        setReportIssueNote('');
+        showToast(`Đã báo cáo sai sót cho ${apps.length} hồ sơ thành công.`, 'success');
+    } catch(e) {
+        console.error(e);
+        showToast('Lỗi khi ghi nhận sai sót hàng loạt.', 'error');
+    } finally {
+        setIsSavingApp(false);
+    }
+  };
 
   const [isBulkTransitionModalOpen, setIsBulkTransitionModalOpen] = useState(false);
   const [bulkTransitionTarget, setBulkTransitionTarget] = useState<StepName | null>(null);
@@ -4807,8 +4874,8 @@ export default function App() {
 
         let updated = { ...mergedApp, updated_at: nowStr };
 
-        // Ensure full initialization for new imported records (temporary ptt-imp ID)
-        if (typeof updated.id === 'string' && updated.id.includes('ptt-imp')) {
+        // Ensure full initialization for new imported records (temporary imp ID)
+        if (typeof updated.id === 'string' && updated.id.includes('-imp-')) {
           const parentProject = projects.find(p => p.name === updated.projectName);
           const inheritedWorkflowType = parentProject?.workflowType || 'Quy_trinh_1';
           const initialStep = inheritedWorkflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
@@ -4821,6 +4888,10 @@ export default function App() {
             status: updated.status || initialStatus,
             receivedDate: updated.receivedDate || nowStr,
             taxPaymentStatus: updated.taxPaymentStatus || 'Unpaid',
+            submissionLocation: updated.submissionLocation || 'PHUONG',
+            isSelfService: typeof updated.isSelfService === 'boolean' ? updated.isSelfService : false,
+            propertyType: updated.propertyType || 'Dat_Nen',
+            loanStatus: updated.loanStatus || 'Khong_Vay',
             checklist: updated.checklist || {},
             history: updated.history && updated.history.length > 0 ? updated.history : [
               {
@@ -5000,7 +5071,7 @@ export default function App() {
         formatExcelDate(app.taxReceiptDate),
         formatExcelDate(app.gcnReceivedDate),
         formatExcelDate(app.ptdaHandoverDate),
-        app.issueNotes ? `[${app.issueType || 'Other'}] ${app.issueNotes}` : ''
+        app.issueNotes ? `[${app.issueType || 'Khác'}] ${app.issueNotes}` : ''
       ]);
     } else if (userRole === 'PTDA') {
       headers = [
@@ -5012,7 +5083,7 @@ export default function App() {
         formatExcelDate(app.taxNoticeProvisionDate),
         formatExcelDate(app.gcnSignedDate),
         formatExcelDate(app.gcnReceivedDate),
-        app.issueNotes ? `[${app.issueType || 'Other'}] ${app.issueNotes}` : ''
+        app.issueNotes ? `[${app.issueType || 'Khác'}] ${app.issueNotes}` : ''
       ]);
     } else {
       // Default / Admin: Full Template for complete control
@@ -5088,6 +5159,10 @@ export default function App() {
              status: 'Processing',
              currentStep: 'GD1_ChuanBi',
              taxPaymentStatus: 'Unpaid',
+             submissionLocation: 'PHUONG',
+             propertyType: 'Dat_Nen',
+             loanStatus: 'Khong_Vay',
+             isSelfService: false,
              history: [{ id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, stepName: 'Quản trị viên Import', dept: 'ADMIN', receivedDate: new Date().toISOString().split('T')[0] }],
              checklist: {},
              scannedFiles: [],
@@ -5138,6 +5213,10 @@ export default function App() {
              status: 'Processing',
              currentStep: 'S1_ChuanBi',
              taxPaymentStatus: 'Unpaid',
+             submissionLocation: 'PHUONG',
+             propertyType: 'Dat_Nen',
+             loanStatus: 'Khong_Vay',
+             isSelfService: false,
              history: [{ id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, stepName: 'PTT Import', dept: 'PTT', receivedDate: new Date().toISOString().split('T')[0] }],
              checklist: {},
              scannedFiles: [],
@@ -5184,7 +5263,7 @@ export default function App() {
             if (row[9]) app.ptdaHandoverDate = parseExcelDate(row[9]);
             if (row[10]) {
               app.issueNotes = row[10];
-              app.issueType = 'Other';
+              app.issueType = 'Khác';
             }
             newApplications[idx] = app;
             updatedCount++;
@@ -5200,7 +5279,7 @@ export default function App() {
             if (row[4]) app.gcnReceivedDate = parseExcelDate(row[4]);
             if (row[5]) {
               app.issueNotes = row[5];
-              app.issueType = 'Other';
+              app.issueType = 'Khác';
             }
             newApplications[idx] = app;
             updatedCount++;
@@ -5226,19 +5305,24 @@ export default function App() {
     }, 500);
   };
 
+  const createAuditEntry = (action: string, isBulk: boolean, count: number, unitCode: string, detail?: string): AuditTrailEntry => {
+    const mode = isBulk ? '[Hàng loạt]' : '[Thủ công]';
+    return {
+      id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      userId: currentUser?.id || 'admin',
+      userName: currentUser?.name || 'Admin',
+      timestamp: new Date().toLocaleString('vi-VN'),
+      action: `${mode} ${action}`,
+      changes: detail || (isBulk ? `Xử lý đồng thời ${count} hồ sơ` : `Cập nhật hồ sơ ${unitCode}`)
+    };
+  };
+
   const handleUpdateApp = async () => {
     if (!editApp || !selectedApp) return;
     setIsSavingApp(true);
     
     try {
-      const auditEntry: AuditTrailEntry = {
-        id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        userId: currentUser?.id || 'admin',
-        userName: currentUser?.name || 'Admin',
-        timestamp: new Date().toLocaleString('vi-VN'),
-        action: 'Cập nhật thông tin hồ sơ',
-        changes: 'Chỉnh sửa bởi Admin/Quản lý'
-      };
+      const auditEntry = createAuditEntry('Cập nhật thông tin', false, 1, editApp.unitCode, 'Chỉnh sửa chi tiết hồ sơ');
 
       const updatedApp = {
         ...editApp,
@@ -5480,7 +5564,17 @@ export default function App() {
       status: finalStatus,
       isRejected: !isMovingForward || (targetStep === 'S1_ChuanBi' ? app.isRejected : false),
       rejectionReason: !isMovingForward ? note : (targetStep === 'S1_ChuanBi' ? app.rejectionReason : ''),
-      history: newHistory
+      history: newHistory,
+      auditTrail: [
+        createAuditEntry(
+          'Chuyển bước xử lý', 
+          false, 
+          1, 
+          app.unitCode, 
+          `Từ: ${(stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep]).label} -> ${(stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label}`
+        ), 
+        ...(app.auditTrail || [])
+      ]
     };
 
     try {
@@ -5697,7 +5791,17 @@ export default function App() {
           status: targetStep === 'S1_ChuanBi' ? 'Error' : targetStatus,
           isRejected: targetStep === 'S1_ChuanBi' ? appWithDate.isRejected : false,
           rejectionReason: targetStep === 'S1_ChuanBi' ? appWithDate.rejectionReason : '',
-          history: newHistory
+          history: newHistory,
+          auditTrail: [
+            createAuditEntry(
+              'Chuyển bước hàng loạt', 
+              true, 
+              updatedCount, 
+              appWithDate.unitCode, 
+              `Từ: ${(stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep]).label} -> ${(stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label}`
+            ), 
+            ...(appWithDate.auditTrail || [])
+          ]
         };
       });
 
@@ -5749,7 +5853,7 @@ export default function App() {
     try {
       const appsToUpdate = applications.filter(app => selectedAppIds.includes(app.id));
       const updatedApps = appsToUpdate.map(app => 
-        updateAppIssue(app, bulkIssueNote, bulkIssueType, bulkIssueSource, bulkIssueSeverity)
+        updateAppIssue(app, bulkIssueNote, bulkIssueType, bulkIssueSeverity)
       );
 
       // Sync to Supabase and update state with returned records (IDs)
@@ -5965,32 +6069,24 @@ export default function App() {
   const updateAppIssue = (
     app: Application, 
     note: string, 
-    type: IssueType = 'Other', 
-    source: IssueCategory = 'None',
-    severity: IssueSeverity = 'Moderate'
+    type: IssueType = 'Sai sót Khác', 
+    severity: IssueSeverity = 'Trung bình'
   ): Application => {
-    const newHistory = [
-      {
-        id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        stepName: 'Ghi nhận Sai sót/Vướng mắc',
-        dept: userRole as Dept,
-        receivedDate: new Date().toISOString().split('T')[0],
-        note: `[${source}] Vướng mắc mới: ${note}`,
-        performedBy: currentUser?.id,
-        performedByName: currentUser?.name
-      },
-      ...app.history
-    ];
-
+    const auditEntry = createAuditEntry('Ghi nhận vướng mắc', false, 1, app.unitCode, `Loại: ${type}. Ghi chú: ${note}`);
+    
     return {
       ...app,
       status: 'Error' as const,
       issueNotes: note,
       issueType: type,
-      issueSource: source,
       issueSeverity: severity,
-      history: newHistory
+      auditTrail: [auditEntry, ...(app.auditTrail || [])]
     };
+  };
+
+  // Deprecated
+  const handleReportErrorOld = async (note: string) => {
+    // ...
   };
 
   const handleReportError = async (note: string) => {
@@ -6034,7 +6130,7 @@ export default function App() {
         stepName: 'Khắc phục lỗi',
         dept: userRole as Dept,
         receivedDate: new Date().toISOString().split('T')[0],
-        note: 'Đã xử lý xong các sai sót/vướng mắc.',
+        note: 'Đã khắc phục', // Updated note
         performedBy: currentUser?.id,
         performedByName: currentUser?.name
       },
@@ -6134,7 +6230,7 @@ export default function App() {
     ];
 
     const updatedApp = {
-      ...updateAppIssue(app, reason, 'Paperwork'),
+      ...updateAppIssue(app, reason, 'Sai sót Khác'),
       currentStep: prevStep,
       rejectionCount: (app.rejectionCount || 0) + 1,
       isRejected: true,
@@ -6241,7 +6337,7 @@ export default function App() {
       // Auto-update issue type if notes are added
       if (field === 'issueNotes' && value) {
         if (!editApp.issueType || editApp.issueType === 'None') {
-          nextApp.issueType = 'Other';
+          nextApp.issueType = 'Sai sót Khác';
         }
         nextApp.status = 'Error';
       }
@@ -6269,7 +6365,7 @@ export default function App() {
 
           if (field === 'issueNotes' && value) {
             if (!app.issueType || app.issueType === 'None') {
-              nextApp.issueType = 'Other';
+              nextApp.issueType = 'Sai sót Khác';
             }
             nextApp.status = 'Error';
           }
@@ -6975,12 +7071,12 @@ export default function App() {
             : "border-slate-800/50 bg-gradient-to-br from-slate-800/30 to-transparent"
         )}>
           <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 bg-festive-gold rounded-xl flex items-center justify-center shadow-lg shadow-festive-gold/20">
-              <Building2 className="text-festive-dark" size={24} />
+            <div className="w-10 h-10 bg-brand rounded-xl flex items-center justify-center shadow-lg shadow-brand/20">
+              <Building2 className="text-white" size={24} />
             </div>
             <div>
-               <h1 className="font-bold text-xl tracking-tight text-festive-gold font-serif italic">GCN Tracker</h1>
-               <p className={cn("text-xs uppercase font-bold tracking-[0.2em] leading-none", theme === 'light' ? "text-slate-400" : "text-slate-500")}>Regional</p>
+               <h1 className="font-bold text-xl tracking-tight text-white font-sans">GCN Tracker</h1>
+               <p className={cn("text-xs uppercase font-bold tracking-[0.2em] leading-none text-slate-400")}>Regional</p>
             </div>
           </div>
         </div>
@@ -6990,8 +7086,8 @@ export default function App() {
             onClick={() => setActiveTab('dashboard')}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
-              activeTab === 'dashboard' 
-                ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
+              activeTab === 'dashboard'                
+                ? "bg-brand text-white shadow-lg shadow-brand/20" 
                 : "text-slate-300 hover:bg-slate-700 hover:text-white"
             )}
           >
@@ -7003,7 +7099,7 @@ export default function App() {
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               activeTab === 'applications' 
-                ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
+                ? "bg-brand text-white shadow-lg shadow-brand/20" 
                 : "text-slate-300 hover:bg-slate-700 hover:text-white"
             )}
           >
@@ -7750,6 +7846,19 @@ export default function App() {
                             data={chartData} 
                             margin={{ top: 30, right: 10, left: -20, bottom: 30 }}
                             barGap={8}
+                            onClick={(data: any) => {
+                              if (data && data.activePayload && data.activePayload.length > 0) {
+                                const stageStatus = data.activePayload[0].payload.statusId;
+                                const stageName = data.activePayload[0].payload.name;
+                                setActiveTab('applications');
+                                setFilterStatus(stageStatus);
+                                toast.success(`Đang lọc hồ sơ giai đoạn ${stageName}...`, {
+                                  icon: '🔍',
+                                  duration: 3000,
+                                });
+                              }
+                            }}
+                            style={{ cursor: 'pointer' }}
                           >
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? "#f1f5f9" : "#ffffff08"} />
                             <XAxis 
@@ -8154,6 +8263,24 @@ export default function App() {
                           >
                             <Printer size={14} />
                             In phiếu ({selectedAppIds.length})
+                          </button>
+                        )}
+                        {(filterStatus !== 'ALL' || filterStep !== 'ALL' || dashboardFilter !== 'ALL' || filterSLAStatus !== 'ALL') && (
+                          <button 
+                            onClick={() => {
+                              setFilterStatus('ALL');
+                              setFilterStep('ALL');
+                              setDashboardFilter('ALL');
+                              setFilterSLAStatus('ALL');
+                              setSearchTerm('');
+                            }}
+                            className={cn(
+                              "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
+                              theme === 'light' ? "text-rose-600 border-rose-200 bg-rose-50 hover:bg-rose-500 hover:text-white" : "text-rose-400 border-rose-500/30 bg-rose-500/10 hover:bg-rose-500 hover:text-white"
+                            )}
+                          >
+                            <X size={14} />
+                            Xóa bộ lọc
                           </button>
                         )}
                         <button 
@@ -9201,7 +9328,7 @@ export default function App() {
                         className="flex items-center gap-2 px-6 py-3 bg-festive-gold hover:bg-amber-400 text-slate-900 text-xs font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-festive-gold/10"
                       >
                         <Edit3 size={16} />
-                        Sửa hồ sơ
+                        Chỉnh sửa
                       </button>
                     )
                   ) : (
@@ -9726,26 +9853,26 @@ export default function App() {
                          {/* Tabs for Issue Tracking/History/Documents */}
                                <div className="flex items-center gap-2 p-1 bg-slate-900/50 rounded-xl border border-slate-800 w-fit">
                                   <button 
-                                    onClick={() => setDetailTab('workflow')}
-                                    className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2", detailTab === 'workflow' ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300")}
+                                    onClick={() => setDetailTab('Issues')}
+                                    className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2", detailTab === 'Issues' ? "bg-red-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300")}
                                   >
                                     <AlertTriangle size={14} /> Vướng mắc
                                   </button>
                                   <button 
-                                    onClick={() => setDetailTab('audit')}
-                                    className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2", detailTab === 'audit' ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300")}
+                                    onClick={() => setDetailTab('History')}
+                                    className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2", detailTab === 'History' ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300")}
                                   >
-                                    <History size={14} /> Lịch sử xử lý
+                                    <History size={14} /> Nhật ký & Lịch sử
                                   </button>
                                   <button 
-                                    onClick={() => setDetailTab('documents')}
-                                    className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2", detailTab === 'documents' ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300")}
+                                    onClick={() => setDetailTab('Documents')}
+                                    className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2", detailTab === 'Documents' ? "bg-emerald-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300")}
                                   >
                                     <FileText size={14} /> Tài liệu số
                                   </button>
                                </div>
 
-                               {detailTab === 'workflow' && (
+                               {detailTab === 'Issues' && (
                                  <div className="space-y-6">
                                    <div className="bg-error/5 p-5 rounded-2xl border border-error/20 space-y-4">
                                       <div className="flex items-center justify-between">
@@ -9765,11 +9892,11 @@ export default function App() {
 
                                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <DetailCard theme={theme}
-                                          label="Loại vướng mắc" 
+                                          label="Phân loại Vướng mắc" 
                                           value={(editApp || selectedApp).issueType} 
                                           type="select"
                                           editable={isEditing}
-                                          options={['None', 'Paperwork', 'Financial', 'Authority', 'Other']}
+                                          options={['None', 'Sai sót nội bộ', 'Sai sót khách hàng', 'Sai sót cơ quan nhà nước', 'Sai sót chủ đầu tư', 'Sai sót Khác']}
                                           isEditing={isEditing}
                                           onChange={(val) => handleFieldChange('issueType', val)}
                                         />
@@ -9778,7 +9905,7 @@ export default function App() {
                                           value={(editApp || selectedApp).issueSeverity} 
                                           type="select"
                                           editable={isEditing}
-                                          options={['Low', 'Medium', 'High', 'Critical']}
+                                          options={['Minor', 'Moderate', 'Critical']}
                                           isEditing={isEditing}
                                           onChange={(val) => handleFieldChange('issueSeverity', val)}
                                         />
@@ -9794,296 +9921,259 @@ export default function App() {
                                  </div>
                                )}
 
-                               {detailTab === 'audit' && (
+                               {detailTab === 'History' && (
                                   <div className="space-y-4">
-                                    {((editApp || selectedApp).history || []).length > 0 ? (
-                                      (editApp || selectedApp).history.map((hist, idx) => (
-                                        <div key={hist.id || idx} className="flex gap-4 group">
-                                          <div className="flex flex-col items-center">
-                                            <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border", theme === 'dark' ? "bg-slate-800 border-slate-700 text-slate-400" : "bg-slate-100 border-slate-200 text-slate-500")}>
-                                              {idx + 1}
-                                            </div>
-                                            {idx !== (editApp || selectedApp).history.length - 1 && <div className="w-px flex-1 bg-slate-800 my-1"></div>}
-                                          </div>
-                                          <div className="flex-1 pb-6">
-                                            <div className="flex items-center justify-between mb-1">
-                                              <p className="text-[11px] font-black text-indigo-400 uppercase tracking-wider">{hist.stepName}</p>
-                                              <span className="text-[9px] text-slate-500 font-bold">{hist.receivedDate}</span>
-                                            </div>
-                                            <div className="p-3 bg-slate-900/40 rounded-xl border border-slate-800 group-hover:border-indigo-500/30 transition-colors">
-                                              <p className="text-[11px] text-slate-300 leading-relaxed mb-2">{hist.note || 'Không có ghi chú.'}</p>
-                                              <div className="flex items-center gap-3">
-                                                <span className="text-[9px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-black uppercase tracking-tighter">Bộ phận: {hist.dept}</span>
-                                                <span className="text-[9px] text-slate-500 italic">Người thực hiện: {hist.performedByName || 'Hệ thống'}</span>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      ))
-                                    ) : (
-                                      <div className="py-10 text-center">
-                                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Chưa có lịch sử xử lý</p>
-                                      </div>
-                                    )}
+                                    <div className="overflow-x-auto">
+                                      <table className="w-full text-left border-collapse min-w-[700px]">
+                                        <thead>
+                                          <tr className={cn("border-b text-[10px] font-black uppercase tracking-wider", theme === 'dark' ? "border-slate-800 text-slate-500" : "border-slate-200 text-slate-500")}>
+                                            <th className="p-3 w-[180px]">Thời gian</th>
+                                            <th className="p-3 w-[150px]">Người dùng</th>
+                                            <th className="p-3">Nội dung & Hành động</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {(() => {
+                                             const app = editApp || selectedApp;
+                                             if (!app) return null;
+                                             const h = (app.history || []).map(entry => ({
+                                               id: entry.id,
+                                               time: entry.receivedDate, 
+                                               user: entry.performedByName || 'Hệ thống',
+                                               action: `[Tiến độ] ${entry.stepName}`,
+                                               content: entry.note || 'Cập nhật bước xử lý',
+                                             }));
+                                             const a = (app.auditTrail || []).map(entry => ({
+                                               id: entry.id,
+                                               time: entry.timestamp,
+                                               user: entry.userName,
+                                               action: entry.action,
+                                               content: entry.changes || '',
+                                             }));
+                                             
+                                             const merged = [...h, ...a].sort((x, y) => (y.time || '').localeCompare(x.time || ''));
+                                             
+                                             if (merged.length === 0) return (
+                                               <tr>
+                                                 <td colSpan={3} className="p-10 text-center text-[10px] text-slate-500 font-black uppercase tracking-widest">
+                                                   Chưa có lịch sử xử lý
+                                                 </td>
+                                               </tr>
+                                             );
+
+                                             return merged.map((log) => (
+                                               <tr key={log.id} className={cn("border-b transition-colors group", theme === 'dark' ? "border-slate-800/50 hover:bg-slate-800/20 text-slate-300" : "border-slate-100 hover:bg-slate-50 text-slate-700")}>
+                                                 <td className="p-3 text-[11px] whitespace-nowrap align-top pt-4">
+                                                   <div className="font-bold">{log.time}</div>
+                                                 </td>
+                                                 <td className="p-3 text-[11px] font-bold text-indigo-400 align-top pt-4 whitespace-nowrap">
+                                                   {log.user}
+                                                 </td>
+                                                 <td className="p-3 text-[11px] py-4">
+                                                   <div className="flex items-center gap-2 mb-1">
+                                                     <span className={cn(
+                                                       "px-2 py-0.5 rounded-md font-black text-[9px] uppercase tracking-tighter",
+                                                       log.content === 'Đã khắc phục' ? "bg-emerald-500/10 text-emerald-500" : log.action.includes('[Hàng loạt]') ? "bg-purple-500/10 text-purple-500" : 
+                                                       log.action.includes('[Tiến độ]') ? "bg-emerald-500/10 text-emerald-500" :
+                                                        "bg-indigo-500/10 text-indigo-500"
+                                                     )}>
+                                                       {log.action}
+                                                      </span>
+                                                    </div>
+                                                    <div className={cn("text-[11px] leading-relaxed", theme === 'dark' ? "text-slate-400" : "text-slate-600")}>
+                                                      {log.content}
+                                                    </div>
+                                                  </td>
+                                                </tr>
+                                              ));
+                                           })()}
+                                         </tbody>
+                                       </table>
+                                     </div>
                                   </div>
                                )}
 
-                               {detailTab === 'documents' && (
-                                 <div className="space-y-6">
-                                   <div className="flex items-center justify-between">
-                                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Danh mục tài liệu số</p>
-                                      <div className="relative">
-                                        <input 
-                                          type="file" 
-                                          id="doc-upload" 
-                                          className="hidden" 
-                                          onChange={handleFileUpload}
-                                          accept="image/*,.pdf"
-                                        />
-                                        <label 
-                                          htmlFor="doc-upload"
-                                          className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600/20 text-indigo-400 rounded-lg text-[9px] font-black uppercase hover:bg-indigo-600/30 transition-all border border-indigo-500/30 cursor-pointer"
-                                        >
-                                          <Upload size={12} /> Tải tệp lên
-                                        </label>
-                                      </div>
-                                   </div>
-                                   
-                                   <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                                      {((editApp || selectedApp).scannedFiles || []).length > 0 ? (
-                                        (editApp || selectedApp).scannedFiles?.map((file) => (
-                                          <div 
-                                            key={file.id} 
-                                            className={cn(
-                                              "group/file p-3 bg-slate-900 rounded-2xl border transition-all cursor-pointer",
-                                              previewFile?.id === file.id ? "border-festive-gold ring-1 ring-festive-gold/20" : "border-slate-800 hover:border-festive-gold/30"
-                                            )}
-                                            onClick={() => setPreviewFile(file)}
-                                          >
-                                            <div className="flex items-center gap-3 mb-2">
-                                              <div className={cn(
-                                                "w-10 h-10 rounded-xl flex items-center justify-center",
-                                                file.type.startsWith('image/') ? "bg-emerald-500/10 text-emerald-400" : "bg-indigo-500/10 text-indigo-400"
-                                              )}>
-                                                {file.type.startsWith('image/') ? <Camera size={18} /> : <FileText size={18} />}
-                                              </div>
-                                              <div className="flex-1 overflow-hidden">
-                                                <p className="text-[10px] font-bold text-slate-200 truncate">{file.name}</p>
-                                                <p className="text-[8px] text-slate-600 font-black">{file.uploadDate}</p>
-                                              </div>
-                                            </div>
-                                            <div className="flex justify-between items-center">
-                                              <span className="text-[9px] font-black text-festive-gold flex items-center gap-1">
-                                                <Search size={10} /> Xem
-                                              </span>
-                                              <button 
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  handleDeleteFile(file.id);
-                                                }}
-                                                className="p-1.5 text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"
-                                              >
-                                                <Trash2 size={12} />
-                                              </button>
-                                            </div>
-                                          </div>
-                                        ))
-                                      ) : (
-                                        <div className="col-span-full py-12 text-center bg-slate-900/40 rounded-[2rem] border-2 border-dashed border-slate-800">
-                                          <Folder size={32} className="mx-auto text-slate-700 mb-3 opacity-30" />
-                                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Chưa có tài liệu số</p>
-                                        </div>
-                                      )}
-                                   </div>
 
-                                   {previewFile && (
-                                      <div className="mt-4 p-4 rounded-[2rem] border border-slate-800 bg-slate-950 relative overflow-hidden h-[450px] flex items-center justify-center group/preview">
-                                        <div className="absolute top-4 right-4 z-20 flex gap-2">
-                                           <a 
-                                             href={previewFile.url} 
-                                             download={previewFile.name}
-                                             className="p-2 bg-slate-900/80 backdrop-blur-md rounded-xl text-slate-400 hover:text-white transition-all border border-slate-800"
-                                           >
-                                              <Download size={16} />
-                                           </a>
-                                           <button 
-                                             onClick={() => setPreviewFile(null)}
-                                             className="p-2 bg-slate-900/80 backdrop-blur-md rounded-xl text-slate-400 hover:text-rose-500 transition-all border border-slate-800"
-                                           >
-                                              <X size={16} />
-                                           </button>
-                                        </div>
-                                        
-                                        <div className="w-full h-full flex items-center justify-center overflow-auto p-4">
-                                          {renderFilePreview(previewFile)}
-                                        </div>
-                                      </div>
-                                   )}
+                               {detailTab === 'Documents' && (
+                                 <div className="p-10 text-center text-slate-500 font-bold uppercase tracking-widest text-[10px]">
+                                   Chưa có tài liệu số đính kèm
                                  </div>
                                )}
                             </div>
-                   </div>
-                </div>
-              </div>
+                         </div>
+                       </div>
+                    </div>
 
-                {/* Actions & Workflow Transition */}
-              <div className="p-6 border-t border-slate-700 space-y-4 bg-slate-900/50">
-                {!isEditing && (editApp || selectedApp).status !== 'Completed' && (
-                  <div className="flex flex-col gap-3">
-                    {/* Báo lỗi / Sai sót (Available for authorized reviewers only) */}
-                    {['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'].includes(userRole) && (
-                      <button 
-                        onClick={() => {
-                          const note = prompt("Vui lòng mô tả sai sót/vướng mắc:");
-                          if (note) handleReportError(note);
-                        }}
-                        className="w-full py-2.5 border border-rose-500/30 text-rose-400 rounded-xl text-xs font-bold hover:bg-rose-500/10 transition-all flex items-center justify-center gap-2"
-                      >
-                        <AlertTriangle size={14} />
-                        Báo sai sót / Vướng mắc
-                      </button>
-                    )}
+                    {/* Action Bar - Phương án A hàng ngang */}
+                    <div className="p-6 border-t border-slate-700 bg-slate-950 flex flex-wrap items-center gap-3 mt-auto sticky bottom-0 z-50">
+                        {!isEditing && (editApp || selectedApp).status !== 'Completed' ? (
+                            <>
+                                <div className="flex items-center gap-2">
+                                     {/* Báo lỗi / Sai sót */}
+                                     {['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'].includes(userRole) && (
+                                        <div className="relative">
+                                            {!isReportIssueFormOpen ? (
+                                                <button 
+                                                    onClick={() => setIsReportIssueFormOpen(true)}
+                                                    className="p-4 border border-rose-500/30 text-rose-500 rounded-2xl hover:bg-rose-500 hover:text-white transition-all shadow-lg shadow-rose-900/20 flex items-center justify-center gap-2"
+                                                    title="Báo sai sót"
+                                                >
+                                                    <AlertTriangle size={20} />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest hidden lg:inline">Báo lỗi</span>
+                                                </button>
+                                            ) : (
+                                                <div className={cn("absolute bottom-full mb-3 right-0 w-80 p-6 rounded-[2rem] border space-y-4 shadow-2xl z-[101]", theme === 'dark' ? "bg-slate-950 border-rose-500/30 shadow-black" : "bg-rose-50 border-rose-200 shadow-rose-200/50")}>
+                                                    <div className="flex justify-between items-center">
+                                                        <label className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Thông tin vướng mắc</label>
+                                                        <button onClick={() => setIsReportIssueFormOpen(false)} className="text-slate-400 hover:text-rose-500 p-1"><X size={18} /></button>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <select 
+                                                            value={reportIssueType}
+                                                            onChange={(e) => setReportIssueType(e.target.value as IssueType)}
+                                                            className={cn("w-full p-3 rounded-xl border text-[10px] font-black uppercase", theme === 'dark' ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-slate-200 text-slate-900")}
+                                                        >
+                                                            <option value="Sai sót nội bộ">Nội bộ</option>
+                                                            <option value="Sai sót khách hàng">Khách hàng</option>
+                                                            <option value="Sai sót cơ quan nhà nước">CQNN</option>
+                                                            <option value="Sai sót chủ đầu tư">CĐT</option>
+                                                            <option value="Sai sót Khác">Khác</option>
+                                                        </select>
+                                                        <select 
+                                                            value={reportIssueSeverity}
+                                                            onChange={(e) => setReportIssueSeverity(e.target.value as IssueSeverity)}
+                                                            className={cn("w-full p-3 rounded-xl border text-[10px] font-black uppercase", theme === 'dark' ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-slate-200 text-slate-900")}
+                                                        >
+                                                            <option value="Nghiêm trọng">Khẩn cấp</option>
+                                                            <option value="Cao">Cao</option>
+                                                            <option value="Trung bình">Vừa</option>
+                                                            <option value="Thấp">Thấp</option>
+                                                        </select>
+                                                    </div>
+                                                    <textarea 
+                                                        value={reportIssueNote}
+                                                        onChange={(e) => setReportIssueNote(e.target.value)}
+                                                        placeholder="Mô tả chi tiết sai sót..."
+                                                        className={cn("w-full p-4 rounded-2xl border text-xs font-bold min-h-[100px] outline-none focus:ring-2 focus:ring-rose-500/20", theme === 'dark' ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900")}
+                                                    />
+                                                    <button 
+                                                        onClick={() => handleSingleOrBulkReportIssue([editApp || selectedApp].filter(Boolean) as Application[])}
+                                                        className="w-full py-4 bg-rose-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 transition-all shadow-lg shadow-rose-900/30"
+                                                    >
+                                                        Xác nhận gửi báo cáo
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                     )}
 
-                    {/* Transition Logic */}
-                    {(() => {
-                      const app = editApp || selectedApp;
-                      const role = userRole;
-                      
-                      // Nút phục hồi khi có lỗi
-                      if (app.status === 'Error') {
-                        return (
-                          <button 
-                            onClick={handleResolveError}
-                            className="w-full py-3 bg-slate-700 text-white rounded-xl text-sm font-bold hover:bg-slate-600 transition-all flex items-center justify-center gap-2"
-                          >
-                            <CheckCircle2 size={16} /> Xác nhận đã khắc phục lỗi
-                          </button>
-                        );
-                      }
+                                     {/* Trả về */}
+                                     { (editApp || selectedApp).currentStep !== 'S1_ChuanBi' && (editApp || selectedApp).currentStep !== 'GD1_ChuanBi' && (
+                                        <button 
+                                            onClick={() => {
+                                              const app = editApp || selectedApp;
+                                              let returnStep = '';
+                                              const workflowType = app.workflowType || 'Quy_trinh_1';
+                                              const steps = workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+                                              const currentIdx = steps.indexOf(app.currentStep);
+                                              if (currentIdx > 0) returnStep = steps[currentIdx - 1];
+                                              
+                                              const reason = prompt("Lý do trả hồ sơ / quay lại bước trước:");
+                                              if (reason) {
+                                                 if (currentIdx === 1) handleRejectApp(reason);
+                                                 else handleStepTransition(returnStep as StepName, reason);
+                                              }
+                                            }}
+                                            className="p-4 bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2"
+                                            title="Trả về"
+                                        >
+                                            <RotateCcw size={20} />
+                                            <span className="text-[10px] font-black uppercase tracking-widest hidden lg:inline">Trả về</span>
+                                        </button>
+                                     )}
 
-                      let canAction = role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER' || (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.dept === role;
-                      if (app.currentStep === 'S7_2_Ban_Giao_Khach' && role === 'PTT') {
-                        canAction = true;
-                      }
+                                     {/* Edit Icon */}
+                                     {currentUser?.permission !== 'VIEW' && (
+                                         <button 
+                                            onClick={() => {
+                                                setEditApp(selectedApp);
+                                                setIsEditing(true);
+                                            }}
+                                            className="p-4 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500 hover:text-white rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2"
+                                            title="Sửa"
+                                         >
+                                            <Edit2 size={20} />
+                                            <span className="text-[10px] font-black uppercase tracking-widest hidden lg:inline">Sửa hồ sơ</span>
+                                         </button>
+                                     )}
+                                </div>
 
-                      if (!canAction) return null;
+                                {/* Main Transition Action */}
+                                <div className="flex-1">
+                                    {(() => {
+                                       const app = editApp || selectedApp;
+                                       const role = userRole;                
+                                       if (app.status === 'Error') {
+                                         return (
+                                           <button 
+                                             onClick={handleResolveError}
+                                             className="w-full py-4 bg-emerald-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-emerald-500 shadow-xl shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
+                                           >
+                                             <CheckCircle2 size={20} /> Xác nhận đã khắc phục lỗi
+                                           </button>
+                                         );
+                                       }
+                
+                                       let canAction = role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER' || (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.dept === role;
+                                       const nextStep = getNextStep(app.currentStep, app.workflowType || 'Quy_trinh_1');
+                                       
+                                       if (canAction && nextStep) {
+                                         const nextLabel = (stepConfig[nextStep] || INITIAL_STEP_CONFIG[nextStep])?.label;
+                                         return (
+                                             <button 
+                                               onClick={() => {
+                                                  const bulkSteps = ['S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK', 'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach', 'Hoan_Tat', 'GD1_Cho_KT_TiepNhan', 'GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo', 'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Cho_BG_Khach'];
+                                                  if (bulkSteps.includes(nextStep)) {
+                                                    handleBulkStepTransition(nextStep, [app.id]);
+                                                  } else {
+                                                    handleStepTransition(nextStep);
+                                                  }
+                                               }}
+                                               className="w-full py-4 bg-indigo-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] hover:bg-indigo-500 shadow-2xl shadow-indigo-900/40 transition-all flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 border-b-4 border-indigo-800"
+                                             >
+                                               <span className="opacity-70">Chuyển tới:</span> {nextLabel} <ChevronRight size={20} />
+                                             </button>
+                                         );
+                                       }
+                                       return null;
+                                     })()}
+                                </div>
+                            </>
+                        ) : isEditing ? (
+                            <div className="flex gap-4 w-full">
+                                <button 
+                                    onClick={() => {
+                                        setIsEditing(false);
+                                        setEditApp(null);
+                                    }}
+                                    className="flex-1 py-4 bg-slate-800 text-slate-400 hover:bg-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                >
+                                    Hủy bỏ
+                                </button>
+                                <button 
+                                    onClick={handleUpdateApp}
+                                    className="flex-[2] py-4 bg-emerald-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] hover:bg-emerald-500 shadow-xl shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Save size={20} /> Lưu thay đổi hồ sơ
+                                </button>
+                            </div>
+                        ) : null}
+                    </div>
+                </motion.div>
+              </>
+            )}
+       </AnimatePresence>
 
-                      const nextStep = getNextStep(app.currentStep, app.workflowType || 'Quy_trinh_1');
-                      const workflowType = app.workflowType || 'Quy_trinh_1';
-
-                      // Bước 7.2 - Quy trình 2: Bàn giao khách hàng
-                      if (workflowType === 'Quy_trinh_2' && app.currentStep === 'S7_2_Ban_Giao_Khach') {
-                        return (
-                          <div className="flex flex-col gap-3">
-                            {role === 'PTT' && (
-                              <button 
-                                onClick={() => {
-                                  if (!app.customerHandoverDate) {
-                                    showToast('Vui lòng nhập Ngày BG GCN cho khách trước khi hoàn tất.', 'warning');
-                                    return;
-                                  }
-                                  handleBulkStepTransition('Hoan_Tat', [app.id]);
-                                }}
-                                className="w-full py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
-                              >
-                                Xác nhận Giao khách & Hoàn tất <CheckCircle2 size={16} />
-                              </button>
-                            )}
-                            {role !== 'PTT' && (
-                               <p className="text-center text-[10px] text-slate-500 font-bold uppercase tracking-widest bg-slate-900 p-2 rounded-xl border border-slate-800">
-                                 Đang chờ PTT xác nhận bàn giao cho khách
-                               </p>
-                            )}
-                          </div>
-                        );
-                      }
-
-                      if (nextStep) {
-                        return (
-                          <div className="flex flex-col gap-3">
-                            <button 
-                              onClick={() => {
-                                 // Define standard steps that require bulk modal for dates
-                                 const bulkSteps = ['S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK', 'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach', 'Hoan_Tat', 'GD1_Cho_KT_TiepNhan', 'GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo', 'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Cho_BG_Khach'];
-                                 if (bulkSteps.includes(nextStep)) {
-                                   handleBulkStepTransition(nextStep, [app.id]);
-                                 } else {
-                                   handleStepTransition(nextStep);
-                                 }
-                              }}
-                              className="w-full py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                            >
-                              Chuyển sang bước tiếp theo: {(stepConfig[nextStep] || INITIAL_STEP_CONFIG[nextStep])?.label} <ChevronRight size={16} />
-                            </button>
-                            
-                            {/* Generic Reject Logic */}
-                            {app.currentStep !== 'S1_ChuanBi' && app.currentStep !== 'GD1_ChuanBi' && (
-                              <button 
-                                onClick={() => {
-                                  let returnStep = '';
-                                  const steps = workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
-                                  const currentIdx = steps.indexOf(app.currentStep);
-                                  if (currentIdx > 0) returnStep = steps[currentIdx - 1];
-                                  
-                                  const reason = prompt("Lý do trả hồ sơ / quay lại bước trước:");
-                                  if (reason) {
-                                     if (currentIdx === 1) { // Returning to first step
-                                        handleRejectApp(reason);
-                                     } else {
-                                        // Standard revert: only use handleStepTransition with reason as note
-                                        handleStepTransition(returnStep as StepName, reason);
-                                     }
-                                  }
-                                }}
-                                className="w-full py-3 bg-slate-500 text-white rounded-xl text-sm font-bold hover:bg-slate-600 shadow-lg transition-all flex items-center justify-center gap-2"
-                              >
-                                <RotateCcw size={16} /> Trả về bước trước
-                              </button>
-                            )}
-                          </div>
-                        );
-                      }
-
-                      // If no nextStep and currentStep is Hoan_Tat
-                      if (app.currentStep === 'Hoan_Tat') {
-                        return (
-                           <div className="w-full py-3 bg-emerald-900/20 text-emerald-500 rounded-xl text-sm font-bold flex items-center justify-center gap-2">
-                             <CheckCircle2 size={16} /> Đã hoàn tất quy trình
-                           </div>
-                        );
-                      }
-
-                      return null;
-                    })()}
-
-                  </div>
-                )}
-
-                <div>
-                  {isEditing ? (
-                    <button 
-                      onClick={handleUpdateApp}
-                      className="w-full py-3 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all"
-                    >
-                      Lưu thay đổi
-                    </button>
-                  ) : (
-                    <button 
-                      onClick={() => {
-                        setIsEditing(true);
-                        setEditApp(selectedApp);
-                      }}
-                      className="w-full py-3 bg-festive-gold text-slate-900 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-amber-400 shadow-lg shadow-festive-gold/10 transition-all font-serif"
-                    >
-                      {(userRole === 'PTT' || userRole === 'KT' || userRole === 'PTDA') ? 'Sửa/Nhập thông tin' : 'Sửa hồ sơ'}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
 
       {/* Handover Ticket Modal */}
       <HandoverTicketModal 
@@ -10738,8 +10828,6 @@ export default function App() {
         onChangeIssueType={setBulkIssueType}
         severity={bulkIssueSeverity}
         onChangeSeverity={setBulkIssueSeverity}
-        source={bulkIssueSource}
-        onChangeSource={setBulkIssueSource}
         theme={theme}
       />
 

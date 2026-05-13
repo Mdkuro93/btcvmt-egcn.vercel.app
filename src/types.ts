@@ -85,11 +85,9 @@ export type AuditTrailEntry = {
   changes?: string;
 };
 
-export type IssueSeverity = 'Minor' | 'Moderate' | 'Critical';
+export type IssueSeverity = 'Nghiêm trọng' | 'Cao' | 'Trung bình' | 'Thấp';
 
-export type IssueType = 'None' | 'Paperwork' | 'Financial' | 'Authority' | 'Other';
-
-export type IssueCategory = 'None' | 'Chu_Dau_Tu' | 'Nha_Nuoc' | 'Noi_Bo' | 'Khach_Hang';
+export type IssueType = 'None' | 'Sai sót nội bộ' | 'Sai sót khách hàng' | 'Sai sót cơ quan nhà nước' | 'Sai sót chủ đầu tư' | 'Sai sót Khác';
 
 export type ScannedFile = {
   id: string;
@@ -142,8 +140,7 @@ export type Application = {
   taxNoticeProvisionDate?: string; // Ngày cung cấp TB Thuế
   taxVpdkSubmissionDate?: string; // Ngày KT nộp hồ sơ NVTC & hồ sơ lấy sổ vô VPĐK
   gcnSignedDate?: string; // Ngày hoàn thành in / trình ký GCN
-  issueSource?: IssueCategory; // Classification: Chu_Dau_Tu, Nha_Nuoc, Noi_Bo, Khach_Hang
-  issueType?: 'None' | 'Paperwork' | 'Financial' | 'Authority' | 'Other';
+  issueType?: IssueType;
   issueSeverity?: IssueSeverity;
   issueNotes?: string;
   estimatedCompletionDate?: string;
