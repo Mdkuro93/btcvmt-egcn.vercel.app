@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, LabelList, Legend, AreaChart, Area
+  PieChart, Pie, LabelList, Label, Legend, AreaChart, Area
 } from 'recharts';
 import { 
   Database,
@@ -1249,7 +1249,7 @@ const SettingsView = ({
           <div className="overflow-x-auto min-h-[400px]">
             <table className="w-full text-left">
               <thead>
-                <tr className="border-b border-slate-800">
+                <tr className={cn("border-b", theme === 'light' ? "border-slate-200" : "border-slate-800")}>
                   <th className="pb-4 text-[10px] font-black text-slate-500 uppercase tracking-widest pl-4">Mã bước</th>
                   <th className="pb-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Tên hiển thị</th>
                   <th className="pb-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Phòng ban</th>
@@ -1258,7 +1258,7 @@ const SettingsView = ({
                   <th className="pb-4 text-[10px] font-black text-slate-500 uppercase tracking-widest pr-4">Hành động</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/50">
+              <tbody className={cn("divide-y", theme === 'light' ? "divide-slate-200" : "divide-slate-800/50")}>
                 {workflowSequences[workflowTab].map((key, index) => {
                   const config = (stepConfig as any)[key];
                   if (!config) return null;
@@ -1280,9 +1280,10 @@ const SettingsView = ({
                   
                   return (
                     <tr key={`${workflowTab}-${key}-${index}`} className={cn(
-                    "group/row hover:bg-slate-800/10 transition-colors",
-                    !config.active && "opacity-40 grayscale"
-                  )}>
+                      "group/row transition-colors",
+                      theme === 'light' ? "hover:bg-slate-50" : "hover:bg-slate-800/10",
+                      !config.active && "opacity-40 grayscale"
+                    )}>
                     <td className="py-4 pl-4 text-[10px] font-mono text-slate-500 flex items-center gap-2">
                        {key}
                        <div className="flex flex-col">
@@ -1295,14 +1296,20 @@ const SettingsView = ({
                         type="text" 
                         value={config.label}
                         onChange={(e) => setStepConfig({...stepConfig, [key]: {...config, label: e.target.value}})}
-                        className="bg-slate-950/50 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:ring-1 focus:ring-indigo-500/50 outline-none w-full max-w-[180px] font-bold"
+                        className={cn(
+                          "border rounded-lg px-3 py-1.5 text-xs focus:ring-1 focus:ring-indigo-500/50 outline-none w-full max-w-[180px] font-bold transition-colors",
+                          theme === 'light' ? "bg-white border-slate-200 text-slate-900" : "bg-slate-950/50 border-slate-800 text-white"
+                        )}
                       />
                     </td>
                     <td className="py-4">
                       <select 
                         value={config.dept}
                         onChange={(e) => setStepConfig({...stepConfig, [key]: {...config, dept: e.target.value}})}
-                        className="bg-slate-950/50 border border-slate-800 rounded-lg px-2 py-1.5 text-[10px] font-black uppercase text-indigo-400 outline-none"
+                        className={cn(
+                          "border rounded-lg px-2 py-1.5 text-[10px] font-black uppercase text-indigo-400 outline-none transition-colors",
+                          theme === 'light' ? "bg-white border-slate-200" : "bg-slate-950/50 border-slate-800"
+                        )}
                       >
                         <option value="PTT">PTT</option>
                         <option value="KT">KT</option>
@@ -1316,7 +1323,10 @@ const SettingsView = ({
                       <select 
                         value={config.status}
                         onChange={(e) => setStepConfig({...stepConfig, [key]: {...config, status: e.target.value}})}
-                        className="bg-slate-950/50 border border-slate-800 rounded-lg px-2 py-1.5 text-[10px] font-black uppercase text-slate-400 outline-none"
+                        className={cn(
+                          "border rounded-lg px-2 py-1.5 text-[10px] font-black uppercase text-slate-400 outline-none transition-colors",
+                          theme === 'light' ? "bg-white border-slate-200" : "bg-slate-950/50 border-slate-800"
+                        )}
                       >
                         <option value="Processing">Đang xử lý</option>
                         <option value="Submitted">Đã nộp hồ sơ</option>
@@ -1331,7 +1341,10 @@ const SettingsView = ({
                         type="number" 
                         value={config.slaDays || 0}
                         onChange={(e) => setStepConfig({...stepConfig, [key]: {...config, slaDays: parseInt(e.target.value) || 0}})}
-                        className="w-16 bg-slate-950/50 border border-slate-800 rounded-lg px-3 py-1.5 text-center text-xs font-black text-amber-500 outline-none"
+                        className={cn(
+                          "w-16 border rounded-lg px-3 py-1.5 text-center text-xs font-black text-amber-500 outline-none transition-colors",
+                          theme === 'light' ? "bg-white border-slate-200" : "bg-slate-950/50 border-slate-800"
+                        )}
                       />
                     </td>
                     <td className="py-4 pr-4 flex gap-2">
@@ -1344,7 +1357,10 @@ const SettingsView = ({
                            "flex items-center gap-2 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all",
                            config.active 
                              ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20" 
-                             : "bg-slate-800 text-slate-500 border border-slate-700"
+                             : cn(
+                                "border",
+                                theme === 'light' ? "bg-slate-100 text-slate-400 border-slate-200" : "bg-slate-800 text-slate-500 border-slate-700"
+                              )
                          )}
                        >
                          {config.active ? <Check size={10} /> : <EyeOff size={10} />}
@@ -1358,10 +1374,13 @@ const SettingsView = ({
               </tbody>
             </table>
           </div>
-          <div className="mt-8 p-6 bg-indigo-500/5 rounded-3xl border border-indigo-500/10 flex items-center justify-between">
+          <div className={cn(
+            "mt-8 p-6 rounded-3xl border flex items-center justify-between",
+            theme === 'light' ? "bg-indigo-50 border-indigo-100/50" : "bg-indigo-500/5 border-indigo-500/10"
+          )}>
              <div className="flex items-center gap-3">
                 <Info size={18} className="text-indigo-400" />
-                <p className="text-xs text-slate-400 leading-relaxed max-w-2xl">
+                <p className={cn("text-xs font-medium leading-relaxed max-w-2xl", theme === 'light' ? "text-slate-600" : "text-slate-400")}>
                   <strong>Chú ý:</strong> Thay đổi quy trình sẽ ảnh hưởng đến việc phân quyền hiển thị hồ sơ cho các phòng ban và cách tính toán KPI trên Dashboard. Hãy kiểm tra kỹ trước khi cập nhật.
                 </p>
              </div>
@@ -1395,10 +1414,13 @@ const SettingsView = ({
           </div>
         </div>
         <div className="p-8 space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 p-6 rounded-3xl border border-rose-500/10 bg-rose-500/5">
+          <div className={cn(
+            "flex flex-col md:flex-row md:items-center justify-between gap-6 p-6 rounded-3xl border",
+            theme === 'light' ? "bg-rose-50 border-rose-100" : "bg-rose-500/5 border-rose-500/10"
+          )}>
             <div>
               <h4 className="text-sm font-black text-rose-500 uppercase tracking-widest mb-1">Dọn dẹp Thông báo hệ thống</h4>
-              <p className="text-xs text-slate-500 font-medium">Xóa toàn bộ các thông báo cũ và hiện có trong hệ thống của tất cả người dùng.</p>
+              <p className={cn("text-xs font-medium", theme === 'light' ? "text-slate-500" : "text-slate-400")}>Xóa toàn bộ các thông báo cũ và hiện có trong hệ thống của tất cả người dùng.</p>
             </div>
             <button 
               onClick={() => {
@@ -1412,10 +1434,13 @@ const SettingsView = ({
               Xóa tất cả thông báo
             </button>
           </div>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 p-6 rounded-3xl border border-rose-500/10 bg-rose-500/5">
+          <div className={cn(
+            "flex flex-col md:flex-row md:items-center justify-between gap-6 p-6 rounded-3xl border",
+            theme === 'light' ? "bg-rose-50 border-rose-100" : "bg-rose-500/5 border-rose-500/10"
+          )}>
             <div>
               <h4 className="text-sm font-black text-rose-500 uppercase tracking-widest mb-1">Dọn dẹp File rác</h4>
-              <p className="text-xs text-slate-500 font-medium">Xóa các file trong storage không còn gắn với hồ sơ nào.</p>
+              <p className={cn("text-xs font-medium", theme === 'light' ? "text-slate-500" : "text-slate-400")}>Xóa các file trong storage không còn gắn với hồ sơ nào.</p>
             </div>
             <button 
               onClick={() => {
@@ -1523,6 +1548,19 @@ const ReportsView = ({
           overdue: apps.filter(a => a.status === 'Error').length
         };
       });
+    } else if (reportType === 'LOAN') {
+      return projects.filter(p => selectedLoanProjectIds.includes(p.id)).map(p => {
+        const apps = applications.filter(a => a.projectName === p.name && a.loanStatus === 'Co_Vay');
+        return {
+          id: p.id,
+          name: p.name,
+          total: apps.length,
+          completed: apps.filter(a => a.currentStep === 'Hoan_Tat' || a.customerHandoverDate).length,
+          processing: apps.filter(a => a.currentStep !== 'Hoan_Tat' && !a.customerHandoverDate).length,
+          overdue: apps.filter(a => calculateDaysDiff(a.receivedDate) > 10).length,
+          efficiency: apps.length > 0 ? (apps.filter(a => a.currentStep === 'Hoan_Tat' || a.customerHandoverDate).length / apps.length) * 100 : 0
+        };
+      });
     } else if (reportType === 'SLA') {
       // Dept Bottleneck Stats
       const depts = ['PTT', 'KT', 'PTDA'];
@@ -1611,6 +1649,59 @@ const ReportsView = ({
       selectedLoanProjectIds.includes(projects.find(p => p.name === a.projectName)?.id || '')
     );
   }, [applications, selectedLoanProjectIds, projects]);
+
+  const loanPieData = useMemo(() => {
+    const today = new Date();
+    const stages = {
+      PREPARING: [] as Application[], 
+      AWAITING_SUBMISSION: [] as Application[], 
+      SUBMITTED: [] as Application[], 
+      TAX_WARNING: [] as Application[], 
+      AWAITING_FINANCE: [] as Application[], 
+      TAX_PAID: [] as Application[],
+      GCN_READY: [] as Application[], 
+      WAITING_HANDOVER: [] as Application[],
+      COMPLETED: [] as Application[] 
+    };
+
+    loanApps.forEach(r => {
+      if (r.customerHandoverDate || r.currentStep === 'Hoan_Tat') stages.COMPLETED.push(r);
+      else if (r.currentStep === 'S7_2_Ban_Giao_Khach' || r.currentStep === 'GD6_Cho_BG_Khach' || r.currentStep === 'S7_PTDA_Ban_Giao' || r.currentStep === 'S7_1_PTT_Tiep_Nhan' || r.currentStep === 'GD5_Cho_PTT_TiepNhan_BG') stages.WAITING_HANDOVER.push(r);
+      else if (r.gcnSignedDate || r.currentStep === 'S6_Nhan_So_GCN' || r.currentStep === 'GD5_Cho_GCN') stages.GCN_READY.push(r);
+      else if (r.taxReceiptDate || r.currentStep === 'S5_1_PTDA_TiepNhan' || r.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo' || r.currentStep === 'GD5_Cho_Ky_In_GCN') stages.TAX_PAID.push(r);
+      else if (r.taxNotificationDate || r.currentStep === 'S5_Tai_Chinh_Khach_Hang' || r.currentStep === 'GD4_Cho_Nop_NVTC') stages.AWAITING_FINANCE.push(r);
+      else if (r.submissionDate || r.currentStep === 'S3_Nop_VPDK' || r.currentStep === 'GD3_Cho_TBThue') {
+        const subDate = new Date(r.submissionDate || today);
+        const daysDiff = (today.getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
+        if (daysDiff > 7) stages.TAX_WARNING.push(r);
+        else stages.SUBMITTED.push(r);
+      }
+      else if (
+        r.currentStep === 'S2_KT_Tiep_Nhan' || 
+        r.currentStep === 'S2_KT_Ban_giao' || 
+        r.currentStep === 'GD2_Cho_Nop_VPDK' || 
+        (r.accountingHandoverDate && r.currentStep !== 'GD1_Cho_KT_TiepNhan' && r.currentStep !== 'GD1_ChuanBi' && r.currentStep !== 'S1_ChuanBi')
+      ) stages.AWAITING_SUBMISSION.push(r);
+      else stages.PREPARING.push(r);
+    });
+
+    const createStageItem = (name: string, list: Application[], color: string) => {
+      const errorCount = list.filter(a => (a.status as string) === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None' && (a.status as string) === 'Error')).length;
+      return { name, value: list.length, normal: list.length - errorCount, error: errorCount, color };
+    };
+
+    return [
+      createStageItem('ĐANG CHUẨN BỊ', stages.PREPARING, '#94a3b8'),
+      createStageItem('CHỜ NỘP', stages.AWAITING_SUBMISSION, '#f59e0b'),
+      createStageItem('ĐÃ NỘP VPĐK', stages.SUBMITTED, '#3b82f6'),
+      createStageItem('CHỜ TB THUẾ', stages.TAX_WARNING, '#f97316'),
+      createStageItem('CHỜ NVTC', stages.AWAITING_FINANCE, '#8b5cf6'),
+      createStageItem('ĐÃ NỘP THUẾ', stages.TAX_PAID, '#10b981'),
+      createStageItem('ĐÃ CÓ GCN', stages.GCN_READY, '#06b6d4'),
+      createStageItem('CHỜ BÀN GIAO', stages.WAITING_HANDOVER, '#6366f1'),
+      createStageItem('HOÀN TẤT', stages.COMPLETED, '#22c55e')
+    ].filter(d => d.value > 0 || d.error > 0);
+  }, [loanApps]);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 text-left">
@@ -1780,31 +1871,31 @@ const ReportsView = ({
 
                 {/* Progress Summary for Loan Customers */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                  <div className="bg-slate-950/40 p-6 rounded-3xl border border-slate-800/50 flex items-center gap-4">
+                  <div className={cn("p-6 rounded-3xl border flex items-center gap-4 transition-all shadow-xl", theme === 'light' ? "bg-white border-slate-200" : "bg-slate-950/40 border-slate-800/50")}>
                     <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center">
-                      <TrendingUp className="text-indigo-400" size={24} />
+                      <TrendingUp className="text-indigo-500" size={24} />
                     </div>
                     <div>
                       <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Tổng căn có vay</p>
-                      <p className="text-2xl font-black text-white italic">{loanApps.length}</p>
+                      <p className={cn("text-2xl font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>{loanApps.length}</p>
                     </div>
                   </div>
-                  <div className="bg-slate-950/40 p-6 rounded-3xl border border-slate-800/50 flex items-center gap-4">
+                  <div className={cn("p-6 rounded-3xl border flex items-center gap-4 transition-all shadow-xl", theme === 'light' ? "bg-white border-slate-200" : "bg-slate-950/40 border-slate-800/50")}>
                     <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
-                      <CheckCircle2 className="text-emerald-400" size={24} />
+                      <CheckCircle2 className="text-emerald-500" size={24} />
                     </div>
                     <div>
                       <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Đã ra sổ / Hoàn tất</p>
-                      <p className="text-2xl font-black text-white italic">{loanApps.filter(a => a.status === 'Completed').length}</p>
+                      <p className={cn("text-2xl font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>{loanApps.filter(a => a.status === 'Completed').length}</p>
                     </div>
                   </div>
-                  <div className="bg-slate-950/40 p-6 rounded-3xl border border-slate-800/50 flex items-center gap-4">
+                  <div className={cn("p-6 rounded-3xl border flex items-center gap-4 transition-all shadow-xl", theme === 'light' ? "bg-white border-slate-200" : "bg-slate-950/40 border-slate-800/50")}>
                     <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center">
-                      <Clock className="text-amber-400" size={24} />
+                      <Clock className="text-amber-500" size={24} />
                     </div>
                     <div>
                       <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Đang xử lý đúng hạn</p>
-                      <p className="text-2xl font-black text-white italic">{loanApps.filter(a => a.status !== 'Completed' && !getOverdueInfo(a, stepConfig, slaConfig).isOverdue).length}</p>
+                      <p className={cn("text-2xl font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>{loanApps.filter(a => a.status !== 'Completed' && !getOverdueInfo(a, stepConfig, slaConfig).isOverdue).length}</p>
                     </div>
                   </div>
                 </div>
@@ -1815,39 +1906,55 @@ const ReportsView = ({
                      theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950/40 border-slate-800"
                    )}>
                       <h4 className="text-[10px] font-black uppercase text-slate-500 mb-6 tracking-widest text-center">Phân bổ trạng thái Hồ sơ vay</h4>
-                      <div className="h-[250px] w-full">
+                      <div className="h-[250px] w-full relative">
                          <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                <Pie
-                                 data={[
-                                   { name: 'Đang xử lý', value: loanApps.filter(a => a.status === 'Processing').length, color: '#6366f1' },
-                                   { name: 'Đã nộp HS', value: loanApps.filter(a => a.status === 'Submitted').length, color: '#8b5cf6' },
-                                   { name: 'Chờ Thuế', value: loanApps.filter(a => a.status === 'TaxPending').length, color: '#f59e0b' },
-                                   { name: 'Hoàn tất', value: loanApps.filter(a => a.status === 'Completed').length, color: '#10b981' },
-                                   { name: 'Sai sót', value: loanApps.filter(a => a.status === 'Error').length, color: '#f43f5e' }
-                                 ].filter(d => d.value > 0)}
+                                 data={loanPieData}
                                  innerRadius={60}
                                  outerRadius={80}
                                  paddingAngle={5}
                                  dataKey="value"
+                                 stroke="none"
                                >
-                                 {( [
-                                   { name: 'Đang xử lý', value: loanApps.filter(a => a.status === 'Processing').length, color: '#6366f1' },
-                                   { name: 'Đã nộp HS', value: loanApps.filter(a => a.status === 'Submitted').length, color: '#8b5cf6' },
-                                   { name: 'Chờ Thuế', value: loanApps.filter(a => a.status === 'TaxPending').length, color: '#f59e0b' },
-                                   { name: 'Hoàn tất', value: loanApps.filter(a => a.status === 'Completed').length, color: '#10b981' },
-                                   { name: 'Sai sót', value: loanApps.filter(a => a.status === 'Error').length, color: '#f43f5e' }
-                                 ].filter(d => d.value > 0)).map((entry: any, index: number) => (
+                                 {loanPieData.map((entry: any, index: number) => (
                                    <Cell key={`cell-${index}`} fill={entry.color} />
                                  ))}
+                                 <Label 
+                                   value={loanApps.length} 
+                                   position="center" 
+                                   className={cn("text-2xl font-black italic", theme === 'light' ? "fill-slate-900" : "fill-white")} 
+                                 />
                                </Pie>
                                <ReTooltip 
-                                 contentStyle={{ backgroundColor: theme === 'light' ? '#fff' : '#0f172a', border: 'none', borderRadius: '12px', fontSize: '10px' }}
-                                 itemStyle={{ color: '#fff' }}
+                                 content={({ active, payload }) => {
+                                   if (active && payload && payload.length) {
+                                     const data = payload[0].payload;
+                                     return (
+                                       <div className={cn(
+                                         "p-3 rounded-xl border shadow-xl backdrop-blur-md",
+                                         theme === 'light' ? "bg-white/90 border-slate-200 text-slate-800" : "bg-slate-900/90 border-slate-800 text-white"
+                                       )}>
+                                         <div className="flex items-center gap-2 mb-1">
+                                           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: data.color }} />
+                                           <span className="text-[10px] font-black uppercase tracking-tight">{data.name}</span>
+                                         </div>
+                                         <div className="flex justify-between items-center gap-4">
+                                           <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Số lượng:</span>
+                                           <span className="text-sm font-black italic">{data.value}</span>
+                                         </div>
+                                       </div>
+                                     );
+                                   }
+                                   return null;
+                                 }}
                                />
-                               <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }} />
+                               <Legend verticalAlign="bottom" height={40} iconType="circle" wrapperStyle={{ fontSize: '9px', fontWeight: 'bold', textTransform: 'uppercase' }} />
                             </PieChart>
                          </ResponsiveContainer>
+                         <div className="absolute top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                             <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] leading-none mb-1">Tổng căn</p>
+                         </div>
                       </div>
                    </div>
 
@@ -1858,20 +1965,38 @@ const ReportsView = ({
                       <h4 className="text-[10px] font-black uppercase text-slate-500 mb-6 tracking-widest text-center">Tiến độ hồ sơ vay theo giai đoạn</h4>
                       <div className="h-[250px] w-full">
                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={[
-                              'S1_ChuanBi', 'S2_KT_Tiep_Nhan', 'S3_Nop_VPDK', 'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'Hoan_Tat'
-                            ].map(step => ({
-                              name: stepConfig[step]?.label.split(':')[0] || step,
-                              count: loanApps.filter(a => a.currentStep === step).length
-                            }))}>
-                               <XAxis dataKey="name" stroke="#94a3b8" fontSize={8} tickLine={false} axisLine={false} />
+                            <BarChart data={loanPieData}>
+                               <XAxis dataKey="name" stroke="#94a3b8" fontSize={8} tickLine={false} axisLine={false} tick={{ width: 60 }} interval={0} />
                                <YAxis stroke="#94a3b8" fontSize={8} tickLine={false} axisLine={false} />
                                <ReTooltip 
                                  cursor={{ fill: 'rgba(99,102,241,0.05)' }}
                                  contentStyle={{ backgroundColor: theme === 'light' ? '#fff' : '#0f172a', border: 'none', borderRadius: '12px', fontSize: '10px' }}
                                 />
-                               <Bar dataKey="count" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={20}>
-                                 <LabelList dataKey="count" position="top" style={{ fontSize: '10px', fontWeight: 'bold' }} fill="#64748b" />
+                               <Bar dataKey="normal" stackId="a" fill="#4f46e5" barSize={20} radius={[0, 0, 0, 0]}>
+                                 {loanPieData.map((entry: any, index: number) => (
+                                   <Cell key={`cell-normal-${index}`} fill={entry.color} />
+                                 ))}
+                               </Bar>
+                                <Bar dataKey="error" stackId="a" fill="#f43f5e" barSize={20} radius={[4, 4, 0, 0]}>
+                                 <LabelList 
+                                   dataKey="value" 
+                                   position="top" 
+                                   content={(props: any) => {
+                                      const { x, y, width, value } = props;
+                                      return (
+                                        <text 
+                                          x={x + width / 2} 
+                                          y={y - 10} 
+                                          fill={theme === 'light' ? '#334155' : '#cbd5e1'} 
+                                          fontSize="11" 
+                                          fontWeight="900"
+                                          textAnchor="middle"
+                                        >
+                                          {value}
+                                        </text>
+                                      );
+                                   }}
+                                 />
                                </Bar>
                             </BarChart>
                          </ResponsiveContainer>
@@ -1879,9 +2004,9 @@ const ReportsView = ({
                    </div>
                 </div>
 
-                <div className="overflow-x-auto rounded-3xl border border-slate-800/50">
+                <div className={cn("overflow-x-auto rounded-3xl border", theme === 'light' ? "border-slate-200" : "border-slate-800/50")}>
                   <table className="w-full text-left border-collapse min-w-[900px]">
-                    <thead className={theme === 'light' ? "bg-slate-50 border-b border-slate-100" : "bg-slate-950/50 border-b border-slate-800"}>
+                    <thead className={theme === 'light' ? "bg-slate-50 border-b border-slate-200" : "bg-slate-950/50 border-b border-slate-800"}>
                       <tr>
                         <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Dự án & Mã căn</th>
                         <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Gói vay</th>
@@ -1890,7 +2015,7 @@ const ReportsView = ({
                         <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Rủi ro Cam kết</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/50">
+                    <tbody className={cn("divide-y", theme === 'light' ? "divide-slate-100" : "divide-slate-800/50")}>
                       {loanApps.map((app, index) => {
                         const days = calculateDaysDiff(app.receivedDate);
                         const isHighRisk = days > 10;
@@ -1911,7 +2036,7 @@ const ReportsView = ({
                             <td className="px-6 py-5">
                                <div className="flex items-center gap-2">
                                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-sm" />
-                                 <span className="text-xs font-bold text-indigo-400">{app.loanStatus === 'Co_Vay' ? 'Có vay' : 'Không vay'}</span>
+                                 <span className={cn("text-xs font-bold", theme === 'light' ? "text-indigo-600" : "text-indigo-400")}>{app.loanStatus === 'Co_Vay' ? 'Có vay' : 'Không vay'}</span>
                                </div>
                             </td>
                             <td className="px-6 py-5 text-center">
@@ -2201,7 +2326,7 @@ const ReportsView = ({
                    <span className="text-sm font-black text-amber-500">{loanApps.filter(a => calculateDaysDiff(a.receivedDate) > 10).length}</span>
                 </div>
              </div>
-             <button className="w-full mt-6 py-3 bg-slate-900 border border-slate-800 rounded-2xl text-[9px] font-black uppercase text-slate-500 hover:text-white transition-all">
+              <button className={cn("w-full mt-6 py-3 rounded-2xl text-[9px] font-black uppercase transition-all", theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100" : "bg-slate-900 border border-slate-800 text-slate-500 hover:text-white")}>
                 Xem danh sách điểm nóng
              </button>
           </div>
@@ -3834,6 +3959,8 @@ const HandoverRecord = ({ apps, user, template }: { apps: Application[], user: U
 export default function App() {
   const [search, setSearch] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'applications' | 'users' | 'resources' | 'reports' | 'settings'>('dashboard');
 
   useEffect(() => {
     if (theme === 'light') {
@@ -3856,6 +3983,8 @@ export default function App() {
   const [stepConfig, setStepConfig] = useState<Record<string, { label: string, dept: Dept, status: UnitStatus, slaDays?: number, active: boolean }>>(INITIAL_STEP_CONFIG);
   const [projects, setProjects] = useState<Project[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
+  const [dashboardApps, setDashboardApps] = useState<Application[]>([]);
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [isLoadingApps, setIsLoadingApps] = useState(true);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -3872,6 +4001,14 @@ export default function App() {
   const [slaConfig, setSlaConfig] = useState<Record<string, number>>({});
   const [checklistTemplates, setChecklistTemplates] = useState<string[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [filterStep, setFilterStep] = useState<StepName | 'ALL'>('ALL');
+  const [filterStatus, setFilterStatus] = useState<UnitStatus | 'ALL'>('ALL');
+  const [filterLoanStatus, setFilterLoanStatus] = useState<'Co_Vay' | 'Khong_Vay' | 'ALL'>('ALL');
+  const [filterSelfService, setFilterSelfService] = useState<'YES' | 'NO' | 'ALL'>('ALL');
+  const [filterIssue, setFilterIssue] = useState<'ALL' | 'ERROR'>('ALL');
+  const [filterSLAStatus, setFilterSLAStatus] = useState<'ALL' | 'OVERDUE'>('ALL');
+  const [dashboardFilter, setDashboardFilter] = useState<'ALL' | 'OVERDUE' | 'ERROR' | 'COMPLETED' | 'PTT_PROCESSING' | 'PTT_HOLDING' | 'PTT_ISSUES' | 'PTT_TAX_UNPAID' | 'PTT_WAITING_HANDOVER' | 'KT_ALL' | 'KT_NEED_RECEIVE' | 'KT_PROCESSING' | 'KT_ISSUES' | 'PTDA_RECEIVED' | 'PTDA_DA_NOP_VPDK' | 'PTDA_NO_TAX' | 'PTDA_TAX_PENDING' | 'PTDA_GCN_WAITING' | 'PTDA_ISSUES'>('ALL');
+
   const [handoverTemplate, setHandoverTemplate] = useState(() => {
     const saved = localStorage.getItem('procedural_handover_template');
     return saved ? JSON.parse(saved) : {
@@ -3968,12 +4105,21 @@ export default function App() {
                 if (prev.some(a => a.id === newApp.id)) return prev;
                 return [newApp, ...prev];
              });
+             setDashboardApps(prev => {
+                if (prev.some(a => a.id === newApp.id)) return prev;
+                return [newApp, ...prev];
+             });
           } else if (payload.eventType === 'UPDATE') {
              const updatedApp = mapFromSnakeCase(payload.new);
              setApplications(prev => prev.map(a => a.id === updatedApp.id ? updatedApp : a));
+             setDashboardApps(prev => prev.some(a => a.id === updatedApp.id) 
+                ? prev.map(a => a.id === updatedApp.id ? updatedApp : a)
+                : [updatedApp, ...prev]
+             );
           } else if (payload.eventType === 'DELETE') {
              const deletedId = payload.old.id;
              setApplications(prev => prev.filter(a => a.id !== deletedId));
+             setDashboardApps(prev => prev.filter(a => a.id !== deletedId));
           }
         }
       )
@@ -4146,8 +4292,94 @@ export default function App() {
         query = query.or(`unit_code.ilike.%${search}%,customer_name.ilike.%${search}%,project_name.ilike.%${search}%,phone_number.ilike.%${search}%`);
       }
 
+      const hasProjectAssignments = currentUser?.assignedProjectIds && currentUser.assignedProjectIds.length > 0;
+
       if (selectedProjectId && selectedProject) {
         query = query.eq('project_name', selectedProject.name);
+      } else if (userRole !== 'ADMIN' && hasProjectAssignments) {
+        const assignedNames = projects.filter(p => currentUser.assignedProjectIds?.includes(p.id)).map(p => p.name);
+        if (assignedNames.length > 0) {
+          query = query.in('project_name', assignedNames);
+        }
+      }
+      
+      // Advanced Filters
+      if (filterStatus && filterStatus !== 'ALL' && filterStatus !== '') {
+        let dbStatus = filterStatus as string;
+        // Map Vietnamese labels back to DB values if they happen to be used
+        const normalized = filterStatus.toLowerCase();
+        if (normalized === 'đang chuẩn bị' || normalized === 'processing') dbStatus = 'Processing';
+        else if (normalized === 'chờ nộp vpđk' || normalized === 'waitingvpdk') dbStatus = 'WaitingVPDK';
+        else if (normalized === 'đã nộp vpđk' || normalized === 'submitted') dbStatus = 'Submitted';
+        else if (normalized === 'chờ thông báo thuế' || normalized === 'taxpending') dbStatus = 'TaxPending';
+        else if (normalized === 'đã hoàn thành nvtc' || normalized === 'taxcompleted') dbStatus = 'TaxCompleted';
+        else if (normalized === 'hoàn tất' || normalized === 'completed') dbStatus = 'Completed';
+        else if (normalized === 'sai sót/vướng' || normalized === 'error') dbStatus = 'Error';
+        
+        query = query.eq('status', dbStatus);
+      }
+      if (filterStep && filterStep !== 'ALL' && filterStep !== '') {
+        query = query.eq('current_step', filterStep);
+      }
+      if (filterLoanStatus && filterLoanStatus !== 'ALL' && filterLoanStatus !== '') {
+        query = query.eq('loan_status', filterLoanStatus);
+      }
+      if (filterSelfService !== 'ALL') {
+        query = query.eq('is_self_service', filterSelfService === 'YES');
+      }
+      if (filterIssue === 'ERROR') {
+        query = query.or('status.eq.Error,is_rejected.eq.true');
+      }
+
+      // Dashboard Filters Shorthand
+      if (dashboardFilter && dashboardFilter !== 'ALL') {
+        let mappedStatus = dashboardFilter;
+        // Mapping from Dashboard Chart labels (Vietnamese) to Database Statuses
+        const dNorm = dashboardFilter.toUpperCase();
+        if (dNorm === 'ĐANG CHUẨN BỊ') mappedStatus = 'Processing';
+        else if (dNorm === 'CHỜ NỘP' || dNorm === 'CHỜ NỘP VPĐK') mappedStatus = 'WaitingVPDK';
+        else if (dNorm === 'ĐÃ NỘP VPĐK') mappedStatus = 'Submitted';
+        else if (dNorm === 'CHỜ TB THUẾ') mappedStatus = 'TaxPending';
+        else if (dNorm === 'CHỜ NVTC' || dNorm === 'CHỜ HOÀN THÀNH NVTC') mappedStatus = 'TaxPending';
+        else if (dNorm === 'ĐÃ NỘP THUẾ') mappedStatus = 'TaxPaid';
+        else if (dNorm === 'ĐÃ HOÀN THÀNH NVTC') mappedStatus = 'TaxCompleted';
+        else if (dNorm === 'ĐÃ CÓ GCN' || dNorm === 'ĐÃ RA GCN') mappedStatus = 'GCN_Issued';
+        else if (dNorm === 'CHỜ BÀN GIAO') mappedStatus = 'WaitingHandover';
+        else if (dNorm === 'HOÀN TẤT') mappedStatus = 'Completed';
+
+        // Apply mapped status if it's one of the standard statuses
+        if (['Processing', 'WaitingVPDK', 'Submitted', 'TaxPending', 'TaxCompleted', 'TaxPaid', 'GCN_Issued', 'Completed', 'WaitingHandover'].includes(mappedStatus)) {
+          query = query.eq('status', mappedStatus);
+        }
+
+        if (dashboardFilter === 'ERROR') query = query.eq('status', 'Error');
+        if (dashboardFilter === 'COMPLETED') query = query.eq('status', 'Completed');
+        if (dashboardFilter === 'OVERDUE') {
+          // Overdue filter done client-side usually, but let's at least not break the server query
+        }
+        if (dashboardFilter === 'PTT_PROCESSING') query = query.eq('status', 'Processing');
+        if (dashboardFilter === 'PTT_HOLDING') {
+          const pttSteps = Object.keys(INITIAL_STEP_CONFIG).filter(k => INITIAL_STEP_CONFIG[k].dept === 'PTT');
+          query = query.in('current_step', pttSteps);
+        }
+        if (dashboardFilter === 'PTT_ISSUES') query = query.or('is_rejected.eq.true,status.eq.Error');
+        if (dashboardFilter === 'PTT_TAX_UNPAID') query = query.not('tax_notification_date', 'is', null).filter('tax_receipt_date', 'is', null);
+        if (dashboardFilter === 'PTT_WAITING_HANDOVER') query = query.in('current_step', ['S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach']).filter('customer_handover_date', 'is', null);
+        if (dashboardFilter === 'KT_NEED_RECEIVE') query = query.in('current_step', ['S2_KT_Tiep_Nhan', 'GD1_Cho_KT_TiepNhan', 'GD2_Cho_Nop_VPDK']);
+        if (dashboardFilter === 'KT_PROCESSING') query = query.in('current_step', ['S2_KT_Tiep_Nhan', 'GD1_Cho_KT_TiepNhan', 'GD2_Cho_Nop_VPDK', 'GD4_Cho_KT_TiepNhan_LaySo', 'GD5_Cho_GCN']);
+        if (dashboardFilter === 'KT_ISSUES') {
+          const ktSteps = Object.keys(INITIAL_STEP_CONFIG).filter(k => INITIAL_STEP_CONFIG[k].dept === 'KT');
+          query = query.in('current_step', ktSteps).or('is_rejected.eq.true,status.eq.Error');
+        }
+        if (dashboardFilter === 'PTDA_RECEIVED') query = query.in('current_step', ['S2_KT_Ban_giao', 'S5_1_PTDA_TiepNhan', 'GD2_Cho_Nop_VPDK', 'S3_Nop_VPDK']);
+        if (dashboardFilter === 'PTDA_DA_NOP_VPDK') query = query.eq('current_step', 'S3_Nop_VPDK');
+        if (dashboardFilter === 'PTDA_NO_TAX') query = query.in('current_step', ['GD3_Cho_TBThue', 'S4_Cho_Thong_Bao_Thue']);
+        if (dashboardFilter === 'PTDA_TAX_PENDING') query = query.in('current_step', ['S5_Tai_Chinh_Khach_Hang', 'GD4_Cho_NVTC', 'GD4_Cho_Nop_NVTC']).filter('tax_receipt_date', 'is', null);
+        if (dashboardFilter === 'PTDA_GCN_WAITING') query = query.in('current_step', ['S6_Nhan_So_GCN', 'GD5_Cho_Ky_In_GCN']).filter('gcn_signed_date', 'is', null);
+        if (dashboardFilter === 'PTDA_ISSUES') {
+          const ptdaSteps = Object.keys(INITIAL_STEP_CONFIG).filter(k => INITIAL_STEP_CONFIG[k].dept === 'PTDA');
+          query = query.in('current_step', ptdaSteps).or('is_rejected.eq.true,status.eq.Error');
+        }
       }
       
       const { data, count, error } = await query
@@ -4156,7 +4388,19 @@ export default function App() {
         
       if (error) throw error;
       
-      console.log('Fetched data:', data);
+      // Auto-reset filters if 0 records found and filters are active
+      if ((count === 0 || !data || data.length === 0) && (filterStatus !== 'ALL' || filterStep !== 'ALL' || dashboardFilter !== 'ALL' || filterIssue !== 'ALL')) {
+        console.warn('0 records found with current filters. Attempting auto-clear...');
+        // For a smoother UX, we only reset if it's not a direct search
+        if (!search) {
+          setFilterStatus('ALL');
+          setFilterStep('ALL');
+          setDashboardFilter('ALL');
+          setFilterIssue('ALL');
+          // The useEffect will trigger another fetch after state change
+          return;
+        }
+      }
       
       setApplications((data || []).map(mapFromSnakeCase));
       setTotalCount(count || 0);
@@ -4169,12 +4413,62 @@ export default function App() {
   };
 
   useEffect(() => {
+    setCurrentPage(0);
+  }, [search, selectedProjectId, filterStatus, filterStep, filterLoanStatus, filterSelfService, filterIssue, dashboardFilter, filterSLAStatus]);
+
+  useEffect(() => {
     const handler = setTimeout(() => {
       fetchApplications();
-    }, 500);
+    }, 400);
     
     return () => clearTimeout(handler);
-  }, [search, currentPage, pageSize, selectedProjectId]);
+  }, [search, currentPage, pageSize, selectedProjectId, filterStatus, filterStep, filterLoanStatus, filterSelfService, filterIssue, dashboardFilter, filterSLAStatus]);
+
+  useEffect(() => {
+    if (activeTab === 'applications') {
+      fetchApplications();
+    }
+  }, [activeTab]);
+
+  const fetchDashboardApps = async () => {
+    setIsLoadingDashboard(true);
+    try {
+      let query = supabase.from('records').select('*');
+      
+      const hasProjectAssignments = currentUser?.assignedProjectIds && currentUser.assignedProjectIds.length > 0;
+      const currentSelectedProject = projects.find(p => p.id === selectedProjectId);
+      const currentUserRole = currentUser?.dept || 'PTT';
+      
+      if (selectedProjectId && currentSelectedProject) {
+        query = query.eq('project_name', currentSelectedProject.name);
+      } else if (currentUserRole !== 'ADMIN' && hasProjectAssignments) {
+        const assignedNames = projects.filter(p => currentUser.assignedProjectIds.includes(p.id)).map(p => p.name);
+        if (assignedNames.length > 0) {
+          query = query.in('project_name', assignedNames);
+        } else {
+          setDashboardApps([]);
+          return;
+        }
+      } else if (currentUserRole !== 'ADMIN' && !hasProjectAssignments) {
+          setDashboardApps([]);
+          return;
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      setDashboardApps((data || []).map(mapFromSnakeCase));
+    } catch (error) {
+      console.error('Error fetching dashboard records:', error);
+    } finally {
+      setIsLoadingDashboard(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchDashboardApps();
+    }
+  }, [selectedProjectId, currentUser, projects]);
 
   useEffect(() => {
     if (applications.length > 0) localStorage.setItem('procedural_apps', JSON.stringify(applications));
@@ -4457,8 +4751,6 @@ export default function App() {
     setTaskReminders(reminders);
   }, [applications, currentUser, stepConfig]);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'applications' | 'users' | 'resources' | 'reports' | 'settings'>('dashboard');
-
   useEffect(() => {
     if (activeTab === 'settings') {
       fetchStorageUsage();
@@ -4535,7 +4827,7 @@ export default function App() {
   };
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [expandedSidebarRegions, setExpandedSidebarRegions] = useState<Record<string, boolean>>({});
-  const [dashboardFilter, setDashboardFilter] = useState<'ALL' | 'OVERDUE' | 'ERROR' | 'COMPLETED' | 'PTT_PROCESSING' | 'PTT_HOLDING' | 'PTT_ISSUES' | 'PTT_TAX_UNPAID' | 'PTT_WAITING_HANDOVER' | 'KT_ALL' | 'KT_NEED_RECEIVE' | 'KT_PROCESSING' | 'KT_ISSUES' | 'PTDA_RECEIVED' | 'PTDA_DA_NOP_VPDK' | 'PTDA_NO_TAX' | 'PTDA_TAX_PENDING' | 'PTDA_GCN_WAITING' | 'PTDA_ISSUES'>('ALL');
+
   const [projectRegionFilter, setProjectRegionFilter] = useState<string>('ALL');
   const [isFieldMode, setIsFieldMode] = useState(false);
   
@@ -4605,7 +4897,7 @@ export default function App() {
     localStorage.setItem('procedural_handover_template', JSON.stringify(handoverTemplate));
   }, [handoverTemplate]);
 
-  const [filterSLAStatus, setFilterSLAStatus] = useState<'ALL' | 'OVERDUE'>('ALL');
+
   const [isBulkNoteOpen, setIsBulkNoteOpen] = useState(false);
   const [bulkNoteText, setBulkNoteText] = useState('');
   
@@ -4956,11 +5248,7 @@ export default function App() {
       setIsSavingApp(false);
     }
   };
-  const [filterStep, setFilterStep] = useState<StepName | 'ALL'>('ALL');
-  const [filterStatus, setFilterStatus] = useState<UnitStatus | 'ALL'>('ALL');
-  const [filterLoanStatus, setFilterLoanStatus] = useState<'Co_Vay' | 'Khong_Vay' | 'ALL'>('ALL');
-  const [filterSelfService, setFilterSelfService] = useState<'YES' | 'NO' | 'ALL'>('ALL');
-  const [filterIssue, setFilterIssue] = useState<'ALL' | 'ERROR'>('ALL');
+
   const [isShowFilters, setIsShowFilters] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newApp, setNewApp] = useState({
@@ -5015,7 +5303,7 @@ export default function App() {
   const handleDownloadTemplate = () => {
     let headers: string[] = [];
     let data: any[][] = [];
-    const sourceApps = selectedProjectId ? filteredByProjectApps : applications;
+    const sourceApps = selectedProjectId ? dashboardApps : applications;
 
     if (userRole === 'ADMIN' || userRole === 'DIRECTOR') {
       headers = [
@@ -6607,55 +6895,41 @@ export default function App() {
     }
   };
 
-  const filteredByProjectApps = useMemo(() => {
-    const hasProjectAssignments = currentUser?.assignedProjectIds && currentUser.assignedProjectIds.length > 0;
-    
-    const baseApps = applications.filter(app => {
-      // If ADMIN and no specific projects assigned, show all. 
-      // If has assignments, show ONLY assigned projects.
-      if (userRole === 'ADMIN' && !hasProjectAssignments) return true;
-      
-      const project = projects.find(p => p.name === app.projectName);
-      return project && (currentUser?.assignedProjectIds || []).includes(project.id);
-    });
-
-    if (!selectedProjectId) return baseApps;
-    return baseApps.filter(app => app.projectName === selectedProject?.name);
-  }, [selectedProjectId, selectedProject, applications, currentUser, userRole, projects]);
+  
 
   const kpis: KPI = useMemo(() => {
-    const processingApps = filteredByProjectApps.filter(a => {
+    const processingApps = dashboardApps.filter(a => {
       const step = stepConfig[a.currentStep] || INITIAL_STEP_CONFIG[a.currentStep];
       return step?.status !== 'Completed';
     });
     return {
       total: processingApps.length,
       // Aggregating by logical status from Step Config to include errors in their stages
-      processing: filteredByProjectApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'Processing').length,
-      waitingVPDK: filteredByProjectApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'WaitingVPDK').length,
-      submitted: filteredByProjectApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'Submitted').length,
-      taxPending: filteredByProjectApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'TaxPending').length,
-      taxCompleted: filteredByProjectApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'TaxCompleted').length,
-      gcnIssued: filteredByProjectApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'GCN_Issued').length,
-      completed: filteredByProjectApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'Completed').length,
-      error: filteredByProjectApps.filter(a => a.status === 'Error').length,
-      overdue: filteredByProjectApps.filter(a => getOverdueInfo(a, stepConfig, slaConfig).isOverdue).length,
+      processing: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'Processing').length,
+      waitingVPDK: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'WaitingVPDK').length,
+      submitted: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'Submitted').length,
+      taxPending: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'TaxPending').length,
+      taxCompleted: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'TaxCompleted').length,
+      gcnIssued: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'GCN_Issued').length,
+      completed: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'Completed').length,
+      error: dashboardApps.filter(a => a.status === 'Error').length,
+      overdue: dashboardApps.filter(a => getOverdueInfo(a, stepConfig, slaConfig).isOverdue).length,
       loanCount: processingApps.filter(a => a.loanStatus === 'Co_Vay').length,
       regularCount: processingApps.filter(a => a.loanStatus === 'Khong_Vay').length,
       rejectedCount: processingApps.filter(a => a.isRejected && a.currentStep === 'S1_ChuanBi').length,
     };
-  }, [filteredByProjectApps, stepConfig, slaConfig]);
+  }, [dashboardApps, stepConfig, slaConfig]);
 
   const roleKpis = useMemo(() => {
     // Exclude completed records for active workload analysis
-    const apps = filteredByProjectApps.filter(a => {
+    const apps = dashboardApps.filter(a => {
       const step = stepConfig[a.currentStep] || INITIAL_STEP_CONFIG[a.currentStep];
       return step?.status !== 'Completed';
     });
     
     // PTT
     // Requirement: PTT total should show ALL records (including completed)
-    const pttTotal = filteredByProjectApps.length;
+    const pttTotal = dashboardApps.length;
     const pttProcessing = apps.filter(a => a.status === 'Processing').length;
     const pttIssues = apps.filter(a => a.isRejected || a.status === 'Error').length;
     // PTT Tax Pending: Has tax notification (from PTDA) but not yet completed payment (no receipt date)
@@ -6829,7 +7103,7 @@ export default function App() {
     }
 
     // Loan Stats
-    const loanApps = apps.filter(a => a.loanStatus === 'Co_Vay');
+    const loanApps = dashboardApps.filter(a => a.loanStatus === 'Co_Vay');
     const loanStatusStats = [
       { name: 'Đang xử lý', value: loanApps.filter(a => a.status === 'Processing').length, color: '#6366f1' },
       { name: 'Hoàn tất', value: loanApps.filter(a => a.status === 'Completed' || a.status === 'GCN_Issued').length, color: '#10b981' },
@@ -6837,8 +7111,15 @@ export default function App() {
       { name: 'Chờ duyệt', value: loanApps.filter(a => a.status === 'Pending').length, color: '#f59e0b' }
     ].filter(s => s.value > 0);
 
+    const loanRatioStats = [
+      { name: 'Có vay', value: dashboardApps.filter(a => a.loanStatus === 'Co_Vay').length, color: '#6366f1' },
+      { name: 'Không vay', value: dashboardApps.filter(a => a.loanStatus === 'Khong_Vay').length, color: '#10b981' },
+      { name: 'Chưa có', value: dashboardApps.filter(a => a.loanStatus !== 'Co_Vay' && a.loanStatus !== 'Khong_Vay').length, color: '#94a3b8' }
+    ].filter(s => s.value > 0);
+
     return {
         loanStatusStats,
+        loanRatioStats,
         ptt: { total: pttTotal, processing: pttProcessing, issues: pttIssues, taxPending: pttTaxPending, slowest: pttSlowest, waitingHandover: apps.filter(a => a.currentStep === 'S6_Nhan_So_GCN' && !a.customerHandoverDate).length },
         kt: {
             total: ktTotal,
@@ -6856,7 +7137,7 @@ export default function App() {
         },
         admin: { slaStats: adminSlaStats, warnings: adminWarnings, deptStats }
     };
-  }, [filteredByProjectApps, selectedProjectId, selectedProject, stepConfig, slaConfig]);
+  }, [dashboardApps, selectedProjectId, selectedProject, stepConfig, slaConfig]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -6948,7 +7229,7 @@ export default function App() {
       COMPLETED: [] as Application[] 
     };
 
-    filteredByProjectApps.forEach(r => {
+    dashboardApps.forEach(r => {
       // 1. Hoàn tất 
       if (r.customerHandoverDate || r.currentStep === 'Hoan_Tat') stages.COMPLETED.push(r);
       // 2. Chờ bàn giao (S7_2 or GD6)
@@ -6997,26 +7278,26 @@ export default function App() {
       createStageItem('ĐANG CHUẨN BỊ', stages.PREPARING, '#94a3b8', 'Processing'),
       createStageItem('CHỜ NỘP VPĐK', stages.AWAITING_SUBMISSION, '#f59e0b', 'WaitingVPDK'),
       createStageItem('ĐÃ NỘP VPĐK', stages.SUBMITTED, '#3b82f6', 'Submitted'),
-      createStageItem('CHỜ TB THUẾ', stages.TAX_WARNING, '#ef4444', 'TaxPending'),
+      createStageItem('CHỜ TB THUẾ', stages.TAX_WARNING, '#f97316', 'TaxPending'),
       createStageItem('CHỜ HOÀN THÀNH NVTC', stages.AWAITING_FINANCE, '#8b5cf6', 'TaxPending'),
       createStageItem('ĐÃ NỘP THUẾ', stages.TAX_PAID, '#10b981', 'TaxCompleted'),
       createStageItem('ĐÃ CÓ GCN', stages.GCN_READY, '#06b6d4', 'GCN_Issued'),
-      createStageItem('CHỜ BÀN GIAO', stages.WAITING_HANDOVER, '#f43f5e', 'Completed'),
+      createStageItem('CHỜ BÀN GIAO', stages.WAITING_HANDOVER, '#6366f1', 'Completed'),
       createStageItem('HOÀN TẤT', stages.COMPLETED, '#22c55e', 'Completed')
     ];
-  }, [filteredByProjectApps]);
+  }, [dashboardApps]);
 
   const overallPieData = useMemo(() => {
-    const totalApps = filteredByProjectApps.length || 1;
+    const totalApps = dashboardApps.length || 1;
     return chartData.map(d => ({
       name: d.name,
       value: d.value,
       percentage: Math.round((d.value / totalApps) * 100),
       color: d.color
     }));
-  }, [chartData, filteredByProjectApps.length]);
+  }, [chartData, dashboardApps.length]);
 
-  const filteredApps = filteredByProjectApps.filter(app => {
+  const filteredApps = applications.filter(app => {
     const matchesSearch = String(app.unitCode || '').toLowerCase().includes(search.toLowerCase()) ||
       String(app.customerName || '').toLowerCase().includes(search.toLowerCase()) ||
       String(app.projectName || '').toLowerCase().includes(search.toLowerCase());
@@ -7141,24 +7422,42 @@ export default function App() {
       </div>
 
       {/* Sidebar - Enhanced Blur and border */}
-      <aside className={cn(
-        "w-64 backdrop-blur-2xl border-r flex flex-col shrink-0 z-20 relative transition-all bg-slate-800 border-slate-700 shadow-2xl"
-      )}>
+      <motion.aside 
+        animate={{ width: isSidebarCollapsed ? 80 : 256 }}
+        transition={{ duration: 0.3, ease: 'easeInOut' }}
+        className={cn(
+          "backdrop-blur-2xl border-r flex flex-col shrink-0 z-40 relative bg-slate-800 border-slate-700 shadow-2xl"
+        )}
+      >
+        <button 
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          className="absolute -right-3.5 top-8 p-1.5 rounded-full bg-slate-700 border border-slate-600 text-slate-300 hover:text-white hover:bg-slate-600 transition-colors z-50 shadow-md"
+        >
+          <ChevronLeft size={16} className={cn("transition-transform duration-300", isSidebarCollapsed && "rotate-180")} />
+        </button>
         <div className={cn(
-          "p-6 border-b mb-4 transition-all",
+          "p-6 border-b mb-4 flex items-center gap-3 transition-colors",
           theme === 'light' 
             ? "border-slate-200 bg-gradient-to-br from-slate-100/30 to-transparent" 
-            : "border-slate-800/50 bg-gradient-to-br from-slate-800/30 to-transparent"
+            : "border-slate-800/50 bg-gradient-to-br from-slate-800/30 to-transparent",
+          isSidebarCollapsed ? "px-5" : "px-6"
         )}>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 bg-festive-gold rounded-xl flex items-center justify-center shadow-lg shadow-festive-gold/20">
-              <Building2 className="text-slate-950" size={24} />
-            </div>
-            <div>
-               <h1 className="font-bold text-xl tracking-tight text-white font-sans">GCN Tracker</h1>
-               <p className={cn("text-xs uppercase font-bold tracking-[0.2em] leading-none text-slate-400")}>Regional</p>
-            </div>
+          <div className="w-10 h-10 bg-festive-gold rounded-xl flex items-center justify-center shadow-lg shadow-festive-gold/20 shrink-0">
+            <Building2 className="text-slate-950" size={24} />
           </div>
+          <AnimatePresence>
+            {!isSidebarCollapsed && (
+              <motion.div 
+                initial={{ opacity: 0, width: 0 }} 
+                animate={{ opacity: 1, width: 'auto' }} 
+                exit={{ opacity: 0, width: 0 }} 
+                className="overflow-hidden whitespace-nowrap"
+              >
+                 <h1 className="font-bold text-xl tracking-tight text-white font-sans">GCN Tracker</h1>
+                 <p className={cn("text-xs uppercase font-bold tracking-[0.2em] leading-none text-slate-400")}>Regional</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <nav className="flex-1 px-4 space-y-1">
@@ -7166,13 +7465,27 @@ export default function App() {
             onClick={() => setActiveTab('dashboard')}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
+              isSidebarCollapsed ? "justify-center px-0" : "px-4",
+              isSidebarCollapsed ? "justify-center px-0" : "px-4",
+              isSidebarCollapsed ? "justify-center px-0" : "px-4",
+              isSidebarCollapsed ? "justify-center px-0" : "px-4",
+              isSidebarCollapsed ? "justify-center px-0" : "px-4",
+              isSidebarCollapsed ? "justify-center px-0" : "px-4",
+              isSidebarCollapsed ? "justify-center px-0" : "px-4",
               activeTab === 'dashboard'                
                 ? "bg-brand text-white shadow-lg shadow-brand/20" 
                 : "text-slate-300 hover:bg-slate-700 hover:text-white"
             )}
           >
             <LayoutDashboard size={18} />
-            Dashboard
+            
+            <AnimatePresence>
+              {!isSidebarCollapsed && (
+                <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="whitespace-nowrap overflow-hidden">
+                  Dashboard
+                </motion.span>
+              )}
+            </AnimatePresence>
           </button>
           <button 
             onClick={() => setActiveTab('applications')}
@@ -7184,7 +7497,14 @@ export default function App() {
             )}
           >
             <Files size={18} />
-            Quản lý Hồ sơ
+            
+            <AnimatePresence>
+              {!isSidebarCollapsed && (
+                <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="whitespace-nowrap overflow-hidden">
+                  Quản lý Hồ sơ
+                </motion.span>
+              )}
+            </AnimatePresence>
           </button>
 
           {(userRole === 'ADMIN' || userRole === 'DIRECTOR') && (
@@ -7198,7 +7518,14 @@ export default function App() {
               )}
             >
               <FileBarChart size={18} />
-              Báo cáo & Thống kê
+              
+            <AnimatePresence>
+              {!isSidebarCollapsed && (
+                <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="whitespace-nowrap overflow-hidden">
+                  Báo cáo & Thống kê
+                </motion.span>
+              )}
+            </AnimatePresence>
             </button>
           )}
 
@@ -7212,7 +7539,14 @@ export default function App() {
             )}
           >
             <HelpCircle size={18} />
-            Tra cứu & Biểu mẫu
+            
+            <AnimatePresence>
+              {!isSidebarCollapsed && (
+                <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="whitespace-nowrap overflow-hidden">
+                  Tra cứu & Biểu mẫu
+                </motion.span>
+              )}
+            </AnimatePresence>
           </button>
           
           {userRole === 'ADMIN' && (
@@ -7227,7 +7561,14 @@ export default function App() {
                 )}
               >
                 <User size={18} />
-                Quản trị Người dùng
+                
+            <AnimatePresence>
+              {!isSidebarCollapsed && (
+                <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="whitespace-nowrap overflow-hidden">
+                  Quản trị Người dùng
+                </motion.span>
+              )}
+            </AnimatePresence>
               </button>
               <button 
                 onClick={() => setActiveTab('projects')}
@@ -7239,7 +7580,14 @@ export default function App() {
                 )}
               >
                 <Building2 size={18} />
-                Quản lý Dự án
+                
+            <AnimatePresence>
+              {!isSidebarCollapsed && (
+                <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="whitespace-nowrap overflow-hidden">
+                  Quản lý Dự án
+                </motion.span>
+              )}
+            </AnimatePresence>
               </button>
               <button 
                 onClick={() => setActiveTab('settings')}
@@ -7251,7 +7599,14 @@ export default function App() {
                 )}
               >
                 <Settings size={18} />
-                Cấu hình hệ thống
+                
+            <AnimatePresence>
+              {!isSidebarCollapsed && (
+                <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="whitespace-nowrap overflow-hidden">
+                  Cấu hình hệ thống
+                </motion.span>
+              )}
+            </AnimatePresence>
               </button>
             </>
           )}
@@ -7259,47 +7614,75 @@ export default function App() {
           <div className="pt-4 mt-4 border-t border-slate-800/10">
             <button 
               onClick={() => setIsFieldMode(true)}
+              title="Field Portal (Mobile)"
               className={cn(
-                "w-full flex items-center gap-3 px-8 py-4 rounded-2xl transition-all duration-200 font-bold text-[11px] uppercase tracking-wider",
+                "w-full flex items-center gap-3 py-4 rounded-2xl transition-all duration-200 font-bold text-[11px] uppercase tracking-wider overflow-hidden",
+                isSidebarCollapsed ? "justify-center px-0" : "px-8",
                 "bg-indigo-600/10 text-indigo-400 border border-indigo-600/20 hover:bg-indigo-600/20"
               )}
             >
-              <LayoutDashboard size={14} />
-              Field Portal (Mobile)
+              <LayoutDashboard size={14} className="shrink-0" />
+              <AnimatePresence>
+                {!isSidebarCollapsed && (
+                  <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="whitespace-nowrap overflow-hidden">
+                    Field Portal (Mobile)
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </button>
           </div>
 
-          <div className="pt-4 border-t border-slate-800/10 mt-4 px-6 pb-2">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Khu vực & Dự án</p>
-            </div>
-            <div className="relative mb-4 group">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={12} />
-              <input 
-                type="text"
-                placeholder="Tìm nhanh..."
-                value={projectSearch}
-                onChange={(e) => setProjectSearch(e.target.value)}
-                className={cn(
-                  "w-full bg-slate-800/20 border border-slate-800/50 rounded-xl pl-9 pr-4 py-2 text-[10px] font-bold focus:outline-none focus:border-festive-gold/30 transition-all",
-                  theme === 'light' ? "bg-slate-100 border-slate-200 text-slate-900" : "text-white"
-                )}
-              />
-            </div>
+          <div className={cn("pt-4 border-t border-slate-800/10 mt-4 pb-2 transition-all", isSidebarCollapsed ? "px-4" : "px-6")}>
+            <AnimatePresence mode="popLayout">
+              {!isSidebarCollapsed ? (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">Khu vực & Dự án</p>
+                  </div>
+                  <div className="relative mb-4 group">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={12} />
+                    <input 
+                      type="text"
+                      placeholder="Tìm nhanh..."
+                      value={projectSearch}
+                      onChange={(e) => setProjectSearch(e.target.value)}
+                      className={cn(
+                        "w-full bg-slate-800/20 border border-slate-800/50 rounded-xl pl-9 pr-4 py-2 text-[10px] font-bold focus:outline-none focus:border-festive-gold/30 transition-all",
+                        theme === 'light' ? "bg-slate-100 border-slate-200 text-slate-900" : "text-white"
+                      )}
+                    />
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex justify-center mb-4">
+                  <button onClick={() => setIsSidebarCollapsed(false)} className="p-2 text-slate-500 hover:text-white transition-colors" title="Tìm dự án">
+                    <Search size={16} />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           <div className="flex-1 overflow-y-auto custom-scrollbar px-4 space-y-4 pb-6">
             <button 
               onClick={() => setSelectedProjectId(null)}
+              title="Tất cả dự án"
               className={cn(
-                "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-black uppercase tracking-tight",
+                "w-full flex items-center gap-3 py-2.5 rounded-xl transition-all text-sm font-black uppercase tracking-tight overflow-hidden",
+                isSidebarCollapsed ? "justify-center px-0" : "px-4",
                 selectedProjectId === null 
                   ? (theme === 'light' ? "bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200" : "bg-slate-800/80 text-festive-gold ring-1 ring-slate-700")
                   : (theme === 'light' ? "text-slate-500 hover:bg-slate-50" : "text-slate-400 hover:bg-slate-800/50")
               )}
             >
-              <MapIcon size={16} className={selectedProjectId === null ? (theme === 'light' ? "text-indigo-600" : "text-festive-gold") : "text-slate-500"} />
-              <span className="truncate whitespace-nowrap overflow-hidden">Tất cả dự án</span>
+              <MapIcon size={16} className={cn("shrink-0", selectedProjectId === null ? (theme === 'light' ? "text-indigo-600" : "text-festive-gold") : "text-slate-500")} />
+              <AnimatePresence>
+                {!isSidebarCollapsed && (
+                  <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="truncate whitespace-nowrap overflow-hidden">
+                    Tất cả dự án
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </button>
             
             {(Object.entries(
@@ -7328,26 +7711,38 @@ export default function App() {
               <div key={region} className="space-y-1">
                 <button 
                   onClick={() => toggleSidebarRegion(region)}
+                  title={region}
                   className={cn(
-                    "w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all group",
+                    "w-full flex items-center justify-between py-2 rounded-xl transition-all group overflow-hidden",
+                    isSidebarCollapsed ? "justify-center px-0" : "px-3",
                     theme === 'light' ? "hover:bg-slate-100" : "hover:bg-slate-800/40",
                     expandedSidebarRegions[region] && (theme === 'light' ? "bg-slate-100" : "bg-slate-800/30")
                   )}
                 >
-                  <div className="flex items-center gap-2 overflow-hidden">
-                    <Folder size={12} className={cn(
+                  <div className={cn("flex items-center gap-2 overflow-hidden", isSidebarCollapsed && "justify-center")}>
+                    <Folder size={16} className={cn(
                       "shrink-0 transition-colors",
                       expandedSidebarRegions[region] ? "text-festive-gold" : "text-slate-500"
                     )} />
-                    <span className={cn(
-                      "text-xs font-bold uppercase tracking-wider truncate transition-colors",
-                      expandedSidebarRegions[region] ? (theme === 'light' ? "text-slate-900" : "text-white") : "text-slate-500"
-                    )}>{region}</span>
+                    <AnimatePresence>
+                      {!isSidebarCollapsed && (
+                        <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className={cn(
+                          "text-xs font-bold uppercase tracking-wider truncate transition-colors whitespace-nowrap",
+                          expandedSidebarRegions[region] ? (theme === 'light' ? "text-slate-900" : "text-white") : "text-slate-500"
+                        )}>{region}</motion.span>
+                      )}
+                    </AnimatePresence>
                   </div>
-                  <ChevronDown size={10} className={cn(
-                    "text-slate-600 transition-transform duration-300 shrink-0",
-                    expandedSidebarRegions[region] ? "rotate-180" : "rotate-0"
-                  )} />
+                  <AnimatePresence>
+                    {!isSidebarCollapsed && (
+                      <motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }}>
+                        <ChevronDown size={10} className={cn(
+                          "text-slate-600 transition-transform duration-300 shrink-0",
+                          expandedSidebarRegions[region] ? "rotate-180" : "rotate-0"
+                        )} />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </button>
                 
                 <AnimatePresence>
@@ -7361,6 +7756,7 @@ export default function App() {
                       {regionProjects.map(p => (
                         <button 
                           key={p.id} 
+                          title={p.name}
                           onClick={() => { 
                             setSelectedProjectId(p.id); 
                             if (activeTab !== 'applications' && activeTab !== 'reports') {
@@ -7368,7 +7764,8 @@ export default function App() {
                             }
                           }}
                           className={cn(
-                            "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all text-sm font-black group relative overflow-hidden",
+                            "w-full flex items-center gap-3 py-2.5 rounded-xl transition-all text-sm font-black group relative overflow-hidden",
+                            isSidebarCollapsed ? "justify-center px-0 ml-[-12px]" : "px-4",
                             selectedProjectId === p.id 
                               ? (theme === 'light' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "bg-slate-800/80 text-festive-gold ring-1 ring-slate-700") 
                               : (theme === 'light' ? "text-slate-500 hover:bg-white hover:shadow-sm" : "text-slate-400 hover:bg-slate-800/50")
@@ -7380,7 +7777,13 @@ export default function App() {
                               ? (theme === 'light' ? "bg-white" : "bg-festive-gold") 
                               : (theme === 'light' ? "bg-slate-300" : "bg-slate-700")
                           )} />
-                          <span className="truncate max-w-[140px] uppercase tracking-tight">{p.name}</span>
+                          <AnimatePresence>
+                            {!isSidebarCollapsed && (
+                              <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="truncate max-w-[140px] uppercase tracking-tight whitespace-nowrap">
+                                {p.name}
+                              </motion.span>
+                            )}
+                          </AnimatePresence>
                         </button>
                       ))}
                     </motion.div>
@@ -7390,7 +7793,7 @@ export default function App() {
             ))}
           </div>
         </nav>
-      </aside>
+      </motion.aside>
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden z-10 relative bg-transparent">
@@ -7417,7 +7820,7 @@ export default function App() {
                     theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-800 focus:ring-slate-200" : "bg-slate-950/50 border-slate-700/50 text-slate-200 focus:ring-festive-gold/20"
                   )}
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => { setSearch(e.target.value); setCurrentPage(0); }}
                 />
               </div>
               
@@ -7902,7 +8305,9 @@ export default function App() {
                                 position="right" 
                                 offset={15} 
                                 content={(props: any) => {
-                                   const { x, y, width, height, value } = props;
+                                   const { x, y, width, height, index } = props;
+                                   const data = chartData[index];
+                                   if (!data || data.value === 0) return null;
                                    return (
                                       <text 
                                          x={x + width + 10} 
@@ -7912,7 +8317,7 @@ export default function App() {
                                          fontWeight="900"
                                          textAnchor="start"
                                       >
-                                         {value}
+                                         {data.value}
                                       </text>
                                    );
                                 }}
@@ -7994,28 +8399,9 @@ export default function App() {
                           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
                               <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">Tổng quy mô</p>
                               <p className={cn("text-xl font-black mt-1", theme === 'dark' ? "text-white" : "text-slate-800")}>
-                                 {filteredByProjectApps.length}
+                                 {dashboardApps.length}
                               </p>
                           </div>
-                        </div>
-                        
-                        {/* Legend for Pie Chart as requested */}
-                        <div className={cn(
-                           "mt-8 grid grid-cols-1 gap-3 p-4 rounded-2xl",
-                           theme === 'dark' ? "bg-slate-950/20" : "bg-slate-50/50"
-                        )}>
-                           {overallPieData.slice(0, 5).map((d) => (
-                              <div key={d.name} className="flex items-center justify-between">
-                                 <div className="flex items-center gap-2.5">
-                                    <div className="w-2 h-2 rounded-full shadow-lg" style={{ backgroundColor: d.color, boxShadow: `0 0 10px ${d.color}44` }} />
-                                    <span className={cn("text-[9px] font-bold uppercase tracking-tight truncate max-w-[120px]", theme === 'dark' ? "text-slate-400" : "text-slate-600")}>{d.name}</span>
-                                 </div>
-                                 <div className="flex items-center gap-2">
-                                    <span className={cn("text-[10px] font-black", theme === 'dark' ? "text-slate-200" : "text-slate-900")}>{d.value}</span>
-                                    <span className="text-[8px] font-black text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded-full">{d.percentage}%</span>
-                                 </div>
-                              </div>
-                           ))}
                         </div>
                       </div>
                     </div>
@@ -8023,33 +8409,68 @@ export default function App() {
                       <div className="pt-4 border-t border-slate-800/10">
                          <h3 className={cn("font-bold mb-4 font-serif text-sm italic flex items-center gap-3", theme === 'light' ? "text-slate-900" : "text-white")}>
                            <Wallet size={14} className="text-emerald-500" />
-                           Căn có vay
+                           Thống kê vay vốn
                          </h3>
-                         {roleKpis.loanStatusStats.length > 0 ? (
-                           <div className="flex flex-col gap-4">
-                              <div className="h-[100px] w-full relative">
-                                 <ResponsiveContainer width="100%" height="100%">
-                                   <PieChart>
-                                     <Pie data={roleKpis.loanStatusStats} cx="50%" cy="50%" innerRadius={35} outerRadius={45} paddingAngle={5} dataKey="value">
-                                       {roleKpis.loanStatusStats.map((entry: any, index: number) => (
-                                         <Cell key={`cell-loan-${index}`} fill={entry.color} />
-                                       ))}
-                                     </Pie>
-                                   </PieChart>
-                                 </ResponsiveContainer>
-                              </div>
-                              <div className="flex flex-wrap gap-1 justify-center">
-                                  {roleKpis.loanStatusStats.map((s: any, idx: number) => (
-                                    <div key={`${s.name}-${idx}`} className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-800/10 border border-slate-800/10">
-                                     <div className="w-1 h-1 rounded-full" style={{ backgroundColor: s.color }} />
-                                     <span className={cn("text-[8px] font-black", theme === 'light' ? "text-slate-900" : "text-white")}>{s.value}</span>
-                                   </div>
-                                 ))}
-                              </div>
-                           </div>
-                         ) : (
-                           <p className="text-[10px] italic opacity-40 text-center">Không có dữ liệu</p>
-                         )}
+                         
+                          <div className="flex flex-col gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                               {/* Ratio Stats */}
+                               <div className="flex flex-col gap-4">
+                                  <div className="text-center text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2">Tỷ lệ Vay / Vốn tự có</div>
+                                  {roleKpis.loanRatioStats.length > 0 ? (
+                                    <div className="h-[150px] w-full relative">
+                                       <ResponsiveContainer width="100%" height="100%">
+                                         <PieChart>
+                                           <Pie data={roleKpis.loanRatioStats} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={2} dataKey="value" stroke="none">
+                                             {roleKpis.loanRatioStats.map((entry: any, index: number) => (
+                                               <Cell key={`cell-ratio-${index}`} fill={entry.color} />
+                                             ))}
+                                           </Pie>
+                                           <ReTooltip 
+                                             contentStyle={{ backgroundColor: theme === 'light' ? '#fff' : '#0f172a', border: 'none', borderRadius: '8px', fontSize: '10px' }}
+                                             itemStyle={{ color: theme === 'light' ? '#0f172a' : '#fff', fontWeight: 'bold' }}
+                                           />
+                                         </PieChart>
+                                       </ResponsiveContainer>
+                                       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                                           <p className={cn("text-xl font-black", theme === 'dark' ? "text-white" : "text-slate-800")}>
+                                              {roleKpis.loanRatioStats.reduce((acc: number, curr: any) => acc + curr.value, 0)}
+                                           </p>
+                                           <p className="text-[8px] font-bold text-slate-500 uppercase">Căn</p>
+                                       </div>
+                                    </div>
+                                  ) : (
+                                    <p className="text-[9px] italic opacity-40 text-center mt-4">Không có dữ liệu</p>
+                                  )}
+                               </div>
+                               
+                               {/* Status Stats */}
+                               <div className="flex flex-col gap-4 border-l border-slate-800/10 pl-4">
+                                  <div className="text-center text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2">Tiến độ hồ sơ vay</div>
+                                  {roleKpis.loanStatusStats.length > 0 ? (
+                                    <div className="h-[150px] w-full relative">
+                                       <ResponsiveContainer width="100%" height="100%">
+                                         <BarChart data={roleKpis.loanStatusStats} margin={{ top: 20, right: 20, bottom: 0, left: -20 }}>
+                                           <XAxis dataKey="name" stroke="#94a3b8" fontSize={8} tickLine={false} axisLine={false} />
+                                           <YAxis hide />
+                                           <ReTooltip 
+                                             contentStyle={{ backgroundColor: theme === 'light' ? '#fff' : '#0f172a', border: 'none', borderRadius: '12px', fontSize: '10px' }}
+                                           />
+                                           <Bar dataKey="value" barSize={16} radius={[4, 4, 0, 0]}>
+                                             {roleKpis.loanStatusStats.map((entry: any, index: number) => (
+                                               <Cell key={`cell-loan-st-${index}`} fill={entry.color} />
+                                             ))}
+                                             <LabelList dataKey="value" position="top" style={{ fontSize: '10px', fontWeight: '900', fill: theme === 'light' ? '#1e293b' : '#f8fafc' }} />
+                                           </Bar>
+                                         </BarChart>
+                                       </ResponsiveContainer>
+                                    </div>
+                                  ) : (
+                                    <p className="text-[9px] italic opacity-40 text-center mt-4">Không có dữ liệu</p>
+                                  )}
+                               </div>
+                            </div>
+                         </div>
                       </div>
                     </div>
                   </div>
@@ -8145,9 +8566,10 @@ export default function App() {
                         {visibleProjects
                           .filter(p => projectRegionFilter === 'ALL' || p.region === projectRegionFilter)
                           .map(p => {
-                            const projectApps = applications.filter(a => a.projectName === p.name);
-                            const completed = projectApps.filter(a => a.status === 'Completed').length;
-                            const progress = Math.round((completed / p.totalUnits) * 100);
+                            const projectApps = dashboardApps.filter(a => a.projectName === p.name);
+                            const completed = projectApps.filter(a => a.currentStep === 'Hoan_Tat' || a.customerHandoverDate || a.status === 'Completed').length;
+                            const processing = projectApps.filter(a => a.status === 'Processing' || a.status === 'Submitted' || a.status === 'TaxPending').length;
+                            const progress = p.totalUnits > 0 ? Math.round((completed / p.totalUnits) * 100) : 0;
                             
                             // Calculate colored progress bar
                             const barColor = progress > 80 ? 'bg-emerald-500' : progress > 30 ? 'bg-indigo-500' : 'bg-amber-500';
@@ -8167,42 +8589,41 @@ export default function App() {
                                 <td className="px-6 py-4">
                                   <div className="flex items-center gap-3">
                                     <div className={cn(
-                                      "w-8 h-8 rounded-lg flex items-center justify-center transition-colors border",
-                                      theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-400" : "bg-slate-800/50 border-slate-700/50 text-slate-500"
+                                      "w-8 h-8 rounded-lg flex items-center justify-center transition-colors border shadow-sm",
+                                      theme === 'light' ? "bg-indigo-50 border-indigo-100 text-indigo-500" : "bg-slate-800/50 border-slate-700/50 text-slate-500"
                                     )}>
                                       <Building2 size={16} />
                                     </div>
                                     <div>
-                                      <p className={cn("text-sm font-bold", theme === 'light' ? "text-slate-900" : "text-white")}>{p.name}</p>
+                                      <p className={cn("text-xs font-black uppercase tracking-tighter", theme === 'light' ? "text-slate-900" : "text-white")}>{p.name}</p>
                                       <div className="flex items-center gap-1.5 mt-0.5">
-                                        <MapPin size={8} className="text-slate-500" />
-                                        <p className="text-[9px] text-slate-500 tracking-[0.15em] font-black uppercase">{p.region}</p>
+                                        <MapPin size={8} className="text-slate-400" />
+                                        <p className="text-[9px] text-slate-400 tracking-[0.1em] font-bold uppercase">{p.region}</p>
                                       </div>
                                     </div>
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 text-center text-xs font-black text-slate-500 font-mono tracking-tighter">{p.totalUnits}</td>
-                                <td className="px-6 py-4 text-center text-xs font-black text-slate-500 font-mono tracking-tighter">{completed}</td>
-                                <td className="px-6 py-4">
-                                  <div className="flex items-center gap-4">
-                                    <div className="flex-1 min-w-[120px]">
-                                      <div className="flex items-center justify-between mb-1.5">
-                                        <span className={cn("text-[10px] font-black uppercase tracking-widest", theme === 'light' ? "text-slate-400" : "text-slate-500")}>Hoàn thành</span>
-                                        <span className={cn("text-[10px] font-black font-mono", theme === 'light' ? "text-slate-700" : "text-white")}>{progress}%</span>
+                                <td className="px-6 py-4 text-center">
+                                   <div className="flex flex-col items-center">
+                                      <span className="text-sm font-black text-emerald-500 italic">{completed}</span>
+                                      <span className="text-[8px] text-slate-400 font-bold uppercase">Xong</span>
+                                   </div>
+                                </td>
+                                <td className="px-6 py-4 min-w-[200px]">
+                                  <div className="flex flex-col gap-1.5">
+                                    <div className="flex items-center gap-4">
+                                      <div className="flex-1 h-2 bg-slate-800/10 rounded-full overflow-hidden border border-slate-800/5">
+                                         <div className={cn("h-full rounded-full transition-all duration-1000", barColor, shadowColor)} style={{ width: `${progress}%` }} />
                                       </div>
-                                      <div className={cn("h-2 rounded-full overflow-hidden border", theme === 'light' ? "bg-slate-100 border-slate-200" : "bg-slate-950/50 border-slate-800")}>
-                                        <motion.div 
-                                          initial={{ width: 0 }}
-                                          animate={{ width: `${progress}%` }}
-                                          className={cn("h-full shadow-lg transition-all", barColor, shadowColor)}
-                                        />
-                                      </div>
+                                      <span className="text-[10px] font-black min-w-[30px] text-indigo-500">{progress}%</span>
                                     </div>
-                                    <div className={cn(
-                                      "w-8 h-8 rounded-lg flex items-center justify-center transform group-hover:scale-110 group-hover:bg-festive-gold group-hover:text-slate-950 transition-all",
-                                      theme === 'light' ? "bg-slate-100 text-slate-400" : "bg-slate-800/40 text-slate-600"
-                                    )}>
-                                      <ArrowRight size={14} />
+                                    <div className="flex justify-between items-center px-1">
+                                      <span className="text-[9px] font-bold text-slate-500 uppercase">
+                                        Đã xong: <span className={theme === 'light' ? "text-slate-900" : "text-white"}>{completed}</span> | 
+                                        Đang XL: <span className={theme === 'light' ? "text-slate-900" : "text-white"}>{processing}</span> | 
+                                        Quỹ căn: <span className={theme === 'light' ? "text-slate-900" : "text-white"}>{p.totalUnits}</span>
+                                      </span>
                                     </div>
                                   </div>
                                 </td>
@@ -8267,7 +8688,10 @@ export default function App() {
                               setDashboardFilter('ALL');
                               setFilterSLAStatus('ALL');
                               setFilterIssue('ALL');
+                              setFilterLoanStatus('ALL');
+                              setFilterSelfService('ALL');
                               setSearch('');
+                              setCurrentPage(0);
                             }}
                             className={cn(
                               "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
@@ -8306,7 +8730,7 @@ export default function App() {
                         </button>
                       </div>
                       <div className="text-[11px] text-slate-500 italic">
-                        Hiển thị {filteredApps.length} / {filteredByProjectApps.length} hồ sơ {selectedProject ? `thuộc ${selectedProject.name}` : 'toàn vùng'}
+                        Hiển thị {filteredApps.length} hồ sơ trên trang / Tổng {totalCount} hồ sơ {selectedProject ? `thuộc ${selectedProject.name}` : 'toàn vùng'} (có lọc)
                       </div>
                     </div>
 
@@ -8330,7 +8754,7 @@ export default function App() {
                                   theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
                                 )}
                                 value={selectedProjectId || 'ALL'}
-                                onChange={(e) => setSelectedProjectId(e.target.value === 'ALL' ? null : e.target.value)}
+                                onChange={(e) => { setSelectedProjectId(e.target.value === 'ALL' ? null : e.target.value); setCurrentPage(0); }}
                               >
                                 <option key="all-projects" value="ALL">Tất cả dự án</option>
                                 {projects.map(p => (
@@ -8347,7 +8771,7 @@ export default function App() {
                                   theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
                                 )}
                                 value={filterStatus}
-                                onChange={(e) => setFilterStatus(e.target.value as any)}
+                                onChange={(e) => { setFilterStatus(e.target.value as any); setCurrentPage(0); }}
                               >
                                 <option key="all-status" value="ALL">Tất cả trạng thái</option>
                                 <option value="Processing">Đang xử lý</option>
@@ -8367,7 +8791,7 @@ export default function App() {
                                   theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
                                 )}
                                 value={filterStep}
-                                onChange={(e) => setFilterStep(e.target.value as any)}
+                                onChange={(e) => { setFilterStep(e.target.value as any); setCurrentPage(0); }}
                               >
                                 <option key="all-steps" value="ALL">Tất cả giai đoạn</option>
                                 {Object.keys(stepConfig).filter(step => stepConfig[step].active && step !== 'Hoan_Tat').map(step => (
@@ -8385,7 +8809,7 @@ export default function App() {
                                   theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
                                 )}
                                 value={filterIssue}
-                                onChange={(e) => setFilterIssue(e.target.value as any)}
+                                onChange={(e) => { setFilterIssue(e.target.value as any); setCurrentPage(0); }}
                               >
                                 <option value="ALL">Tất cả hồ sơ</option>
                                 <option value="ERROR">Chỉ hồ sơ có lỗi/vướng</option>
@@ -8400,7 +8824,7 @@ export default function App() {
                                   theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
                                 )}
                                 value={filterLoanStatus}
-                                onChange={(e) => setFilterLoanStatus(e.target.value as any)}
+                                onChange={(e) => { setFilterLoanStatus(e.target.value as any); setCurrentPage(0); }}
                               >
                                 <option value="ALL">Tất cả (Vay + Vốn tự có)</option>
                                 <option value="Co_Vay">Khách hàng vay</option>
@@ -8416,7 +8840,7 @@ export default function App() {
                                   theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
                                 )}
                                 value={filterSelfService}
-                                onChange={(e) => setFilterSelfService(e.target.value as any)}
+                                onChange={(e) => { setFilterSelfService(e.target.value as any); setCurrentPage(0); }}
                               >
                                 <option value="ALL">Tất cả</option>
                                 <option value="YES">Khách tự làm</option>
@@ -8432,7 +8856,7 @@ export default function App() {
                                   theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
                                 )}
                                 value={filterSLAStatus}
-                                onChange={(e) => setFilterSLAStatus(e.target.value as any)}
+                                onChange={(e) => { setFilterSLAStatus(e.target.value as any); setCurrentPage(0); }}
                               >
                                 <option value="ALL">Tất cả tiến độ</option>
                                 <option value="OVERDUE">Quá hạn SLA</option>
@@ -8450,6 +8874,7 @@ export default function App() {
                                   setFilterSLAStatus('ALL');
                                   setFilterIssue('ALL');
                                   setSearch('');
+                                  setCurrentPage(0);
                                 }}
                                 className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all"
                               >
@@ -8466,10 +8891,10 @@ export default function App() {
                   <AnimatePresence>
                     {selectedAppIds.length > 0 && (
                       <motion.div 
-                        initial={{ opacity: 0, y: 100 }}
+                        initial={{ opacity: 0, y: -100 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 100 }}
-                        className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-1 p-2 bg-slate-950 border border-slate-800 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-xl ring-1 ring-white/10"
+                        exit={{ opacity: 0, y: -100 }}
+                        className="fixed top-24 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-1 p-2 bg-slate-950/90 border border-slate-800 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-xl ring-1 ring-white/10"
                       >
                         <div className="flex items-center gap-3 px-4 mr-2 border-r border-slate-800">
                           <div className="w-8 h-8 rounded-full bg-festive-gold flex items-center justify-center text-slate-950 font-black text-xs">
@@ -8611,7 +9036,25 @@ export default function App() {
                         "divide-y transition-all",
                         theme === 'light' ? "text-slate-700 divide-slate-100" : "text-slate-300 divide-slate-800/40"
                       )}>
-                        {applications.map((app, index) => {
+                        {isLoadingApps ? (
+                          <tr>
+                            <td colSpan={13} className="px-6 py-12 text-center text-slate-500 italic">
+                               <div className="flex flex-col items-center gap-4">
+                                  <RefreshCcw className="animate-spin text-indigo-500" size={24} />
+                                  <p className="text-xs font-black uppercase tracking-widest">Đang tải dữ liệu hồ sơ...</p>
+                               </div>
+                            </td>
+                          </tr>
+                        ) : filteredApps.length === 0 ? (
+                          <tr>
+                            <td colSpan={13} className="px-6 py-12 text-center text-slate-500 italic font-medium">
+                               <div className="flex flex-col items-center gap-4 opacity-40">
+                                  <Files size={40} />
+                                  <p className="text-sm">Không tìm thấy hồ sơ nào phù hợp với bộ lọc hiện tại.</p>
+                               </div>
+                            </td>
+                          </tr>
+                        ) : filteredApps.map((app, index) => {
                           const overdue = getOverdueInfo(app, stepConfig, slaConfig);
                           return (
                             <tr 
@@ -9084,7 +9527,7 @@ export default function App() {
                 className="max-w-7xl mx-auto"
               >
                 <ReportsView 
-                  applications={filteredByProjectApps} 
+                  applications={dashboardApps} 
                   projects={visibleProjects} 
                   regions={regions} 
                   theme={theme}
@@ -10850,7 +11293,6 @@ export default function App() {
         theme={theme}
       />
 
-      {/* Toast Notification */}
       <AnimatePresence>
         {toast && (
           <motion.div 
