@@ -58,6 +58,8 @@ export type UnitStatus =
   | 'Submitted' 
   | 'TaxPending' 
   | 'TaxCompleted' 
+  | 'TaxPaid'
+  | 'WaitingHandover'
   | 'GCN_Issued' 
   | 'Completed' 
   | 'Error'

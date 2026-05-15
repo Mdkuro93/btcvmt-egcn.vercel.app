@@ -12,6 +12,20 @@ export const PROJECTS: Project[] = [
   { id: '550e8400-e29b-41d4-a716-446655440028', name: 'Nam Nha Trang', region: 'Khánh Hòa', totalUnits: 300 },
 ];
 
+export const REGION_ORDER = [
+  'Quảng Bình',
+  'Quảng Trị',
+  'Thừa Thiên Huế',
+  'Đà Nẵng',
+  'Quảng Nam',
+  'Quảng Ngãi',
+  'Bình Định',
+  'Phú Yên',
+  'Khánh Hòa',
+  'Ninh Thuận',
+  'Bình Thuận'
+];
+
 export const MOCK_USERS: UserProfile[] = [
   { id: '550e8400-e29b-41d4-a716-446655440000', username: 'admin', name: 'Hệ thống Admin', dept: 'ADMIN', permission: 'FULL', email: 'admin@sunshine.vn', status: 'Active', assignedProjectIds: ['550e8400-e29b-41d4-a716-446655440021', '550e8400-e29b-41d4-a716-446655440022', '550e8400-e29b-41d4-a716-446655440023', '550e8400-e29b-41d4-a716-446655440024', '550e8400-e29b-41d4-a716-446655440025', '550e8400-e29b-41d4-a716-446655440026', '550e8400-e29b-41d4-a716-446655440020', '550e8400-e29b-41d4-a716-446655440027', '550e8400-e29b-41d4-a716-446655440028'] },
   { id: '550e8400-e29b-41d4-a716-446655440001', username: 'ptt_user', name: 'Nguyễn Thu Thủ Tục', dept: 'PTT', permission: 'EDIT', email: 'thutuc@sunshine.vn', status: 'Active', assignedProjectIds: ['550e8400-e29b-41d4-a716-446655440021', '550e8400-e29b-41d4-a716-446655440022', '550e8400-e29b-41d4-a716-446655440020', '550e8400-e29b-41d4-a716-446655440027'] },
@@ -130,7 +144,6 @@ export const WORKFLOW_2_STEPS: StepName[] = [
   'S2_KT_Tiep_Nhan',
   'S2_KT_Ban_giao',
   'S3_Nop_VPDK',
-  'S4_Cho_Thong_Bao_Thue',
   'S5_Tai_Chinh_Khach_Hang',
   'S5_1_PTDA_TiepNhan',
   'S6_Nhan_So_GCN',
@@ -149,27 +162,27 @@ export const getNextStep = (currentStep: StepName, workflowType: WorkflowType): 
   return steps[currentIndex + 1];
 };
 
-export const STEP_CONFIG: Record<string, { label: string, dept: Dept, status: UnitStatus, slaDays?: number, active: boolean }> = {
-  S1_ChuanBi: { label: '1. CHUẨN BỊ (PTT)', dept: 'PTT', status: 'Processing', slaDays: 25, active: true },
-  S2_KT_Tiep_Nhan: { label: '2. TIẾP NHẬN (KT)', dept: 'KT', status: 'WaitingVPDK', slaDays: 5, active: true },
-  S2_KT_Ban_giao: { label: '2.1 BÀN GIAO HS HOÀN THIỆN (PTDA)', dept: 'PTDA', status: 'WaitingVPDK', slaDays: 2, active: true },
-  S3_Nop_VPDK: { label: '3. NỘP VPĐK (PTDA)', dept: 'PTDA', status: 'Submitted', slaDays: 5, active: true },
-  S4_Cho_Thong_Bao_Thue: { label: '4. THÔNG BÁO (PTDA)', dept: 'PTDA', status: 'TaxPending', slaDays: 15, active: true },
-  S5_Tai_Chinh_Khach_Hang: { label: '5. TÀI CHÍNH (PTT)', dept: 'PTT', status: 'TaxCompleted', slaDays: 10, active: true },
-  S5_1_PTDA_TiepNhan: { label: '5.1 TIẾP NHẬN GNT (PTDA)', dept: 'PTDA', status: 'TaxCompleted', slaDays: 2, active: true },
-  S6_Nhan_So_GCN: { label: '6. NHẬN SỔ (PTDA)', dept: 'PTDA', status: 'GCN_Issued', slaDays: 7, active: true },
-  S7_PTDA_Ban_Giao: { label: '7. BÀN GIAO (PTDA & PTT)', dept: 'PTDA', status: 'Completed', slaDays: 2, active: true },
-  S7_1_PTT_Tiep_Nhan: { label: '7.1 NHẬN BÀN GIAO (PTT)', dept: 'PTT', status: 'Completed', slaDays: 2, active: true },
-  S7_2_Ban_Giao_Khach: { label: '7.2 BÀN GIAO KHÁCH HÀNG (PTT)', dept: 'PTT', status: 'Completed', slaDays: 2, active: true },
-  GD1_ChuanBi: { label: 'GĐ1: Đang chuẩn bị hồ sơ (PTT)', dept: 'PTT', status: 'Processing', slaDays: 25, active: true },
-  GD1_Cho_KT_TiepNhan: { label: 'GĐ1: Chờ Kế toán tiếp nhận bàn giao (KT)', dept: 'KT', status: 'WaitingVPDK', slaDays: 5, active: true },
-  GD2_Cho_Nop_VPDK: { label: 'GĐ2: Chờ nộp VPĐK (Kế toán)', dept: 'KT', status: 'WaitingVPDK', slaDays: 5, active: true },
-  GD3_Cho_TBThue: { label: 'GĐ3: Chờ Thông báo thuế (PTDA)', dept: 'PTDA', status: 'TaxPending', slaDays: 15, active: true },
-  GD4_Cho_Nop_NVTC: { label: 'GĐ4: Chờ hoàn thành NVTC (PTT)', dept: 'PTT', status: 'TaxCompleted', slaDays: 10, active: true },
-  GD4_Cho_KT_TiepNhan_LaySo: { label: 'GĐ4: Chờ KT tiếp nhận (GNT)', dept: 'KT', status: 'TaxCompleted', slaDays: 5, active: true },
-  GD5_Cho_Ky_In_GCN: { label: 'GĐ5: Chờ PTDA tiếp nhận (Trình ký GCN)', dept: 'PTDA', status: 'GCN_Issued', slaDays: 3, active: true },
-  GD5_Cho_GCN: { label: 'GĐ5: Chờ nhận GCN thực tế (KT)', dept: 'KT', status: 'Completed', slaDays: 2, active: true },
-  GD5_Cho_PTT_TiepNhan_BG: { label: 'GĐ5: Chờ PTT tiếp nhận (Bàn giao khách) (PTT)', dept: 'PTT', status: 'Completed', slaDays: 2, active: true },
-  GD6_Cho_BG_Khach: { label: 'GĐ6: Đang bàn giao khách hàng (PTT)', dept: 'PTT', status: 'Completed', slaDays: 2, active: true },
-  Hoan_Tat: { label: 'ĐÃ HOÀN TẤT', dept: 'ADMIN', status: 'Completed', active: true },
+export const STEP_CONFIG: Record<string, { label: string, description: string, dept: Dept, status: UnitStatus, slaDays?: number, active: boolean }> = {
+  S1_ChuanBi: { label: '1. CHUẨN BỊ (PTT)', description: 'PTT tiếp nhận, kiểm tra hồ sơ đầu vào', dept: 'PTT', status: 'Processing', slaDays: 25, active: true },
+  S2_KT_Tiep_Nhan: { label: '2. TIẾP NHẬN (KT)', description: 'KT tiếp nhận, kiểm tra tính pháp lý', dept: 'KT', status: 'WaitingVPDK', slaDays: 5, active: true },
+  S2_KT_Ban_giao: { label: '2.1 BÀN GIAO HS HOÀN THIỆN (PTDA)', description: 'PTDA tiếp nhận hồ sơ từ KT và chuẩn bị nộp', dept: 'PTDA', status: 'WaitingVPDK', slaDays: 2, active: true },
+  S3_Nop_VPDK: { label: '3. NỘP VPĐK (PTDA)', description: 'PTDA nộp hồ sơ tại VPĐKĐĐ', dept: 'PTDA', status: 'Submitted', slaDays: 5, active: true },
+  S4_Cho_Thong_Bao_Thue: { label: '4. THÔNG BÁO (PTDA)', description: 'Chờ cơ quan thuế ban hành thông báo thuế', dept: 'PTDA', status: 'TaxPending', slaDays: 15, active: true },
+  S5_Tai_Chinh_Khach_Hang: { label: '5. TÀI CHÍNH (PTT)', description: 'PTT theo dõi khách hàng thực hiện nghĩa vụ thuế', dept: 'PTT', status: 'TaxCompleted', slaDays: 10, active: true },
+  S5_1_PTDA_TiepNhan: { label: '5.1 TIẾP NHẬN GNT (PTDA)', description: 'PTDA tiếp nhận chứng từ nộp thuế', dept: 'PTDA', status: 'TaxCompleted', slaDays: 2, active: true },
+  S6_Nhan_So_GCN: { label: '6. NHẬN SỔ (PTDA)', description: 'PTDA tiếp nhận kết quả GCN từ VPĐK', dept: 'PTDA', status: 'GCN_Issued', slaDays: 7, active: true },
+  S7_PTDA_Ban_Giao: { label: '7. BÀN GIAO (PTDA & PTT)', description: 'PTDA bàn giao GCN cho PTT', dept: 'PTDA', status: 'Completed', slaDays: 2, active: true },
+  S7_1_PTT_Tiep_Nhan: { label: '7.1 NHẬN BÀN GIAO (PTT)', description: 'PTT tiếp nhận GCN từ PTDA', dept: 'PTT', status: 'Completed', slaDays: 2, active: true },
+  S7_2_Ban_Giao_Khach: { label: '7.2 BÀN GIAO KHÁCH HÀNG (PTT)', description: 'PTT thực hiện bàn giao GCN cho khách hàng', dept: 'PTT', status: 'Completed', slaDays: 2, active: true },
+  GD1_ChuanBi: { label: 'GĐ1: Đang chuẩn bị hồ sơ (PTT)', description: 'PTT chuẩn bị hồ sơ giai đoạn 1', dept: 'PTT', status: 'Processing', slaDays: 25, active: true },
+  GD1_Cho_KT_TiepNhan: { label: 'GĐ1: Chờ Kế toán tiếp nhận bàn giao (KT)', description: 'KT tiếp nhận bàn giao từ PTT', dept: 'KT', status: 'WaitingVPDK', slaDays: 5, active: true },
+  GD2_Cho_Nop_VPDK: { label: 'GĐ2: Chờ nộp VPĐK (Kế toán)', description: 'KT nộp hồ sơ tại VPĐKĐĐ', dept: 'KT', status: 'WaitingVPDK', slaDays: 5, active: true },
+  GD3_Cho_TBThue: { label: 'GĐ3: Chờ Thông báo thuế (PTDA)', description: 'Chờ ban hành thông báo thuế', dept: 'PTDA', status: 'TaxPending', slaDays: 15, active: true },
+  GD4_Cho_Nop_NVTC: { label: 'GĐ4: Chờ hoàn thành NVTC (PTT)', description: 'PTT theo dõi NVTC của khách', dept: 'PTT', status: 'TaxCompleted', slaDays: 10, active: true },
+  GD4_Cho_KT_TiepNhan_LaySo: { label: 'GĐ4: Chờ KT tiếp nhận (GNT)', description: 'KT xác nhận chứng từ nộp thuế và lấy số', dept: 'KT', status: 'TaxCompleted', slaDays: 5, active: true },
+  GD5_Cho_Ky_In_GCN: { label: 'GĐ5: Chờ PTDA tiếp nhận (Trình ký GCN)', description: 'PTDA làm thủ tục trình ký GCN tại VPĐK', dept: 'PTDA', status: 'GCN_Issued', slaDays: 3, active: true },
+  GD5_Cho_GCN: { label: 'GĐ5: Chờ nhận GCN thực tế (KT)', description: 'KT nhận kết quả GCN', dept: 'KT', status: 'Completed', slaDays: 2, active: true },
+  GD5_Cho_PTT_TiepNhan_BG: { label: 'GĐ5: Chờ PTT tiếp nhận (Bàn giao khách) (PTT)', description: 'PTT nhận GCN từ KT để bàn giao khách', dept: 'PTT', status: 'Completed', slaDays: 2, active: true },
+  GD6_Cho_BG_Khach: { label: 'GĐ6: Đang bàn giao khách hàng (PTT)', description: 'PTT thực hiện bàn giao cho khách', dept: 'PTT', status: 'Completed', slaDays: 2, active: true },
+  Hoan_Tat: { label: 'ĐÃ HOÀN TẤT', description: 'Hồ sơ đã hoàn tất và bàn giao', dept: 'ADMIN', status: 'Completed', active: true },
 };

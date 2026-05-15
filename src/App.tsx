@@ -40,6 +40,7 @@ import {
   Trash2,
   Printer,
   Key,
+  BarChart3,
   ChevronLeft,
   PlusCircle,
   FileBarChart,
@@ -73,13 +74,15 @@ import {
   MessageSquare,
   UserCheck
 } from 'lucide-react';
+import DashboardAlerts from './components/DashboardAlerts';
+import { cn } from './lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { createClient } from '@supabase/supabase-js';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
-import { MOCK_APPLICATIONS, PROJECTS, STEP_CONFIG as INITIAL_STEP_CONFIG, MOCK_USERS, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS, getNextStep, CONST_QUY_TRINH_1, CONST_QUY_TRINH_2 } from './constants';
+import { MOCK_APPLICATIONS, PROJECTS, STEP_CONFIG as INITIAL_STEP_CONFIG, MOCK_USERS, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS, getNextStep, CONST_QUY_TRINH_1, CONST_QUY_TRINH_2, REGION_ORDER } from './constants';
 import { Application, UnitStatus, KPI, Dept, UserProfile, UserPermission, PropertyType, StepName, AppNotification, Project, ApplicationStepHistory, AuditTrailEntry, ScannedFile, IssueType, IssueSeverity } from './types';
 
 type ApplicationHistory = {
@@ -104,8 +107,6 @@ const DOC_CHECKLIST_ITEMS = [
   'Đăng ký kinh doanh + Ngành kề kinh doanh bất động sản',
   'Tờ khai sử dụng đất PNN'
 ];
-
-const REGION_ORDER = ['Quảng Trị', 'Đà Nẵng', 'Quảng Ngãi', 'Khánh Hòa'];
 
 // Supabase Configuration
 const SUPABASE_URL = 'https://eewikwqwtgmrlvyrfgit.supabase.co';
@@ -173,10 +174,12 @@ const STATUS_TO_ID_MAP: Record<UnitStatus, number> = {
   Submitted: 3,
   TaxPending: 4,
   TaxCompleted: 5,
-  GCN_Issued: 6,
-  Completed: 7,
-  Error: 8,
-  Draft: 9,
+  TaxPaid: 6,
+  WaitingHandover: 7,
+  GCN_Issued: 8,
+  Completed: 9,
+  Error: 10,
+  Draft: 11,
 };
 
 const mapToSnakeCase = (app: Application) => {
@@ -509,76 +512,74 @@ const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserPr
   };
 
   return (
-    <div className={cn(
-      "flex items-center justify-center min-h-screen px-4 relative overflow-hidden font-sans transition-colors duration-500",
-      theme === 'dark' ? "bg-slate-950" : "bg-slate-50"
-    )}>
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-rose-500/5 pointer-events-none"></div>
+    <div className="flex items-center justify-center min-h-screen relative overflow-hidden font-sans bg-slate-950 selection:bg-amber-500/30">
+      {/* Background Amber Orbs */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+        <div className="absolute -top-[10%] -left-[10%] w-[500px] h-[500px] bg-amber-500/20 blur-[120px] rounded-full mix-blend-screen"></div>
+        <div className="absolute top-[20%] right-[10%] w-[400px] h-[400px] bg-amber-600/10 blur-[100px] rounded-full mix-blend-screen"></div>
+        <div className="absolute bottom-[-10%] left-[20%] w-[600px] h-[600px] bg-indigo-500/10 blur-[150px] rounded-full mix-blend-screen"></div>
+      </div>
       
-      {/* Theme Toggle in Login */}
-      <div className="absolute top-8 right-8">
+      {/* Theme Toggle - adjusted for dark glass theme */}
+      <div className="absolute top-8 right-8 z-20">
         <button 
           onClick={onThemeToggle}
-          className={cn(
-            "p-3 rounded-2xl transition-all shadow-xl backdrop-blur-md border",
-            theme === 'dark' ? "bg-slate-900/50 border-slate-700 text-festive-gold" : "bg-white/50 border-slate-200 text-amber-500"
-          )}
+          className="p-3 rounded-2xl transition-all shadow-xl backdrop-blur-md border border-white/10 bg-white/5 text-amber-500 hover:bg-white/10"
         >
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </button>
       </div>
 
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={cn(
-          "w-full max-w-md p-8 rounded-[2.5rem] backdrop-blur-2xl border shadow-2xl z-10",
-          theme === 'dark' ? "bg-slate-900/60 border-slate-800" : "bg-white border-slate-200"
-        )}
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+        className="w-full max-w-md p-10 rounded-[32px] backdrop-blur-xl border border-white/10 bg-white/5 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] z-10 relative"
       >
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-festive-gold rounded-[1.5rem] flex items-center justify-center shadow-lg shadow-festive-gold/20 mb-4 animate-pulse">
-            <Building2 className="text-slate-950" size={32} />
+        <div className="absolute inset-0 rounded-[32px] bg-gradient-to-br from-white/5 to-transparent pointer-events-none"></div>
+        
+        <div className="flex flex-col items-center mb-10 relative z-10">
+          <div className="w-20 h-20 bg-gradient-to-br from-amber-400 to-amber-600 rounded-[24px] flex items-center justify-center mb-6 shadow-[0_0_40px_-10px_rgba(245,158,11,0.5)] border border-white/20">
+            <ShieldCheck className="text-white" size={40} strokeWidth={1.5} />
           </div>
-          <h1 className={cn("text-3xl font-bold tracking-tight", theme === 'dark' ? "text-white" : "text-slate-900")}>GCN Tracker</h1>
-          <p className="text-slate-500 text-sm font-medium mt-1">Hệ thống quản lý tình trạng cấp GCN QSDĐ VMT</p>
+          <h1 className="text-3xl font-bold tracking-tight text-white mb-2">GCN Tracker</h1>
+          <p className="text-slate-400 text-sm font-medium text-center leading-relaxed">Hệ thống quản lý tình trạng<br/>cấp GCN QSDĐ VMT</p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-6">
+        <form onSubmit={handleLogin} className="space-y-6 relative z-10">
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider ml-1">Tên đăng nhập / Email</label>
-            <input 
-              type="text" 
-              placeholder="VD: admin"
-              className={cn(
-                "w-full rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-festive-gold/30 transition-all text-base border",
-                theme === 'dark' ? "bg-slate-950 border-slate-800 text-white placeholder:text-slate-700" : "bg-white border-slate-200 text-slate-900 placeholder:text-slate-300"
-              )}
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
+            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pl-1">Tên đăng nhập / Email</label>
+            <div className="relative group">
+              <input 
+                type="text" 
+                placeholder="Nhập tên đăng nhập..."
+                className="w-full rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-base border border-white/10 bg-black/20 text-white placeholder:text-slate-600 group-hover:border-white/20"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+              />
+            </div>
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider ml-1">Mật khẩu</label>
-            <input 
-              type="password" 
-              placeholder="••••••••"
-              className={cn(
-                "w-full rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-festive-gold/30 transition-all text-base border",
-                theme === 'dark' ? "bg-slate-950 border-slate-800 text-white placeholder:text-slate-700" : "bg-white border-slate-200 text-slate-900 placeholder:text-slate-300"
-              )}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pl-1">Mật khẩu</label>
+            <div className="relative group">
+              <input 
+                type="password" 
+                placeholder="••••••••"
+                className="w-full rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-base border border-white/10 bg-black/20 text-white placeholder:text-slate-600 group-hover:border-white/20"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
           </div>
           
           <button 
             type="submit"
-            className="w-full bg-festive-gold text-slate-950 py-4 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-xl shadow-festive-gold/20 hover:scale-[1.01] active:scale-95 transition-all mt-4"
+            disabled={isLoading}
+            className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-4 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-[0_0_20px_-5px_rgba(245,158,11,0.5)] hover:shadow-[0_0_30px_-5px_rgba(245,158,11,0.6)] hover:scale-[1.02] active:scale-95 transition-all mt-6 disabled:opacity-70 disabled:cursor-not-allowed border border-amber-400/50"
           >
-            Đăng nhập
+            {isLoading ? 'Đang xử lí...' : 'Đăng nhập'}
           </button>
         </form>
       </motion.div>
@@ -587,9 +588,6 @@ const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserPr
 };
 
 // Utility for tailwind classes
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
 
 // Sub-components
 const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark', onClick }: { title: string, value: number | string, icon: any, colorClass: string, delay: number, theme?: 'light' | 'dark', onClick?: () => void }) => (
@@ -626,9 +624,13 @@ const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Appli
     if (app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK' || app.currentStep === 'GD3_Cho_TBThue') {
       effectiveStatus = (app.vpdkCode && app.submissionLocation && app.submissionDate) ? 'Submitted' : 'WaitingVPDK';
     } else if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' || app.currentStep === 'GD4_Cho_Nop_NVTC' || app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') {
-      effectiveStatus = app.taxReceiptDate ? 'TaxCompleted_Dynamic' : 'TaxPaymentPending_Dynamic';
-    } else if (['S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach', 'GD5_Cho_Ky_In_GCN'].includes(app.currentStep)) {
+      effectiveStatus = app.taxReceiptDate ? 'TaxPaid' : 'TaxPaymentPending_Dynamic';
+    } else if (app.currentStep === 'S5_1_PTDA_TiepNhan') {
+       effectiveStatus = 'TaxPaid';
+    } else if (['S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'GD5_Cho_Ky_In_GCN'].includes(app.currentStep)) {
       effectiveStatus = app.gcnSignedDate ? 'GCN_Issued' : 'GCN_SignPending_Dynamic';
+    } else if (app.currentStep === 'S7_2_Ban_Giao_Khach' || app.currentStep === 'GD6_Cho_BG_Khach' || app.currentStep === 'GD5_Cho_PTT_TiepNhan_BG') {
+       effectiveStatus = app.customerHandoverDate ? 'Completed' : 'WaitingHandover';
     }
   }
 
@@ -639,9 +641,10 @@ const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Appli
     TaxPending: { label: 'Chờ thông báo thuế', classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20' },
     TaxPaymentPending_Dynamic: { label: 'Chờ nộp thuế', classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20' },
     TaxCompleted: { label: 'Đã hoàn thành NVTC', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
-    TaxCompleted_Dynamic: { label: 'Đã nộp thuế', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
+    TaxPaid: { label: 'ĐÃ NỘP THUẾ', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]' },
     GCN_SignPending_Dynamic: { label: 'Chờ ký/in GCN', classes: 'bg-sky-500/10 text-sky-600 border border-sky-500/20' },
     GCN_Issued: { label: 'Đã ra GCN', classes: 'bg-sky-500/10 text-sky-600 border border-sky-500/20' },
+    WaitingHandover: { label: 'CHỜ BÀN GIAO', classes: 'bg-amber-500/10 text-amber-600 border border-amber-500/20 animate-pulse' },
     Completed: { label: 'Hoàn tất', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
     Error: { label: 'Sai sót/Vướng', classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20' },
     Draft: { label: 'Nháp', classes: 'bg-slate-500/10 text-slate-600 border border-slate-500/20' },
@@ -689,7 +692,7 @@ const DetailCard = ({ label, value, field, valueColor = 'text-white', editable =
                 onChange={(e) => onChange?.(e.target.value)}
               >
                 {options ? (
-                  options.map(opt => <option key={opt} value={opt}>{opt}</option>)
+                  options.map((opt, idx) => <option key={`${opt}-${idx}`} value={opt}>{opt}</option>)
                 ) : field === 'submissionLocation' ? (
                   <>
                     <option value="PHUONG">Phường/Xã</option>
@@ -1276,7 +1279,7 @@ const SettingsView = ({
                   };
                   
                   return (
-                    <tr key={`${workflowTab}-${key}`} className={cn(
+                    <tr key={`${workflowTab}-${key}-${index}`} className={cn(
                     "group/row hover:bg-slate-800/10 transition-colors",
                     !config.active && "opacity-40 grayscale"
                   )}>
@@ -1676,8 +1679,8 @@ const ReportsView = ({
               <div className="text-right">
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Roles:</span>
                 <div className="flex gap-1 justify-end">
-                  {reportConfig[reportType].roles.map(r => (
-                    <span key={r} className="px-2 py-0.5 bg-indigo-500/10 text-indigo-500 text-[8px] font-black rounded-lg border border-indigo-500/20">{r}</span>
+                  {reportConfig[reportType].roles.map((r, idx) => (
+                    <span key={`${r}-${idx}`} className="px-2 py-0.5 bg-indigo-500/10 text-indigo-500 text-[8px] font-black rounded-lg border border-indigo-500/20">{r}</span>
                   ))}
                 </div>
               </div>
@@ -1888,14 +1891,14 @@ const ReportsView = ({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/50">
-                      {loanApps.map(app => {
+                      {loanApps.map((app, index) => {
                         const days = calculateDaysDiff(app.receivedDate);
                         const isHighRisk = days > 10;
                         const isMediumRisk = days > 5 && days <= 10;
 
                         return (
                           <tr 
-                            key={app.id} 
+                            key={`${app.id}-${index}`} 
                             className={cn(
                               "transition-all cursor-pointer group",
                               theme === 'light' ? "hover:bg-slate-50" : "hover:bg-slate-800/30"
@@ -2090,7 +2093,7 @@ const ReportsView = ({
                           />
                           <Bar dataKey="avgDays" name="Số ngày tb" radius={[0, 6, 6, 0]} barSize={20}>
                             {slaStats.map((entry, index) => (
-                              <Cell key={`cell-${entry.name}`} fill={entry.isCritical ? '#f43f5e' : entry.avgDays > 5 ? '#f59e0b' : '#6366f1'} />
+                              <Cell key={`cell-${entry.step}`} fill={entry.isCritical ? '#f43f5e' : entry.avgDays > 5 ? '#f59e0b' : '#6366f1'} />
                             ))}
                           </Bar>
                         </BarChart>
@@ -2101,7 +2104,7 @@ const ReportsView = ({
                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Trách nhiệm Phòng ban & TAT</p>
                       <div className="space-y-3">
                          {slaStats.sort((a,b) => b.avgDays - a.avgDays).map((item, i) => (
-                           <div key={item.name} className={cn(
+                           <div key={`${item.step}-${i}`} className={cn(
                              "p-4 rounded-2xl border flex items-center justify-between transition-all group",
                              item.isCritical ? "bg-rose-500/5 border-rose-500/20" : "bg-slate-950/20 border-slate-800"
                            )}>
@@ -2312,9 +2315,9 @@ const NotificationPanel = ({ notifications, taskReminders, onClose, onRead, onMa
               <span className="text-[9px] font-black uppercase tracking-widest text-rose-500">Việc cần làm ({taskReminders.length})</span>
             </div>
             <div className="space-y-1">
-              {taskReminders.map(rem => (
+              {taskReminders.map((rem, index) => (
                 <div 
-                  key={rem.id}
+                  key={`${rem.id}-${index}`}
                   onClick={() => onAction(rem.appId)}
                   className={cn(
                     "p-4 rounded-3xl transition-all cursor-pointer group border mx-2 mb-1",
@@ -3756,7 +3759,7 @@ const HandoverRecord = ({ apps, user, template }: { apps: Application[], user: U
           </thead>
           <tbody>
             {apps.map((app, idx) => (
-              <React.Fragment key={app.id}>
+              <React.Fragment key={`${app.id}-${idx}`}>
                 <tr className="border-b border-black">
                   <td className="border border-black px-2 py-2 text-center">{idx + 1}</td>
                   <td className="border border-black px-2 py-2 font-bold">{app.unitCode}</td>
@@ -3829,11 +3832,20 @@ const HandoverRecord = ({ apps, user, template }: { apps: Application[], user: U
 };
 
 export default function App() {
+  const [search, setSearch] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+
+  useEffect(() => {
+    if (theme === 'light') {
+      document.body.classList.add('light');
+    } else {
+      document.body.classList.remove('light');
+    }
+  }, [theme]);
+
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
-  const [searchTerm, setSearchTerm] = useState('');
   const [totalCount, setTotalCount] = useState(0);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isNotiOpen, setIsNotiOpen] = useState(false);
@@ -4130,8 +4142,8 @@ export default function App() {
     try {
       let query = supabase.from('records').select('*', { count: 'exact' });
       
-      if (searchTerm) {
-        query = query.or(`unit_code.ilike.%${searchTerm}%,customer_name.ilike.%${searchTerm}%,project_name.ilike.%${searchTerm}%,phone_number.ilike.%${searchTerm}%`);
+      if (search) {
+        query = query.or(`unit_code.ilike.%${search}%,customer_name.ilike.%${search}%,project_name.ilike.%${search}%,phone_number.ilike.%${search}%`);
       }
 
       if (selectedProjectId && selectedProject) {
@@ -4162,7 +4174,7 @@ export default function App() {
     }, 500);
     
     return () => clearTimeout(handler);
-  }, [searchTerm, currentPage, pageSize, selectedProjectId]);
+  }, [search, currentPage, pageSize, selectedProjectId]);
 
   useEffect(() => {
     if (applications.length > 0) localStorage.setItem('procedural_apps', JSON.stringify(applications));
@@ -4498,7 +4510,6 @@ export default function App() {
   };
   
   const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
-  const [search, setSearch] = useState('');
   const [projectSearch, setProjectSearch] = useState('');
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'warning' } | null>(null);
@@ -4524,7 +4535,7 @@ export default function App() {
   };
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [expandedSidebarRegions, setExpandedSidebarRegions] = useState<Record<string, boolean>>({});
-  const [dashboardFilter, setDashboardFilter] = useState<'ALL' | 'OVERDUE' | 'ERROR' | 'COMPLETED' | 'PTT_PROCESSING' | 'PTT_HOLDING' | 'PTT_ISSUES' | 'PTT_TAX_UNPAID' | 'PTT_WAITING_HANDOVER' | 'KT_ALL' | 'KT_NEED_RECEIVE' | 'KT_PROCESSING' | 'KT_ISSUES' | 'PTDA_RECEIVED' | 'PTDA_NO_TAX' | 'PTDA_TAX_PENDING' | 'PTDA_GCN_WAITING' | 'PTDA_ISSUES'>('ALL');
+  const [dashboardFilter, setDashboardFilter] = useState<'ALL' | 'OVERDUE' | 'ERROR' | 'COMPLETED' | 'PTT_PROCESSING' | 'PTT_HOLDING' | 'PTT_ISSUES' | 'PTT_TAX_UNPAID' | 'PTT_WAITING_HANDOVER' | 'KT_ALL' | 'KT_NEED_RECEIVE' | 'KT_PROCESSING' | 'KT_ISSUES' | 'PTDA_RECEIVED' | 'PTDA_DA_NOP_VPDK' | 'PTDA_NO_TAX' | 'PTDA_TAX_PENDING' | 'PTDA_GCN_WAITING' | 'PTDA_ISSUES'>('ALL');
   const [projectRegionFilter, setProjectRegionFilter] = useState<string>('ALL');
   const [isFieldMode, setIsFieldMode] = useState(false);
   
@@ -4949,6 +4960,7 @@ export default function App() {
   const [filterStatus, setFilterStatus] = useState<UnitStatus | 'ALL'>('ALL');
   const [filterLoanStatus, setFilterLoanStatus] = useState<'Co_Vay' | 'Khong_Vay' | 'ALL'>('ALL');
   const [filterSelfService, setFilterSelfService] = useState<'YES' | 'NO' | 'ALL'>('ALL');
+  const [filterIssue, setFilterIssue] = useState<'ALL' | 'ERROR'>('ALL');
   const [isShowFilters, setIsShowFilters] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newApp, setNewApp] = useState({
@@ -5495,8 +5507,11 @@ export default function App() {
       }
     }
 
-    // Smart logic for self-service: jump over intermediate processing steps
+    // Smart logic for step bypassing: Step 3 (PTDA) bypasses Step 4 to Step 5 (PTT)
     let targetStep = nextStep;
+    if (app.currentStep === 'S3_Nop_VPDK' && isMovingForward && nextStep === 'S4_Cho_Thong_Bao_Thue') {
+      targetStep = 'S5_Tai_Chinh_Khach_Hang';
+    }
 
     const intermediateSteps: StepName[] = [
       'S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK',
@@ -5534,6 +5549,11 @@ export default function App() {
       if ((targetStep === 'S2_KT_Tiep_Nhan' || targetStep === 'GD1_Cho_KT_TiepNhan') && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
       if ((targetStep === 'S3_Nop_VPDK' || targetStep === 'GD3_Cho_TBThue') && !app.submissionDate) autoDates.submissionDate = nowStr;
       
+      if (targetStep === 'S5_Tai_Chinh_Khach_Hang') {
+        if (!app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
+        autoDates.taxNoticeProvisionDate = nowStr; // Ngày cung cấp TB Thuế (xử lý hệ thống)
+      }
+
       if (targetStep === 'S4_Cho_Thong_Bao_Thue' || targetStep === 'GD3_Cho_TBThue') {
         if (!app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
         if (!app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
@@ -5550,6 +5570,16 @@ export default function App() {
     autoDates.handoverDate = nowStr;
 
     let targetStatus = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).status;
+    
+    // Business Logic updates
+    if (targetStep === 'S2_KT_Tiep_Nhan') targetStatus = 'WaitingVPDK'; // CHỜ NỘP VPĐK
+    if (targetStep === 'S5_1_PTDA_TiepNhan') targetStatus = 'TaxPaid'; // ĐÃ NỘP THUẾ
+    if (targetStep === 'S7_2_Ban_Giao_Khach' || targetStep === 'GD6_Cho_BG_Khach' || targetStep === 'GD5_Cho_PTT_TiepNhan_BG') {
+       targetStatus = app.customerHandoverDate || autoDates.customerHandoverDate ? 'Completed' : 'WaitingHandover';
+    }
+
+    if (targetStep === 'Hoan_Tat') targetStatus = 'Completed';
+
     if (targetStatus === 'TaxCompleted' && !app.taxReceiptDate && !autoDates.taxReceiptDate) {
       targetStatus = 'TaxPending'; // Fallback if no receipt date yet
     }
@@ -5619,8 +5649,8 @@ export default function App() {
     if (nextStep === 'S2_KT_Tiep_Nhan') updateField = { key: 'contractSigningDate', label: 'Ngày ký HĐCN/HĐMB', isRequired: false };
     else if (nextStep === 'S2_KT_Ban_giao') updateField = { key: 'contractSigningDate', label: 'Ngày ký HĐCN/HĐMB', isRequired: true };
     else if (nextStep === 'S3_Nop_VPDK') updateField = { key: 'submissionDate', label: 'Ngày nộp VPĐK', isRequired: true };
+    else if (nextStep === 'S5_Tai_Chinh_Khach_Hang') updateField = { key: 'taxNotificationDate', label: 'Ngày TB Thuế', isRequired: true };
     else if (nextStep === 'S4_Cho_Thong_Bao_Thue') updateField = { key: 'taxNotificationReceivedDate', label: 'Ngày nhận TB Thuế' };
-    else if (nextStep === 'S5_Tai_Chinh_Khach_Hang') updateField = { key: 'taxNoticeProvisionDate', label: 'Ngày cung cấp Thông báo thuế' };
     else if (nextStep === 'S5_1_PTDA_TiepNhan') updateField = { key: 'taxReceiptDate', label: 'Ngày nhận/cung cấp GNT / Nộp thuế', isRequired: true };
     else if (nextStep === 'S6_Nhan_So_GCN') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN', isRequired: true };
     else if (nextStep === 'S7_PTDA_Ban_Giao') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN', isRequired: true };
@@ -5761,13 +5791,18 @@ export default function App() {
         if (targetStep === 'S2_KT_Tiep_Nhan' && !appWithDate.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
         if (targetStep === 'S3_Nop_VPDK' && !appWithDate.submissionDate) autoDates.submissionDate = nowStr;
         
+        if (targetStep === 'S5_Tai_Chinh_Khach_Hang') {
+          if (!appWithDate.taxNotificationDate) autoDates.taxNotificationDate = dateValue || nowStr;
+          autoDates.taxNoticeProvisionDate = nowStr; // Auto fill Ngày cung cấp TB Thuế
+        }
+        
         if (targetStep === 'S4_Cho_Thong_Bao_Thue') {
           if (!appWithDate.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
           if (!appWithDate.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
         }
+
         if (targetStep === 'S5_1_PTDA_TiepNhan' && !appWithDate.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
         if (targetStep === 'S6_Nhan_So_GCN') {
-          // If we are at S6, we should have gcnSignedDate (set by bulk modal)
           if (!appWithDate.gcnSignedDate) autoDates.gcnSignedDate = nowStr;
         }
         if (targetStep === 'S7_PTDA_Ban_Giao' && !appWithDate.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
@@ -5780,6 +5815,16 @@ export default function App() {
         autoDates.handoverDate = bulkTransitionField && dateValue ? dateValue : nowStr;
 
         let targetStatus = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).status;
+        
+        // Business Logic updates
+        if (targetStep === 'S2_KT_Tiep_Nhan') targetStatus = 'WaitingVPDK'; // CHỜ NỘP VPĐK
+        if (targetStep === 'S5_1_PTDA_TiepNhan') targetStatus = 'TaxPaid'; // ĐÃ NỘP THUẾ
+        if (targetStep === 'S7_2_Ban_Giao_Khach' || targetStep === 'GD6_Cho_BG_Khach' || targetStep === 'GD5_Cho_PTT_TiepNhan_BG') {
+           targetStatus = app.customerHandoverDate || autoDates.customerHandoverDate ? 'Completed' : 'WaitingHandover';
+        }
+
+        if (targetStep === 'Hoan_Tat') targetStatus = 'Completed';
+
         if (targetStatus === 'TaxCompleted' && !appWithDate.taxReceiptDate && !autoDates.taxReceiptDate) {
           targetStatus = 'TaxPending';
         }
@@ -6187,6 +6232,7 @@ export default function App() {
         isRejected: false,
         issueType: 'None' as const,
         issueSeverity: 'Minor' as const,
+        issueNotes: '',
         history: newHistory
       };
 
@@ -6622,24 +6668,49 @@ export default function App() {
 
     // KT
     // Tổng số lượng hồ sơ đang thực hiện chưa hoàn thành (all records not complete)
-    const ktTotal = apps.length;
-    // Hồ sơ cần tiếp nhận: PTT đã chuyển nhưng KT chưa tiếp nhận (đang ở S2_KT_Tiep_Nhan)
-    const ktNeedReceive = apps.filter(a => a.currentStep === 'S2_KT_Tiep_Nhan').length;
+    const ktTotal = apps.filter(a => {
+      const isSupportSpecial = (a.workflowType === 'Quy_trinh_1' || a.projectName?.includes('hỗ trợ')) && (a.currentStep === 'GD2_Cho_Nop_VPDK' || a.currentStep === 'S3_Nop_VPDK');
+      return isSupportSpecial || (stepConfig[a.currentStep] || INITIAL_STEP_CONFIG[a.currentStep])?.dept === 'KT';
+    }).length;
+    // Hồ sơ cần tiếp nhận: PTT đã chuyển nhưng KT chưa tiếp nhận
+    const ktNeedReceive = apps.filter(a => {
+      const isSupportSpecial = (a.workflowType === 'Quy_trinh_1' || a.projectName?.includes('hỗ trợ')) && (a.currentStep === 'GD2_Cho_Nop_VPDK' || a.currentStep === 'S3_Nop_VPDK');
+      return a.currentStep === 'S2_KT_Tiep_Nhan' || 
+             a.currentStep === 'GD1_Cho_KT_TiepNhan' || 
+             isSupportSpecial;
+    }).length;
     // Hồ sơ đang xử lý: Đã tiếp nhận nhưng chưa bàn giao PTDA
-    const ktProcessing = apps.filter(a => a.currentStep === 'S2_KT_Tiep_Nhan').length;
+    const ktProcessing = apps.filter(a => {
+      const isSupportSpecial = (a.workflowType === 'Quy_trinh_1' || a.projectName?.includes('hỗ trợ')) && (a.currentStep === 'GD2_Cho_Nop_VPDK' || a.currentStep === 'S3_Nop_VPDK');
+      return a.currentStep === 'S2_KT_Tiep_Nhan' || 
+             a.currentStep === 'GD1_Cho_KT_TiepNhan' || 
+             isSupportSpecial || 
+             a.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo' || 
+             a.currentStep === 'GD5_Cho_GCN';
+    }).length;
     // Hồ sơ sai sót
     const ktIssues = apps.filter(a => (a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None')) && stepConfig[a.currentStep]?.dept === 'KT').length;
 
     // PTDA
     const ptdaApps = apps.filter(a => stepConfig[a.currentStep]?.dept === 'PTDA');
-    // Hồ sơ đã tiếp nhận: Các hồ sơ tiếp nhận từ KT (bước 3.1)
-    const ptdaReceived = apps.filter(a => a.currentStep === 'S2_KT_Ban_giao').length;
-    // Chờ TB Thuế: các hồ sơ ở S3_Nop_VPDK
-    const ptdaNoTax = apps.filter(a => a.currentStep === 'S3_Nop_VPDK').length;
-    // Chờ hoàn thành NVTC: Các căn ở bước 5 chưa có ngày nhận GNT / Nộp thuế
-    const ptdaTaxPending = apps.filter(a => a.currentStep === 'S5_Tai_Chinh_Khach_Hang' && !a.taxReceiptDate).length;
-    // Chờ in/ký GCN: Các căn ở bước 6 chưa có ngày trình ký
-    const ptdaGcnWaiting = apps.filter(a => a.currentStep === 'S6_Nhan_So_GCN' && !a.gcnSignedDate).length;
+    
+    // User requested logic for daNopVPDK and choThue
+    const daNopVPDK = apps.filter(app => app.currentStep === 'S3_Nop_VPDK');
+    const choThue = apps.filter(app => app.currentStep !== 'S3_Nop_VPDK' && (app.currentStep === 'S4_Cho_Thong_Bao_Thue' || app.currentStep === 'GD3_Cho_TBThue'));
+
+    // Hồ sơ đã tiếp nhận: Các hồ sơ tiếp nhận từ KT (đã bao gồm daNopVPDK)
+    const ptdaReceived = apps.filter(a => 
+      a.currentStep === 'S2_KT_Ban_giao' || 
+      a.currentStep === 'S5_1_PTDA_TiepNhan' ||
+      a.currentStep === 'GD2_Cho_Nop_VPDK' ||
+      a.currentStep === 'S3_Nop_VPDK'
+    ).length;
+    // Chờ TB Thuế: ChoThue must exclude S3_Nop_VPDK
+    const ptdaNoTax = choThue.length;
+    // Chờ hoàn thành NVTC:
+    const ptdaTaxPending = apps.filter(a => (a.currentStep === 'S5_Tai_Chinh_Khach_Hang' || a.currentStep === 'GD4_Cho_Nop_NVTC') && !a.taxReceiptDate).length;
+    // Chờ in/ký GCN: 
+    const ptdaGcnWaiting = apps.filter(a => (a.currentStep === 'S6_Nhan_So_GCN' || a.currentStep === 'GD5_Cho_Ky_In_GCN') && !a.gcnSignedDate).length;
     const ptdaIssues = apps.filter(a => (a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None')) && stepConfig[a.currentStep]?.dept === 'PTDA').length;
     
     const ptdaAppsWithTax = apps.filter(a => a.submissionDate && a.taxNotificationDate);
@@ -6655,7 +6726,12 @@ export default function App() {
     // Simplified Bottleneck Stats by Department
     const depts: Dept[] = ['PTT', 'KT', 'PTDA'];
     const deptStats = depts.map(dept => {
-        const appsInDept = apps.filter(a => stepConfig[a.currentStep]?.dept === dept);
+        const appsInDept = apps.filter(a => {
+          const isSupportSpecial = (a.workflowType === 'Quy_trinh_1' || a.projectName?.includes('hỗ trợ')) && (a.currentStep === 'GD2_Cho_Nop_VPDK' || a.currentStep === 'S3_Nop_VPDK');
+          if (dept === 'KT' && isSupportSpecial) return true;
+          if (dept === 'PTDA' && isSupportSpecial) return false; // Force NOT PTDA for this step in support process
+          return (stepConfig[a.currentStep] || INITIAL_STEP_CONFIG[a.currentStep])?.dept === dept;
+        });
         const avgDays = appsInDept.length > 0 
             ? appsInDept.reduce((acc, curr) => acc + calculateDaysDiff(curr.receivedDate), 0) / appsInDept.length
             : 0;
@@ -6772,6 +6848,7 @@ export default function App() {
         },
         ptda: {
             received: ptdaReceived,
+            daNopVPDK: daNopVPDK.length,
             noTax: ptdaNoTax,
             noTaxPaid: ptdaTaxPending,
             gcnWaiting: ptdaGcnWaiting,
@@ -6858,75 +6935,76 @@ export default function App() {
   }, [quickEditId, quickEditData, isEditing, editApp, isCreateModalOpen, selectedApp, applications]);
 
   const chartData = useMemo(() => {
-    const getStageStats = (status: UnitStatus) => {
-      const apps = filteredByProjectApps.filter(a => stepConfig[a.currentStep]?.status === status);
+    const today = new Date();
+    const stages = {
+      PREPARING: [] as Application[], 
+      AWAITING_SUBMISSION: [] as Application[], 
+      SUBMITTED: [] as Application[], 
+      TAX_WARNING: [] as Application[], 
+      AWAITING_FINANCE: [] as Application[], 
+      TAX_PAID: [] as Application[],
+      GCN_READY: [] as Application[], 
+      WAITING_HANDOVER: [] as Application[],
+      COMPLETED: [] as Application[] 
+    };
+
+    filteredByProjectApps.forEach(r => {
+      // 1. Hoàn tất 
+      if (r.customerHandoverDate || r.currentStep === 'Hoan_Tat') stages.COMPLETED.push(r);
+      // 2. Chờ bàn giao (S7_2 or GD6)
+      else if (r.currentStep === 'S7_2_Ban_Giao_Khach' || r.currentStep === 'GD6_Cho_BG_Khach' || r.currentStep === 'S7_PTDA_Ban_Giao' || r.currentStep === 'S7_1_PTT_Tiep_Nhan' || r.currentStep === 'GD5_Cho_PTT_TiepNhan_BG') stages.WAITING_HANDOVER.push(r);
+      // 3. Đã có GCN
+      else if (r.gcnSignedDate || r.currentStep === 'S6_Nhan_So_GCN' || r.currentStep === 'GD5_Cho_GCN') stages.GCN_READY.push(r);
+      // 4. Đã nộp thuế
+      else if (r.taxReceiptDate || r.currentStep === 'S5_1_PTDA_TiepNhan' || r.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo' || r.currentStep === 'GD5_Cho_Ky_In_GCN') stages.TAX_PAID.push(r);
+      // 5. Chờ hoàn thành NVTC
+      else if (r.taxNotificationDate || r.currentStep === 'S5_Tai_Chinh_Khach_Hang' || r.currentStep === 'GD4_Cho_Nop_NVTC') stages.AWAITING_FINANCE.push(r);
+      // 6. Đã nộp VPĐK / Chờ TB Thuế
+      else if (r.submissionDate || r.currentStep === 'S3_Nop_VPDK' || r.currentStep === 'GD3_Cho_TBThue') {
+        const subDate = new Date(r.submissionDate || today);
+        const daysDiff = (today.getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
+        if (daysDiff > 7) stages.TAX_WARNING.push(r);
+        else stages.SUBMITTED.push(r);
+      }
+      // 7. Chờ nộp VPĐK (PTT đã bàn giao và KT/PTDA đã tiếp nhận, nhưng chưa nộp VPĐK)
+      else if (
+        r.currentStep === 'S2_KT_Tiep_Nhan' || 
+        r.currentStep === 'S2_KT_Ban_giao' || 
+        r.currentStep === 'GD2_Cho_Nop_VPDK' || 
+        (r.accountingHandoverDate && r.currentStep !== 'GD1_Cho_KT_TiepNhan' && r.currentStep !== 'GD1_ChuanBi' && r.currentStep !== 'S1_ChuanBi')
+      ) stages.AWAITING_SUBMISSION.push(r);
+      // 8. Đang chuẩn bị (PTT)
+      else stages.PREPARING.push(r);
+    });
+
+    const createStageItem = (name: string, list: Application[], color: string, statusId: UnitStatus) => {
+      // Chỉ đếm các hồ sơ đang thực sự gặp sai sót (chưa được khắc phục)
+      const errorCount = list.filter(a => {
+        // Hồ sơ được xem là "Đang có lỗi" nếu hiện tại đang gắn cờ lỗi chưa xử lý
+        return (a.status as string) === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None' && (a.status as string) === 'Error');
+      }).length;
       return {
-        total: apps.length,
-        error: apps.filter(a => a.status === 'Error').length,
-        normal: apps.filter(a => a.status !== 'Error').length,
+        name,
+        value: list.length,
+        normal: list.length - errorCount,
+        error: errorCount,
+        color,
+        statusId
       };
     };
 
-    const processing = getStageStats('Processing');
-    const waitingVPDK = getStageStats('WaitingVPDK');
-    const submitted = getStageStats('Submitted');
-    const taxPending = getStageStats('TaxPending');
-    const taxCompleted = getStageStats('TaxCompleted');
-    const gcnIssued = getStageStats('GCN_Issued');
-    const completed = getStageStats('Completed');
-
     return [
-      { 
-        name: 'Đang chuẩn bị', 
-        value: processing.total, 
-        normal: processing.normal, 
-        error: processing.error, 
-        color: '#f59e0b' // Amber
-      },
-      { 
-        name: 'CHỜ NỘP VPĐK', 
-        value: waitingVPDK.total, 
-        normal: waitingVPDK.normal, 
-        error: waitingVPDK.error, 
-        color: '#06b6d4' // Cyan
-      },
-      { 
-        name: 'Đã nộp VPĐK', 
-        value: submitted.total, 
-        normal: submitted.normal, 
-        error: submitted.error, 
-        color: '#6366f1' // Indigo
-      },
-      { 
-        name: 'CHỜ TB THUẾ', 
-        value: taxPending.total, 
-        normal: taxPending.normal, 
-        error: taxPending.error, 
-        color: '#f43f5e' // Rose
-      },
-      { 
-        name: 'ĐÃ CÓ TB THUẾ', 
-        value: taxCompleted.total, 
-        normal: taxCompleted.normal, 
-        error: taxCompleted.error, 
-        color: '#fbbf24' // Yellow (Fixed color name overlap if any)
-      },
-      { 
-        name: 'Đã có GCN', 
-        value: gcnIssued.total, 
-        normal: gcnIssued.normal, 
-        error: gcnIssued.error, 
-        color: '#0ea5e9' // Sky
-      },
-      { 
-        name: 'Hoàn tất', 
-        value: completed.total, 
-        normal: completed.normal, 
-        error: completed.error, 
-        color: '#10b981' // Emerald
-      },
+      createStageItem('ĐANG CHUẨN BỊ', stages.PREPARING, '#94a3b8', 'Processing'),
+      createStageItem('CHỜ NỘP VPĐK', stages.AWAITING_SUBMISSION, '#f59e0b', 'WaitingVPDK'),
+      createStageItem('ĐÃ NỘP VPĐK', stages.SUBMITTED, '#3b82f6', 'Submitted'),
+      createStageItem('CHỜ TB THUẾ', stages.TAX_WARNING, '#ef4444', 'TaxPending'),
+      createStageItem('CHỜ HOÀN THÀNH NVTC', stages.AWAITING_FINANCE, '#8b5cf6', 'TaxPending'),
+      createStageItem('ĐÃ NỘP THUẾ', stages.TAX_PAID, '#10b981', 'TaxCompleted'),
+      createStageItem('ĐÃ CÓ GCN', stages.GCN_READY, '#06b6d4', 'GCN_Issued'),
+      createStageItem('CHỜ BÀN GIAO', stages.WAITING_HANDOVER, '#f43f5e', 'Completed'),
+      createStageItem('HOÀN TẤT', stages.COMPLETED, '#22c55e', 'Completed')
     ];
-  }, [filteredByProjectApps, stepConfig]);
+  }, [filteredByProjectApps]);
 
   const overallPieData = useMemo(() => {
     const totalApps = filteredByProjectApps.length || 1;
@@ -6949,6 +7027,7 @@ export default function App() {
     const matchesSelfService = filterSelfService === 'ALL' || 
       (filterSelfService === 'YES' ? app.isSelfService === true : app.isSelfService !== true);
     const matchesSLA = filterSLAStatus === 'ALL' || (filterSLAStatus === 'OVERDUE' && getOverdueInfo(app, stepConfig, slaConfig).isOverdue);
+    const matchesIssueFilter = filterIssue === 'ALL' || (app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None' && app.status === 'Error'));
     
     const matchesDashboardFilter = 
       dashboardFilter === 'ALL' ||
@@ -6961,16 +7040,17 @@ export default function App() {
       (dashboardFilter === 'PTT_TAX_UNPAID' && !!app.taxNotificationDate && !app.taxReceiptDate) ||
       (dashboardFilter === 'PTT_WAITING_HANDOVER' && ['S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach'].includes(app.currentStep) && !app.customerHandoverDate) ||
       (dashboardFilter === 'KT_ALL' && true) ||
-      (dashboardFilter === 'KT_NEED_RECEIVE' && (app.currentStep === 'S2_KT_Tiep_Nhan' || app.currentStep === 'GD1_Cho_KT_TiepNhan')) ||
-      (dashboardFilter === 'KT_PROCESSING' && (app.currentStep === 'S2_KT_Tiep_Nhan' || app.currentStep === 'GD2_Cho_Nop_VPDK' || app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo')) ||
+      (dashboardFilter === 'KT_NEED_RECEIVE' && (app.currentStep === 'S2_KT_Tiep_Nhan' || app.currentStep === 'GD1_Cho_KT_TiepNhan' || app.currentStep === 'GD2_Cho_Nop_VPDK')) ||
+      (dashboardFilter === 'KT_PROCESSING' && (app.currentStep === 'S2_KT_Tiep_Nhan' || app.currentStep === 'GD1_Cho_KT_TiepNhan' || app.currentStep === 'GD2_Cho_Nop_VPDK' || app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo' || app.currentStep === 'GD5_Cho_GCN')) ||
       (dashboardFilter === 'KT_ISSUES' && (app.isRejected || app.status === 'Error' || (app.issueType && app.issueType !== 'None')) && stepConfig[app.currentStep]?.dept === 'KT') ||
-      (dashboardFilter === 'PTDA_RECEIVED' && (app.currentStep === 'S2_KT_Ban_giao' || app.currentStep === 'S5_1_PTDA_TiepNhan')) ||
-      (dashboardFilter === 'PTDA_NO_TAX' && (app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD3_Cho_TBThue')) ||
-      (dashboardFilter === 'PTDA_TAX_PENDING' && (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' || app.currentStep === 'GD4_Cho_Nop_NVTC') && !app.taxReceiptDate) ||
+      (dashboardFilter === 'PTDA_RECEIVED' && (app.currentStep === 'S2_KT_Ban_giao' || app.currentStep === 'S5_1_PTDA_TiepNhan' || app.currentStep === 'GD2_Cho_Nop_VPDK' || app.currentStep === 'S3_Nop_VPDK')) ||
+      (dashboardFilter === 'PTDA_DA_NOP_VPDK' && app.currentStep === 'S3_Nop_VPDK') ||
+      (dashboardFilter === 'PTDA_NO_TAX' && (app.currentStep === 'GD3_Cho_TBThue' || app.currentStep === 'S4_Cho_Thong_Bao_Thue')) ||
+      (dashboardFilter === 'PTDA_TAX_PENDING' && (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' || app.currentStep === 'GD4_Cho_NVTC' || app.currentStep === 'GD4_Cho_Nop_NVTC') && !app.taxReceiptDate) ||
       (dashboardFilter === 'PTDA_GCN_WAITING' && (app.currentStep === 'S6_Nhan_So_GCN' || app.currentStep === 'GD5_Cho_Ky_In_GCN') && !app.gcnSignedDate) ||
       (dashboardFilter === 'PTDA_ISSUES' && (app.isRejected || app.status === 'Error' || (app.issueType && app.issueType !== 'None')) && stepConfig[app.currentStep]?.dept === 'PTDA');
 
-    return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService && matchesDashboardFilter && matchesSLA;
+    return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService && matchesDashboardFilter && matchesSLA && matchesIssueFilter;
   });
 
   if (isInitialLoading) {
@@ -7071,8 +7151,8 @@ export default function App() {
             : "border-slate-800/50 bg-gradient-to-br from-slate-800/30 to-transparent"
         )}>
           <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 bg-brand rounded-xl flex items-center justify-center shadow-lg shadow-brand/20">
-              <Building2 className="text-white" size={24} />
+            <div className="w-10 h-10 bg-festive-gold rounded-xl flex items-center justify-center shadow-lg shadow-festive-gold/20">
+              <Building2 className="text-slate-950" size={24} />
             </div>
             <div>
                <h1 className="font-bold text-xl tracking-tight text-white font-sans">GCN Tracker</h1>
@@ -7599,7 +7679,7 @@ export default function App() {
                 )}
 
                 {userRole === 'PTDA' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                     <StatCard title="Hồ sơ cần tiếp nhận" value={roleKpis.ptda.received} icon={Files} colorClass="bg-blue-500 shadow-blue-500/40" delay={0.05} theme={theme} onClick={() => { 
                       setActiveTab('applications'); 
                       setDashboardFilter('PTDA_RECEIVED');
@@ -7607,10 +7687,17 @@ export default function App() {
                       setFilterStatus('ALL');
                       setSearch('');
                     }} />
-                    <StatCard title="Hồ sơ đang xử lý (Chờ nộp VPĐK)" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-warning shadow-warning/40" delay={0.1} theme={theme} onClick={() => { 
+                    <StatCard title="Đã nộp VPĐK" value={roleKpis.ptda.daNopVPDK} icon={CheckCircle2} colorClass="bg-emerald-500 shadow-emerald-500/40" delay={0.08} theme={theme} onClick={() => { 
+                      setActiveTab('applications'); 
+                      setDashboardFilter('PTDA_DA_NOP_VPDK');
+                      setFilterStep('S3_Nop_VPDK');
+                      setFilterStatus('ALL');
+                      setSearch('');
+                    }} />
+                    <StatCard title="Chờ TB Thuế" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-warning shadow-warning/40" delay={0.12} theme={theme} onClick={() => { 
                       setActiveTab('applications'); 
                       setDashboardFilter('PTDA_NO_TAX');
-                      setFilterStep('S3_Nop_VPDK');
+                      setFilterStep('ALL');
                       setFilterStatus('ALL');
                       setSearch('');
                     }} />
@@ -7641,7 +7728,7 @@ export default function App() {
                 {(userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR' || !userRole) && (
                   <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     <StatCard 
-                      title="Tổng số lượng căn" 
+                      title="Tổng số hồ sơ đang xử lý" 
                       value={kpis.total} 
                       icon={Building2} 
                       colorClass="bg-indigo-600 shadow-indigo-600/40" 
@@ -7680,241 +7767,109 @@ export default function App() {
                 )}
 
                 
-                {/* Dashboard Critical Alert Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  <div className="lg:col-span-2 space-y-8">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Slowest List for PTT */}
-                      {userRole === 'PTT' ? (
-                        <div className={cn(
-                          "p-6 rounded-2xl border transition-all lg:col-span-2",
-                          theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800"
-                        )}>
-                           <h3 className={cn("font-bold mb-4 flex items-center gap-2", theme === 'light' ? "text-slate-900" : "text-white")}>
-                             <AlertTriangle size={18} className="text-rose-500" />
-                             Danh sách hồ sơ chậm nhất
-                           </h3>
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             {roleKpis.ptt.slowest.map(app => (
-                               <div key={app.id} className={cn(
-                                 "flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer",
-                                 theme === 'light' ? "bg-slate-50 border-slate-100 hover:border-slate-200" : "bg-slate-950/40 border-slate-800/50 hover:border-slate-700"
-                               )} onClick={() => { setActiveTab('applications'); setSearch(app.unitCode); }}>
-                                 <div className="flex items-center gap-3">
-                                   <div className="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center font-bold text-xs shrink-0">
-                                     {app.overdue.daysLate}d
-                                   </div>
-                                   <div className="truncate">
-                                     <p className={cn("text-sm font-bold", theme === 'light' ? "text-slate-800" : "text-slate-200")}>{app.unitCode}</p>
-                                     <p className="text-[10px] text-slate-500 truncate">{app.customerName} - {app.overdue.label}</p>
-                                   </div>
-                                 </div>
-                                 <ChevronRight size={16} className="text-slate-700 shrink-0" />
-                               </div>
-                             ))}
-                             {roleKpis.ptt.slowest.length === 0 && <p className="text-slate-500 text-xs italic text-center py-4 lg:col-span-2">Chưa có hồ sơ trễ hạn</p>}
-                           </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className={cn(
-                            "p-4 rounded-2xl border flex items-center justify-between transition-all",
-                            theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/80 border-slate-700 backdrop-blur-xl"
-                          )}>
-                            <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-500 flex items-center justify-center">
-                                <User size={20} />
-                              </div>
-                              <div>
-                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Khách hàng vay</p>
-                                <p className={cn("text-xl font-bold", theme === 'light' ? "text-slate-900" : "text-white")}>{kpis.loanCount} <span className="text-xs text-slate-500 font-normal">Hồ sơ</span></p>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-[10px] text-indigo-400 font-bold">{Math.round((kpis.loanCount/kpis.total)*100) || 0}%</p>
-                              <div className={cn("w-24 h-1 rounded-full mt-1 overflow-hidden", theme === 'light' ? "bg-slate-100" : "bg-slate-800")}>
-                                <div className="h-full bg-indigo-500" style={{ width: `${(kpis.loanCount/kpis.total)*100}%` }}></div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className={cn(
-                            "p-4 rounded-2xl border flex items-center justify-between transition-all",
-                            theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/80 border-slate-700 backdrop-blur-xl"
-                          )}>
-                            <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 rounded-xl bg-slate-500/20 text-slate-400 flex items-center justify-center">
-                                <User size={20} />
-                              </div>
-                              <div>
-                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Sử dụng vốn tự có</p>
-                                <p className={cn("text-xl font-bold", theme === 'light' ? "text-slate-900" : "text-white")}>{kpis.regularCount} <span className="text-xs text-slate-500 font-normal">Hồ sơ</span></p>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-[10px] text-slate-400 font-bold">{Math.round((kpis.regularCount/kpis.total)*100) || 0}%</p>
-                              <div className={cn("w-24 h-1 rounded-full mt-1 overflow-hidden", theme === 'light' ? "bg-slate-100" : "bg-slate-800")}>
-                                <div className="h-full bg-slate-500" style={{ width: `${(kpis.regularCount/kpis.total)*100}%` }}></div>
-                              </div>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="lg:col-span-1 space-y-8">
-                    {/* Urgent Tasks Section */}
-                    <section className={cn(
-                      "backdrop-blur-xl border rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden group h-full transition-all",
-                      theme === 'light' 
-                        ? "bg-white border-rose-100 shadow-rose-900/5" 
-                        : "bg-slate-900/40 border-rose-500/20 shadow-2xl"
-                    )}>
-                      <div className="absolute top-0 right-0 p-8">
-                         <AlertTriangle className="text-rose-500/40 animate-pulse" size={24} />
-                      </div>
-                      <h3 className="text-[10px] font-black text-rose-500 uppercase tracking-[0.2em] mb-6">Cảnh báo cấp bách</h3>
-                      <div className="space-y-4">
-                        {applications.filter(a => a.status === 'Error').slice(0, 4).map(app => (
-                          <div key={app.id} className={cn(
-                            "p-4 rounded-2xl border transition-all cursor-pointer group/task",
-                            theme === 'light' 
-                              ? "bg-rose-50/30 border-rose-100 hover:border-rose-300" 
-                              : "bg-slate-950/50 border-rose-500/10 hover:border-rose-500/30"
-                          )} onClick={() => { setSelectedApp(app); setActiveTab('applications'); }}>
-                            <div className="flex justify-between items-start mb-2">
-                              <p className={cn("text-sm font-black", theme === 'light' ? "text-slate-900" : "text-slate-200")}>{app.unitCode}</p>
-                              <div className="flex flex-col gap-1 items-end">
-                                <span className={cn(
-                                  "text-[9px] font-bold px-2 py-0.5 rounded italic",
-                                  app.issueSource === 'Khach_Hang' ? "bg-amber-500/10 text-amber-500 border border-amber-500/20" :
-                                  app.issueSource === 'Nha_Nuoc' ? "bg-blue-500/10 text-blue-500 border border-blue-500/20" :
-                                  app.issueSource === 'Chu_Dau_Tu' ? "bg-indigo-500/10 text-indigo-500 border border-indigo-500/20" :
-                                  "bg-rose-500/10 text-rose-500 border border-rose-500/20"
-                                )}>
-                                  {app.issueSource === 'Khach_Hang' ? 'K.HÀNG' : 
-                                   app.issueSource === 'Nha_Nuoc' ? 'NHÀ NƯỚC' : 
-                                   app.issueSource === 'Chu_Dau_Tu' ? 'CĐT' : 
-                                   'NỘI BỘ'}
-                                </span>
-                                <span className="text-[8px] font-black text-rose-500/70">{app.issueType || 'Vướng mắc'}</span>
-                              </div>
-                            </div>
-                            <p className="text-[10px] text-slate-500 font-bold mb-3 truncate">{app.projectName}</p>
-                            <div className="flex items-center justify-between">
-                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter italic truncate">{app.currentStep}</p>
-                              <ArrowRight size={14} className="text-slate-600 group-hover/task:text-rose-500 transition-all translate-x-[-10px] opacity-0 group-hover/task:translate-x-0 group-hover/task:opacity-100" />
-                            </div>
-                          </div>
-                        ))}
-                        {applications.filter(a => a.status === 'Error').length === 0 && (
-                          <div className="py-8 text-center">
-                            <CheckCircle2 size={32} className="mx-auto text-emerald-500/30 mb-2" />
-                            <p className="text-[10px] text-slate-600 font-bold italic">Tuyệt vời! Hệ thống ổn định</p>
-                          </div>
-                        )}
-                      </div>
-                    </section>
-                  </div>
+                <div className="hidden">
+                  <DashboardAlerts 
+                    theme={theme}
+                    stats={{
+                      loanCount: kpis.loanCount,
+                      regularCount: kpis.regularCount,
+                      overdueCount: kpis.overdue,
+                      errorCount: kpis.error,
+                    }}
+                    onFilterChange={(filter) => {
+                      setActiveTab('applications');
+                      setDashboardFilter(filter.toUpperCase());
+                    }}
+                  />
                 </div>
 
                 {/* Charts Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
                   <div className={cn(
-                    "lg:col-span-2 backdrop-blur-md p-8 rounded-[3rem] border transition-all duration-500",
-                    theme === 'light' ? "bg-white border-slate-200 shadow-2xl shadow-slate-200/50" : "bg-slate-900/40 border-slate-800/50 shadow-2xl"
+                    "lg:col-span-3 p-8 rounded-[3rem] border transition-all duration-700 relative overflow-hidden group",
+                    theme === 'light' ? "bg-white/70 border-slate-200/60 shadow-2xl shadow-indigo-100/50 backdrop-blur-xl" : "bg-slate-900/40 border-slate-800/50 shadow-2xl"
                   )}>
-                    <div className="flex items-center justify-between mb-10">
-                      <h3 className={cn("font-bold flex items-center gap-3 font-serif text-2xl italic", theme === 'light' ? "text-slate-900" : "text-white")}>
-                        <LayoutDashboard size={20} className="text-amber-500" />
-                        Tiến độ các giai đoạn
-                      </h3>
-                      <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full bg-indigo-500" />
-                          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Bình thường</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded-full bg-red-500" />
-                          <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Sai sót</span>
-                        </div>
+                    {theme === 'light' && (
+                        <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-indigo-50/50 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
+                    )}
+
+                    <div className="flex items-center justify-between mb-10 relative z-10">
+                      <div>
+                         <h3 className={cn("font-black flex items-center gap-3 text-2xl uppercase tracking-tighter", theme === 'light' ? "text-slate-800" : "text-white")}>
+                           <div className="p-2 rounded-2xl bg-amber-500/10 border border-amber-500/20">
+                             <BarChart3 size={20} className="text-amber-500" />
+                           </div>
+                           Thống kê Tiến độ
+                         </h3>
+                         <div className="flex items-center gap-4 mt-2">
+                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest opacity-70">Phân bổ theo giai đoạn thực tế</p>
+                            <div className="flex items-center gap-2">
+                               <div className="flex items-center gap-1.5">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)] animate-pulse" />
+                                  <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Phát hiện sai sót</span>
+                               </div>
+                            </div>
+                         </div>
                       </div>
                     </div>
-                      <div className="h-[450px] w-full mt-4">
+                    <div className="h-[500px] w-full mt-4 relative z-10">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart 
+                            layout="vertical"
                             data={chartData} 
-                            margin={{ top: 30, right: 10, left: -20, bottom: 30 }}
-                            barGap={8}
+                            margin={{ top: 20, right: 60, left: 10, bottom: 5 }}
+                            barGap={0}
                             onClick={(data: any) => {
                               if (data && data.activePayload && data.activePayload.length > 0) {
                                 const stageStatus = data.activePayload[0].payload.statusId;
                                 const stageName = data.activePayload[0].payload.name;
                                 setActiveTab('applications');
                                 setFilterStatus(stageStatus);
-                                toast.success(`Đang lọc hồ sơ giai đoạn ${stageName}...`, {
-                                  icon: '🔍',
-                                  duration: 3000,
-                                });
+                                showToast(`Đang hiển thị hồ sơ: ${stageName}`);
                               }
                             }}
                             style={{ cursor: 'pointer' }}
                           >
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'light' ? "#f1f5f9" : "#ffffff08"} />
-                            <XAxis 
-                              dataKey="name" 
-                              axisLine={false} 
-                              tickLine={false} 
-                              interval={0}
-                              tick={(props: any) => {
-                                const { x, y, payload } = props;
-                                return (
-                                  <g transform={`translate(${x},${y})`}>
-                                    <text x={0} y={0} dy={16} textAnchor="middle" fill="#94a3b8" fontSize={9} fontWeight={900} className="uppercase tracking-tighter">
-                                      {payload.value}
-                                    </text>
-                                  </g>
-                                );
-                              }}
-                            />
+
+                            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={theme === 'light' ? "#f1f5f9" : "#ffffff08"} />
+                            <XAxis type="number" hide domain={[0, (dataMax: number) => Math.ceil(dataMax + (dataMax * 0.1) + 1)]} />
                             <YAxis 
-                              axisLine={false} 
-                              tickLine={false} 
-                              tick={{ fontSize: 10, fill: '#64748b', fontWeight: 800 }} 
-                              allowDecimals={false}
+                               type="category"
+                               dataKey="name"
+                               axisLine={false} 
+                               tickLine={false} 
+                               width={140}
+                               tick={{ fontSize: 11, fill: theme === 'light' ? '#475569' : '#94a3b8', fontWeight: 900, textAnchor: 'start' }} 
+                               dx={-130}
                             />
                             <ReTooltip 
-                              cursor={{ fill: theme === 'light' ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.05)' }}
+                              cursor={{ fill: theme === 'light' ? 'rgba(30, 41, 59, 0.05)' : 'rgba(255,255,255,0.05)' }}
                               content={({ active, payload }) => {
                                 if (active && payload && payload.length) {
                                   const data = payload[0].payload;
                                   return (
                                     <div className={cn(
-                                      "p-5 rounded-3xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] border-none outline-none backdrop-blur-xl",
-                                      theme === 'light' ? "bg-white/95 text-slate-800" : "bg-slate-900/95 text-white"
+                                      "p-4 rounded-2xl shadow-2xl border backdrop-blur-xl",
+                                      theme === 'light' ? "bg-white/95 border-slate-200 text-slate-800" : "bg-slate-900/95 border-slate-800 text-white"
                                     )}>
-                                      <div className="font-black italic mb-3 uppercase text-[11px] tracking-[0.2em] border-b border-indigo-500/20 pb-2 flex items-center gap-2">
-                                        <div className="w-1.5 h-4 bg-indigo-500 rounded-full" />
+                                      <div className="font-black mb-2 uppercase text-[10px] tracking-widest border-b border-indigo-500/20 pb-1.5 flex items-center gap-2">
+                                        <div className="w-1.5 h-3 bg-indigo-500 rounded-full" />
                                         {data.name}
                                       </div>
-                                      <div className="space-y-2.5">
-                                        <div className="flex justify-between gap-12 items-center">
-                                          <div className="flex items-center gap-2.5">
-                                            <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-lg shadow-indigo-500/20" />
-                                            <span className="text-slate-500 font-bold uppercase text-[10px] tracking-tight">Bình thường:</span>
-                                          </div>
-                                          <span className={cn("font-black italic text-sm", theme === 'light' ? "text-slate-950" : "text-white")}>{data.normal} căn</span>
+                                      <div className="space-y-1.5">
+                                        <div className="flex justify-between gap-8 items-center">
+                                          <span className="text-slate-500 font-bold uppercase text-[9px]">Tổng cộng:</span>
+                                          <span className={cn("font-black text-lg", theme === 'light' ? "text-indigo-600" : "text-indigo-400")}>
+                                            {data.value.toLocaleString()}
+                                          </span>
                                         </div>
-                                        <div className="flex justify-between gap-12 items-center">
-                                          <div className="flex items-center gap-2.5">
-                                            <div className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-lg shadow-rose-500/20" />
-                                            <span className="text-slate-500 font-bold uppercase text-[10px] tracking-tight">Sai sót:</span>
-                                          </div>
-                                          <span className="font-black italic text-sm text-rose-500">{data.error} căn</span>
+                                        <div className="flex justify-between gap-8 items-center">
+                                          <span className="text-slate-500 font-bold uppercase text-[9px]">Bình thường:</span>
+                                          <span className="font-bold text-emerald-500 text-xs">{data.normal.toLocaleString()}</span>
                                         </div>
-                                        <div className="mt-2 pt-2 border-t border-slate-700/20 flex justify-between gap-12 items-center">
-                                          <span className="text-slate-500 font-black uppercase text-[10px] tracking-widest">Tổng cộng:</span>
-                                          <span className={cn("font-black italic text-xl", theme === 'light' ? "text-indigo-600" : "text-indigo-400")}>{data.value}</span>
+                                        <div className="flex justify-between gap-8 items-center">
+                                          <span className="text-slate-500 font-bold uppercase text-[9px]">Sai sót:</span>
+                                          <span className="font-bold text-rose-500 text-xs">{data.error.toLocaleString()}</span>
                                         </div>
                                       </div>
                                     </div>
@@ -7923,181 +7878,227 @@ export default function App() {
                                 return null;
                               }}
                             />
-                            <Bar dataKey="normal" stackId="a" fill="#4f46e5" barSize={32} radius={[0, 0, 0, 0]} />
+                            <Bar 
+                              dataKey="normal" 
+                              stackId="a"
+                              barSize={24} 
+                              minPointSize={5}
+                              radius={[0, 0, 0, 0]} 
+                            >
+                              {chartData.map((entry, index) => (
+                                <Cell key={`cell-normal-${index}`} fill={entry.color} />
+                              ))}
+                            </Bar>
                             <Bar 
                               dataKey="error" 
-                              stackId="a" 
-                              fill="#ef4444" 
-                              barSize={32} 
-                              radius={[6, 6, 0, 0]} 
-                              label={(props: any) => {
-                                const { x, y, width, value } = props;
-                                if (!value || value === 0) return null;
-                                return (
-                                  <text 
-                                    x={x + width / 2} 
-                                    y={y - 12} 
-                                    fill={theme === 'light' ? '#334155' : '#cbd5e1'}
-                                    textAnchor="middle" 
-                                    fontSize={10} 
-                                    fontWeight="900"
-                                    className="font-mono"
-                                  >
-                                    {value}
-                                  </text>
-                                );
-                              }} 
-                            />
+                              stackId="a"
+                              fill="#f43f5e"
+                              barSize={24} 
+                              radius={[0, 12, 12, 0]} 
+                              className="shadow-[0_0_15px_rgba(244,63,94,0.3)]"
+                            >
+                              <LabelList 
+                                dataKey="value" 
+                                position="right" 
+                                offset={15} 
+                                content={(props: any) => {
+                                   const { x, y, width, height, value } = props;
+                                   return (
+                                      <text 
+                                         x={x + width + 10} 
+                                         y={y + height / 2 + 5} 
+                                         fill={theme === 'light' ? '#1e293b' : '#f8fafc'} 
+                                         fontSize="12" 
+                                         fontWeight="900"
+                                         textAnchor="start"
+                                      >
+                                         {value}
+                                      </text>
+                                   );
+                                }}
+                              />
+                            </Bar>
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
 
-                  <div className={cn(
-                    "backdrop-blur-md p-8 rounded-[3rem] border transition-all duration-500 flex flex-col group divide-y divide-slate-800/10",
-                    theme === 'light' ? "bg-white border-slate-200 shadow-2xl shadow-slate-200/50" : "bg-slate-900/40 border-slate-800/50 shadow-2xl"
-                  )}>
-                    <div className="pb-8">
-                      <h3 className={cn("font-bold mb-6 font-serif text-xl italic flex items-center gap-3", theme === 'light' ? "text-slate-900" : "text-white")}>
-                        <Filter size={18} className="text-amber-500" />
-                        Tỷ lệ Trạng thái
-                      </h3>
-                      <div className="h-[220px] w-full relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie 
-                              data={overallPieData} 
-                              cx="50%" 
-                              cy="50%" 
-                              innerRadius={65} 
-                              outerRadius={85} 
-                              paddingAngle={8} 
-                              dataKey="value"
-                              stroke="none"
-                            >
-                              {overallPieData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} />
-                              ))}
-                            </Pie>
-                            <ReTooltip 
-                              content={({ active, payload }) => {
+                  <div className="lg:col-span-1 space-y-8">
+                    <DashboardAlerts 
+                      theme={theme}
+                      stats={{
+                        loanCount: kpis.loanCount,
+                        regularCount: kpis.regularCount,
+                        overdueCount: kpis.overdue,
+                        errorCount: kpis.error,
+                      }}
+                      onFilterChange={(filter) => {
+                        setActiveTab('applications');
+                        setDashboardFilter(filter.toUpperCase());
+                      }}
+                    />
+
+                    <div className={cn(
+                      "p-8 rounded-[3rem] border transition-all duration-500 relative overflow-hidden group",
+                      theme === 'light' ? "bg-white/70 border-slate-200/60 shadow-xl backdrop-blur-xl" : "bg-slate-900/40 border-slate-800/50 shadow-xl"
+                    )}>
+                      <div>
+                        <h3 className={cn("font-black mb-6 font-serif text-sm italic flex items-center gap-3 uppercase tracking-widest", theme === 'light' ? "text-slate-800" : "text-white")}>
+                          <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]" />
+                          Tỉ lệ Trạng thái
+                        </h3>
+                        <div className="h-[180px] w-full relative">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie 
+                                data={overallPieData} 
+                                cx="50%" 
+                                cy="50%" 
+                                innerRadius={55} 
+                                outerRadius={75} 
+                                paddingAngle={6} 
+                                dataKey="value"
+                                stroke="none"
+                              >
+                                {overallPieData.map((entry, index) => (
+                                  <Cell 
+                                    key={`cell-pie-${index}`} 
+                                    fill={entry.color} 
+                                    className="hover:opacity-80 transition-opacity cursor-pointer outline-none" 
+                                  />
+                                ))}
+                              </Pie>
+                              <ReTooltip content={({ active, payload }) => {
                                 if (active && payload && payload.length) {
                                   const data = payload[0].payload;
                                   return (
                                     <div className={cn(
-                                      "p-3 rounded-xl shadow-2xl border-none outline-none",
-                                      theme === 'light' ? "bg-white text-slate-800" : "bg-slate-900 text-white"
+                                       "p-3 rounded-xl text-[10px] font-black border backdrop-blur-md shadow-2xl", 
+                                       theme === 'light' ? "bg-white border-slate-200 text-slate-800 shadow-indigo-100" : "bg-slate-900 border-slate-800 text-white"
                                     )}>
-                                      <p className="font-black uppercase text-[10px]">{data.name}</p>
-                                      <p className="font-black italic text-indigo-500 text-lg">{data.percentage}%</p>
-                                      <p className="text-[9px] text-slate-500 font-bold">{data.value} căn</p>
+                                      <div className="flex items-center gap-2 mb-1">
+                                         <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: data.color }} />
+                                         {data.name}
+                                      </div>
+                                      <div className="flex justify-between gap-4">
+                                         <span className="opacity-50 font-bold uppercase tracking-tighter">Phần trăm:</span>
+                                         <span>{data.percentage}%</span>
+                                      </div>
                                     </div>
                                   );
                                 }
                                 return null;
-                              }}
-                            />
-                          </PieChart>
-                        </ResponsiveContainer>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mb-6">
-                          <span className={cn("text-3xl font-black italic font-serif", theme === 'light' ? "text-slate-900" : "text-white")}>{kpis.total}</span>
-                          <span className="text-[8px] uppercase font-black text-slate-500 mt-1">Hồ sơ</span>
-                        </div>
-                      </div>
-                      <div className="mt-8 space-y-4">
-                        {overallPieData.map((d) => (
-                          <div key={d.name} className="flex items-center justify-between px-2">
-                            <div className="flex items-center gap-3">
-                              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
-                              <span className={cn("text-[10px] font-black uppercase tracking-tight", theme === 'light' ? "text-slate-500" : "text-slate-200")}>{d.name}</span>
-                            </div>
-                            <span className={cn("text-[10px] font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>{d.percentage}%</span>
+                              }} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                              <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">Tổng quy mô</p>
+                              <p className={cn("text-xl font-black mt-1", theme === 'dark' ? "text-white" : "text-slate-800")}>
+                                 {filteredByProjectApps.length}
+                              </p>
                           </div>
-                        ))}
+                        </div>
+                        
+                        {/* Legend for Pie Chart as requested */}
+                        <div className={cn(
+                           "mt-8 grid grid-cols-1 gap-3 p-4 rounded-2xl",
+                           theme === 'dark' ? "bg-slate-950/20" : "bg-slate-50/50"
+                        )}>
+                           {overallPieData.slice(0, 5).map((d) => (
+                              <div key={d.name} className="flex items-center justify-between">
+                                 <div className="flex items-center gap-2.5">
+                                    <div className="w-2 h-2 rounded-full shadow-lg" style={{ backgroundColor: d.color, boxShadow: `0 0 10px ${d.color}44` }} />
+                                    <span className={cn("text-[9px] font-bold uppercase tracking-tight truncate max-w-[120px]", theme === 'dark' ? "text-slate-400" : "text-slate-600")}>{d.name}</span>
+                                 </div>
+                                 <div className="flex items-center gap-2">
+                                    <span className={cn("text-[10px] font-black", theme === 'dark' ? "text-slate-200" : "text-slate-900")}>{d.value}</span>
+                                    <span className="text-[8px] font-black text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded-full">{d.percentage}%</span>
+                                 </div>
+                              </div>
+                           ))}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="pt-8">
-                       <h3 className={cn("font-bold mb-6 font-serif text-xl italic flex items-center gap-3", theme === 'light' ? "text-slate-900" : "text-white")}>
-                         <Wallet size={18} className="text-emerald-500" />
-                         Trạng thái Căn có vay
-                       </h3>
-                       {roleKpis.loanStatusStats.length > 0 ? (
-                         <div className="grid grid-cols-1 gap-4">
-                            <div className="h-[120px] w-full relative">
-                               <ResponsiveContainer width="100%" height="100%">
-                                 <PieChart>
-                                   <Pie data={roleKpis.loanStatusStats} cx="50%" cy="50%" innerRadius={40} outerRadius={55} paddingAngle={5} dataKey="value">
-                                     {roleKpis.loanStatusStats.map((entry: any, index: number) => (
-                                       <Cell key={`cell-loan-${index}`} fill={entry.color} />
-                                     ))}
-                                   </Pie>
-                                 </PieChart>
-                               </ResponsiveContainer>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                               {roleKpis.loanStatusStats.map((s: any) => (
-                                 <div key={s.name} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/10 border border-slate-800/10">
-                                   <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.color }} />
-                                   <span className="text-[8px] text-slate-500 font-bold uppercase">{s.name}:</span>
-                                   <span className={cn("text-[9px] font-black", theme === 'light' ? "text-slate-900" : "text-white")}>{s.value}</span>
-                                 </div>
-                               ))}
-                            </div>
-                         </div>
-                       ) : (
-                         <div className="py-10 text-center opacity-40">
-                            <p className="text-[10px] italic">Không có dữ liệu căn có vay</p>
-                         </div>
-                       )}
+                      <div className="pt-4 border-t border-slate-800/10">
+                         <h3 className={cn("font-bold mb-4 font-serif text-sm italic flex items-center gap-3", theme === 'light' ? "text-slate-900" : "text-white")}>
+                           <Wallet size={14} className="text-emerald-500" />
+                           Căn có vay
+                         </h3>
+                         {roleKpis.loanStatusStats.length > 0 ? (
+                           <div className="flex flex-col gap-4">
+                              <div className="h-[100px] w-full relative">
+                                 <ResponsiveContainer width="100%" height="100%">
+                                   <PieChart>
+                                     <Pie data={roleKpis.loanStatusStats} cx="50%" cy="50%" innerRadius={35} outerRadius={45} paddingAngle={5} dataKey="value">
+                                       {roleKpis.loanStatusStats.map((entry: any, index: number) => (
+                                         <Cell key={`cell-loan-${index}`} fill={entry.color} />
+                                       ))}
+                                     </Pie>
+                                   </PieChart>
+                                 </ResponsiveContainer>
+                              </div>
+                              <div className="flex flex-wrap gap-1 justify-center">
+                                  {roleKpis.loanStatusStats.map((s: any, idx: number) => (
+                                    <div key={`${s.name}-${idx}`} className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-800/10 border border-slate-800/10">
+                                     <div className="w-1 h-1 rounded-full" style={{ backgroundColor: s.color }} />
+                                     <span className={cn("text-[8px] font-black", theme === 'light' ? "text-slate-900" : "text-white")}>{s.value}</span>
+                                   </div>
+                                 ))}
+                              </div>
+                           </div>
+                         ) : (
+                           <p className="text-[10px] italic opacity-40 text-center">Không có dữ liệu</p>
+                         )}
+                      </div>
                     </div>
                   </div>
-                </div>
 
                 {(userRole === 'ADMIN' || userRole === 'DIRECTOR') && (
                   <div className={cn(
                     "backdrop-blur-xl rounded-3xl shadow-2xl border transition-all overflow-hidden",
                     theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/20 shadow-2xl border-slate-800/50"
                   )}>
-                    <div className={cn("p-6 border-b flex items-center justify-between", theme === 'light' ? "border-slate-100 bg-slate-50" : "border-slate-800/50")}>
+                    <div className={cn("p-5 border-b flex items-center justify-between", theme === 'light' ? "border-slate-100 bg-slate-50" : "border-slate-800/50")}>
                       <div className="flex items-center gap-4">
-                        <h3 className={cn("font-bold font-serif text-xl italic", theme === 'light' ? "text-slate-900" : "text-white")}>Hiệu suất Trách nhiệm Phòng ban theo ngày</h3>
+                        <h3 className={cn("font-bold font-serif text-lg italic", theme === 'light' ? "text-slate-900" : "text-white")}>Hiệu suất Xử lý theo Phòng ban</h3>
                         <div className="flex items-center gap-2 bg-slate-800/20 rounded-lg p-1 border border-slate-700/30">
-                          <Clock size={12} className="text-slate-500 ml-1" />
-                          <span className="text-[10px] font-black uppercase text-slate-400 px-2 italic">Thời gian xử lý trung bình</span>
+                          <Clock size={10} className="text-slate-500 ml-1" />
+                          <span className="text-[9px] font-black uppercase text-slate-400 px-2 italic">Chỉ số SLA trung bình</span>
                         </div>
                       </div>
                     </div>
-                    <div className="p-8">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <div className="p-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {roleKpis.admin.deptStats.map((dept, idx) => (
                           <div key={dept.dept} className={cn(
-                            "p-6 rounded-[2.5rem] border transition-all hover:border-festive-gold/50 duration-300 relative overflow-hidden",
+                            "p-4 rounded-[2rem] border transition-all hover:bg-slate-800/10 duration-300",
                             theme === 'light' ? "bg-slate-50 border-slate-100 shadow-sm" : "bg-slate-800/40 border-slate-700/30 shadow-xl"
                           )}>
-                            <div className="flex justify-between items-start mb-6">
-                              <div>
-                                 <p className={cn("text-[9px] font-black uppercase tracking-widest leading-none mb-1", theme === 'light' ? "text-slate-400" : "text-slate-500")}>Phòng ban</p>
-                                 <h4 className={cn("text-lg font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>{dept.label}</h4>
+                            <div className="flex justify-between items-start mb-4">
+                              <div className="flex items-center gap-3">
+                                 <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", dept.color + " bg-opacity-10")}>
+                                    <Layers size={14} className={dept.color.replace('bg-', 'text-')} />
+                                 </div>
+                                 <div>
+                                   <p className={cn("text-[8px] font-black uppercase tracking-widest leading-none mb-0.5", theme === 'light' ? "text-slate-400" : "text-slate-500")}>Phòng ban</p>
+                                   <h4 className={cn("text-sm font-black italic truncate max-w-[120px]", theme === 'light' ? "text-slate-900" : "text-white")}>{dept.label}</h4>
+                                 </div>
                               </div>
-                              <div className={cn("w-10 h-10 rounded-2xl flex items-center justify-center", dept.color + " bg-opacity-10")}>
-                                 <Layers size={18} className={dept.color.replace('bg-', 'text-')} />
+                              <div className="text-right">
+                                <span className={cn("text-2xl font-black italic font-serif", theme === 'light' ? "text-slate-900" : "text-white")}>{dept.avgDays}</span>
+                                <span className="text-[8px] font-bold text-slate-500 uppercase ml-1">Ngày</span>
                               </div>
                             </div>
                             
-                            <div className="flex items-baseline gap-2 mb-4">
-                              <span className={cn("text-4xl font-black italic font-serif", theme === 'light' ? "text-slate-900" : "text-white")}>{dept.avgDays}</span>
-                              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Ngày / Hồ sơ</span>
-                            </div>
-
-                            <div className="h-2 w-full bg-slate-800/20 rounded-full overflow-hidden mb-4">
+                            <div className="h-1.5 w-full bg-slate-800/10 rounded-full overflow-hidden mb-3">
                                <div className={cn("h-full rounded-full transition-all duration-1000", dept.color)} style={{ width: `${Math.min(100, (dept.avgDays / 15) * 100)}%` }} />
                             </div>
                             
-                            <div className="flex justify-between items-center text-[10px]">
-                               <span className="text-slate-500 font-bold uppercase tracking-tighter">Đang xử lý: {dept.count} căn</span>
-                               <span className={cn("font-black italic px-2 py-0.5 rounded-lg", dept.avgDays > 10 ? "text-rose-500 bg-rose-500/10" : "text-emerald-500 bg-emerald-500/10")}>
-                                 {dept.avgDays > 10 ? 'Cảnh báo chậm' : 'Tiến độ tốt'}
+                            <div className="flex justify-between items-center text-[9px]">
+                               <span className="text-slate-500 font-bold uppercase">Xử lý: {dept.count}</span>
+                               <span className={cn("font-black italic px-2 py-0.5 rounded-lg", dept.avgDays > 10 ? "text-rose-500 bg-rose-500/5" : "text-emerald-500 bg-emerald-500/5")}>
+                                 {dept.avgDays > 10 ? 'Chậm' : 'Tốt'}
                                </span>
                             </div>
                           </div>
@@ -8230,29 +8231,22 @@ export default function App() {
                   <div className={cn("p-6 border-b", theme === 'light' ? "border-slate-100 shadow-inner bg-slate-50/50" : "border-slate-800/50")}>
                     <div className="flex flex-col gap-4 mb-4">
                       <div className="flex justify-between items-center">
-                        <input 
-                          type="text"
-                          placeholder="Tìm theo Mã HS, Tên..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className={cn("px-4 py-2 rounded-full text-xs font-bold border outline-none", theme === 'light' ? "bg-white border-slate-200 text-slate-800" : "bg-slate-950 border-slate-800 text-white")}
-                        />
-                        <div className="flex items-center gap-4 text-[11px]">
+                        <div className={cn("flex items-center gap-4 text-[11px]", theme === 'light' ? "text-slate-800" : "text-slate-200")}>
                           <select 
                             value={pageSize}
                             onChange={(e) => {setPageSize(Number(e.target.value)); setCurrentPage(0);}}
-                            className={cn("px-2 py-1 rounded-lg text-[10px]", theme === 'light' ? "bg-slate-100" : "bg-slate-800")}
+                            className={cn("px-2 py-1 rounded-lg text-[10px] outline-none font-bold", theme === 'light' ? "bg-slate-200/50 text-slate-800 border border-slate-300/50" : "bg-slate-800 text-slate-200 border border-slate-700")}
                           >
                             <option value={20}>20 / trang</option>
                             <option value={50}>50 / trang</option>
                             <option value={100}>100 / trang</option>
                           </select>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className="p-1 disabled:opacity-30">Trước</button>
-                            <span className="font-bold">Trang {currentPage + 1}</span>
-                            <button onClick={() => setCurrentPage(p => ( (p+1)*pageSize < totalCount ? p + 1 : p))} disabled={(currentPage+1)*pageSize >= totalCount} className="p-1 disabled:opacity-30">Sau</button>
+                          <div className={cn("flex items-center gap-2 font-bold", theme === 'light' ? "text-slate-600" : "text-slate-400")}>
+                            <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className={cn("p-1 transition-colors disabled:opacity-30", theme === 'light' ? "hover:text-indigo-600" : "hover:text-festive-gold")}>Trước</button>
+                            <span className={cn("px-3 py-1 rounded-lg", theme === 'light' ? "bg-slate-200/50 text-slate-900" : "bg-slate-800 text-white")}>Trang {currentPage + 1}</span>
+                            <button onClick={() => setCurrentPage(p => ( (p+1)*pageSize < totalCount ? p + 1 : p))} disabled={(currentPage+1)*pageSize >= totalCount} className={cn("p-1 transition-colors disabled:opacity-30", theme === 'light' ? "hover:text-indigo-600" : "hover:text-festive-gold")}>Sau</button>
                           </div>
-                          <span className="text-slate-500 italic">Tổng: {totalCount} hồ sơ</span>
+                          <span className="text-slate-500 font-bold italic opacity-70">Tổng: {totalCount.toLocaleString()} hồ sơ</span>
                         </div>
                       </div>
                       <div className="flex items-center justify-between gap-4">
@@ -8265,14 +8259,15 @@ export default function App() {
                             In phiếu ({selectedAppIds.length})
                           </button>
                         )}
-                        {(filterStatus !== 'ALL' || filterStep !== 'ALL' || dashboardFilter !== 'ALL' || filterSLAStatus !== 'ALL') && (
+                        {(filterStatus !== 'ALL' || filterStep !== 'ALL' || dashboardFilter !== 'ALL' || filterSLAStatus !== 'ALL' || filterIssue !== 'ALL') && (
                           <button 
                             onClick={() => {
                               setFilterStatus('ALL');
                               setFilterStep('ALL');
                               setDashboardFilter('ALL');
                               setFilterSLAStatus('ALL');
-                              setSearchTerm('');
+                              setFilterIssue('ALL');
+                              setSearch('');
                             }}
                             className={cn(
                               "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
@@ -8389,11 +8384,11 @@ export default function App() {
                                   "w-full rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
                                   theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
                                 )}
-                                value={filterStatus === 'Error' ? 'Error' : 'ALL'}
-                                onChange={(e) => setFilterStatus(e.target.value === 'Error' ? 'Error' : 'ALL')}
+                                value={filterIssue}
+                                onChange={(e) => setFilterIssue(e.target.value as any)}
                               >
                                 <option value="ALL">Tất cả hồ sơ</option>
-                                <option value="Error">Chỉ hồ sơ có lỗi/vướng</option>
+                                <option value="ERROR">Chỉ hồ sơ có lỗi/vướng</option>
                               </select>
                             </div>
 
@@ -8453,6 +8448,7 @@ export default function App() {
                                   setFilterLoanStatus('ALL');
                                   setFilterSelfService('ALL');
                                   setFilterSLAStatus('ALL');
+                                  setFilterIssue('ALL');
                                   setSearch('');
                                 }}
                                 className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all"
@@ -8493,6 +8489,8 @@ export default function App() {
                               const workflowType = firstApp.workflowType || 'Quy_trinh_1';
                               const nextStep = getNextStep(firstApp.currentStep, workflowType);
                               const roleDept = (stepConfig[firstApp.currentStep] || INITIAL_STEP_CONFIG[firstApp.currentStep])?.dept;
+                              const isSupportSpecial = (firstApp.projectName?.includes('hỗ trợ')) && (firstApp.currentStep === 'GD2_Cho_Nop_VPDK' || firstApp.currentStep === 'S3_Nop_VPDK');
+                              const effectiveDept = isSupportSpecial ? 'KT' : roleDept;
                               
                               // Step 7.2 Quy_trinh_2 custom logic
                               if (workflowType === 'Quy_trinh_2' && firstApp.currentStep === 'S7_2_Ban_Giao_Khach') {
@@ -8509,7 +8507,7 @@ export default function App() {
                                  return null;
                               }
                               
-                              if (nextStep && (userRole === 'ADMIN' || userRole === 'MANAGER' || roleDept === userRole || (firstApp.currentStep === 'S1_ChuanBi' && userRole === 'PTT') || (firstApp.currentStep === 'GD1_ChuanBi' && userRole === 'PTT'))) {
+                              if (nextStep && (userRole === 'ADMIN' || userRole === 'MANAGER' || effectiveDept === userRole || (firstApp.currentStep === 'S1_ChuanBi' && userRole === 'PTT') || (firstApp.currentStep === 'GD1_ChuanBi' && userRole === 'PTT'))) {
                                 return (
                                   <button 
                                     onClick={() => handleBulkStepTransition(nextStep)}
@@ -8592,6 +8590,7 @@ export default function App() {
                             <>
                               <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase">Đối tượng ký</th>
                               <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase">Trạng thái</th>
+                              <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase text-center">Phòng chủ trì</th>
                               {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                                 <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase text-center">Nộp VPĐK</th>
                               )}
@@ -8612,11 +8611,11 @@ export default function App() {
                         "divide-y transition-all",
                         theme === 'light' ? "text-slate-700 divide-slate-100" : "text-slate-300 divide-slate-800/40"
                       )}>
-                        {applications.map(app => {
+                        {applications.map((app, index) => {
                           const overdue = getOverdueInfo(app, stepConfig, slaConfig);
                           return (
                             <tr 
-                              key={app.id} 
+                              key={`${app.id}-${index}`} 
                               className={cn(
                                 "transition-colors cursor-pointer group border-b",
                                 theme === 'light' 
@@ -8875,6 +8874,18 @@ export default function App() {
                                         </div>
                                       )}
                                     </div>
+                                  </td>
+                                  <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
+                                      {(() => {
+                                        const isSupportSpecial = (app?.projectName?.includes('hỗ trợ') || app?.workflowType === 'Quy_trinh_1') && (app?.currentStep === 'GD2_Cho_Nop_VPDK' || app?.currentStep === 'S3_Nop_VPDK');
+                                        const config = (stepConfig[app?.currentStep || ''] || INITIAL_STEP_CONFIG[app?.currentStep || '']);
+                                        const dept = isSupportSpecial ? 'KT' : (config?.dept || '---');
+                                        return (
+                                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                            {dept}
+                                          </span>
+                                        );
+                                      })()}
                                   </td>
                                   {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
                                     <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
@@ -9151,7 +9162,7 @@ export default function App() {
                     </div>
                     <div className="space-y-3">
                       {DOC_CHECKLIST_ITEMS.map((item, idx) => (
-                        <div key={item} className={cn(
+                        <div key={`${item}-${idx}`} className={cn(
                           "flex items-center gap-4 p-5 rounded-2xl border transition-all group",
                           theme === 'light' ? "bg-slate-50 border-slate-100 hover:border-amber-200" : "bg-slate-950/30 border-slate-800/30 hover:border-amber-500/30"
                         )}>
@@ -9499,7 +9510,11 @@ export default function App() {
                       <div>
                         <p className={cn("text-[10px] font-black uppercase tracking-widest mb-1.5 opacity-70", theme === 'dark' ? "text-slate-500" : "text-slate-400")}>Phòng chủ trì:</p>
                         <p className={cn("text-base font-black uppercase tracking-tight", theme === 'dark' ? "text-slate-300" : "text-slate-700")}>
-                          {stepConfig[(editApp || selectedApp).currentStep]?.dept}
+                          {(() => {
+                            const app = editApp || selectedApp;
+                            const isSupportSpecial = (app?.projectName?.includes('hỗ trợ') || app?.workflowType === 'Quy_trinh_1') && (app?.currentStep === 'GD2_Cho_Nop_VPDK' || app?.currentStep === 'S3_Nop_VPDK');
+                            return isSupportSpecial ? 'KT' : (stepConfig[app?.currentStep || '']?.dept || '---');
+                          })()}
                         </p>
                       </div>
                     </div>
@@ -9961,8 +9976,8 @@ export default function App() {
                                                </tr>
                                              );
 
-                                             return merged.map((log) => (
-                                               <tr key={log.id} className={cn("border-b transition-colors group", theme === 'dark' ? "border-slate-800/50 hover:bg-slate-800/20 text-slate-300" : "border-slate-100 hover:bg-slate-50 text-slate-700")}>
+                                             return merged.map((log, index) => (
+                                               <tr key={`${log.type || 'log'}-${log.id}-${index}`} className={cn("border-b transition-colors group", theme === 'dark' ? "border-slate-800/50 hover:bg-slate-800/20 text-slate-300" : "border-slate-100 hover:bg-slate-50 text-slate-700")}>
                                                  <td className="p-3 text-[11px] whitespace-nowrap align-top pt-4">
                                                    <div className="font-bold">{log.time}</div>
                                                  </td>
@@ -10123,8 +10138,12 @@ export default function App() {
                                            </button>
                                          );
                                        }
-                
-                                       let canAction = role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER' || (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.dept === role;
+
+                                       const isSupportSpecial = (app.projectName?.includes('hỗ trợ')) && (app.currentStep === 'GD2_Cho_Nop_VPDK' || app.currentStep === 'S3_Nop_VPDK');
+                                       const currentStepDept = (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.dept;
+                                       const effectiveDept = isSupportSpecial ? 'KT' : currentStepDept;
+
+                                       let canAction = role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER' || effectiveDept === role;
                                        const nextStep = getNextStep(app.currentStep, app.workflowType || 'Quy_trinh_1');
                                        
                                        if (canAction && nextStep) {
