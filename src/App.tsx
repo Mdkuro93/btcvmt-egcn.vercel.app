@@ -1686,7 +1686,7 @@ const ReportsView = ({
     });
 
     const createStageItem = (name: string, list: Application[], color: string) => {
-      const errorCount = list.filter(a => (a.status as string) === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None' && (a.status as string) === 'Error')).length;
+      const errorCount = list.filter(a => (a.status as string) === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None')).length;
       return { name, value: list.length, normal: list.length - errorCount, error: errorCount, color };
     };
 
@@ -6912,7 +6912,7 @@ export default function App() {
       taxCompleted: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'TaxCompleted').length,
       gcnIssued: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'GCN_Issued').length,
       completed: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'Completed').length,
-      error: dashboardApps.filter(a => a.status === 'Error').length,
+      error: dashboardApps.filter(a => a.status === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None')).length,
       overdue: dashboardApps.filter(a => getOverdueInfo(a, stepConfig, slaConfig).isOverdue).length,
       loanCount: processingApps.filter(a => a.loanStatus === 'Co_Vay').length,
       regularCount: processingApps.filter(a => a.loanStatus === 'Khong_Vay').length,
@@ -6931,7 +6931,7 @@ export default function App() {
     // Requirement: PTT total should show ALL records (including completed)
     const pttTotal = dashboardApps.length;
     const pttProcessing = apps.filter(a => a.status === 'Processing').length;
-    const pttIssues = apps.filter(a => a.isRejected || a.status === 'Error').length;
+    const pttIssues = apps.filter(a => a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None')).length;
     // PTT Tax Pending: Has tax notification (from PTDA) but not yet completed payment (no receipt date)
     const pttTaxPending = apps.filter(a => !!a.taxNotificationDate && !a.taxReceiptDate).length;
     const pttSlowest = apps.filter(a => stepConfig[a.currentStep]?.dept === 'PTT')
@@ -7043,7 +7043,7 @@ export default function App() {
 
     const adminWarnings = [];
     const overdueCount = apps.filter(a => getOverdueInfo(a, stepConfig, slaConfig).isOverdue).length;
-    const errorCount = apps.filter(a => a.status === 'Error').length;
+    const errorCount = apps.filter(a => a.status === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None')).length;
     
     // Check 2-day KT receipt warning
     const ktPendingReceipt = apps.filter(a => a.currentStep === 'S2_KT_Tiep_Nhan' && a.accountingHandoverDate).filter(a => {
@@ -7105,10 +7105,14 @@ export default function App() {
     // Loan Stats
     const loanApps = dashboardApps.filter(a => a.loanStatus === 'Co_Vay');
     const loanStatusStats = [
-      { name: 'Đang xử lý', value: loanApps.filter(a => a.status === 'Processing').length, color: '#6366f1' },
-      { name: 'Hoàn tất', value: loanApps.filter(a => a.status === 'Completed' || a.status === 'GCN_Issued').length, color: '#10b981' },
-      { name: 'Vướng mắc', value: loanApps.filter(a => a.status === 'Error' || a.isRejected).length, color: '#f43f5e' },
-      { name: 'Chờ duyệt', value: loanApps.filter(a => a.status === 'Pending').length, color: '#f59e0b' }
+      { name: 'Chuẩn bị', value: loanApps.filter(a => a.status === 'Processing').length, color: '#94a3b8' },
+      { name: 'Chờ nộp VPĐK', value: loanApps.filter(a => a.status === 'WaitingVPDK').length, color: '#f59e0b' },
+      { name: 'Đã nộp VPĐK', value: loanApps.filter(a => a.status === 'Submitted').length, color: '#3b82f6' },
+      { name: 'Chờ TB Thuế', value: loanApps.filter(a => a.status === 'TaxPending').length, color: '#f97316' },
+      { name: 'Đã nộp thuế', value: loanApps.filter(a => a.status === 'TaxPaid' || a.status === 'TaxCompleted').length, color: '#10b981' },
+      { name: 'Đã có GCN', value: loanApps.filter(a => a.status === 'GCN_Issued' || a.status === 'WaitingHandover').length, color: '#06b6d4' },
+      { name: 'Hoàn tất', value: loanApps.filter(a => a.status === 'Completed').length, color: '#22c55e' },
+      { name: 'Vướng mắc', value: loanApps.filter(a => a.status === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None')).length, color: '#f43f5e' }
     ].filter(s => s.value > 0);
 
     const loanRatioStats = [
@@ -7261,8 +7265,8 @@ export default function App() {
     const createStageItem = (name: string, list: Application[], color: string, statusId: UnitStatus) => {
       // Chỉ đếm các hồ sơ đang thực sự gặp sai sót (chưa được khắc phục)
       const errorCount = list.filter(a => {
-        // Hồ sơ được xem là "Đang có lỗi" nếu hiện tại đang gắn cờ lỗi chưa xử lý
-        return (a.status as string) === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None' && (a.status as string) === 'Error');
+        // Hồ sơ được xem là "Đang có lỗi" nếu hiện tại đang gắn cờ lỗi chưa xử lý hoặc bị trả hồ sơ
+        return (a.status as string) === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None');
       }).length;
       return {
         name,
@@ -7308,16 +7312,16 @@ export default function App() {
     const matchesSelfService = filterSelfService === 'ALL' || 
       (filterSelfService === 'YES' ? app.isSelfService === true : app.isSelfService !== true);
     const matchesSLA = filterSLAStatus === 'ALL' || (filterSLAStatus === 'OVERDUE' && getOverdueInfo(app, stepConfig, slaConfig).isOverdue);
-    const matchesIssueFilter = filterIssue === 'ALL' || (app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None' && app.status === 'Error'));
+    const matchesIssueFilter = filterIssue === 'ALL' || (app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None'));
     
     const matchesDashboardFilter = 
       dashboardFilter === 'ALL' ||
       (dashboardFilter === 'OVERDUE' && getOverdueInfo(app, stepConfig, slaConfig).isOverdue) ||
-      (dashboardFilter === 'ERROR' && app.status === 'Error') ||
+      (dashboardFilter === 'ERROR' && (app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None'))) ||
       (dashboardFilter === 'COMPLETED' && app.status === 'Completed') ||
       (dashboardFilter === 'PTT_PROCESSING' && app.status === 'Processing') ||
       (dashboardFilter === 'PTT_HOLDING' && stepConfig[app.currentStep]?.dept === 'PTT') ||
-      (dashboardFilter === 'PTT_ISSUES' && (app.isRejected || app.status === 'Error')) ||
+      (dashboardFilter === 'PTT_ISSUES' && (app.isRejected || app.status === 'Error' || (app.issueType && app.issueType !== 'None'))) ||
       (dashboardFilter === 'PTT_TAX_UNPAID' && !!app.taxNotificationDate && !app.taxReceiptDate) ||
       (dashboardFilter === 'PTT_WAITING_HANDOVER' && ['S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach'].includes(app.currentStep) && !app.customerHandoverDate) ||
       (dashboardFilter === 'KT_ALL' && true) ||
@@ -8445,18 +8449,32 @@ export default function App() {
                                </div>
                                
                                {/* Status Stats */}
-                               <div className="flex flex-col gap-4 border-l border-slate-800/10 pl-4">
+                               <div className="flex flex-col gap-4 border-l border-slate-800/10 pl-4 w-full">
                                   <div className="text-center text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2">Tiến độ hồ sơ vay</div>
                                   {roleKpis.loanStatusStats.length > 0 ? (
-                                    <div className="h-[150px] w-full relative">
+                                    <div className="h-[250px] w-full relative">
                                        <ResponsiveContainer width="100%" height="100%">
-                                         <BarChart data={roleKpis.loanStatusStats} margin={{ top: 20, right: 20, bottom: 0, left: -20 }}>
-                                           <XAxis dataKey="name" stroke="#94a3b8" fontSize={8} tickLine={false} axisLine={false} />
+                                         <BarChart 
+                                           data={roleKpis.loanStatusStats} 
+                                           margin={{ top: 20, right: 30, bottom: 60, left: 0 }}
+                                         >
+                                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? '#ffffff05' : '#00000005'} />
+                                           <XAxis 
+                                             dataKey="name" 
+                                             stroke={theme === 'dark' ? '#64748b' : '#94a3b8'} 
+                                             fontSize={8} 
+                                             tickLine={false} 
+                                             axisLine={false}
+                                             interval={0}
+                                             angle={-45}
+                                             textAnchor="end"
+                                           />
                                            <YAxis hide />
                                            <ReTooltip 
-                                             contentStyle={{ backgroundColor: theme === 'light' ? '#fff' : '#0f172a', border: 'none', borderRadius: '12px', fontSize: '10px' }}
+                                             cursor={{ fill: 'transparent' }}
+                                             contentStyle={{ backgroundColor: theme === 'light' ? '#fff' : '#0f172a', border: 'none', borderRadius: '12px', fontSize: '10px', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
                                            />
-                                           <Bar dataKey="value" barSize={16} radius={[4, 4, 0, 0]}>
+                                           <Bar dataKey="value" barSize={18} radius={[4, 4, 0, 0]}>
                                              {roleKpis.loanStatusStats.map((entry: any, index: number) => (
                                                <Cell key={`cell-loan-st-${index}`} fill={entry.color} />
                                              ))}
@@ -10453,8 +10471,77 @@ export default function App() {
 
 
                                {detailTab === 'Documents' && (
-                                 <div className="p-10 text-center text-slate-500 font-bold uppercase tracking-widest text-[10px]">
-                                   Chưa có tài liệu số đính kèm
+                                 <div className="space-y-6 animate-in fade-in duration-300">
+                                   <div className="flex items-center justify-between mb-2 text-left">
+                                     <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Danh sách tài liệu đã đính kèm</h4>
+                                     <div className="relative">
+                                       <input 
+                                         type="file" 
+                                         id="doc-upload" 
+                                         className="hidden" 
+                                         onChange={handleFileUpload} 
+                                       />
+                                       <button 
+                                         onClick={() => document.getElementById('doc-upload')?.click()}
+                                         className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-bold uppercase transition-all shadow-lg shadow-emerald-900/20 active:scale-95"
+                                       >
+                                         <Plus size={14} /> Tải tài liệu lên
+                                       </button>
+                                     </div>
+                                   </div>
+
+                                   {(editApp || selectedApp).scannedFiles && (editApp || selectedApp).scannedFiles!.length > 0 ? (
+                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                                       {(editApp || selectedApp).scannedFiles?.map(file => (
+                                         <div 
+                                           key={file.id}
+                                           className={cn(
+                                             "p-4 rounded-2xl border transition-all flex items-center justify-between group",
+                                             theme === 'dark' ? "bg-slate-800/40 border-slate-700 hover:border-slate-500" : "bg-slate-50 border-slate-200 hover:border-indigo-300"
+                                           )}
+                                         >
+                                           <div className="flex items-center gap-3 overflow-hidden">
+                                             <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0">
+                                               <FileText size={20} />
+                                             </div>
+                                             <div className="min-w-0">
+                                               <p className={cn("text-xs font-bold truncate", theme === 'dark' ? "text-white" : "text-slate-900")}>{file.name}</p>
+                                               <p className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-tighter">Ngày tải: {file.uploadDate}</p>
+                                             </div>
+                                           </div>
+                                           <div className="flex items-center gap-2">
+                                             <a 
+                                               href={file.url} 
+                                               target="_blank" 
+                                               rel="noopener noreferrer"
+                                               className="p-2 bg-slate-100 dark:bg-slate-900 text-slate-500 hover:text-indigo-500 rounded-lg transition-all"
+                                               title="Xem/Tải về"
+                                             >
+                                               <ExternalLink size={16} />
+                                             </a>
+                                             <button 
+                                               onClick={() => handleDeleteFile(file.id)}
+                                               className="p-2 bg-slate-100 dark:bg-slate-900 text-slate-500 hover:text-rose-500 rounded-lg transition-all"
+                                               title="Xóa"
+                                             >
+                                               <Trash2 size={16} />
+                                             </button>
+                                           </div>
+                                         </div>
+                                       ))}
+                                     </div>
+                                   ) : (
+                                     <div className={cn(
+                                       "p-12 border-2 border-dashed rounded-3xl text-center",
+                                       theme === 'dark' ? "border-slate-800 bg-slate-900/10" : "border-slate-200 bg-slate-50"
+                                     )}>
+                                       <div className="w-16 h-16 bg-slate-200 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 opacity-50">
+                                         <Upload size={32} className="text-slate-400" />
+                                       </div>
+                                       <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em]">Chưa có tài liệu số đính kèm</p>
+                                       <p className="text-[10px] text-slate-400 mt-1 uppercase">Vui lòng nhấp nút bên trên để bắt đầu tải lên</p>
+                                     </div>
+                                   )}
                                  </div>
                                )}
                             </div>
