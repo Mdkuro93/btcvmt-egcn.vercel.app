@@ -24,6 +24,7 @@ import {
   BookOpen,
   ChevronRight,
   Download,
+  ExternalLink,
   Upload,
   LogOut,
   AlertTriangle,
@@ -878,31 +879,108 @@ const SettingsView = ({
               </div>
               <h3 className={cn("text-base font-black uppercase tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Cấu hình SLA (Ngày)</h3>
             </div>
-            <button 
-              onClick={() => onSaveConfig('slaConfig', slaConfig)}
-              className="px-4 py-2 bg-amber-600/10 text-amber-500 hover:bg-amber-600/20 border border-amber-600/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-            >
-              Lưu SLA
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => {
+                  if (confirm('Bạn có chắc muốn đặt lại SLA về mặc định hệ thống?')) {
+                    const defaultSla = Object.values(INITIAL_STEP_CONFIG).reduce((acc: any, s: any) => ({ ...acc, [s.label]: s.slaDays || 10 }), {});
+                    setSlaConfig(defaultSla);
+                  }
+                }}
+                className="px-4 py-2 bg-slate-500/10 text-slate-500 hover:bg-slate-500/20 border border-slate-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+              >
+                Đặt lại mặc định
+              </button>
+              <button 
+                onClick={() => onSaveConfig('slaConfig', slaConfig)}
+                className="px-4 py-2 bg-amber-600/10 text-amber-500 hover:bg-amber-600/20 border border-amber-600/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+              >
+                Lưu SLA
+              </button>
+            </div>
           </div>
-          <div className="p-8 space-y-4">
-            {Object.entries(slaConfig).map(([step, days]) => (
-              <div key={step} className={cn(
-                "flex items-center justify-between p-4 rounded-2xl border group/item hover:border-amber-500/30 transition-all",
-                theme === 'light' ? "bg-white border-slate-100 shadow-sm" : "bg-slate-950 border-slate-800"
-              )}>
-                <span className={cn("text-sm font-bold", theme === 'light' ? "text-slate-700" : "text-slate-300")}>{step}</span>
-                <div className="flex items-center gap-3">
-                  <input 
-                    type="number" 
-                    value={days}
-                    onChange={(e) => setSlaConfig({...slaConfig, [step]: parseInt(e.target.value) || 0})}
-                    className="w-16 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-center text-sm font-black text-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
-                  />
-                  <span className="text-[10px] font-black text-slate-500 uppercase">Ngày</span>
-                </div>
+          <div className="p-8 space-y-8">
+            {/* Workflow 2 (B - Bước) */}
+            <div className="space-y-4">
+              <h4 className="text-[10px] font-black uppercase text-indigo-500 tracking-[0.2em] mb-4 flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                Quy trình 2 (Hồ sơ dự án - Bước B)
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(slaConfig)
+                  .filter(([label]) => {
+                    if (label === 'ĐÃ HOÀN TẤT') return false;
+                    // Find if this label belongs to a Workflow 2 step (starts with S)
+                    const stepEntry = Object.entries(stepConfig || {}).find(([_, cfg]: any) => cfg.label === label);
+                    return stepEntry ? stepEntry[0].startsWith('S') : label.startsWith('B');
+                  })
+                  .sort(([labelA], [labelB]) => {
+                    const getNum = (s: string) => {
+                      const match = s.match(/B(\d+(\.\d+)?)/);
+                      return match ? parseFloat(match[1]) : 999;
+                    };
+                    return getNum(labelA) - getNum(labelB);
+                  })
+                  .map(([step, days]) => (
+                    <div key={step} className={cn(
+                      "flex items-center justify-between p-4 rounded-2xl border group/item hover:border-amber-500/30 transition-all",
+                      theme === 'light' ? "bg-white border-slate-100 shadow-sm" : "bg-slate-950 border-slate-800"
+                    )}>
+                      <span className={cn("text-xs font-bold", theme === 'light' ? "text-slate-700" : "text-slate-300")}>{step}</span>
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="number" 
+                          value={days}
+                          onChange={(e) => setSlaConfig({...slaConfig, [step]: parseInt(e.target.value) || 0})}
+                          className="w-14 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-center text-xs font-black text-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
+                        />
+                        <span className="text-[9px] font-black text-slate-500 uppercase">Ngày</span>
+                      </div>
+                    </div>
+                  ))}
               </div>
-            ))}
+            </div>
+
+            {/* Workflow 1 (GD - Giai đoạn) */}
+            <div className="space-y-4">
+              <h4 className="text-[10px] font-black uppercase text-emerald-500 tracking-[0.2em] mb-4 flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                Quy trình 1 (Hỗ trợ - Giai đoạn GĐ)
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(slaConfig)
+                  .filter(([label]) => {
+                    if (label === 'ĐÃ HOÀN TẤT') return false;
+                    // Find if this label belongs to a Workflow 1 step (starts with GD)
+                    const stepEntry = Object.entries(stepConfig || {}).find(([_, cfg]: any) => cfg.label === label);
+                    return stepEntry ? stepEntry[0].startsWith('GD') : label.startsWith('GĐ');
+                  })
+                  .sort(([labelA], [labelB]) => {
+                    const getNum = (s: string) => {
+                      const match = s.match(/GĐ(\d+)/) || s.match(/GD(\d+)/);
+                      return match ? parseInt(match[1]) : 999;
+                    };
+                    return getNum(labelA) - getNum(labelB);
+                  })
+                  .map(([step, days]) => (
+                    <div key={step} className={cn(
+                      "flex items-center justify-between p-4 rounded-2xl border group/item hover:border-emerald-500/30 transition-all",
+                      theme === 'light' ? "bg-white border-slate-100 shadow-sm" : "bg-slate-950 border-slate-800"
+                    )}>
+                      <span className={cn("text-xs font-bold", theme === 'light' ? "text-slate-700" : "text-slate-300")}>{step}</span>
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="number" 
+                          value={days}
+                          onChange={(e) => setSlaConfig({...slaConfig, [step]: parseInt(e.target.value) || 0})}
+                          className="w-14 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-center text-xs font-black text-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                        />
+                        <span className="text-[9px] font-black text-slate-500 uppercase">Ngày</span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
           </div>
         </section>
 
@@ -1972,12 +2050,10 @@ const ReportsView = ({
                                  cursor={{ fill: 'rgba(99,102,241,0.05)' }}
                                  contentStyle={{ backgroundColor: theme === 'light' ? '#fff' : '#0f172a', border: 'none', borderRadius: '12px', fontSize: '10px' }}
                                 />
-                               <Bar dataKey="normal" stackId="a" fill="#4f46e5" barSize={20} radius={[0, 0, 0, 0]}>
+                               <Bar dataKey="value" fill="#4f46e5" barSize={20} radius={[0, 4, 4, 0]}>
                                  {loanPieData.map((entry: any, index: number) => (
-                                   <Cell key={`cell-normal-${index}`} fill={entry.color} />
+                                   <Cell key={`cell-${index}`} fill={entry.color} />
                                  ))}
-                               </Bar>
-                                <Bar dataKey="error" stackId="a" fill="#f43f5e" barSize={20} radius={[4, 4, 0, 0]}>
                                  <LabelList 
                                    dataKey="value" 
                                    position="top" 
@@ -1985,8 +2061,8 @@ const ReportsView = ({
                                       const { x, y, width, value } = props;
                                       return (
                                         <text 
-                                          x={x + width / 2} 
-                                          y={y - 10} 
+                                          x={(x || 0) + (width || 0) / 2} 
+                                          y={(y || 0) - 10} 
                                           fill={theme === 'light' ? '#334155' : '#cbd5e1'} 
                                           fontSize="11" 
                                           fontWeight="900"
@@ -2563,12 +2639,12 @@ const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: {
   const [search, setSearch] = useState('');
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   
-  const filteredApps = applications.filter(a => 
+  const filteredApps = useMemo(() => applications.filter(a => 
     String(a.unitCode || '').toLowerCase().includes(search.toLowerCase()) || 
     String(a.customerName || '').toLowerCase().includes(search.toLowerCase()) ||
     String(a.projectName || '').toLowerCase().includes(search.toLowerCase()) ||
     String(a.phoneNumber || '').toLowerCase().includes(search.toLowerCase())
-  );
+  ), [applications, search]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 font-sans safe-area-inset overflow-x-hidden text-left">
@@ -4219,7 +4295,8 @@ export default function App() {
         }
           
         if (configData) {
-          const currentSla = configMap.slaConfig || Object.values(INITIAL_STEP_CONFIG).reduce((acc: any, s: any) => ({ ...acc, [s.label]: 10 }), {});
+          const defaultSla = Object.values(INITIAL_STEP_CONFIG).reduce((acc: any, s: any) => ({ ...acc, [s.label]: s.slaDays || 10 }), {});
+          const currentSla = configMap.slaConfig || defaultSla;
           const currentChecklist = configMap.checklistTemplates || DOC_CHECKLIST_ITEMS;
           const currentSteps = { ...INITIAL_STEP_CONFIG, ...(configMap.stepConfig || {}) };
           const currentHandover = configMap.handoverTemplate || {
@@ -4406,6 +4483,8 @@ export default function App() {
       setTotalCount(count || 0);
     } catch (error) {
       console.error('Error fetching paginated records:', error);
+      setApplications([]);
+      setTotalCount(0);
       showToast('Lỗi tải dữ liệu hồ sơ.', 'error');
     } finally {
       setIsLoadingApps(false);
@@ -4459,6 +4538,7 @@ export default function App() {
       setDashboardApps((data || []).map(mapFromSnakeCase));
     } catch (error) {
       console.error('Error fetching dashboard records:', error);
+      setDashboardApps([]);
     } finally {
       setIsLoadingDashboard(false);
     }
@@ -4699,7 +4779,7 @@ export default function App() {
     const role = currentUser.dept;
     const reminders: AppNotification[] = [];
 
-    applications.forEach(app => {
+    dashboardApps.forEach(app => {
       const step = stepConfig[app.currentStep];
       if (!step) return;
 
@@ -4707,12 +4787,12 @@ export default function App() {
       if (step.dept === role && app.status !== 'Completed') {
         const isNew = !app.history.find(h => h.performedBy === currentUser.id);
         
-        if (app.status === 'Error' || app.isRejected) {
+        if (app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None')) {
           reminders.push({
             id: `rem-err-${app.id}`,
             recipientId: currentUser.id,
             title: 'Khắc phục sai sót',
-            message: `Lô ${app.unitCode} đang có lỗi hoặc bị trả về. Cần xử lý ngay.`,
+            message: `Lô ${app.unitCode} (${app.projectName}) đang có lỗi hoặc bị trả về. Cần xử lý ngay.`,
             time: 'Yêu cầu ưu tiên',
             type: 'Urgent',
             isRead: false,
@@ -4723,7 +4803,7 @@ export default function App() {
             id: `rem-new-${app.id}`,
             recipientId: currentUser.id,
             title: 'Tiếp nhận hồ sơ mới',
-            message: `Bạn có hồ sơ ${app.unitCode} mới chuyển đến giai đoạn ${step.label}.`,
+            message: `Bạn có hồ sơ ${app.unitCode} (${app.projectName}) mới chuyển đến giai đoạn ${step.label}.`,
             time: 'Chờ tiếp nhận',
             type: 'Warning',
             isRead: false,
@@ -4734,12 +4814,12 @@ export default function App() {
 
       // 2. SLA Check
       const overdueInfo = getOverdueInfo(app, stepConfig, slaConfig);
-      if (overdueInfo.isOverdue) {
+      if (overdueInfo.isOverdue && app.status !== 'Completed') {
         reminders.push({
           id: `rem-sla-${app.id}`,
           recipientId: currentUser.id,
           title: 'Trễ hạn SLA',
-          message: `Hồ sơ ${app.unitCode}: ${overdueInfo.label} (${overdueInfo.daysLate} ngày). Cần xử lý gấp.`,
+          message: `Hồ sơ ${app.unitCode} (${app.projectName}): ${overdueInfo.label} (${overdueInfo.daysLate} ngày). Cần xử lý gấp.`,
           time: 'Quá hạn',
           type: 'Urgent',
           isRead: false,
@@ -4749,7 +4829,7 @@ export default function App() {
     });
 
     setTaskReminders(reminders);
-  }, [applications, currentUser, stepConfig]);
+  }, [dashboardApps, currentUser, stepConfig, slaConfig]);
 
   useEffect(() => {
     if (activeTab === 'settings') {
@@ -4880,6 +4960,7 @@ export default function App() {
       const finalApp = await syncRecordToSupabase(updatedApp);
       
       setApplications(prev => prev.map(a => a.id === id ? finalApp : a));
+      setDashboardApps(prev => prev.map(a => a.id === id ? finalApp : a));
       if (selectedApp?.id === id) setSelectedApp(finalApp);
 
       showToast('Cập nhật nhanh và đồng bộ Supabase thành công!', 'success');
@@ -4936,7 +5017,13 @@ export default function App() {
         });
 
         const syncedApps = await Promise.all(updatedApps.map(app => syncRecordToSupabase(app)));
+        
         setApplications(prev => prev.map(a => {
+            const updated = syncedApps.find(sa => sa.id === a.id);
+            return updated ? updated : a;
+        }));
+
+        setDashboardApps(prev => prev.map(a => {
             const updated = syncedApps.find(sa => sa.id === a.id);
             return updated ? updated : a;
         }));
@@ -5633,6 +5720,7 @@ export default function App() {
       const oldId = updatedApp.id;
 
       setApplications(prev => prev.map(app => app.id === oldId ? finalApp : app));
+      setDashboardApps(prev => prev.map(app => app.id === oldId ? finalApp : app));
       setSelectedApp(finalApp);
       setEditApp(null);
       setIsEditing(false);
@@ -5693,6 +5781,7 @@ export default function App() {
         if (error) throw error;
 
         setApplications(prev => prev.filter(app => app.id !== id));
+        setDashboardApps(prev => prev.filter(app => app.id !== id));
         if (selectedApp?.id === id) {
           setSelectedApp(null);
           setIsEditing(false);
@@ -5905,6 +5994,7 @@ export default function App() {
       }
 
       setApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
+      setDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
       setSelectedApp(finalApp);
       setEditApp(null);
       setIsEditing(false);
@@ -6158,6 +6248,19 @@ export default function App() {
       // Perform bulk upsert to Supabase
       const finalApps = await bulkSyncRecordsToSupabase(appsToSync, updatedApps);
       setApplications(finalApps);
+      setDashboardApps(prev => {
+        const next = [...prev];
+        appsToSync.forEach(synced => {
+          const idx = next.findIndex(a => a.id === synced.id);
+          const foundInFinal = finalApps.find(fa => fa.unitCode === synced.unitCode);
+          if (idx !== -1 && foundInFinal) {
+            next[idx] = foundInFinal;
+          } else if (foundInFinal) {
+            next.push(foundInFinal);
+          }
+        });
+        return next;
+      });
 
       // Notifications for bulk transition
       await Promise.all(appsToSync.map(app => notifyNextDepartment(app, app.currentStep)));
@@ -6270,66 +6373,63 @@ export default function App() {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     const app = editApp || selectedApp;
     if (!file || !app) return;
 
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      setIsSavingApp(true);
-      try {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${app.id}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-        const filePath = `${app.unitCode}/${fileName}`;
+    setIsSavingApp(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${app.id}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `${app.unitCode}/${fileName}`;
 
-        // 1. Upload file to Supabase Storage
-        const { error: uploadError } = await supabase.storage
-          .from('Documents-GCN')
-          .upload(filePath, file, {
-            cacheControl: '3600',
-            upsert: false
-          });
+      // 1. Upload file to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('Documents-GCN')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-        if (uploadError) throw uploadError;
+      if (uploadError) throw uploadError;
 
-        // 2. Get Public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from('Documents-GCN')
-          .getPublicUrl(filePath);
+      // 2. Get Public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('Documents-GCN')
+        .getPublicUrl(filePath);
 
-        const newFile: ScannedFile = {
-          id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          name: file.name,
-          type: file.type,
-          url: publicUrl,
-          path: filePath,
-          uploadDate: new Date().toISOString().split('T')[0]
-        };
+      const newFile: ScannedFile = {
+        id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name: file.name,
+        type: file.type,
+        url: publicUrl,
+        path: filePath,
+        uploadDate: new Date().toISOString().split('T')[0]
+      };
 
-        const updatedApp = {
-          ...app,
-          scannedFiles: [...(app.scannedFiles || []), newFile]
-        };
+      const updatedApp = {
+        ...app,
+        scannedFiles: [...(app.scannedFiles || []), newFile]
+      };
 
-        // 3. Update record in Database
-        const finalApp = await syncRecordToSupabase(updatedApp);
+      // 3. Update record in Database
+      const finalApp = await syncRecordToSupabase(updatedApp);
 
-        const updatedApps = applications.map(a => a.id === app.id ? finalApp : a);
-        setApplications(updatedApps);
-        if (editApp && editApp.id === app.id) setEditApp(finalApp);
-        if (selectedApp && selectedApp.id === app.id) setSelectedApp(finalApp);
-        
-        showToast(`Đã tải tài liệu "${file.name}" lên Supabase Storage thành công.`, 'success');
-      } catch (error) {
-        console.error('Supabase file upload error:', error);
-        showToast('Lỗi khi tải tài liệu lên Supabase. Vui lòng kiểm tra quyền và bucket "Documents-GCN".', 'error');
-      } finally {
-        setIsSavingApp(false);
-      }
-    };
-    reader.readAsArrayBuffer(file); // Changed from readAsDataURL since we are uploading the file object directly
-    e.target.value = '';
+      const updatedApps = applications.map(a => a.id === app.id ? finalApp : a);
+      setApplications(updatedApps);
+      setDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
+      if (editApp && editApp.id === app.id) setEditApp(finalApp);
+      if (selectedApp && selectedApp.id === app.id) setSelectedApp(finalApp);
+      
+      showToast(`Đã tải tài liệu "${file.name}" lên Supabase Storage thành công.`, 'success');
+    } catch (error) {
+      console.error('Supabase file upload error:', error);
+      showToast('Lỗi khi tải tài liệu lên Supabase. Vui lòng kiểm tra quyền và bucket "Documents-GCN".', 'error');
+    } finally {
+      setIsSavingApp(false);
+      e.target.value = '';
+    }
   };
 
   const handleDeleteFile = async (fileId: string) => {
@@ -6361,6 +6461,7 @@ export default function App() {
 
       const updatedApps = applications.map(a => a.id === app.id ? finalApp : a);
       setApplications(updatedApps);
+      setDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
       if (editApp && editApp.id === app.id) setEditApp(finalApp);
       if (selectedApp && selectedApp.id === app.id) setSelectedApp(finalApp);
       showToast('Đã xóa tài liệu khỏi hệ thống thành công.', 'success');
@@ -6525,7 +6626,9 @@ export default function App() {
       };
 
       const finalApp = await syncRecordToSupabase(updatedApp);
+      
       setApplications(prev => prev.map(a => a.id === appId ? finalApp : a));
+      setDashboardApps(prev => prev.map(a => a.id === appId ? finalApp : a));
       setSelectedApp(finalApp);
       showToast('Đã xác nhận khắc phục xong vướng khoán.', 'success');
     } catch (error) {
@@ -6593,6 +6696,7 @@ export default function App() {
       const oldId = app.id;
 
       setApplications(prev => prev.map(a => a.id === oldId ? finalApp : a));
+      setDashboardApps(prev => prev.map(a => a.id === oldId ? finalApp : a));
       setSelectedApp(finalApp);
       setEditApp(null);
       setIsEditing(false);
@@ -7234,32 +7338,43 @@ export default function App() {
     };
 
     dashboardApps.forEach(r => {
-      // 1. Hoàn tất 
-      if (r.customerHandoverDate || r.currentStep === 'Hoan_Tat') stages.COMPLETED.push(r);
-      // 2. Chờ bàn giao (S7_2 or GD6)
-      else if (r.currentStep === 'S7_2_Ban_Giao_Khach' || r.currentStep === 'GD6_Cho_BG_Khach' || r.currentStep === 'S7_PTDA_Ban_Giao' || r.currentStep === 'S7_1_PTT_Tiep_Nhan' || r.currentStep === 'GD5_Cho_PTT_TiepNhan_BG') stages.WAITING_HANDOVER.push(r);
-      // 3. Đã có GCN
-      else if (r.gcnSignedDate || r.currentStep === 'S6_Nhan_So_GCN' || r.currentStep === 'GD5_Cho_GCN') stages.GCN_READY.push(r);
-      // 4. Đã nộp thuế
-      else if (r.taxReceiptDate || r.currentStep === 'S5_1_PTDA_TiepNhan' || r.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo' || r.currentStep === 'GD5_Cho_Ky_In_GCN') stages.TAX_PAID.push(r);
-      // 5. Chờ hoàn thành NVTC
-      else if (r.taxNotificationDate || r.currentStep === 'S5_Tai_Chinh_Khach_Hang' || r.currentStep === 'GD4_Cho_Nop_NVTC') stages.AWAITING_FINANCE.push(r);
-      // 6. Đã nộp VPĐK / Chờ TB Thuế
-      else if (r.submissionDate || r.currentStep === 'S3_Nop_VPDK' || r.currentStep === 'GD3_Cho_TBThue') {
-        const subDate = new Date(r.submissionDate || today);
-        const daysDiff = (today.getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
-        if (daysDiff > 7) stages.TAX_WARNING.push(r);
-        else stages.SUBMITTED.push(r);
+      // Logic dựa theo r.status như yêu cầu của người dùng
+      if (r.status === 'Completed') stages.COMPLETED.push(r);
+      else if (r.status === 'WaitingHandover') stages.WAITING_HANDOVER.push(r);
+      else if (r.status === 'GCN_Issued') stages.GCN_READY.push(r);
+      else if (r.status === 'TaxPaid' || r.status === 'TaxCompleted') stages.TAX_PAID.push(r);
+      else if (r.status === 'TaxPending') {
+         // Chờ hoàn thành NVTC (S5 / GD4) vs Chờ TB Thuế
+         if (r.taxNotificationDate || r.currentStep === 'S5_Tai_Chinh_Khach_Hang' || r.currentStep === 'GD4_Cho_Nop_NVTC') {
+            stages.AWAITING_FINANCE.push(r);
+         } else {
+            stages.TAX_WARNING.push(r);
+         }
       }
-      // 7. Chờ nộp VPĐK (PTT đã bàn giao và KT/PTDA đã tiếp nhận, nhưng chưa nộp VPĐK)
-      else if (
-        r.currentStep === 'S2_KT_Tiep_Nhan' || 
-        r.currentStep === 'S2_KT_Ban_giao' || 
-        r.currentStep === 'GD2_Cho_Nop_VPDK' || 
-        (r.accountingHandoverDate && r.currentStep !== 'GD1_Cho_KT_TiepNhan' && r.currentStep !== 'GD1_ChuanBi' && r.currentStep !== 'S1_ChuanBi')
-      ) stages.AWAITING_SUBMISSION.push(r);
-      // 8. Đang chuẩn bị (PTT)
-      else stages.PREPARING.push(r);
+      else if (r.status === 'Submitted') stages.SUBMITTED.push(r);
+      else if (r.status === 'WaitingVPDK') stages.AWAITING_SUBMISSION.push(r);
+      else if (r.status === 'Processing') stages.PREPARING.push(r);
+      else {
+          // Fallback cho Error hoặc các trạng thái hỗn hợp chưa cập nhật
+          if (r.customerHandoverDate || r.currentStep === 'Hoan_Tat') stages.COMPLETED.push(r);
+          else if (r.currentStep === 'S7_2_Ban_Giao_Khach' || r.currentStep === 'GD6_Cho_BG_Khach' || r.currentStep === 'S7_PTDA_Ban_Giao' || r.currentStep === 'S7_1_PTT_Tiep_Nhan' || r.currentStep === 'GD5_Cho_PTT_TiepNhan_BG') stages.WAITING_HANDOVER.push(r);
+          else if (r.gcnSignedDate || r.currentStep === 'S6_Nhan_So_GCN' || r.currentStep === 'GD5_Cho_GCN') stages.GCN_READY.push(r);
+          else if (r.taxReceiptDate || r.currentStep === 'S5_1_PTDA_TiepNhan' || r.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo' || r.currentStep === 'GD5_Cho_Ky_In_GCN') stages.TAX_PAID.push(r);
+          else if (r.taxNotificationDate || r.currentStep === 'S5_Tai_Chinh_Khach_Hang' || r.currentStep === 'GD4_Cho_Nop_NVTC') stages.AWAITING_FINANCE.push(r);
+          else if (r.submissionDate || r.currentStep === 'S3_Nop_VPDK' || r.currentStep === 'GD3_Cho_TBThue') {
+            const subDate = new Date(r.submissionDate || today);
+            const daysDiff = (today.getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
+            if (daysDiff > 7) stages.TAX_WARNING.push(r);
+            else stages.SUBMITTED.push(r);
+          }
+          else if (
+            r.currentStep === 'S2_KT_Tiep_Nhan' || 
+            r.currentStep === 'S2_KT_Ban_giao' || 
+            r.currentStep === 'GD2_Cho_Nop_VPDK' || 
+            (r.accountingHandoverDate && r.currentStep !== 'GD1_Cho_KT_TiepNhan' && r.currentStep !== 'GD1_ChuanBi' && r.currentStep !== 'S1_ChuanBi')
+          ) stages.AWAITING_SUBMISSION.push(r);
+          else stages.PREPARING.push(r);
+      }
     });
 
     const createStageItem = (name: string, list: Application[], color: string, statusId: UnitStatus) => {
@@ -7274,7 +7389,8 @@ export default function App() {
         normal: list.length - errorCount,
         error: errorCount,
         color,
-        statusId
+        statusId,
+        list
       };
     };
 
@@ -7291,17 +7407,36 @@ export default function App() {
     ];
   }, [dashboardApps]);
 
+  const loanPieData = useMemo(() => {
+    const loanRecords = dashboardApps ? dashboardApps.filter((a: Application) => a.loanStatus === 'Co_Vay') : [];
+    const loanAppsCount = loanRecords.length;
+    return chartData.map(d => {
+      const filteredList = d.list.filter(a => a.loanStatus === 'Co_Vay');
+      const count = filteredList.length;
+      return {
+        name: d.name,
+        value: count,
+        percentage: loanAppsCount > 0 ? Math.round((count / loanAppsCount) * 100) : 0,
+        color: d.color
+      };
+    }).filter(d => d.value > 0);
+  }, [chartData, dashboardApps]);
+
   const overallPieData = useMemo(() => {
-    const totalApps = dashboardApps.length || 1;
+    const records = dashboardApps || [];
+    const totalApps = records.length;
     return chartData.map(d => ({
       name: d.name,
       value: d.value,
-      percentage: Math.round((d.value / totalApps) * 100),
+      percentage: totalApps > 0 ? Math.round((d.value / totalApps) * 100) : 0,
       color: d.color
-    }));
-  }, [chartData, dashboardApps.length]);
+    })).filter(d => d.value > 0);
+  }, [chartData, dashboardApps]);
 
-  const filteredApps = applications.filter(app => {
+  const overallPieTotal = useMemo(() => dashboardApps.length, [dashboardApps]);
+  const loanRatioTotal = useMemo(() => roleKpis.loanRatioStats.reduce((acc: number, curr: any) => acc + curr.value, 0), [roleKpis.loanRatioStats]);
+
+  const filteredApps = useMemo(() => applications.filter(app => {
     const matchesSearch = String(app.unitCode || '').toLowerCase().includes(search.toLowerCase()) ||
       String(app.customerName || '').toLowerCase().includes(search.toLowerCase()) ||
       String(app.projectName || '').toLowerCase().includes(search.toLowerCase());
@@ -7321,7 +7456,7 @@ export default function App() {
       (dashboardFilter === 'COMPLETED' && app.status === 'Completed') ||
       (dashboardFilter === 'PTT_PROCESSING' && app.status === 'Processing') ||
       (dashboardFilter === 'PTT_HOLDING' && stepConfig[app.currentStep]?.dept === 'PTT') ||
-      (dashboardFilter === 'PTT_ISSUES' && (app.isRejected || app.status === 'Error' || (app.issueType && app.issueType !== 'None'))) ||
+      (dashboardFilter === 'PTT_ISSUES' && (app.isRejected || app.status === 'Error' || (app.issueType && app.issueType !== 'None')) && stepConfig[app.currentStep]?.dept === 'PTT') ||
       (dashboardFilter === 'PTT_TAX_UNPAID' && !!app.taxNotificationDate && !app.taxReceiptDate) ||
       (dashboardFilter === 'PTT_WAITING_HANDOVER' && ['S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach'].includes(app.currentStep) && !app.customerHandoverDate) ||
       (dashboardFilter === 'KT_ALL' && true) ||
@@ -7336,7 +7471,7 @@ export default function App() {
       (dashboardFilter === 'PTDA_ISSUES' && (app.isRejected || app.status === 'Error' || (app.issueType && app.issueType !== 'None')) && stepConfig[app.currentStep]?.dept === 'PTDA');
 
     return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService && matchesDashboardFilter && matchesSLA && matchesIssueFilter;
-  });
+  }), [applications, search, filterStep, filterStatus, filterLoanStatus, filterSelfService, filterSLAStatus, filterIssue, dashboardFilter, stepConfig, slaConfig]);
 
   if (isInitialLoading) {
     return (
@@ -8295,6 +8430,29 @@ export default function App() {
                               {chartData.map((entry, index) => (
                                 <Cell key={`cell-normal-${index}`} fill={entry.color} />
                               ))}
+                              <LabelList 
+                                dataKey="normal" 
+                                position="right" 
+                                offset={15} 
+                                content={(props: any) => {
+                                   const { x, y, width, height, index } = props;
+                                   const data = chartData[index];
+                                   if (!data || data.error > 0) return null;
+                                   return (
+                                      <text 
+                                         x={(x || 0) + (width || 0) + 15} 
+                                         y={(y || 0) + (height || 0) / 2} 
+                                         fill={theme === 'light' ? '#1e293b' : '#f8fafc'} 
+                                         fontSize="12" 
+                                         fontWeight="900"
+                                         textAnchor="start"
+                                         dominantBaseline="central"
+                                      >
+                                         {data.value}
+                                      </text>
+                                   );
+                                }}
+                              />
                             </Bar>
                             <Bar 
                               dataKey="error" 
@@ -8305,21 +8463,22 @@ export default function App() {
                               className="shadow-[0_0_15px_rgba(244,63,94,0.3)]"
                             >
                               <LabelList 
-                                dataKey="value" 
+                                dataKey="error" 
                                 position="right" 
                                 offset={15} 
                                 content={(props: any) => {
                                    const { x, y, width, height, index } = props;
                                    const data = chartData[index];
-                                   if (!data || data.value === 0) return null;
+                                   if (!data || data.error === 0) return null;
                                    return (
                                       <text 
-                                         x={x + width + 10} 
-                                         y={y + height / 2 + 5} 
+                                         x={(x || 0) + (width || 0) + 15} 
+                                         y={(y || 0) + (height || 0) / 2} 
                                          fill={theme === 'light' ? '#1e293b' : '#f8fafc'} 
                                          fontSize="12" 
                                          fontWeight="900"
                                          textAnchor="start"
+                                         dominantBaseline="central"
                                       >
                                          {data.value}
                                       </text>
@@ -8403,7 +8562,7 @@ export default function App() {
                           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
                               <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">Tổng quy mô</p>
                               <p className={cn("text-xl font-black mt-1", theme === 'dark' ? "text-white" : "text-slate-800")}>
-                                 {dashboardApps.length}
+                                 {overallPieTotal}
                               </p>
                           </div>
                         </div>
@@ -8438,7 +8597,7 @@ export default function App() {
                                        </ResponsiveContainer>
                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
                                            <p className={cn("text-xl font-black", theme === 'dark' ? "text-white" : "text-slate-800")}>
-                                              {roleKpis.loanRatioStats.reduce((acc: number, curr: any) => acc + curr.value, 0)}
+                                              {loanRatioTotal}
                                            </p>
                                            <p className="text-[8px] font-bold text-slate-500 uppercase">Căn</p>
                                        </div>
@@ -8451,37 +8610,59 @@ export default function App() {
                                {/* Status Stats */}
                                <div className="flex flex-col gap-4 border-l border-slate-800/10 pl-4 w-full">
                                   <div className="text-center text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2">Tiến độ hồ sơ vay</div>
-                                  {roleKpis.loanStatusStats.length > 0 ? (
-                                    <div className="h-[250px] w-full relative">
+                                  {loanPieData.length > 0 ? (
+                                    <div className="h-[150px] w-full relative">
                                        <ResponsiveContainer width="100%" height="100%">
-                                         <BarChart 
-                                           data={roleKpis.loanStatusStats} 
-                                           margin={{ top: 20, right: 30, bottom: 60, left: 0 }}
-                                         >
-                                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? '#ffffff05' : '#00000005'} />
-                                           <XAxis 
-                                             dataKey="name" 
-                                             stroke={theme === 'dark' ? '#64748b' : '#94a3b8'} 
-                                             fontSize={8} 
-                                             tickLine={false} 
-                                             axisLine={false}
-                                             interval={0}
-                                             angle={-45}
-                                             textAnchor="end"
-                                           />
-                                           <YAxis hide />
-                                           <ReTooltip 
-                                             cursor={{ fill: 'transparent' }}
-                                             contentStyle={{ backgroundColor: theme === 'light' ? '#fff' : '#0f172a', border: 'none', borderRadius: '12px', fontSize: '10px', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
-                                           />
-                                           <Bar dataKey="value" barSize={18} radius={[4, 4, 0, 0]}>
-                                             {roleKpis.loanStatusStats.map((entry: any, index: number) => (
-                                               <Cell key={`cell-loan-st-${index}`} fill={entry.color} />
+                                         <PieChart>
+                                           <Pie 
+                                              data={loanPieData} 
+                                              cx="50%" 
+                                              cy="50%" 
+                                              innerRadius={40} 
+                                              outerRadius={60} 
+                                              paddingAngle={2} 
+                                              dataKey="value" 
+                                              stroke="none"
+                                           >
+                                             {loanPieData.map((entry, index) => (
+                                               <Cell 
+                                                 key={`cell-loan-st-${index}`} 
+                                                 fill={entry.color} 
+                                                 className="hover:opacity-80 transition-opacity cursor-pointer outline-none" 
+                                               />
                                              ))}
-                                             <LabelList dataKey="value" position="top" style={{ fontSize: '10px', fontWeight: '900', fill: theme === 'light' ? '#1e293b' : '#f8fafc' }} />
-                                           </Bar>
-                                         </BarChart>
+                                           </Pie>
+                                           <ReTooltip 
+                                              content={({ active, payload }) => {
+                                                if (active && payload && payload.length) {
+                                                  const data = payload[0].payload;
+                                                  return (
+                                                    <div className={cn(
+                                                       "p-3 rounded-xl text-[10px] font-black border backdrop-blur-md shadow-2xl", 
+                                                       theme === 'light' ? "bg-white border-slate-200 text-slate-800 shadow-indigo-100" : "bg-slate-900 border-slate-800 text-white"
+                                                    )}>
+                                                      <div className="flex items-center gap-2 mb-1">
+                                                         <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: data.color }} />
+                                                         {data.name}
+                                                      </div>
+                                                      <div className="flex justify-between gap-4">
+                                                         <span className="opacity-50 font-bold uppercase tracking-tighter">Phần trăm:</span>
+                                                         <span>{data.percentage}%</span>
+                                                      </div>
+                                                    </div>
+                                                  );
+                                                }
+                                                return null;
+                                              }} 
+                                            />
+                                         </PieChart>
                                        </ResponsiveContainer>
+                                       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                                           <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">Căn vay</p>
+                                           <p className={cn("text-xl font-black mt-1", theme === 'dark' ? "text-white" : "text-slate-800")}>
+                                              {loanPieData.reduce((acc, curr) => acc + curr.value, 0)}
+                                           </p>
+                                       </div>
                                     </div>
                                   ) : (
                                     <p className="text-[9px] italic opacity-40 text-center mt-4">Không có dữ liệu</p>

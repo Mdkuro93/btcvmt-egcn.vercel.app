@@ -21,6 +21,8 @@ export default function DashboardCharts({
   onChartClick 
 }: DashboardChartsProps) {
   
+  const totalUnits = useMemo(() => pieData.reduce((acc, curr) => acc + curr.value, 0), [pieData]);
+  
   return (
     <div className={cn(
       "p-6 rounded-[2rem] border transition-all relative overflow-hidden",
@@ -153,6 +155,7 @@ export default function DashboardCharts({
 
         <div className="h-[450px] flex flex-col items-center">
           <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6 w-full text-center py-2 border-y border-white/5">Tỉ trọng dự án</h3>
+          {pieData && pieData.length > 0 ? (
           <div className="flex-1 w-full relative">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -160,9 +163,9 @@ export default function DashboardCharts({
                   data={pieData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={65}
-                  outerRadius={90}
-                  paddingAngle={8}
+                  innerRadius={40}
+                  outerRadius={60}
+                  paddingAngle={2}
                   dataKey="value"
                   stroke="none"
                 >
@@ -188,10 +191,13 @@ export default function DashboardCharts({
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
                 <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">Tổng cộng</p>
                 <p className={cn("text-xl font-black mt-1", theme === 'dark' ? "text-white" : "text-slate-800")}>
-                   {pieData.reduce((acc, curr) => acc + curr.value, 0)}
+                   {totalUnits}
                 </p>
             </div>
           </div>
+          ) : (
+            <p className="text-[9px] italic opacity-40 text-center mt-4">Không có dữ liệu</p>
+          )}
           <div className={cn(
              "mt-6 w-full grid grid-cols-2 gap-x-6 gap-y-3 p-4 rounded-2xl",
              theme === 'dark' ? "bg-slate-950/20" : "bg-slate-100/30"
