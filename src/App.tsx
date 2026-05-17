@@ -51,6 +51,7 @@ import {
   Settings,
   Users,
   GitMerge,
+  Eye,
   Info,
   ShieldCheck,
   FolderArchive,
@@ -2681,14 +2682,32 @@ const NotificationPanel = ({ notifications, taskReminders, onClose, onRead, onMa
 
 const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: { applications: Application[], projects: Project[], onUpdateApp: (app: Application) => void, theme: 'light' | 'dark', onExit: () => void }) => {
   const [search, setSearch] = useState('');
+  const [selectedProject, setSelectedProject] = useState<string>('all');
+  const [filterType, setFilterType] = useState<'all' | 'pending' | 'issue'>('all');
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewFileMobile, setPreviewFileMobile] = useState<ScannedFile | null>(null);
   
-  const filteredApps = useMemo(() => applications.filter(a => 
-    String(a.unitCode || '').toLowerCase().includes(search.toLowerCase()) || 
-    String(a.customerName || '').toLowerCase().includes(search.toLowerCase()) ||
-    String(a.projectName || '').toLowerCase().includes(search.toLowerCase()) ||
-    String(a.phoneNumber || '').toLowerCase().includes(search.toLowerCase())
-  ), [applications, search]);
+  const filteredApps = useMemo(() => applications.filter(a => {
+    const matchesSearch = String(a.unitCode || '').toLowerCase().includes(search.toLowerCase()) || 
+                         String(a.customerName || '').toLowerCase().includes(search.toLowerCase()) ||
+                         String(a.projectName || '').toLowerCase().includes(search.toLowerCase()) ||
+                         String(a.phoneNumber || '').toLowerCase().includes(search.toLowerCase());
+    
+    const matchesProject = selectedProject === 'all' || a.projectId === selectedProject;
+    
+    const matchesFilter = filterType === 'all' ? true : 
+                         filterType === 'issue' ? a.status === 'Error' :
+                         (a.step !== 'Hoan_Tat' && a.status !== 'Completed');
+
+    return matchesSearch && matchesProject && matchesFilter;
+  }), [applications, search, selectedProject, filterType]);
+
+  const toggleSelect = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-4 font-sans safe-area-inset overflow-x-hidden text-left">
@@ -2707,6 +2726,30 @@ const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: {
           </button>
        </header>
 
+       <div className="flex gap-2 mb-4 overflow-x-auto pb-2 no-scrollbar px-1">
+          <button 
+            onClick={() => setSelectedProject('all')}
+            className={cn(
+              "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border",
+              selectedProject === 'all' ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20" : "bg-slate-900 border-slate-800 text-slate-500"
+            )}
+          >
+            Tất cả dự án
+          </button>
+          {projects.map(p => (
+            <button 
+              key={p.id}
+              onClick={() => setSelectedProject(p.id)}
+              className={cn(
+                "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border",
+                selectedProject === p.id ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20" : "bg-slate-900 border-slate-800 text-slate-500"
+              )}
+            >
+              {p.name}
+            </button>
+          ))}
+       </div>
+
        <div className="relative mb-6">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
           <input 
@@ -2724,10 +2767,27 @@ const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: {
               <div 
                 key={app.id} 
                 onClick={() => setSelectedApp(app)}
-                className="bg-slate-900/40 p-5 rounded-[2rem] border border-slate-800 flex items-center justify-between active:scale-[0.98] transition-all"
+                className={cn(
+                  "bg-slate-900/40 p-5 rounded-[2rem] border transition-all relative overflow-hidden",
+                  selectedIds.includes(app.id) ? "border-indigo-500 bg-indigo-500/5 shadow-lg shadow-indigo-500/10" : "border-slate-800"
+                )}
               >
+                  {selectedIds.includes(app.id) && (
+                    <div className="absolute top-0 right-0 w-12 h-12 bg-indigo-600 flex items-center justify-center rounded-bl-3xl">
+                      <Check size={16} className="text-white" />
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
+                        <div 
+                          onClick={(e) => toggleSelect(e, app.id)}
+                          className={cn(
+                            "w-5 h-5 rounded-md border flex items-center justify-center transition-all",
+                            selectedIds.includes(app.id) ? "bg-indigo-600 border-indigo-500" : "border-slate-700 bg-slate-950"
+                          )}
+                        >
+                          {selectedIds.includes(app.id) && <Check size={12} />}
+                        </div>
                         <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">{app.unitCode}</span>
                         {app.loanStatus === 'Co_Vay' && (
                           <span className="text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase bg-indigo-500/20 text-indigo-400 border border-indigo-500/20">Có vay</span>
@@ -2738,10 +2798,30 @@ const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: {
                         )}>{app.status}</span>
                     </div>
                     <p className="text-sm font-bold truncate">{app.customerName}</p>
-                    <p className="text-[10px] text-slate-500 mt-1">{app.projectName}</p>
-                  </div>
-                  <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-slate-500">
-                    <ChevronRight size={20} />
+                    <div className="flex flex-col gap-1 mt-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-1 h-1 rounded-full bg-slate-500" />
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+                          Dự án: <span className="text-slate-300">{app.projectName}</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-1 h-1 rounded-full bg-indigo-500" />
+                        <p className="text-[10px] text-indigo-400 font-black uppercase tracking-tighter">
+                          Giai đoạn: <span className="text-indigo-300 italic">{app.currentStepLabel || 'Mới'}</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-800/50">
+                      <div className="flex items-center gap-3">
+                        {app.scannedFiles && app.scannedFiles.length > 0 && (
+                          <div className="flex items-center gap-1 text-[9px] font-black text-indigo-400 uppercase">
+                            <FileText size={10} /> {app.scannedFiles.length} file
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest">{app.updatedAt ? new Date(app.updatedAt).toLocaleDateString() : ''}</p>
+                    </div>
                   </div>
               </div>
             ))
@@ -2753,18 +2833,44 @@ const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: {
           )}
        </div>
 
-       <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-950/80 backdrop-blur-xl border-t border-slate-800 grid grid-cols-3 gap-2">
-          <button className="flex flex-col items-center gap-1 p-2 text-indigo-400">
-             <LayoutDashboard size={20} />
-             <span className="text-[8px] font-black uppercase">Tất cả</span>
+       <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-950/80 backdrop-blur-xl border-t border-slate-800 grid grid-cols-5 gap-1">
+          <button 
+            onClick={() => { setFilterType('all'); setSelectedProject('all'); }}
+            className={cn("flex flex-col items-center gap-1 p-2 transition-all", filterType === 'all' && selectedProject === 'all' ? "text-indigo-400" : "text-slate-500")}
+          >
+             <LayoutDashboard size={18} />
+             <span className="text-[7px] font-black uppercase">Tất cả</span>
           </button>
-          <button className="flex flex-col items-center gap-1 p-2 text-slate-500">
-             <AlertCircle size={20} />
-             <span className="text-[8px] font-black uppercase">Vướng mắc</span>
+          <button 
+            onClick={() => setFilterType('pending')}
+            className={cn("flex flex-col items-center gap-1 p-2 transition-all", filterType === 'pending' ? "text-emerald-400 scale-110" : "text-slate-500")}
+          >
+             <RefreshCcw size={18} className={cn(filterType === 'pending' && "animate-spin-slow")} />
+             <span className="text-[7px] font-black uppercase text-center leading-tight">Cần xử lý</span>
+          </button>
+          <button 
+            onClick={() => setFilterType('issue')}
+            className={cn("flex flex-col items-center gap-1 p-2 transition-all", filterType === 'issue' ? "text-rose-400" : "text-slate-500")}
+          >
+             <AlertCircle size={18} />
+             <span className="text-[7px] font-black uppercase">Vướng mắc</span>
           </button>
           <button className="flex flex-col items-center gap-1 p-2 text-slate-500 group">
-             <Camera size={20} className="group-active:scale-125 transition-transform" />
-             <span className="text-[8px] font-black uppercase">Chụp ảnh</span>
+             <Camera size={18} className="group-active:scale-125 transition-transform" />
+             <span className="text-[7px] font-black uppercase">Chụp ảnh</span>
+          </button>
+          <button 
+            className={cn(
+               "flex flex-col items-center gap-1 p-2 rounded-xl transition-all",
+               selectedIds.length > 0 ? "bg-indigo-600 text-white animate-pulse" : "text-slate-700 opacity-20 pointer-events-none"
+            )}
+            onClick={() => {
+               (window as any).__openBulkDocsFromMobile = true;
+               (window as any).__mobileSelectedIds = selectedIds;
+            }}
+          >
+             <GitMerge size={18} />
+             <span className="text-[7px] font-black uppercase text-center leading-tight">Gắn file ({selectedIds.length})</span>
           </button>
        </div>
 
@@ -3731,6 +3837,214 @@ const ProjectModal = ({
   );
 };
 
+const FilePreviewModal = ({ 
+  file, 
+  onClose,
+  theme
+}: { 
+  file: ScannedFile, 
+  onClose: () => void,
+  theme: 'light' | 'dark'
+}) => {
+  const isImage = file.type.startsWith('image/');
+  const isPdf = file.type === 'application/pdf';
+  
+  return (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-0 sm:p-4 bg-slate-950/90 backdrop-blur-md">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+        className={cn(
+          "w-full h-full sm:h-[90vh] sm:max-w-5xl sm:rounded-[2.5rem] border overflow-hidden flex flex-col shadow-2xl relative",
+          theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900 border-slate-800"
+        )}
+      >
+        <div className="p-4 sm:p-6 border-b border-slate-800/10 flex items-center justify-between bg-slate-900/50 backdrop-blur-xl">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+              {isImage ? <Camera size={24} /> : <FileText size={24} />}
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-base font-black text-white truncate max-w-[150px] sm:max-w-md">{file.name}</h3>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  {file.uploadDate}
+                </span>
+                {file.isShared && (
+                  <span className="text-[10px] font-black text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                    <GitMerge size={10} /> [🔗 Tài liệu chung]
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+             <a 
+              href={file.url} 
+              download={file.name}
+              target="_blank"
+              rel="noreferrer"
+              className="p-3 rounded-2xl bg-slate-800 text-slate-400 hover:text-white transition-all flex items-center gap-2"
+              title="Tải về"
+            >
+              <Download size={20} />
+              <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">Tải về</span>
+            </a>
+            <button 
+              onClick={onClose}
+              className="p-3 rounded-2xl bg-slate-800 text-slate-400 hover:text-white transition-all"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+        
+        <div className="flex-1 overflow-auto bg-slate-950 flex items-center justify-center relative group">
+          {isImage ? (
+            <div className="w-full h-full flex items-center justify-center overflow-hidden">
+               <motion.img 
+                src={file.url} 
+                alt={file.name} 
+                className="max-w-full max-h-full object-contain cursor-zoom-in"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                drag
+                dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
+                dragElastic={0.1}
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          ) : isPdf ? (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-950 relative">
+              <iframe 
+                src={file.url} 
+                className="w-full h-full border-none z-10"
+                title={file.name}
+              />
+              <div className="absolute inset-0 flex flex-col items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-slate-950/80 z-20 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
+                <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Preview Mode enabled</p>
+                <a 
+                  href={file.url} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="pointer-events-auto inline-flex items-center gap-2 px-8 py-3 bg-indigo-600 text-white rounded-full font-black uppercase tracking-widest text-[10px] shadow-2xl shadow-indigo-600/40"
+                >
+                  <Eye size={16} /> Mở trong tab mới
+                </a>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center p-12">
+               <div className="w-24 h-24 bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-700">
+                  <FileText size={48} />
+               </div>
+               <p className="text-slate-400 font-bold mb-6">Định dạng tập tin này không hỗ trợ xem trực tuyến.</p>
+               <a 
+                href={file.url} 
+                className="inline-flex items-center gap-3 px-8 py-4 bg-indigo-600 text-white rounded-[1.5rem] font-black uppercase tracking-widest text-[10px] hover:bg-indigo-500 shadow-xl shadow-indigo-600/20 transition-all"
+              >
+                <Download size={18} /> Tải xuống tập tin
+              </a>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const BulkDocumentModal = ({
+  onClose,
+  onUpload,
+  isUploading,
+  theme
+}: {
+  onClose: () => void,
+  onUpload: (file: File) => void,
+  isUploading: boolean,
+  theme: 'light' | 'dark'
+}) => {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  return (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className={cn(
+          "w-full max-w-lg rounded-[2.5rem] border p-8 relative shadow-2xl",
+          theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900 border-slate-800"
+        )}
+      >
+        <button onClick={onClose} className="absolute top-6 right-6 p-2 rounded-xl text-slate-500 hover:bg-slate-500/10 transition-all">
+          <X size={20} />
+        </button>
+        
+        <div className="mb-8 text-center pt-4">
+          <div className="w-16 h-16 bg-indigo-500/10 rounded-[1.5rem] flex items-center justify-center text-indigo-400 mx-auto mb-4">
+            <GitMerge size={32} />
+          </div>
+          <h2 className="text-xl font-black italic tracking-tight">Cập nhật tài liệu chung</h2>
+          <p className="text-xs text-slate-500 mt-2">File này sẽ được liên kết đồng bộ cho tất cả các hồ sơ đã chọn.</p>
+        </div>
+
+        <div className="space-y-6">
+          <label className="block">
+            <div className={cn(
+              "border-2 border-dashed rounded-[2rem] p-10 flex flex-col items-center justify-center gap-4 transition-all cursor-pointer group",
+              selectedFile ? "border-emerald-500/30 bg-emerald-500/5" : (theme === 'light' ? "border-slate-200 hover:border-indigo-500/30 hover:bg-indigo-500/5" : "border-slate-800 hover:border-indigo-500/30 hover:bg-indigo-500/5")
+            )}>
+              <Upload className={cn("transition-transform group-hover:-translate-y-1", selectedFile ? "text-emerald-500" : "text-slate-500")} size={32} />
+              <div className="text-center">
+                <p className="text-xs font-black uppercase tracking-widest text-slate-400">{selectedFile ? selectedFile.name : 'Chọn file hoặc chụp ảnh'}</p>
+                <p className="text-[10px] text-slate-500 mt-1 font-bold italic">Hệ thống sẽ chỉ lưu 1 bản duy nhất</p>
+              </div>
+              <input 
+                type="file" 
+                className="hidden" 
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) setSelectedFile(f);
+                }} 
+              />
+            </div>
+          </label>
+
+          <div className="flex gap-4 pt-4">
+            <button 
+              onClick={onClose}
+              className="flex-1 py-4 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:bg-slate-500/10 transition-all"
+            >
+              Hủy
+            </button>
+            <button 
+              disabled={!selectedFile || isUploading}
+              onClick={() => selectedFile && onUpload(selectedFile)}
+              className={cn(
+                "flex-1 py-4 rounded-2xl text-[10px] font-black uppercase shadow-xl transition-all flex items-center justify-center gap-2",
+                selectedFile && !isUploading ? "bg-indigo-600 text-white shadow-indigo-600/20 hover:scale-[1.02]" : "bg-slate-800 text-slate-500 cursor-not-allowed"
+              )}
+            >
+              {isUploading ? (
+                <>
+                  <RefreshCcw size={16} className="animate-spin" />
+                  Đang xử lý...
+                </>
+              ) : (
+                <>
+                  <PlusCircle size={16} />
+                  Gắn tài liệu chung
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 const calculateDaysDiff = (dateStr: string) => {
   const date = new Date(dateStr);
   const today = new Date();
@@ -4100,6 +4414,24 @@ export default function App() {
   const [isPrintingHandover, setIsPrintingHandover] = useState(false);
   const [printHandoverApps, setPrintHandoverApps] = useState<Application[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [previewFile, setPreviewFile] = useState<ScannedFile | null>(null);
+  const [isBulkDocumentOpen, setIsBulkDocumentOpen] = useState(false);
+  const [isUploadingShared, setIsUploadingShared] = useState(false);
+
+  useEffect(() => {
+    const handleMobileSignal = setInterval(() => {
+       if ((window as any).__openBulkDocsFromMobile) {
+          const ids = (window as any).__mobileSelectedIds || [];
+          if (ids.length > 0) {
+             setSelectedAppIds(ids);
+             setIsBulkDocumentOpen(true);
+          }
+          (window as any).__openBulkDocsFromMobile = false;
+          (window as any).__mobileSelectedIds = [];
+       }
+    }, 500);
+    return () => clearInterval(handleMobileSignal);
+  }, []);
   const [stepConfig, setStepConfig] = useState<Record<string, { label: string, dept: Dept, status: UnitStatus, slaDays?: number, active: boolean }>>(INITIAL_STEP_CONFIG);
   const [projects, setProjects] = useState<Project[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
@@ -5098,6 +5430,7 @@ export default function App() {
   };
 
   const [isBulkTransitionModalOpen, setIsBulkTransitionModalOpen] = useState(false);
+
   const [bulkTransitionTarget, setBulkTransitionTarget] = useState<StepName | null>(null);
   const [bulkTransitionField, setBulkTransitionField] = useState<{key: keyof Application, label: string, isRequired?: boolean} | null>(null);
   const [bulkTransitionValue, setBulkTransitionValue] = useState(new Date().toISOString().split('T')[0]);
@@ -6457,6 +6790,7 @@ export default function App() {
         .from('Documents-GCN')
         .upload(filePath, file, {
           cacheControl: '3600',
+          contentType: file.type,
           upsert: false
         });
 
@@ -6512,8 +6846,9 @@ export default function App() {
 
     setIsSavingApp(true);
     try {
-      // 1. Delete from Supabase Storage if path exists
-      if (fileToDelete?.path) {
+      // 1. Delete from Supabase Storage if path exists AND it's not a shared file
+      // If it's shared, we only remove the link from the current record's scannedFiles
+      if (fileToDelete?.path && !fileToDelete.isShared) {
         const { error: storageError } = await supabase.storage
           .from('Documents-GCN')
           .remove([fileToDelete.path]);
@@ -6522,6 +6857,8 @@ export default function App() {
           console.warn('Storage delete warning:', storageError);
           // We continue anyway to update the record even if storage delete failed
         }
+      } else if (fileToDelete?.isShared) {
+        console.log('[Info] Shared file link removed. Original file kept on storage.');
       }
 
       // 2. Update DB record
@@ -6532,7 +6869,7 @@ export default function App() {
       setDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
       if (editApp && editApp.id === app.id) setEditApp(finalApp);
       if (selectedApp && selectedApp.id === app.id) setSelectedApp(finalApp);
-      showToast('Đã xóa tài liệu khỏi hệ thống thành công.', 'success');
+      showToast(fileToDelete?.isShared ? 'Đã gỡ bỏ bản sao tài liệu chung.' : 'Đã xóa tài liệu khỏi hệ thống thành công.', 'success');
     } catch (error) {
       console.error('Supabase file delete error:', error);
       showToast('Lỗi khi xóa tài liệu.', 'error');
@@ -6541,11 +6878,75 @@ export default function App() {
     }
   };
 
-  const [previewFile, setPreviewFile] = useState<ScannedFile | null>(null);
+  const handleBulkFileUpload = async (file: File) => {
+    if (selectedAppIds.length === 0) return;
+    
+    setIsUploadingShared(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `shared-${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `shared_documents/${fileName}`;
 
-  useEffect(() => {
-    setPreviewFile(null);
-  }, [selectedApp]);
+      // 1. Upload file to Supabase Storage (Only once)
+      const { error: uploadError } = await supabase.storage
+        .from('Documents-GCN')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          contentType: file.type,
+          upsert: false
+        });
+
+      if (uploadError) throw uploadError;
+
+      // 2. Get Public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('Documents-GCN')
+        .getPublicUrl(filePath);
+
+      const newSharedFile: ScannedFile = {
+        id: `shared-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name: file.name,
+        type: file.type,
+        url: publicUrl,
+        path: filePath,
+        uploadDate: new Date().toISOString().split('T')[0],
+        isShared: true
+      };
+
+      // 3. Prepare updated apps
+      const appsToUpdate = applications
+        .filter(a => selectedAppIds.includes(a.id))
+        .map(app => ({
+          ...app,
+          scannedFiles: [...(app.scannedFiles || []), newSharedFile],
+          auditTrail: [{
+            id: Math.random().toString(36).substr(2, 9),
+            timestamp: new Date().toISOString(),
+            userId: currentUser?.dept || 'System',
+            userName: currentUser?.dept || 'Hệ thống',
+            action: 'Gắn tài liệu chung hàng loạt'
+          }, ...(app.auditTrail || [])]
+        }));
+
+      // 4. Batch update to Supabase
+      const updatedApplications = await bulkSyncRecordsToSupabase(appsToUpdate, applications);
+      
+      setApplications(updatedApplications);
+      setDashboardApps(prev => prev.map(a => {
+        const found = appsToUpdate.find(upd => upd.id === a.id);
+        return found ? found : a;
+      }));
+      
+      setIsBulkDocumentOpen(false);
+      showToast(`Đã gắn tài liệu chung cho ${selectedAppIds.length} hồ sơ.`, 'success');
+      setSelectedAppIds([]);
+    } catch (error) {
+      console.error('Bulk file upload error:', error);
+      showToast('Lỗi khi tải tài liệu chung lên.', 'error');
+    } finally {
+      setIsUploadingShared(false);
+    }
+  };
 
   const renderFilePreview = (file: ScannedFile) => {
     if (file.type.startsWith('image/')) {
@@ -9251,6 +9652,14 @@ export default function App() {
                           </button>
 
                           <button 
+                            onClick={() => setIsBulkDocumentOpen(true)}
+                            className="w-10 h-10 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full transition-all flex items-center justify-center shadow-lg shadow-indigo-600/20"
+                            title="Đính kèm tài liệu chung"
+                          >
+                            <GitMerge size={16} />
+                          </button>
+
+                          <button 
                             onClick={() => setIsBulkIssueOpen(true)}
                             className="w-10 h-10 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-full transition-all flex items-center justify-center border border-rose-500/20"
                             title="Báo lỗi / Sai sót hàng loạt"
@@ -9650,13 +10059,25 @@ export default function App() {
                                   </td>
                                 </>
                               )}
-                              <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
+                              <td className="px-6 py-5 text-center" onClick={(e) => {
+                                e.stopPropagation();
+                                if (app.scannedFiles && app.scannedFiles.length > 0) {
+                                  setPreviewFile(app.scannedFiles[0]);
+                                } else {
+                                  setSelectedApp(app);
+                                }
+                              }}>
                                 {app.scannedFiles && app.scannedFiles.length > 0 ? (
-                                  <div className="flex flex-col items-center gap-1 group/doc">
-                                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover/doc:bg-indigo-500 group-hover/doc:text-white transition-all">
+                                  <div className="flex flex-col items-center gap-1 group/doc cursor-pointer">
+                                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover/doc:bg-indigo-500 group-hover/doc:text-white transition-all shadow-sm">
                                       <FileText size={14} />
                                     </div>
-                                    <span className="text-[9px] font-black">{app.scannedFiles.length} file</span>
+                                    <div className="flex flex-col items-center">
+                                      <span className="text-[9px] font-black">{app.scannedFiles.length} file</span>
+                                      {app.scannedFiles.some(f => f.isShared) && (
+                                        <span className="text-[7px] text-indigo-400 font-black uppercase">🔗 Shared</span>
+                                      )}
+                                    </div>
                                   </div>
                                 ) : (
                                   <span className="text-[10px] text-slate-700 font-black opacity-20 italic">Trống</span>
@@ -10772,31 +11193,39 @@ export default function App() {
                                            key={file.id}
                                            className={cn(
                                              "p-4 rounded-2xl border transition-all flex items-center justify-between group",
-                                             theme === 'dark' ? "bg-slate-800/40 border-slate-700 hover:border-slate-500" : "bg-slate-50 border-slate-200 hover:border-indigo-300"
+                                             theme === 'dark' ? "bg-slate-800/40 border-slate-700 hover:border-indigo-500/50" : "bg-slate-50 border-slate-200 hover:border-indigo-300"
                                            )}
                                          >
-                                           <div className="flex items-center gap-3 overflow-hidden">
-                                             <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0">
-                                               <FileText size={20} />
+                                           <div 
+                                             className="flex items-center gap-3 overflow-hidden cursor-pointer flex-1"
+                                             onClick={() => setPreviewFile(file)}
+                                           >
+                                             <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0 group-hover:bg-indigo-500 group-hover:text-white transition-colors">
+                                               {file.type.startsWith('image/') ? <Camera size={20} /> : <FileText size={20} />}
                                              </div>
                                              <div className="min-w-0">
-                                               <p className={cn("text-xs font-bold truncate", theme === 'dark' ? "text-white" : "text-slate-900")}>{file.name}</p>
-                                               <p className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-tighter">Ngày tải: {file.uploadDate}</p>
+                                               <div className="flex items-center gap-2">
+                                                 <p className={cn("text-xs font-bold truncate", theme === 'dark' ? "text-white" : "text-slate-900")}>{file.name}</p>
+                                                 {file.isShared && (
+                                                   <span className="text-[10px] text-indigo-400 font-bold shrink-0" title="Tài liệu chung">🔗</span>
+                                                 )}
+                                               </div>
+                                               <p className="text-[10px] text-slate-500 mt-0.5 uppercase tracking-tighter">
+                                                 {file.uploadDate} {file.isShared && '• [🔗 Tài liệu chung]'}
+                                               </p>
                                              </div>
                                            </div>
                                            <div className="flex items-center gap-2">
-                                             <a 
-                                               href={file.url} 
-                                               target="_blank" 
-                                               rel="noopener noreferrer"
+                                             <button 
+                                               onClick={() => setPreviewFile(file)}
                                                className="p-2 bg-slate-100 dark:bg-slate-900 text-slate-500 hover:text-indigo-500 rounded-lg transition-all"
-                                               title="Xem/Tải về"
+                                               title="Xem nhanh"
                                              >
-                                               <ExternalLink size={16} />
-                                             </a>
+                                               <Eye size={16} />
+                                             </button>
                                              <button 
                                                onClick={() => handleDeleteFile(file.id)}
-                                               className="p-2 bg-slate-100 dark:bg-slate-900 text-slate-500 hover:text-rose-500 rounded-lg transition-all"
+                                               className="p-2 bg-slate-100 dark:bg-slate-900 text-slate-400 hover:text-rose-500 rounded-lg transition-all"
                                                title="Xóa"
                                              >
                                                <Trash2 size={16} />
@@ -11654,6 +12083,25 @@ export default function App() {
         onChangeSeverity={setBulkIssueSeverity}
         theme={theme}
       />
+
+      {isBulkDocumentOpen && (
+        <BulkDocumentModal 
+          onClose={() => setIsBulkDocumentOpen(false)}
+          onUpload={handleBulkFileUpload}
+          isUploading={isUploadingShared}
+          theme={theme}
+        />
+      )}
+
+      <AnimatePresence>
+        {previewFile && (
+          <FilePreviewModal 
+            file={previewFile}
+            onClose={() => setPreviewFile(null)}
+            theme={theme}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {toast && (

@@ -98,6 +98,7 @@ export type ScannedFile = {
   path?: string;
   type: string;
   uploadDate: string;
+  isShared?: boolean;
 };
 
 export type Application = {
