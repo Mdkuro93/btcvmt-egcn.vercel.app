@@ -134,8 +134,8 @@ const mapFromSnakeCase = (item: any): Application => {
     isSelfService: item.is_self_service,
     submissionLocation: item.submission_location,
     vpdkCode: item.vpdk_code,
-    currentStep: item.current_step || item.status,
-    status: item.status_id || (INITIAL_STEP_CONFIG[item.current_step as string] || INITIAL_STEP_CONFIG[item.status as string])?.status || item.status || 'Processing',
+    currentStep: item.customer_handover_date ? 'Hoan_Tat' : (item.current_step || item.status),
+    status: item.customer_handover_date ? 'Completed' : (item.status_id || (INITIAL_STEP_CONFIG[item.current_step as string] || INITIAL_STEP_CONFIG[item.status as string])?.status || item.status || 'Processing'),
     receivedDate: item.received_date,
     taxNotificationDate: item.tax_notification_date,
     taxNotificationReceivedDate: item.tax_notification_received_date,
@@ -167,6 +167,50 @@ const mapFromSnakeCase = (item: any): Application => {
       ? JSON.parse(item.audit_trail || item.auditTrail) 
       : (item.audit_trail || item.auditTrail || [])
   };
+};
+
+/**
+ * Self-healing logic for inconsistent record states
+ * If a record has customerHandoverDate but is not in Hoan_Tat step or Completed status,
+ * this function identifies it and triggers a sync back to Supabase.
+ */
+const useSelfHealingData = (applications: Application[], setApplications: (apps: Application[]) => void) => {
+  useEffect(() => {
+    if (applications.length === 0) return;
+
+    const inconsistentApps = applications.filter(app => 
+      app.customerHandoverDate && (app.currentStep !== 'Hoan_Tat' || app.status !== 'Completed')
+    );
+
+    if (inconsistentApps.length > 0) {
+      console.log(`[Self-Healing] Detected ${inconsistentApps.length} inconsistent records. Syncing to Supabase...`);
+      
+      const fixApps = async () => {
+        const healedApps = inconsistentApps.map(app => ({
+          ...app,
+          currentStep: 'Hoan_Tat' as StepName,
+          status: 'Completed' as UnitStatus,
+          auditTrail: [{
+            id: Math.random().toString(36).substr(2, 9),
+            timestamp: new Date().toISOString(),
+            userId: 'system',
+            userName: 'Hệ thống (Self-Healing)',
+            action: 'Đồng bộ trạng thái Hoàn tất dựa trên ngày BG khách'
+          }, ...(app.auditTrail || [])]
+        }));
+
+        try {
+          // Bulk update the inconsistent ones
+          const updatedApps = await bulkSyncRecordsToSupabase(healedApps, applications);
+          setApplications(updatedApps);
+        } catch (error) {
+          console.error('[Self-Healing] Error fixing records:', error);
+        }
+      };
+
+      fixApps();
+    }
+  }, [applications.length]); // Only run when total count changes to avoid loops
 };
 
 const STATUS_TO_ID_MAP: Record<UnitStatus, number> = {
@@ -4059,6 +4103,7 @@ export default function App() {
   const [stepConfig, setStepConfig] = useState<Record<string, { label: string, dept: Dept, status: UnitStatus, slaDays?: number, active: boolean }>>(INITIAL_STEP_CONFIG);
   const [projects, setProjects] = useState<Project[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
+  useSelfHealingData(applications, setApplications);
   const [dashboardApps, setDashboardApps] = useState<Application[]>([]);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [isLoadingApps, setIsLoadingApps] = useState(true);
@@ -4953,7 +4998,20 @@ export default function App() {
     if (!app) return;
 
     const auditEntry = createAuditEntry('Cập nhật nhanh', false, 1, app.unitCode);
-    const updatedApp = { ...app, ...editData, auditTrail: [auditEntry, ...(app.auditTrail || [])] };
+    let updatedApp = { ...app, ...editData, auditTrail: [auditEntry, ...(app.auditTrail || [])] };
+
+    // Auto-promote to Hoan_Tat if customerHandoverDate is updated
+    if (editData.customerHandoverDate) {
+      updatedApp.currentStep = 'Hoan_Tat';
+      updatedApp.status = 'Completed';
+      const historyItem: ApplicationHistory = {
+        id: Math.random().toString(36).substr(2, 9),
+        timestamp: new Date().toLocaleString('vi-VN'),
+        user: userRole,
+        action: 'Tự động hoàn tất (Cập nhật nhanh ngày BG khách)',
+      };
+      updatedApp.history = [historyItem, ...(app.history || [])];
+    }
 
     setIsSavingApp(true);
     try {
@@ -5582,6 +5640,11 @@ export default function App() {
           if (row[18]) app.accountingHandoverDate = parseExcelDate(row[18]);
           if (row[19]) app.customerHandoverDate = parseExcelDate(row[19]);
 
+          if (app.customerHandoverDate) {
+            app.currentStep = 'Hoan_Tat';
+            app.status = 'Completed';
+          }
+
           if (existingIndex > -1) {
             newApplications[existingIndex] = app;
             updatedCount++;
@@ -5627,6 +5690,11 @@ export default function App() {
           app.bankCommitmentDeadline = parseExcelDate(row[9]) || app.bankCommitmentDeadline;
           app.isSelfService = row[10] === 'Có';
           if (row[11]) app.customerHandoverDate = parseExcelDate(row[11]);
+
+          if (app.customerHandoverDate) {
+            app.currentStep = 'Hoan_Tat';
+            app.status = 'Completed';
+          }
 
           if (existingIndex > -1) {
             newApplications[existingIndex] = app;
@@ -6772,6 +6840,19 @@ export default function App() {
         nextApp.currentStep = 'S5_Tai_Chinh_Khach_Hang';
       }
 
+      // Auto-promote to Hoan_Tat if customerHandoverDate is added
+      if (field === 'customerHandoverDate' && value) {
+        nextApp.currentStep = 'Hoan_Tat';
+        nextApp.status = 'Completed';
+        const historyItem: ApplicationHistory = {
+          id: Math.random().toString(36).substr(2, 9),
+          timestamp: new Date().toLocaleString('vi-VN'),
+          user: userRole,
+          action: 'Tự động hoàn tất (Có ngày BG khách)',
+        };
+        nextApp.history = [historyItem, ...(nextApp.history || [])];
+      }
+
       // Auto-update issue type if notes are added
       if (field === 'issueNotes' && value) {
         if (!editApp.issueType || editApp.issueType === 'None') {
@@ -6799,6 +6880,19 @@ export default function App() {
           // Auto-promote status to TaxCompleted if taxReceiptDate is added and current step expects it
           if (field === 'taxReceiptDate' && value && stepConfig[app.currentStep]?.status === 'TaxCompleted') {
             nextApp.status = 'TaxCompleted';
+          }
+
+          // Auto-promote to Hoan_Tat if customerHandoverDate is added
+          if (field === 'customerHandoverDate' && value) {
+            nextApp.currentStep = 'Hoan_Tat';
+            nextApp.status = 'Completed';
+            const historyItem: ApplicationHistory = {
+              id: Math.random().toString(36).substr(2, 9),
+              timestamp: new Date().toLocaleString('vi-VN'),
+              user: userRole,
+              action: 'Tự động hoàn tất (Có ngày BG khách)',
+            };
+            nextApp.history = [historyItem, ...(app.history || [])];
           }
 
           if (field === 'issueNotes' && value) {
