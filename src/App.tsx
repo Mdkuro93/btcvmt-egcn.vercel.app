@@ -505,20 +505,18 @@ const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserPr
     
     try {
       // 1. Prioritize db check
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .or(`username.eq.${username},email.eq.${username}`)
-        .eq('password', password)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc('check_user_login', {
+        p_username: username,
+        p_password: password
+      });
 
       if (error) {
-        console.warn('Database error or table missing, falling back to local users:', error);
+        console.warn('Database error or RPC missing, falling back to local users:', error);
       }
 
-      if (data) {
+      if (data && data.length > 0) {
         console.log('Login successful via DB');
-        onLogin(mapUserFromSnakeCase(data));
+        onLogin(mapUserFromSnakeCase(data[0]));
         return;
       }
 
@@ -2713,8 +2711,8 @@ const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: {
     <div className="min-h-screen bg-slate-950 text-white p-4 font-sans safe-area-inset overflow-x-hidden text-left">
        <header className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center">
-                <LayoutDashboard size={20} />
+             <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_-5px_rgba(245,158,11,0.5)] border border-white/20 shrink-0">
+                <ShieldCheck className="text-white" size={20} strokeWidth={1.5} />
              </div>
              <div className="text-left">
                 <h2 className="text-lg font-black italic">Field Portal</h2>
@@ -8076,8 +8074,8 @@ export default function App() {
             : "border-slate-800/50 bg-gradient-to-br from-slate-800/30 to-transparent",
           isSidebarCollapsed ? "px-5" : "px-6"
         )}>
-          <div className="w-10 h-10 bg-festive-gold rounded-xl flex items-center justify-center shadow-lg shadow-festive-gold/20 shrink-0">
-            <Building2 className="text-slate-950" size={24} />
+          <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_-5px_rgba(245,158,11,0.5)] border border-white/20 shrink-0">
+            <ShieldCheck className="text-white" size={24} strokeWidth={1.5} />
           </div>
           <AnimatePresence>
             {!isSidebarCollapsed && (
@@ -8107,7 +8105,7 @@ export default function App() {
               isSidebarCollapsed ? "justify-center px-0" : "px-4",
               isSidebarCollapsed ? "justify-center px-0" : "px-4",
               activeTab === 'dashboard'                
-                ? "bg-brand text-white shadow-lg shadow-brand/20" 
+                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
                 : "text-slate-300 hover:bg-slate-700 hover:text-white"
             )}
           >
@@ -8126,7 +8124,7 @@ export default function App() {
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               activeTab === 'applications' 
-                ? "bg-brand text-white shadow-lg shadow-brand/20" 
+                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
                 : "text-slate-300 hover:bg-slate-700 hover:text-white"
             )}
           >
@@ -8147,7 +8145,7 @@ export default function App() {
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                 activeTab === 'reports' 
-                  ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
+                  ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
                   : "text-slate-300 hover:bg-slate-700 hover:text-white"
               )}
             >
@@ -8168,7 +8166,7 @@ export default function App() {
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               activeTab === 'resources' 
-                ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
+                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
                 : "text-slate-300 hover:bg-slate-700 hover:text-white"
             )}
           >
@@ -8190,7 +8188,7 @@ export default function App() {
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'users' 
-                    ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
+                    ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
                     : "text-slate-300 hover:bg-slate-700 hover:text-white"
                 )}
               >
@@ -8209,7 +8207,7 @@ export default function App() {
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'projects' 
-                    ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20" 
+                    ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
                     : "text-slate-300 hover:bg-slate-700 hover:text-white"
                 )}
               >
@@ -8228,7 +8226,7 @@ export default function App() {
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'settings' 
-                    ? "bg-festive-gold text-slate-900 shadow-lg shadow-festive-gold/20" 
+                    ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
                     : "text-slate-300 hover:bg-slate-700 hover:text-white"
                 )}
               >
