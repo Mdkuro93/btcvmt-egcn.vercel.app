@@ -505,18 +505,20 @@ const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserPr
     
     try {
       // 1. Prioritize db check
-      const { data, error } = await supabase.rpc('check_user_login', {
-        p_username: username,
-        p_password: password
-      });
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .or(`username.eq.${username},email.eq.${username}`)
+        .eq('password', password)
+        .maybeSingle();
 
       if (error) {
-        console.warn('Database error or RPC missing, falling back to local users:', error);
+        console.warn('Database error or table missing, falling back to local users:', error);
       }
 
-      if (data && data.length > 0) {
+      if (data) {
         console.log('Login successful via DB');
-        onLogin(mapUserFromSnakeCase(data[0]));
+        onLogin(mapUserFromSnakeCase(data));
         return;
       }
 
