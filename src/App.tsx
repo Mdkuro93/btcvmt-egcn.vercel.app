@@ -5439,6 +5439,9 @@ export default function App() {
   };
   
   const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const [projectSearch, setProjectSearch] = useState('');
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'warning' } | null>(null);
@@ -5446,17 +5449,120 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't interfere if an input/textarea/select is focused
+      const target = e.target as HTMLElement;
+      const isInputFocused = ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable;
+      
+      // Global Escape handler for modals
+      if (e.key === 'Escape') {
+        if (selectedApp) {
+          setSelectedApp(null);
+          setIsEditing(false);
+          return;
+        }
+        if (isProjectModalOpen) {
+          setIsProjectModalOpen(false);
+          return;
+        }
+      }
+
       if (e.key === 'F2') {
         if (selectedApp && !isEditing && currentUser?.permission !== 'VIEW') {
           e.preventDefault();
           setIsEditing(true);
           setEditApp(selectedApp);
+          return;
+        }
+      }
+
+      // Table keyboard navigation for 'applications' tab
+      if (activeTab === 'applications' && !isInputFocused && !selectedApp) {
+        const visibleApps = filteredApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+        
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setSelectedIndex(prev => {
+            const next = (prev === null) ? 0 : Math.min(prev + 1, visibleApps.length - 1);
+            if (e.shiftKey && lastSelectedIndex !== null) {
+              const start = Math.min(lastSelectedIndex, next);
+              const end = Math.max(lastSelectedIndex, next);
+              const newSelection = new Set(selectedRows);
+              for (let i = start; i <= end; i++) {
+                newSelection.add(visibleApps[i].id);
+              }
+              setSelectedRows(newSelection);
+              setSelectedAppIds(Array.from(newSelection));
+            }
+            return next;
+          });
+          if (!e.shiftKey) setLastSelectedIndex((selectedIndex === null) ? 0 : Math.min(selectedIndex + 1, visibleApps.length - 1));
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setSelectedIndex(prev => {
+            const next = (prev === null) ? 0 : Math.max(prev - 1, 0);
+            if (e.shiftKey && lastSelectedIndex !== null) {
+              const start = Math.min(lastSelectedIndex, next);
+              const end = Math.max(lastSelectedIndex, next);
+              const newSelection = new Set(selectedRows);
+              for (let i = start; i <= end; i++) {
+                newSelection.add(visibleApps[i].id);
+              }
+              setSelectedRows(newSelection);
+              setSelectedAppIds(Array.from(newSelection));
+            }
+            return next;
+          });
+          if (!e.shiftKey) setLastSelectedIndex((selectedIndex === null) ? 0 : Math.max((selectedIndex || 0) - 1, 0));
+        } else if (e.key === 'Enter' && selectedIndex !== null) {
+          e.preventDefault();
+          setSelectedApp(visibleApps[selectedIndex]);
+        } else if (e.key === ' ' && selectedIndex !== null) {
+          e.preventDefault();
+          const appId = visibleApps[selectedIndex].id;
+          setSelectedRows(prev => {
+            const next = new Set(prev);
+            if (next.has(appId)) next.delete(appId);
+            else next.add(appId);
+            setSelectedAppIds(Array.from(next));
+            return next;
+          });
+        }
+
+        // Ctrl + A: Select all filtered rows
+        if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+          e.preventDefault();
+          const allIds = filteredApps.map(a => a.id);
+          setSelectedRows(new Set(allIds));
+          setSelectedAppIds(allIds);
+          showToast(`Đã chọn tất cả ${filteredApps.length} hồ sơ`, 'success');
+        }
+
+        // Ctrl + C: Copy selected rows to clipboard for Excel
+        if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+          if (selectedRows.size > 0) {
+            e.preventDefault();
+            const rowsToCopy = filteredApps.filter(app => selectedRows.has(app.id));
+            
+            const header = ['Dự án', 'Mã căn', 'Tên khách hàng', 'Trạng thái', 'Tiến độ'].join('\t');
+            const dataRows = rowsToCopy.map(r => [
+              r.projectName || '',
+              r.unitCode || '',
+              r.customerName || '',
+              r.status || '',
+              r.currentStep || ''
+            ].join('\t'));
+            
+            const text = [header, ...dataRows].join('\n');
+            navigator.clipboard.writeText(text).then(() => {
+              showToast(`Đã copy ${rowsToCopy.length} dòng`, 'success');
+            });
+          }
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedApp, isEditing, currentUser]);
+  }, [selectedApp, isEditing, currentUser, activeTab, filteredApps, selectedIndex, selectedRows, lastSelectedIndex, currentPage, pageSize, isProjectModalOpen]);
 
   const showToast = (message: string, type: 'success' | 'error' | 'warning' = 'success') => {
     setToast({ message, type });
@@ -10133,10 +10239,16 @@ export default function App() {
                             <input 
                               type="checkbox" 
                               className="w-4 h-4 rounded border-slate-700 bg-slate-900 accent-festive-gold"
-                              checked={selectedAppIds.length === applications.length && applications.length > 0}
+                              checked={selectedRows.size === applications.length && applications.length > 0}
                               onChange={(e) => {
-                                if (e.target.checked) setSelectedAppIds(applications.map(a => a.id));
-                                else setSelectedAppIds([]);
+                                if (e.target.checked) {
+                                  const allIds = applications.map(a => a.id);
+                                  setSelectedAppIds(allIds);
+                                  setSelectedRows(new Set(allIds));
+                                } else {
+                                  setSelectedAppIds([]);
+                                  setSelectedRows(new Set());
+                                }
                               }}
                             />
                           </th>
@@ -10193,24 +10305,61 @@ export default function App() {
                         ) : filteredApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map((app, index) => {
                           const overdue = getOverdueInfo(app, stepConfig, slaConfig);
                           const isEven = index % 2 === 1;
+                          const isFocused = selectedIndex === index;
+                          const isSelected = selectedRows.has(app.id) || selectedAppIds.includes(app.id);
+                          
                           return (
                             <tr 
                               key={`${app.id}-${index}`} 
                               className={cn(
-                                "transition-colors cursor-pointer group border-b",
+                                "transition-all cursor-pointer group border-b relative",
+                                isFocused && (theme === 'light' ? "ring-2 ring-indigo-500/50 z-10" : "ring-2 ring-indigo-400/50 z-10"),
                                 theme === 'light' 
-                                  ? (selectedAppIds.includes(app.id) ? "bg-festive-gold/15" : (isEven ? "bg-slate-50/50 hover:bg-indigo-50/20 border-slate-100" : "bg-white hover:bg-indigo-50/20 border-slate-100")) 
-                                  : (selectedAppIds.includes(app.id) ? "bg-festive-gold/10" : (isEven ? "bg-slate-900/20 hover:bg-indigo-950/20 border-slate-800/40" : "bg-transparent hover:bg-indigo-950/20 border-slate-800/40"))
+                                  ? (isSelected ? "bg-festive-gold/20" : (isFocused ? "bg-indigo-50/50" : (isEven ? "bg-slate-50/50 hover:bg-indigo-50/20 border-slate-100" : "bg-white hover:bg-indigo-50/20 border-slate-100"))) 
+                                  : (isSelected ? "bg-festive-gold/15" : (isFocused ? "bg-indigo-950/40" : (isEven ? "bg-slate-900/20 hover:bg-indigo-950/20 border-slate-800/40" : "bg-transparent hover:bg-indigo-950/20 border-slate-800/40")))
                               )}
+                              onClick={(e) => {
+                                setSelectedIndex(index);
+                                if (e.shiftKey && lastSelectedIndex !== null) {
+                                  const visibleApps = filteredApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+                                  const start = Math.min(lastSelectedIndex, index);
+                                  const end = Math.max(lastSelectedIndex, index);
+                                  const newSelection = new Set(selectedRows);
+                                  for (let i = start; i <= end; i++) {
+                                    newSelection.add(visibleApps[i].id);
+                                  }
+                                  setSelectedRows(newSelection);
+                                  setSelectedAppIds(Array.from(newSelection));
+                                } else if (e.ctrlKey || e.metaKey) {
+                                  const newSelection = new Set(selectedRows);
+                                  if (newSelection.has(app.id)) newSelection.delete(app.id);
+                                  else newSelection.add(app.id);
+                                  setSelectedRows(newSelection);
+                                  setSelectedAppIds(Array.from(newSelection));
+                                  setLastSelectedIndex(index);
+                                } else {
+                                  const newSelection = new Set([app.id]);
+                                  setSelectedRows(newSelection);
+                                  setSelectedAppIds([app.id]);
+                                  setLastSelectedIndex(index);
+                                }
+                              }}
+                              onDoubleClick={() => setSelectedApp(app)}
                             >
                               <td className="px-3 py-1.5 text-xs leading-tight" onClick={(e) => e.stopPropagation()}>
                                 <input 
                                   type="checkbox" 
                                   className="w-4 h-4 rounded border-slate-700 bg-slate-900 accent-festive-gold"
-                                  checked={selectedAppIds.includes(app.id)}
+                                  checked={isSelected}
                                   onChange={(e) => {
-                                    if (e.target.checked) setSelectedAppIds(prev => Array.from(new Set([...prev, app.id])));
-                                    else setSelectedAppIds(prev => prev.filter(id => id !== app.id));
+                                    const newSelection = new Set(selectedRows);
+                                    if (e.target.checked) {
+                                      newSelection.add(app.id);
+                                    } else {
+                                      newSelection.delete(app.id);
+                                    }
+                                    setSelectedRows(newSelection);
+                                    setSelectedAppIds(Array.from(newSelection));
                                   }}
                                 />
                               </td>
@@ -10221,7 +10370,6 @@ export default function App() {
                                   setQuickEditId(app.id);
                                   setQuickEditData({ unitCode: app.unitCode, customerName: app.customerName });
                                 }}
-                                onClick={() => quickEditId !== app.id && setSelectedApp(app)}
                               >
                                 <div className="flex flex-col text-slate-600 dark:text-slate-300">
                                   {quickEditId === app.id ? (
@@ -10267,7 +10415,7 @@ export default function App() {
                                   )}
                                 </div>
                               </td>
-                              <td className="px-3 py-1.5 text-xs leading-tight font-medium text-slate-600 dark:text-slate-300" onClick={() => setSelectedApp(app)}>
+                              <td className="px-3 py-1.5 text-xs leading-tight font-medium text-slate-600 dark:text-slate-300">
                                 <span className="text-xs font-medium text-slate-600 dark:text-slate-300 truncate block max-w-[200px]" title={app.projectName}>
                                   {app.projectName}
                                 </span>
@@ -10419,12 +10567,12 @@ export default function App() {
                                 })
                               ) : (
                                 <>
-                                  <td className="px-3 py-1.5 text-xs leading-tight text-slate-500 dark:text-slate-400" onClick={() => setSelectedApp(app)}>
+                                  <td className="px-3 py-1.5 text-xs leading-tight text-slate-500 dark:text-slate-400">
                                     <span className="text-xs font-medium">
                                       {app.contractSignerType || '---'}
                                     </span>
                                   </td>
-                                  <td className="px-3 py-1.5 text-xs leading-tight" onClick={() => setSelectedApp(app)}>
+                                  <td className="px-3 py-1.5 text-xs leading-tight">
                                     <div className="flex flex-col gap-1">
                                       <StatusBadge status={app.status} app={app} />
                                       {(app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None')) && (
@@ -10455,7 +10603,7 @@ export default function App() {
                                       )}
                                     </div>
                                   </td>
-                                  <td className="px-3 py-1.5 text-xs leading-tight text-center text-slate-400 dark:text-slate-500" onClick={() => setSelectedApp(app)}>
+                                  <td className="px-3 py-1.5 text-xs leading-tight text-center text-slate-400 dark:text-slate-500">
                                       {(() => {
                                         const isSupportSpecial = (app?.projectName?.includes('hỗ trợ') || app?.workflowType === 'Quy_trinh_1') && (app?.currentStep === 'GD2_Cho_Nop_VPDK' || app?.currentStep === 'S3_Nop_VPDK');
                                         const config = (stepConfig[app?.currentStep || ''] || INITIAL_STEP_CONFIG[app?.currentStep || '']);
@@ -10468,12 +10616,12 @@ export default function App() {
                                       })()}
                                   </td>
                                   {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                    <td className="px-3 py-1.5 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
+                                    <td className="px-3 py-1.5 text-xs leading-tight text-center">
                                       <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.submissionDate)}</span>
                                     </td>
                                   )}
                                   {(userRole === 'PTT' || userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                    <td className="px-3 py-1.5 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
+                                    <td className="px-3 py-1.5 text-xs leading-tight text-center">
                                       <div className="flex flex-col items-center">
                                         <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>
                                           {app.taxReceiptDate ? formatDate(app.taxReceiptDate) : (app.taxNotificationReceivedDate ? 'Chờ nộp' : '---')}
@@ -10485,11 +10633,11 @@ export default function App() {
                                     </td>
                                   )}
                                   {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                    <td className="px-3 py-1.5 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
+                                    <td className="px-3 py-1.5 text-xs leading-tight text-center">
                                       <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.gcnReceivedDate)}</span>
                                     </td>
                                   )}
-                                  <td className="px-3 py-1.5 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
+                                  <td className="px-3 py-1.5 text-xs leading-tight text-center">
                                     <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.customerHandoverDate)}</span>
                                   </td>
                                 </>
