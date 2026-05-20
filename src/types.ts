@@ -159,6 +159,7 @@ export type Application = {
   };
   history: ApplicationStepHistory[];
   auditTrail?: AuditTrailEntry[];
+  flags?: string[];
 };
 
 export type AppNotification = {

@@ -27,14 +27,14 @@ export default function DashboardAlerts({ theme, stats, onFilterChange }: Dashbo
         </div>
         
         <div className="grid grid-cols-2 gap-2">
-           <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/10 overflow-hidden relative" onClick={() => onFilterChange('overdue')} style={{ cursor: 'pointer' }}>
+           <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/10 overflow-hidden relative cursor-pointer hover:bg-rose-500/20 transition-colors" onClick={() => onFilterChange('SLA_OVERDUE')}>
               <p className="text-[8px] font-black text-rose-500 uppercase leading-none mb-1">Trễ hạn</p>
               <p className={cn("text-lg font-black", theme === 'dark' ? "text-white" : "text-slate-900")}>{stats.overdueCount}</p>
               <div className="absolute -right-2 -bottom-2 opacity-10">
                 <Clock size={32} className="text-rose-500" />
               </div>
            </div>
-           <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/10 overflow-hidden relative" onClick={() => onFilterChange('error')} style={{ cursor: 'pointer' }}>
+           <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/10 overflow-hidden relative cursor-pointer hover:bg-amber-500/20 transition-colors" onClick={() => onFilterChange('HAS_ERROR')}>
               <p className="text-[8px] font-black text-amber-500 uppercase leading-none mb-1">Sai sót</p>
               <p className={cn("text-lg font-black", theme === 'dark' ? "text-white" : "text-slate-900")}>{stats.errorCount}</p>
               <div className="absolute -right-2 -bottom-2 opacity-10">

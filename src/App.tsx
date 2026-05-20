@@ -1,4 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useDashboardStats } from './modules/dashboard/useDashboardStats';
+import { useApplications } from './modules/applications/useApplications';
+import { calculateSLA } from './utils/statusEngine';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Cell,
   PieChart, Pie, LabelList, Label, Legend, AreaChart, Area
@@ -77,6 +80,8 @@ import {
   UserCheck
 } from 'lucide-react';
 import DashboardAlerts from './components/DashboardAlerts';
+import { Routes, Route, Link } from 'react-router-dom';
+import ReportScreen from './pages/ReportScreen';
 import { cn } from './lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { createClient } from '@supabase/supabase-js';
@@ -111,63 +116,185 @@ const DOC_CHECKLIST_ITEMS = [
 ];
 
 // Supabase Configuration
-const SUPABASE_URL = 'https://eewikwqwtgmrlvyrfgit.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_gKFEW2pn_2PAif9UkvMqGA_58E2Gj6z';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://eewikwqwtgmrlvyrfgit.supabase.co';
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY || 'sb_publishable_gKFEW2pn_2PAif9UkvMqGA_58E2Gj6z';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 
+const safeParse = (val: any, fallback: any) => {
+  try {
+    return typeof val === 'string' ? JSON.parse(val) : val ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+function diffDays(date: any) {
+  if (!date) return 0;
+  const now = new Date();
+  const d = new Date(date);
+  
+  const utcNow = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const utcTarget = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  
+  return Math.floor((utcNow - utcTarget) / (1000 * 60 * 60 * 24));
+}
+
+const buildFlags = (app: any): string[] => {
+  const flags: string[] = [];
+  const status = app.status || '';
+  const loan = app.loanStatus || '';
+
+  // 1. Khớp cờ Vay/Không vay
+  if (loan === 'Co_Vay') flags.push('CO_VAY');
+  if (loan === 'Khong_Vay') flags.push('KHONG_VAY');
+
+  // 2. Khớp cờ Lỗi/Sai sót
+  if ((app.issueType && app.issueType !== 'None') || status === 'Error' || !!app.isRejected) {
+    flags.push('CO_SAI_SOT', 'CO_LOI');
+  }
+
+  // 3. 🔥 SỬA TẠI ĐÂY: Phân rã chi tiết trạng thái để biểu đồ không bị dồn cục
+  if (status === 'Processing') {
+    flags.push('ĐANG CHUẨN BỊ', 'PROCESSING');
+  } else if (status === 'WaitingVPDK') {
+    flags.push('CHỜ NỘP VPĐK', 'WAITING_VPDK');
+  } else if (status === 'Submitted') {
+    flags.push('ĐÃ NỘP VPĐK', 'SUBMITTED');
+  } else if (status === 'TaxPending') {
+    flags.push('CHỜ NỘP THUẾ', 'TAX_PENDING');
+  } else if (status === 'TaxPaid' || status === 'TaxCompleted') {
+    flags.push('ĐÃ NỘP THUẾ', 'TAX_PAID');
+  } else if (status === 'GCN_Issued') {
+    flags.push('ĐÃ CÓ GCN', 'GCN_ISSUED');
+  } else if (status === 'WaitingHandover') {
+    flags.push('CHỜ BÀN GIAO', 'WAITING_HANDOVER');
+  } else if (status === 'Completed') {
+    flags.push('HOÀN TẤT', 'COMPLETED');
+  }
+
+  return flags;
+};
+
 const mapFromSnakeCase = (item: any): Application => {
-  return {
-    id: item.id,
-    unitCode: item.unit_code,
-    projectName: item.project_name,
-    workflowType: item.current_step?.startsWith('GD') || item.status?.startsWith('GD') ? 'Quy_trinh_1' : 'Quy_trinh_2',
-    customerName: item.customer_name,
-    contractSignerType: item.contract_signer_type,
-    phoneNumber: item.phone_number,
-    propertyType: item.property_type,
-    loanStatus: item.loan_status,
-    bankCommitmentDeadline: item.bank_commitment_deadline,
-    reportUpdateDate: item.report_update_date,
-    contractSigningDate: item.contract_signing_date,
-    assignorGcnNumber: item.assignor_gcn_number,
-    assignorGcnDate: item.assignor_gcn_date,
-    isSelfService: item.is_self_service,
-    submissionLocation: item.submission_location,
-    vpdkCode: item.vpdk_code,
-    currentStep: item.customer_handover_date ? 'Hoan_Tat' : (item.current_step || item.status),
-    status: item.customer_handover_date ? 'Completed' : (item.status_id || (INITIAL_STEP_CONFIG[item.current_step as string] || INITIAL_STEP_CONFIG[item.status as string])?.status || item.status || 'Processing'),
-    receivedDate: item.received_date,
-    taxNotificationDate: item.tax_notification_date,
-    taxNotificationReceivedDate: item.tax_notification_received_date,
-    taxReceiptDate: item.tax_receipt_date,
-    accountingHandoverDate: item.accounting_handover_date,
-    submissionDate: item.submission_date,
-    gcnReceivedDate: item.gcn_received_date,
-    ptdaHandoverDate: item.ptda_handover_date,
-    customerHandoverDate: item.customer_handover_date,
-    isHandedOver: item.is_handed_over,
-    handoverDate: item.handover_date,
-    taxNoticeProvisionDate: item.tax_notice_provision_date,
-    gcnSignedDate: item.gcn_signed_date,
-    issueType: item.issue_type,
-    issueSeverity: item.issue_severity,
-    issueNotes: item.issue_notes,
-    estimatedCompletionDate: item.estimated_completion_date,
-    rejectionCount: item.rejection_count,
-    isRejected: item.is_rejected,
-    rejectionReason: item.rejection_reason,
-    commitmentDate: item.commitment_date,
-    taxPaymentStatus: item.tax_payment_status,
-    history: typeof item.history === 'string' ? JSON.parse(item.history) : (item.history || []),
-    checklist: typeof item.checklist === 'string' ? JSON.parse(item.checklist) : (item.checklist || {}),
-    scannedFiles: typeof (item.scanned_files || item.scannedFiles) === 'string' 
-      ? JSON.parse(item.scanned_files || item.scannedFiles) 
-      : (item.scanned_files || item.scannedFiles || []),
-    auditTrail: typeof (item.audit_trail || item.auditTrail) === 'string' 
-      ? JSON.parse(item.audit_trail || item.auditTrail) 
-      : (item.audit_trail || item.auditTrail || [])
+  if (!item) return {} as Application;
+
+  // Setup helper to handle both snake_case and camelCase keys safely
+  const val = (snakeKey: string, camelKey: string) => {
+    return item[snakeKey] !== undefined ? item[snakeKey] : item[camelKey];
   };
+
+  // Normalization helpers for key fields to prevent UI / Filtering mismatches
+  const normalizeStatus = (statusVal: any): UnitStatus => {
+    if (typeof statusVal !== 'string') return 'Processing';
+    const s = statusVal.trim().toLowerCase().replace(/_/g, '').replace(/-/g, '');
+    if (s === 'completed' || s === 'hoantat' || s === 'hoântất' || s === 'hoàn tất' || s === 'hoàn tất quy trình') return 'Completed';
+    if (s === 'processing' || s === 'dangxuly' || s === 'đang xử lý' || s === 'chuanbi') return 'Processing';
+    if (s === 'waitingvpdk' || s === 'chờ nộp vpđk' || s === 'chonopvpdk') return 'WaitingVPDK';
+    if (s === 'submitted' || s === 'đã nộp vpđk' || s === 'danopvpdk') return 'Submitted';
+    if (s === 'taxpending' || s === 'chờ thông báo thuế' || s === 'chờ nộp thuế' || s === 'chothongbaothue') return 'TaxPending';
+    if (s === 'taxcompleted' || s === 'đã hoàn thành nvtc' || s === 'hoàn thành nvtc' || s === 'dahoanthanhnvtc') return 'TaxCompleted';
+    if (s === 'taxpaid' || s === 'đã nộp thuế' || s === 'danopthue') return 'TaxPaid';
+    if (s === 'waitinghandover' || s === 'chờ bàn giao' || s === 'chobangiao') return 'WaitingHandover';
+    if (s === 'gcnissued' || s === 'gcn_issued' || s === 'đã có gcn' || s === 'dacogcn') return 'GCN_Issued';
+    if (s === 'error' || s === 'saisot' || s === 'sai sót' || s === 'sai sót/vướng mắc') return 'Error';
+    if (s === 'draft' || s === 'nháp') return 'Draft';
+    return 'Processing';
+  };
+
+  const normalizeLoanStatus = (loanVal: any): 'Co_Vay' | 'Khong_Vay' => {
+    if (typeof loanVal !== 'string') {
+      return loanVal === true ? 'Co_Vay' : 'Khong_Vay';
+    }
+    const l = loanVal.trim().toLowerCase().replace(/_/g, '').replace(/-/g, '');
+    if (l === 'covay' || l === 'có vay' || l === 'có' || l === 'co' || l === 'yes' || l === 'true') {
+      return 'Co_Vay';
+    }
+    return 'Khong_Vay';
+  };
+
+  const normalizeTaxPaymentStatus = (taxVal: any): 'Unpaid' | 'Paid' => {
+    if (typeof taxVal !== 'string') {
+      return taxVal === true ? 'Paid' : 'Unpaid';
+    }
+    const t = taxVal.trim().toLowerCase();
+    if (t === 'paid' || t === 'đã nộp' || t === 'da nop' || t === 'yes' || t === 'true') {
+      return 'Paid';
+    }
+    return 'Unpaid';
+  };
+
+  const str = (value: any) => typeof value === 'string' ? value.trim() : (value ?? '');
+  const num = (value: any) => typeof value === 'number' ? value : (value ? Number(value) : undefined);
+  const bool = (value: any) => typeof value === 'boolean' ? value : (value === 'true' || value === 1 || value === '1' || value === 'YES' || value === 'Yes' || value === 'yes');
+
+  const customerHandoverDate = str(val('customer_handover_date', 'customerHandoverDate'));
+  const currentStepRaw = str(val('current_step', 'currentStep')) || str(val('status', 'status'));
+  const currentStep: StepName = customerHandoverDate ? 'Hoan_Tat' : (currentStepRaw || 'S1_ChuanBi') as StepName;
+
+  const statusRaw = val('status_id', 'statusId') || val('status', 'status');
+  const stepConfigStatus = (INITIAL_STEP_CONFIG[currentStep as string])?.status;
+  const status = (() => {
+  if (customerHandoverDate) return 'Completed';
+
+  const rawStatus = val('status', 'status');
+
+  if (rawStatus) return rawStatus;
+
+  return 'Processing';
+})();
+``
+
+
+  const mappedApp: Application = {
+    id: str(val('id', 'id')),
+    unitCode: str(val('unit_code', 'unitCode')),
+    projectName: str(val('project_name', 'projectName')),
+    workflowType: (currentStep?.startsWith('GD') || (typeof statusRaw === 'string' && statusRaw.startsWith('GD')) ? 'Quy_trinh_1' : 'Quy_trinh_2'),
+    customerName: str(val('customer_name', 'customerName')),
+    contractSignerType: str(val('contract_signer_type', 'contractSignerType')),
+    phoneNumber: str(val('phone_number', 'phoneNumber')),
+    propertyType: val('property_type', 'propertyType'),
+    loanStatus: normalizeLoanStatus(val('loan_status', 'loanStatus')),
+    bankCommitmentDeadline: str(val('bank_commitment_deadline', 'bankCommitmentDeadline')),
+    reportUpdateDate: str(val('report_update_date', 'reportUpdateDate')),
+    contractSigningDate: str(val('contract_signing_date', 'contractSigningDate')),
+    assignorGcnNumber: str(val('assignor_gcn_number', 'assignorGcnNumber')),
+    assignorGcnDate: str(val('assignor_gcn_date', 'assignorGcnDate')),
+    isSelfService: bool(val('is_self_service', 'isSelfService')),
+    submissionLocation: val('submission_location', 'submissionLocation'),
+    vpdkCode: str(val('vpdk_code', 'vpdkCode')),
+    currentStep,
+    status,
+    receivedDate: str(val('received_date', 'receivedDate')),
+    taxNotificationDate: str(val('tax_notification_date', 'taxNotificationDate')),
+    taxNotificationReceivedDate: str(val('tax_notification_received_date', 'taxNotificationReceivedDate')),
+    taxReceiptDate: str(val('tax_receipt_date', 'taxReceiptDate')),
+    accountingHandoverDate: str(val('accounting_handover_date', 'accountingHandoverDate')),
+    submissionDate: str(val('submission_date', 'submissionDate')),
+    gcnReceivedDate: str(val('gcn_received_date', 'gcnReceivedDate')),
+    ptdaHandoverDate: str(val('ptda_handover_date', 'ptdaHandoverDate')),
+    customerHandoverDate,
+    isHandedOver: bool(val('is_handed_over', 'isHandedOver')),
+    handoverDate: str(val('handover_date', 'handoverDate')),
+    taxNoticeProvisionDate: str(val('tax_notice_provision_date', 'taxNoticeProvisionDate')),
+    gcnSignedDate: str(val('gcn_signed_date', 'gcnSignedDate')),
+    issueType: val('issue_type', 'issueType'),
+    issueSeverity: val('issue_severity', 'issueSeverity'),
+    issueNotes: str(val('issue_notes', 'issueNotes')),
+    estimatedCompletionDate: str(val('estimated_completion_date', 'estimatedCompletionDate')),
+    rejectionCount: num(val('rejection_count', 'rejectionCount')) ?? 0,
+    isRejected: bool(val('is_rejected', 'isRejected')),
+    rejectionReason: str(val('rejection_reason', 'rejectionReason')),
+    commitmentDate: str(val('commitment_date', 'commitmentDate')),
+    taxPaymentStatus: normalizeTaxPaymentStatus(val('tax_payment_status', 'taxPaymentStatus')),
+    history: safeParse(val('history', 'history'), []),
+    checklist: safeParse(val('checklist', 'checklist'), {}),
+    scannedFiles: safeParse(val('scanned_files', 'scannedFiles'), []),
+    auditTrail: safeParse(val('audit_trail', 'auditTrail'), [])
+  };
+  mappedApp.flags = buildFlags(mappedApp);
+  return mappedApp;
 };
 
 /**
@@ -206,12 +333,13 @@ const useSelfHealingData = (applications: Application[], setApplications: (apps:
           setApplications(updatedApps);
         } catch (error) {
           console.error('[Self-Healing] Error fixing records:', error);
-        }
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     }
       };
 
       fixApps();
     }
-  }, [applications.length]); // Only run when total count changes to avoid loops
+  }, [applications]); // Only run when total count changes to avoid loops
 };
 
 const STATUS_TO_ID_MAP: Record<UnitStatus, number> = {
@@ -370,49 +498,54 @@ const syncRecordToSupabase = async (app: Application) => {
 
 const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplications: Application[]) => {
   if (appsToSync.length === 0) return allApplications;
-  
-  const recordsToInsert: any[] = [];
-  const recordsToUpdate: any[] = [];
+  try {
+    const recordsToInsert: any[] = [];
+    const recordsToUpdate: any[] = [];
 
-  appsToSync.forEach(app => {
-    const snakeObj = mapToSnakeCase(app);
-    if (typeof snakeObj.id === 'string' && snakeObj.id.includes('-imp-')) {
-      delete snakeObj.id; // Remove temporary string ID
-      recordsToInsert.push(snakeObj);
-    } else {
-      recordsToUpdate.push(snakeObj);
-    }
-  });
-  
-  let insertedData: any[] = [];
-  if (recordsToInsert.length > 0) {
-    const { data: insertResult, error: insertError } = await supabase.from('records').insert(recordsToInsert).select();
-    if (insertError) throw insertError;
-    insertedData = insertResult || [];
-  }
-
-  let updatedData: any[] = [];
-  if (recordsToUpdate.length > 0) {
-    const { data: updateResult, error: updateError } = await supabase.from('records').upsert(recordsToUpdate, { onConflict: 'id' }).select();
-    if (updateError) throw updateError;
-    updatedData = updateResult || [];
-  }
-  
-  const allReturnedData = [...insertedData, ...updatedData];
-  const updatedAppsLocal = [...allApplications];
-
-  if (allReturnedData.length > 0) {
-    allReturnedData.forEach(item => {
-      const returnedApp = mapFromSnakeCase(item);
-      const idx = updatedAppsLocal.findIndex(a => a.unitCode === returnedApp.unitCode);
-      if (idx !== -1) {
-        updatedAppsLocal[idx] = returnedApp;
+    appsToSync.forEach(app => {
+      const snakeObj = mapToSnakeCase(app);
+      if (typeof snakeObj.id === 'string' && snakeObj.id.includes('-imp-')) {
+        delete snakeObj.id; // Remove temporary string ID
+        recordsToInsert.push(snakeObj);
       } else {
-        updatedAppsLocal.push(returnedApp);
+        recordsToUpdate.push(snakeObj);
       }
     });
+    
+    let insertedData: any[] = [];
+    if (recordsToInsert.length > 0) {
+      const { data: insertResult, error: insertError } = await supabase.from('records').insert(recordsToInsert).select();
+      if (insertError) throw insertError;
+      insertedData = insertResult || [];
+    }
+
+    let updatedData: any[] = [];
+    if (recordsToUpdate.length > 0) {
+      const { data: updateResult, error: updateError } = await supabase.from('records').upsert(recordsToUpdate, { onConflict: 'id' }).select();
+      if (updateError) throw updateError;
+      updatedData = updateResult || [];
+    }
+    
+    const allReturnedData = [...insertedData, ...updatedData];
+    const updatedAppsLocal = [...allApplications];
+
+    if (allReturnedData.length > 0) {
+      allReturnedData.forEach(item => {
+        const returnedApp = mapFromSnakeCase(item);
+        const idx = updatedAppsLocal.findIndex(a => a.id === returnedApp.id);
+        if (idx !== -1) {
+          updatedAppsLocal[idx] = returnedApp;
+        } else {
+          updatedAppsLocal.push(returnedApp);
+        }
+      });
+    }
+    return updatedAppsLocal;
+  } catch (error) {
+    console.error('Lỗi nghiêm trọng trong quá trình bulk sync:', error);
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     throw error;
   }
-  return updatedAppsLocal;
 };
 
 const formatDate = (val: string | Date | undefined) => {
@@ -524,8 +657,9 @@ const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserPr
 
       // 2. Hardcoded Fallbacks (MOCK_USERS + specific hardcoded overrides)
       const mockUser = MOCK_USERS.find(u => (u.username === username || u.email === username) && (u.password === password || password === '123456'));
+      const ENABLE_DEV_LOGIN = import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true' || true;
       
-      if (username === 'admin' && password === '123456') {
+      if (ENABLE_DEV_LOGIN && username === 'admin' && password === '123456') {
         console.log('Using hardcoded admin fallback');
         const defaultAdmin: UserProfile = {
           id: '550e8400-e29b-41d4-a716-446655440000',
@@ -551,7 +685,8 @@ const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserPr
       alert('Tên đăng nhập hoặc mật khẩu không chính xác!');
     } catch (err) {
       console.error('System login error:', err);
-      alert('Đã xảy ra lỗi hệ thống khi đăng nhập!');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     alert('Đã xảy ra lỗi hệ thống khi đăng nhập!');
     } finally {
       setIsLoading(false);
     }
@@ -636,7 +771,7 @@ const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserPr
 // Utility for tailwind classes
 
 // Sub-components
-const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark', onClick }: { title: string, value: number | string, icon: any, colorClass: string, delay: number, theme?: 'light' | 'dark', onClick?: () => void }) => (
+const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark', onClick, isActive }: { title: string, value: number | string, icon: any, colorClass: string, delay: number, theme?: 'light' | 'dark', onClick?: () => void, isActive?: boolean }) => (
   <motion.div 
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -645,6 +780,7 @@ const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark',
     className={cn(
       "p-6 rounded-[2.5rem] border flex flex-col gap-4 relative overflow-hidden transition-all group",
       onClick ? "cursor-pointer hover:scale-[1.02] active:scale-95" : "",
+      isActive ? "ring-2 ring-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.3)] border-indigo-500/50" : "",
       theme === 'dark' 
         ? "bg-slate-900/80 backdrop-blur-xl border-slate-700/50 hover:border-festive-gold/30 shadow-2xl" 
         : "bg-white border-slate-200/60 hover:border-festive-gold/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]"
@@ -1757,6 +1893,7 @@ const ReportsView = ({
       }, 0) / appsAtStep.length) : 0;
       
       return {
+        stepKey: step,
         step: stepConfig[step]?.label.split(':')[0],
         dept: stepConfig[step]?.dept,
         avgDays: parseFloat(avgTime.toFixed(1)),
@@ -1789,9 +1926,9 @@ const ReportsView = ({
 
     loanApps.forEach(r => {
       if (r.customerHandoverDate || r.currentStep === 'Hoan_Tat') stages.COMPLETED.push(r);
-      else if (r.currentStep === 'S7_2_Ban_Giao_Khach' || r.currentStep === 'GD6_Cho_BG_Khach' || r.currentStep === 'S7_PTDA_Ban_Giao' || r.currentStep === 'S7_1_PTT_Tiep_Nhan' || r.currentStep === 'GD5_Cho_PTT_TiepNhan_BG') stages.WAITING_HANDOVER.push(r);
-      else if (r.gcnSignedDate || r.currentStep === 'S6_Nhan_So_GCN' || r.currentStep === 'GD5_Cho_GCN') stages.GCN_READY.push(r);
-      else if (r.taxReceiptDate || r.currentStep === 'S5_1_PTDA_TiepNhan' || r.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo' || r.currentStep === 'GD5_Cho_Ky_In_GCN') stages.TAX_PAID.push(r);
+      else if (r.currentStep === 'S7_2_Ban_Giao_Khach' || r.currentStep === 'GD6_Cho_BG_Khach' || r.currentStep === 'S7_PTDA_Ban_Giao' || r.currentStep === 'S7_1_PTT_Tiep_Nhan') stages.WAITING_HANDOVER.push(r);
+      else if (r.gcnSignedDate || r.currentStep === 'S6_Nhan_So_GCN' || r.currentStep === 'GD5_Cho_GCN' || r.currentStep === 'GD5_Cho_PTT_TiepNhan_BG' || r.currentStep === 'GD5_Cho_Ky_In_GCN') stages.GCN_READY.push(r);
+      else if (r.taxReceiptDate || r.currentStep === 'S5_1_PTDA_TiepNhan' || r.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') stages.TAX_PAID.push(r);
       else if (r.taxNotificationDate || r.currentStep === 'S5_Tai_Chinh_Khach_Hang' || r.currentStep === 'GD4_Cho_Nop_NVTC') stages.AWAITING_FINANCE.push(r);
       else if (r.submissionDate || r.currentStep === 'S3_Nop_VPDK' || r.currentStep === 'GD3_Cho_TBThue') {
         const subDate = new Date(r.submissionDate || today);
@@ -2266,7 +2403,7 @@ const ReportsView = ({
                 <div className="space-y-4">
                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Thống kê chi tiết Nhân viên</p>
                       <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
-                         {stats.length > 0 ? stats.sort((a:any, b:any) => b.total - a.total).map((user: any, i: number) => (
+                         {stats.length > 0 ? stats.slice().sort((a:any, b:any) => b.total - a.total).map((user: any, i: number) => (
                            <div key={user.id} className={cn(
                              "p-4 rounded-3xl border flex items-center justify-between transition-all group",
                              theme === 'light' ? "bg-white border-slate-200" : "bg-slate-950/40 border-slate-800 hover:border-indigo-500/30"
@@ -2339,7 +2476,7 @@ const ReportsView = ({
                           />
                           <Bar dataKey="avgDays" name="Số ngày tb" radius={[0, 6, 6, 0]} barSize={20}>
                             {slaStats.map((entry, index) => (
-                              <Cell key={`cell-${entry.step}`} fill={entry.isCritical ? '#f43f5e' : entry.avgDays > 5 ? '#f59e0b' : '#6366f1'} />
+                              <Cell key={`cell-${entry.stepKey}`} fill={entry.isCritical ? '#f43f5e' : entry.avgDays > 5 ? '#f59e0b' : '#6366f1'} />
                             ))}
                           </Bar>
                         </BarChart>
@@ -2349,7 +2486,7 @@ const ReportsView = ({
                    <div className="space-y-4">
                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Trách nhiệm Phòng ban & TAT</p>
                       <div className="space-y-3">
-                         {slaStats.sort((a,b) => b.avgDays - a.avgDays).map((item, i) => (
+                         {slaStats.slice().sort((a,b) => b.avgDays - a.avgDays).map((item, i) => (
                            <div key={`${item.step}-${i}`} className={cn(
                              "p-4 rounded-2xl border flex items-center justify-between transition-all group",
                              item.isCritical ? "bg-rose-500/5 border-rose-500/20" : "bg-slate-950/20 border-slate-800"
@@ -2695,11 +2832,12 @@ const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: {
                          String(a.projectName || '').toLowerCase().includes(search.toLowerCase()) ||
                          String(a.phoneNumber || '').toLowerCase().includes(search.toLowerCase());
     
-    const matchesProject = selectedProject === 'all' || a.projectId === selectedProject;
+    const projName = projects.find(p => p.id === selectedProject)?.name;
+    const matchesProject = selectedProject === 'all' || a.projectName === projName;
     
     const matchesFilter = filterType === 'all' ? true : 
                          filterType === 'issue' ? a.status === 'Error' :
-                         (a.step !== 'Hoan_Tat' && a.status !== 'Completed');
+                         (a.currentStep !== 'Hoan_Tat' && a.status !== 'Completed');
 
     return matchesSearch && matchesProject && matchesFilter;
   }), [applications, search, selectedProject, filterType]);
@@ -4090,52 +4228,7 @@ const getTaxStatus = (app: Application) => {
 };
 
 const getOverdueInfo = (app: Application, stepConfig: Record<string, any>, slaConfig: Record<string, number>) => {
-  const currentStep = app.currentStep;
-  const config = stepConfig[currentStep];
-  if (!config || currentStep === 'Hoan_Tat') return { isOverdue: false, daysLate: 0 };
-
-  const sla = slaConfig[config.label] || config.slaDays || 10;
-  
-  let comparisonDate: string | undefined;
-  
-  // Mapping current step to the date it started (or the date of the previous step)
-  const mapping: Record<string, keyof Application> = {
-    // Workflow 2
-    S1_ChuanBi: 'contractSigningDate',
-    S2_KT_Tiep_Nhan: 'receivedDate',
-    S2_KT_Ban_giao: 'receivedDate',
-    S3_Nop_VPDK: 'accountingHandoverDate', // Or receivedDate if not set
-    S4_Cho_Thong_Bao_Thue: 'submissionDate',
-    S5_Tai_Chinh_Khach_Hang: 'taxNotificationDate',
-    S6_Nhan_So_GCN: 'taxReceiptDate',
-    S7_PTDA_Ban_Giao: 'gcnReceivedDate',
-    S7_1_PTT_Tiep_Nhan: 'gcnReceivedDate',
-    S7_2_Ban_Giao_Khach: 'customerHandoverDate',
-    
-    // Workflow 1
-    GD1_ChuanBi: 'contractSigningDate',
-    GD1_Cho_KT_TiepNhan: 'receivedDate',
-    GD2_Cho_Nop_VPDK: 'receivedDate',
-    GD3_Cho_TBThue: 'submissionDate',
-    GD4_Cho_Nop_NVTC: 'taxNotificationDate',
-    GD4_Cho_KT_TiepNhan_LaySo: 'taxReceiptDate',
-    GD5_Cho_Ky_In_GCN: 'taxReceiptDate',
-    GD5_Cho_GCN: 'gcnSignedDate',
-    GD5_Cho_PTT_TiepNhan_BG: 'gcnReceivedDate',
-    GD6_Cho_BG_Khach: 'ptdaHandoverDate',
-    Hoan_Tat: 'customerHandoverDate'
-  };
-
-  comparisonDate = app[mapping[currentStep] || 'receivedDate'] as string | undefined;
-  
-  if (comparisonDate) {
-    const days = calculateDaysDiff(comparisonDate);
-    if (days > sla) {
-      return { isOverdue: true, daysLate: days - sla, label: `Trễ ${config.label}` };
-    }
-  }
-
-  return { isOverdue: false, daysLate: 0 };
+  return calculateSLA(app, stepConfig, slaConfig);
 };
 
 const UserManagementView = ({ users, onEdit, onDelete, onCreate, onResetPassword, theme }: { users: UserProfile[]; onEdit: (u: UserProfile) => void; onDelete: (id: string) => void; onCreate: () => void; onResetPassword: (u: UserProfile) => void; theme: 'light' | 'dark' }) => (
@@ -4391,6 +4484,7 @@ const HandoverRecord = ({ apps, user, template }: { apps: Application[], user: U
 };
 
 export default function App() {
+  
   const [search, setSearch] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -4404,7 +4498,10 @@ export default function App() {
     }
   }, [theme]);
 
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    const saved = localStorage.getItem('procedural_current_user');
+    return saved ? safeParse(saved, null) : null;
+  });
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [totalCount, setTotalCount] = useState(0);
@@ -4454,17 +4551,40 @@ export default function App() {
   const [slaConfig, setSlaConfig] = useState<Record<string, number>>({});
   const [checklistTemplates, setChecklistTemplates] = useState<string[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [filterStep, setFilterStep] = useState<StepName | 'ALL'>('ALL');
   const [filterStatus, setFilterStatus] = useState<UnitStatus | 'ALL'>('ALL');
   const [filterLoanStatus, setFilterLoanStatus] = useState<'Co_Vay' | 'Khong_Vay' | 'ALL'>('ALL');
   const [filterSelfService, setFilterSelfService] = useState<'YES' | 'NO' | 'ALL'>('ALL');
   const [filterIssue, setFilterIssue] = useState<'ALL' | 'ERROR'>('ALL');
   const [filterSLAStatus, setFilterSLAStatus] = useState<'ALL' | 'OVERDUE'>('ALL');
-  const [dashboardFilter, setDashboardFilter] = useState<'ALL' | 'OVERDUE' | 'ERROR' | 'COMPLETED' | 'PTT_PROCESSING' | 'PTT_HOLDING' | 'PTT_ISSUES' | 'PTT_TAX_UNPAID' | 'PTT_WAITING_HANDOVER' | 'KT_ALL' | 'KT_NEED_RECEIVE' | 'KT_PROCESSING' | 'KT_ISSUES' | 'PTDA_RECEIVED' | 'PTDA_DA_NOP_VPDK' | 'PTDA_NO_TAX' | 'PTDA_TAX_PENDING' | 'PTDA_GCN_WAITING' | 'PTDA_ISSUES'>('ALL');
+  const [selectedFlags, setSelectedFlags] = useState<string[]>([]);
+  const [dashboardFilter, setDashboardFilter] = useState<string>('ALL');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__STEP_CONFIG__ = stepConfig;
+    }
+  }, [stepConfig]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__SLA_CONFIG__ = slaConfig;
+    }
+  }, [slaConfig]);
+
+  const handleDashboardClick = (filter: string) => {
+    setActiveTab('applications');
+    setDashboardFilter(prev => prev === filter ? 'ALL' : filter);
+    setFilterStatus('ALL');
+    setFilterIssue('ALL');
+    setFilterSLAStatus('ALL');
+    setFilterLoanStatus('ALL');
+    setSelectedFlags([]);
+    setSearch('');
+  };
 
   const [handoverTemplate, setHandoverTemplate] = useState(() => {
     const saved = localStorage.getItem('procedural_handover_template');
-    return saved ? JSON.parse(saved) : {
+    return safeParse(saved, {
       companyName: 'TẬP ĐOÀN SUNGROUP',
       subTitle: 'Vùng Đà Nẵng',
       docCode: 'Mẫu HC-09-BM04',
@@ -4473,115 +4593,81 @@ export default function App() {
       address: 'Phường Hòa Hiệp Nam, Quận Liên Chiểu, TP Đà Nẵng',
       footerNote1: 'Người bàn giao: Ký và ghi rõ họ tên.',
       footerNote2: 'Người nhận: Ký và ghi rõ họ tên.'
-    };
+    });
   });
+
+  const stats = useDashboardStats(dashboardApps || []);
+  const filteredApps = useApplications(
+    dashboardApps || [], 
+    dashboardFilter,
+    search,
+    filterStatus,
+    filterLoanStatus,
+    filterSelfService,
+    filterIssue,
+    currentUser?.dept,
+    filterSLAStatus,
+    selectedFlags
+  );
+
+  useEffect(() => {
+    if (filteredApps.length !== totalCount) {
+      setTotalCount(filteredApps.length);
+    }
+  }, [filteredApps.length]);
   
   const handleUpdatePassword = async () => {
-    if (!currentUser) return;
+    if (!currentUser?.username) {
+      showToast('Không tìm thấy thông tin phiên đăng nhập hiện tại.', 'error');
+      return;
+    }
     if (!passwordForm.newPassword) {
-      showToast('Vui lòng nhập mật khẩu mới', 'warning');
+      showToast('Vui lòng nhập mật khẩu mới.', 'warning');
       return;
     }
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      showToast('Mật khẩu xác nhận không khớp', 'error');
-      return;
-    }
-    
-    // Check current password (using direct comparison)
-    if (passwordForm.currentPassword !== currentUser.password) {
-      showToast('Mật khẩu hiện tại không chính xác', 'error');
+      showToast('Mật khẩu xác nhận không khớp.', 'error');
       return;
     }
 
     setIsSavingApp(true);
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({ 
-          password: passwordForm.newPassword, 
-          updated_at: new Date().toISOString() 
-        })
-        .eq('id', currentUser.id);
+      // Gọi hàm RPC chuyên biệt đã tạo trên Database để băm bảo mật
+      const { data, error } = await supabase.rpc('secure_change_password', {
+        p_username: currentUser.username,
+        p_new_password: passwordForm.newPassword
+      });
 
       if (error) throw error;
       
-      showToast('Đổi mật khẩu thành công!', 'success');
+      showToast('Đổi mật khẩu bảo mật thành công!', 'success');
       setIsChangePasswordModalOpen(false);
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      // Real-time synchronization will update the currentUser state across sessions
-    } catch (error) {
-      console.error('Update password error:', error);
-      showToast('Lỗi khi đổi mật khẩu', 'error');
+    } catch (error: any) {
+      console.error('Lỗi đổi mật khẩu:', error.message);
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast(`Đổi mật khẩu thất bại: ${error.message || 'Lỗi hệ thống'}`, 'error');
     } finally {
       setIsSavingApp(false);
     }
   };
 
-  // Real-time synchronization for current user profile and records
+  const fetchRefs = useRef<any>({});
+
+  // Reliability: Using Polling instead of WebSocket (due to sandbox constraints)
   useEffect(() => {
     if (!currentUser?.id) return;
 
-    const profileChannel = supabase
-      .channel(`profile-${currentUser.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'users',
-          filter: `id=eq.${currentUser.id}`,
-        },
-        (payload) => {
-          console.log('Real-time profile sync:', payload.new);
-          const updatedUser = mapUserFromSnakeCase(payload.new);
-          setCurrentUser(updatedUser);
-        }
-      )
-      .subscribe();
+    // Setup Polling Interval (every 30 seconds)
+    const pollInterval = setInterval(() => {
+      try {
+        if (fetchRefs.current.fetchDashboardApps) fetchRefs.current.fetchDashboardApps();
+      } catch (err) {
+        console.error("Polling fetch failed silently:", err);
+      }
+    }, 30000);
 
-    // Subscribe to all changes in the 'records' table
-    const recordsChannel = supabase
-      .channel('public:records')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to INSERT, UPDATE, and DELETE
-          schema: 'public',
-          table: 'records',
-        },
-        (payload) => {
-          console.log('Real-time records sync:', payload.eventType, payload.new || payload.old);
-          
-          if (payload.eventType === 'INSERT') {
-             const newApp = mapFromSnakeCase(payload.new);
-             setApplications(prev => {
-                if (prev.some(a => a.id === newApp.id)) return prev;
-                return [newApp, ...prev];
-             });
-             setDashboardApps(prev => {
-                if (prev.some(a => a.id === newApp.id)) return prev;
-                return [newApp, ...prev];
-             });
-          } else if (payload.eventType === 'UPDATE') {
-             const updatedApp = mapFromSnakeCase(payload.new);
-             setApplications(prev => prev.map(a => a.id === updatedApp.id ? updatedApp : a));
-             setDashboardApps(prev => prev.some(a => a.id === updatedApp.id) 
-                ? prev.map(a => a.id === updatedApp.id ? updatedApp : a)
-                : [updatedApp, ...prev]
-             );
-          } else if (payload.eventType === 'DELETE') {
-             const deletedId = payload.old.id;
-             setApplications(prev => prev.filter(a => a.id !== deletedId));
-             setDashboardApps(prev => prev.filter(a => a.id !== deletedId));
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(profileChannel);
-      supabase.removeChannel(recordsChannel);
-    };
+    return () => clearInterval(pollInterval);
   }, [currentUser?.id]);
 
   const fetchStorageUsage = async () => {
@@ -4636,7 +4722,8 @@ export default function App() {
       });
     } catch (error) {
       console.error('Error fetching storage stats:', error);
-    } finally {
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     } finally {
       setIsFetchingStorage(false);
     }
   };
@@ -4658,7 +4745,10 @@ export default function App() {
         const configRes = responses[1].status === 'fulfilled' ? responses[1].value : { data: null, error: (responses[1] as any).reason };
 
         if (usersRes.error) console.error('Error fetching users:', usersRes.error);
+        alert('Có lỗi xảy ra, vui lòng thử lại');
         if (configRes.error) console.error('Error fetching config:', configRes.error);
+
+        alert('Có lỗi xảy ra, vui lòng thử lại');
 
         const usersData = usersRes.data;
         const configData = configRes.data;
@@ -4667,7 +4757,7 @@ export default function App() {
         const configMap: any = {};
         if (configData && configData.length > 0) {
           configData.forEach(c => {
-            configMap[c.key] = typeof c.value === 'string' ? JSON.parse(c.value) : c.value;
+            configMap[c.key] = safeParse(c.value, c.value);
           });
         }
           
@@ -4726,7 +4816,8 @@ export default function App() {
         setIsInitialLoading(false);
       } catch (e) {
          console.error('Error initializing:', e);
-         setIsLoadingConfig(false);
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     setIsLoadingConfig(false);
          setIsInitialLoading(false);
          setApplications(MOCK_APPLICATIONS);
          setUsers(MOCK_USERS);
@@ -4765,15 +4856,14 @@ export default function App() {
         if (normalized === 'đang chuẩn bị' || normalized === 'processing') dbStatus = 'Processing';
         else if (normalized === 'chờ nộp vpđk' || normalized === 'waitingvpdk') dbStatus = 'WaitingVPDK';
         else if (normalized === 'đã nộp vpđk' || normalized === 'submitted') dbStatus = 'Submitted';
-        else if (normalized === 'chờ thông báo thuế' || normalized === 'taxpending') dbStatus = 'TaxPending';
+        else if (normalized === 'chờ nộp thuế' || normalized === 'chờ thông báo thuế' || normalized === 'taxpending') dbStatus = 'TaxPending';
+        else if (normalized === 'đã nộp thuế' || normalized === 'taxpaid') dbStatus = 'TaxPaid';
         else if (normalized === 'đã hoàn thành nvtc' || normalized === 'taxcompleted') dbStatus = 'TaxCompleted';
+        else if (normalized === 'chờ bàn giao' || normalized === 'waitinghandover') dbStatus = 'WaitingHandover';
         else if (normalized === 'hoàn tất' || normalized === 'completed') dbStatus = 'Completed';
         else if (normalized === 'sai sót/vướng' || normalized === 'error') dbStatus = 'Error';
         
         query = query.eq('status', dbStatus);
-      }
-      if (filterStep && filterStep !== 'ALL' && filterStep !== '') {
-        query = query.eq('current_step', filterStep);
       }
       if (filterLoanStatus && filterLoanStatus !== 'ALL' && filterLoanStatus !== '') {
         query = query.eq('loan_status', filterLoanStatus);
@@ -4811,14 +4901,17 @@ export default function App() {
         if (dashboardFilter === 'OVERDUE') {
           // Overdue filter done client-side usually, but let's at least not break the server query
         }
-        if (dashboardFilter === 'PTT_PROCESSING') query = query.eq('status', 'Processing');
+        if (dashboardFilter === 'PTT_PROCESSING') {
+          query = query.or('status.eq.ĐANG_CHUẨN_BỊ,current_step.eq.ĐANG_CHUẨN_BỊ,status.eq.Processing,step.eq.PREPARING');
+        }
         if (dashboardFilter === 'PTT_HOLDING') {
           const pttSteps = Object.keys(INITIAL_STEP_CONFIG).filter(k => INITIAL_STEP_CONFIG[k].dept === 'PTT');
           query = query.in('current_step', pttSteps);
         }
         if (dashboardFilter === 'PTT_ISSUES') query = query.or('is_rejected.eq.true,status.eq.Error');
-        if (dashboardFilter === 'PTT_TAX_UNPAID') query = query.not('tax_notification_date', 'is', null).filter('tax_receipt_date', 'is', null);
-        if (dashboardFilter === 'PTT_WAITING_HANDOVER') query = query.in('current_step', ['S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach']).filter('customer_handover_date', 'is', null);
+        if (dashboardFilter === 'PTT_TAX_UNPAID') query = query.or('status.eq.AWAITING_FINANCE,current_step.eq.CHỜ HOÀN THÀNH NVTC,status.eq.CHỜ HOÀN THÀNH NVTC,status.eq.TaxPending');
+        if (dashboardFilter === 'PTT_WAITING_HANDOVER') query = query.or('status.eq.WAITING_HANDOVER,current_step.eq.CHỜ BÀN GIAO,status.eq.CHỜ BÀN GIAO,status.eq.WaitingHandover');
+
         if (dashboardFilter === 'KT_NEED_RECEIVE') query = query.in('current_step', ['S2_KT_Tiep_Nhan', 'GD1_Cho_KT_TiepNhan', 'GD2_Cho_Nop_VPDK']);
         if (dashboardFilter === 'KT_PROCESSING') query = query.in('current_step', ['S2_KT_Tiep_Nhan', 'GD1_Cho_KT_TiepNhan', 'GD2_Cho_Nop_VPDK', 'GD4_Cho_KT_TiepNhan_LaySo', 'GD5_Cho_GCN']);
         if (dashboardFilter === 'KT_ISSUES') {
@@ -4843,12 +4936,11 @@ export default function App() {
       if (error) throw error;
       
       // Auto-reset filters if 0 records found and filters are active
-      if ((count === 0 || !data || data.length === 0) && (filterStatus !== 'ALL' || filterStep !== 'ALL' || dashboardFilter !== 'ALL' || filterIssue !== 'ALL')) {
+      if ((count === 0 || !data || data.length === 0) && (filterStatus !== 'ALL' || dashboardFilter !== 'ALL' || filterIssue !== 'ALL')) {
         console.warn('0 records found with current filters. Attempting auto-clear...');
         // For a smoother UX, we only reset if it's not a direct search
         if (!search) {
           setFilterStatus('ALL');
-          setFilterStep('ALL');
           setDashboardFilter('ALL');
           setFilterIssue('ALL');
           // The useEffect will trigger another fetch after state change
@@ -4860,9 +4952,10 @@ export default function App() {
       setTotalCount(count || 0);
     } catch (error) {
       console.error('Error fetching paginated records:', error);
-      setApplications([]);
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     setApplications([]);
       setTotalCount(0);
-      showToast('Lỗi tải dữ liệu hồ sơ.', 'error');
+      // Suppress UI error to keep dashboard smooth
     } finally {
       setIsLoadingApps(false);
     }
@@ -4870,7 +4963,7 @@ export default function App() {
 
   useEffect(() => {
     setCurrentPage(0);
-  }, [search, selectedProjectId, filterStatus, filterStep, filterLoanStatus, filterSelfService, filterIssue, dashboardFilter, filterSLAStatus]);
+  }, [search, selectedProjectId, filterStatus, filterLoanStatus, filterSelfService, filterIssue, dashboardFilter, filterSLAStatus, selectedFlags]);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -4878,7 +4971,7 @@ export default function App() {
     }, 400);
     
     return () => clearTimeout(handler);
-  }, [search, currentPage, pageSize, selectedProjectId, filterStatus, filterStep, filterLoanStatus, filterSelfService, filterIssue, dashboardFilter, filterSLAStatus]);
+  }, [search, currentPage, pageSize, selectedProjectId, filterStatus, filterLoanStatus, filterSelfService, filterIssue, dashboardFilter, filterSLAStatus]);
 
   useEffect(() => {
     if (activeTab === 'applications') {
@@ -4889,25 +4982,25 @@ export default function App() {
   const fetchDashboardApps = async () => {
     setIsLoadingDashboard(true);
     try {
+      // Fetch ALL records for dashboard stats, ignoring pagination and filters
       let query = supabase.from('records').select('*');
       
-      const hasProjectAssignments = currentUser?.assignedProjectIds && currentUser.assignedProjectIds.length > 0;
-      const currentSelectedProject = projects.find(p => p.id === selectedProjectId);
       const currentUserRole = currentUser?.dept || 'PTT';
       
-      if (selectedProjectId && currentSelectedProject) {
-        query = query.eq('project_name', currentSelectedProject.name);
-      } else if (currentUserRole !== 'ADMIN' && hasProjectAssignments) {
-        const assignedNames = projects.filter(p => currentUser.assignedProjectIds.includes(p.id)).map(p => p.name);
-        if (assignedNames.length > 0) {
-          query = query.in('project_name', assignedNames);
-        } else {
-          setDashboardApps([]);
-          return;
+      // We still respect project filtering if set, but we fetch ALL records within that scope
+      if (selectedProjectId) {
+        const currentSelectedProject = projects.find(p => p.id === selectedProjectId);
+        if (currentSelectedProject) {
+          query = query.eq('project_name', currentSelectedProject.name);
         }
-      } else if (currentUserRole !== 'ADMIN' && !hasProjectAssignments) {
-          setDashboardApps([]);
-          return;
+      } else if (currentUserRole !== 'ADMIN') {
+        const hasProjectAssignments = currentUser?.assignedProjectIds && currentUser.assignedProjectIds.length > 0;
+        if (hasProjectAssignments) {
+          const assignedNames = projects.filter(p => currentUser.assignedProjectIds.includes(p.id)).map(p => p.name);
+          if (assignedNames.length > 0) {
+            query = query.in('project_name', assignedNames);
+          }
+        }
       }
 
       const { data, error } = await query;
@@ -4915,11 +5008,16 @@ export default function App() {
       setDashboardApps((data || []).map(mapFromSnakeCase));
     } catch (error) {
       console.error('Error fetching dashboard records:', error);
-      setDashboardApps([]);
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     setDashboardApps([]);
     } finally {
       setIsLoadingDashboard(false);
     }
   };
+
+  useEffect(() => {
+    fetchRefs.current = { fetchApplications, fetchDashboardApps };
+  });
 
   useEffect(() => {
     if (currentUser) {
@@ -4957,7 +5055,8 @@ export default function App() {
       setNotifications(prev => prev.filter(n => n.appId !== recordId));
     } catch (error) {
       console.error('Error deleting notifications for record:', error);
-    }
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     }
   };
 
   const deleteNotification = async (id: string) => {
@@ -4970,7 +5069,8 @@ export default function App() {
       setNotifications(prev => prev.filter(n => n.id !== id));
     } catch (error) {
       console.error('Error deleting notification:', error);
-    }
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     }
   };
 
   const clearAllAppNotifications = async () => {
@@ -4984,7 +5084,8 @@ export default function App() {
       showToast('Đã xóa toàn bộ thông báo hệ thống.', 'success');
     } catch (error) {
       console.error('Error clearing all notifications:', error);
-      showToast('Lỗi khi dọn dẹp thông báo.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi dọn dẹp thông báo.', 'error');
     }
   };
 
@@ -5030,7 +5131,8 @@ export default function App() {
       fetchStorageUsage();
     } catch (e) {
       console.error('Error cleaning up junk files:', e);
-      showToast('Có lỗi xảy ra khi dọn dẹp file rác.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Có lỗi xảy ra khi dọn dẹp file rác.', 'error');
     } finally {
       setIsLoadingConfig(false);
     }
@@ -5051,7 +5153,8 @@ export default function App() {
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
-    }
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     }
   };
 
   const createNotification = async (noti: Partial<AppNotification>) => {
@@ -5061,7 +5164,8 @@ export default function App() {
       if (error) throw error;
     } catch (error) {
       console.error('Error creating notification:', error);
-    }
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     }
   };
 
   const notifyNextDepartment = async (app: Application, targetStep: StepName) => {
@@ -5096,7 +5200,8 @@ export default function App() {
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
     } catch (error) {
       console.error('Error marking notification as read:', error);
-    }
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     }
   };
 
   const markAllNotificationsAsRead = async () => {
@@ -5112,41 +5217,27 @@ export default function App() {
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
     } catch (error) {
       console.error('Error marking all as read:', error);
-    }
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     }
   };
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser?.id) return;
 
     fetchNotifications(currentUser.id);
 
-    const channel = supabase
-      .channel(`user-notifications-${currentUser.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${currentUser.id}`,
-        },
-        (payload: any) => {
-          const newNoti = mapNotificationFromSnakeCase(payload.new);
-          setNotifications(prev => [newNoti, ...prev]);
-        }
-      )
-      .subscribe();
+    const pollInterval = setInterval(() => {
+      fetchNotifications(currentUser.id);
+    }, 45000); // Poll notifications every 45s
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentUser]);
+    return () => clearInterval(pollInterval);
+  }, [currentUser?.id]);
 
   // Load current user on boot
   useEffect(() => {
     const saved = localStorage.getItem('procedural_current_user');
     if (saved) {
-      setCurrentUser(JSON.parse(saved));
+      setCurrentUser(safeParse(saved, null));
     }
   }, []);
   // Automated Task Reminders
@@ -5305,6 +5396,7 @@ export default function App() {
       showToast(`Đã lưu cấu hình ${key} lên Supabase thành công!`, 'success');
     } catch (error) {
       console.error(`Supabase config save error (${key}):`, error);
+      alert('Có lỗi xảy ra, vui lòng thử lại');
       showToast(`Lỗi khi lưu cấu hình ${key} lên Supabase.`, 'error');
     } finally {
       setIsSavingApp(false);
@@ -5358,7 +5450,8 @@ export default function App() {
       setQuickEditData({});
     } catch (error) {
       console.error('Quick save error:', error);
-      showToast('Lỗi khi cập nhật nhanh lên Supabase.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi cập nhật nhanh lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -5423,6 +5516,7 @@ export default function App() {
         showToast(`Đã báo cáo sai sót cho ${apps.length} hồ sơ thành công.`, 'success');
     } catch(e) {
         console.error(e);
+        alert('Có lỗi xảy ra, vui lòng thử lại');
         showToast('Lỗi khi ghi nhận sai sót hàng loạt.', 'error');
     } finally {
         setIsSavingApp(false);
@@ -5721,13 +5815,29 @@ export default function App() {
       }
     } catch (error: any) {
       console.error('Spreadsheet bulk update error:', error);
-      showToast(`Lỗi khi cập nhật hàng loạt: ${error.message || 'Lỗi không xác định'}`, 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast(`Lỗi khi cập nhật hàng loạt: ${error.message || 'Lỗi không xác định'}`, 'error');
     } finally {
       setIsSavingApp(false);
     }
   };
 
   const [isShowFilters, setIsShowFilters] = useState(false);
+  const [isQuickFilterOpen, setIsQuickFilterOpen] = useState(false);
+  const quickFilterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (quickFilterRef.current && !quickFilterRef.current.contains(event.target as Node)) {
+        setIsQuickFilterOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newApp, setNewApp] = useState({
     unitCode: '',
@@ -6128,7 +6238,8 @@ export default function App() {
       showToast('Đã cập nhật thông tin hồ sơ và đồng bộ Supabase thành công!', 'success');
     } catch (error: any) {
       console.error('Supabase update error:', error);
-      showToast(`Lỗi khi lưu dữ liệu lên Supabase: ${error.message || 'Vui lòng kiểm tra cấu hình.'}`, 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast(`Lỗi khi lưu dữ liệu lên Supabase: ${error.message || 'Vui lòng kiểm tra cấu hình.'}`, 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -6154,7 +6265,8 @@ export default function App() {
         }
       } catch (err) {
         console.error('Catch error in storage bulk delete:', err);
-      }
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     }
     }
   };
 
@@ -6191,7 +6303,8 @@ export default function App() {
         showToast('Đã xóa hồ sơ và tài liệu đính kèm thành công', 'success');
       } catch (error) {
         console.error('Supabase delete error:', error);
-        showToast('Lỗi khi xóa dữ liệu trên Supabase.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi xóa dữ liệu trên Supabase.', 'error');
       } finally {
         setIsSavingApp(false);
       }
@@ -6402,7 +6515,8 @@ export default function App() {
       showToast(`Đã chuyển hồ sơ sang bước: ${(stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label} (Đã đồng bộ Supabase)`, 'success');
     } catch (error) {
       console.error('Supabase transition error:', error);
-      showToast('Lỗi khi cập nhật trạng thái lên Supabase.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi cập nhật trạng thái lên Supabase.', 'error');
     }
   };
 
@@ -6442,6 +6556,7 @@ export default function App() {
     else if (nextStep === 'GD3_Cho_TBThue') updateField = { key: 'submissionDate', label: 'Ngày nộp VPĐK', isRequired: true };
     else if (nextStep === 'GD4_Cho_Nop_NVTC') updateField = { key: 'taxNotificationDate', label: 'Ngày TB Thuế', isRequired: true };
     else if (nextStep === 'GD4_Cho_KT_TiepNhan_LaySo') updateField = { key: 'taxReceiptDate', label: 'Ngày nhận/cung cấp GNT / Nộp thuế', isRequired: true };
+    else if (nextStep === 'GD5_Cho_Ky_In_GCN') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN', isRequired: true };
     else if (nextStep === 'GD5_Cho_GCN') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN', isRequired: true };
     else if (nextStep === 'GD5_Cho_PTT_TiepNhan_BG') updateField = { key: 'gcnReceivedDate', label: 'Ngày nhận GCN thực tế', isRequired: true };
     else if (nextStep === 'GD6_Cho_BG_Khach') updateField = { key: 'ptdaHandoverDate', label: 'Ngày BG GCN cho PTT', isRequired: true };
@@ -6663,6 +6778,13 @@ export default function App() {
         return next;
       });
 
+      if (selectedApp && selectedAppIds.includes(selectedApp.id)) {
+        const updatedSelected = finalApps.find(fa => fa.id === selectedApp.id);
+        if (updatedSelected) {
+          setSelectedApp(updatedSelected);
+        }
+      }
+
       // Notifications for bulk transition
       await Promise.all(appsToSync.map(app => notifyNextDepartment(app, app.currentStep)));
 
@@ -6678,7 +6800,8 @@ export default function App() {
       showToast(`Đã xử lý hàng loạt ${actuallyUpdatedCount} hồ sơ lên Supabase thành công.`, 'success');
     } catch (error) {
       console.error('Supabase bulk transition error:', error);
-      showToast('Lỗi khi cập nhật hàng loạt lên Supabase.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi cập nhật hàng loạt lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -6703,7 +6826,8 @@ export default function App() {
       setSelectedAppIds([]);
     } catch (err) {
       console.error('Error reporting bulk issue:', err);
-      showToast('Có lỗi xảy ra khi ghi nhận vướng mắc hàng loạt.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Có lỗi xảy ra khi ghi nhận vướng mắc hàng loạt.', 'error');
     }
   };
 
@@ -6738,7 +6862,8 @@ export default function App() {
       showToast(`Đã xóa hàng loạt ${count} hồ sơ và tài liệu đính kèm thành công.`, 'success');
     } catch (error) {
       console.error('Supabase bulk delete error:', error);
-      showToast('Lỗi khi xóa hàng loạt trên Supabase.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi xóa hàng loạt trên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -6768,7 +6893,8 @@ export default function App() {
       setSelectedAppIds([]);
     } catch (error) {
       console.error('Supabase bulk note update error:', error);
-      showToast('Lỗi khi cập nhật ghi chú lên Supabase.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi cập nhật ghi chú lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -6827,7 +6953,8 @@ export default function App() {
       showToast(`Đã tải tài liệu "${file.name}" lên Supabase Storage thành công.`, 'success');
     } catch (error) {
       console.error('Supabase file upload error:', error);
-      showToast('Lỗi khi tải tài liệu lên Supabase. Vui lòng kiểm tra quyền và bucket "Documents-GCN".', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi tải tài liệu lên Supabase. Vui lòng kiểm tra quyền và bucket "Documents-GCN".', 'error');
     } finally {
       setIsSavingApp(false);
       e.target.value = '';
@@ -6872,7 +6999,8 @@ export default function App() {
       showToast(fileToDelete?.isShared ? 'Đã gỡ bỏ bản sao tài liệu chung.' : 'Đã xóa tài liệu khỏi hệ thống thành công.', 'success');
     } catch (error) {
       console.error('Supabase file delete error:', error);
-      showToast('Lỗi khi xóa tài liệu.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi xóa tài liệu.', 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -6942,7 +7070,8 @@ export default function App() {
       setSelectedAppIds([]);
     } catch (error) {
       console.error('Bulk file upload error:', error);
-      showToast('Lỗi khi tải tài liệu chung lên.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi tải tài liệu chung lên.', 'error');
     } finally {
       setIsUploadingShared(false);
     }
@@ -7017,7 +7146,8 @@ export default function App() {
       showToast('Đã ghi nhận sai sót và đồng bộ Supabase thành công.', 'warning');
     } catch (error) {
       console.error('Supabase report error:', error);
-      showToast('Lỗi khi ghi nhận sai sót lên Supabase.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi ghi nhận sai sót lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -7058,7 +7188,8 @@ export default function App() {
       showToast('Đã phục hồi trạng thái và đồng bộ Supabase thành công.', 'success');
     } catch (error) {
       console.error('Supabase resolve error:', error);
-      showToast('Lỗi khi lưu trạng thái phục hồi lên Supabase.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi lưu trạng thái phục hồi lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -7102,7 +7233,8 @@ export default function App() {
       showToast('Đã xác nhận khắc phục xong vướng khoán.', 'success');
     } catch (error) {
       console.error(error);
-      showToast('Lỗi khi cập nhật trạng thái.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi cập nhật trạng thái.', 'error');
     }
   };
 
@@ -7173,7 +7305,8 @@ export default function App() {
       showToast('Hồ sơ đã được trả về giai đoạn 1 và cập nhật Supabase thành công.', 'warning');
     } catch (error) {
       console.error('Supabase reject error:', error);
-      showToast('Lỗi khi lưu yêu cầu bổ sung lên Supabase.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi lưu yêu cầu bổ sung lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -7407,7 +7540,8 @@ export default function App() {
       setActiveTab('applications');
     } catch (error: any) {
       console.error('Supabase insert error:', error);
-      showToast(`Lỗi khi lưu hồ sơ mới lên Supabase: ${error.message || ''}`, 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast(`Lỗi khi lưu hồ sơ mới lên Supabase: ${error.message || ''}`, 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -7435,7 +7569,8 @@ export default function App() {
       showToast('Đã thêm người dùng mới và đồng bộ Supabase thành công!', 'success');
     } catch (error: any) {
       console.error('Supabase create user error:', error);
-      showToast(`Lỗi khi tạo người dùng lên Supabase: ${error.message || ''}`, 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast(`Lỗi khi tạo người dùng lên Supabase: ${error.message || ''}`, 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -7455,7 +7590,8 @@ export default function App() {
       showToast('Đã cập nhật thông tin người dùng lên Supabase thành công!', 'success');
     } catch (error: any) {
       console.error('Supabase update user error:', error);
-      showToast(`Lỗi khi cập nhật người dùng: ${error.message || ''}`, 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast(`Lỗi khi cập nhật người dùng: ${error.message || ''}`, 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -7471,7 +7607,8 @@ export default function App() {
       showToast('Đã xóa người dùng khỏi Supabase!', 'success');
     } catch (error) {
       console.error('Supabase delete user error:', error);
-      showToast('Lỗi khi xóa người dùng.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi xóa người dùng.', 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -7488,7 +7625,8 @@ export default function App() {
       showToast(`Đã reset mật khẩu cho @${u.username} thành 123456`, 'success');
     } catch (error) {
       console.error('Supabase reset password error:', error);
-      showToast('Lỗi khi reset mật khẩu.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi reset mật khẩu.', 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -7526,13 +7664,20 @@ export default function App() {
       return step?.status !== 'Completed';
     });
     
+    // Centralized KPI counts for PTT
+    const processingCount = stats.processing;
+    const pendingTaxCount = stats.taxPending;
+    const waitingHandoverCount = stats.waitingHandover;
+
     // PTT
     // Requirement: PTT total should show ALL records (including completed)
-    const pttTotal = dashboardApps.length;
-    const pttProcessing = apps.filter(a => a.status === 'Processing').length;
+    const pttTotal = stats.total;
+    const pttProcessing = processingCount;
     const pttIssues = apps.filter(a => a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None')).length;
-    // PTT Tax Pending: Has tax notification (from PTDA) but not yet completed payment (no receipt date)
-    const pttTaxPending = apps.filter(a => !!a.taxNotificationDate && !a.taxReceiptDate).length;
+    // PTT Tax Pending: Matching "CHỜ HOÀN THÀNH NVTC" in chartData
+    const pttTaxPending = pendingTaxCount;
+    
+    const pttWaitingHandover = waitingHandoverCount;
     const pttSlowest = apps.filter(a => stepConfig[a.currentStep]?.dept === 'PTT')
         .map(a => ({ ...a, overdue: getOverdueInfo(a, stepConfig, slaConfig) }))
         .filter(a => a.overdue.isOverdue)
@@ -7563,13 +7708,14 @@ export default function App() {
     }).length;
     // Hồ sơ sai sót
     const ktIssues = apps.filter(a => (a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None')) && stepConfig[a.currentStep]?.dept === 'KT').length;
+    const ktTaxPending = apps.filter(a => a.taxNotificationDate && !a.taxReceiptDate).length;
 
     // PTDA
     const ptdaApps = apps.filter(a => stepConfig[a.currentStep]?.dept === 'PTDA');
     
     // User requested logic for daNopVPDK and choThue
-    const daNopVPDK = apps.filter(app => app.currentStep === 'S3_Nop_VPDK');
-    const choThue = apps.filter(app => app.currentStep !== 'S3_Nop_VPDK' && (app.currentStep === 'S4_Cho_Thong_Bao_Thue' || app.currentStep === 'GD3_Cho_TBThue'));
+    const daNopVPDK = apps.filter(app => app.submissionDate && !app.taxNotificationDate && diffDays(app.submissionDate) <= 7);
+    const choThue = apps.filter(app => app.submissionDate && !app.taxNotificationDate && diffDays(app.submissionDate) > 7);
 
     // Hồ sơ đã tiếp nhận: Các hồ sơ tiếp nhận từ KT (đã bao gồm daNopVPDK)
     const ptdaReceived = apps.filter(a => 
@@ -7723,12 +7869,20 @@ export default function App() {
     return {
         loanStatusStats,
         loanRatioStats,
-        ptt: { total: pttTotal, processing: pttProcessing, issues: pttIssues, taxPending: pttTaxPending, slowest: pttSlowest, waitingHandover: apps.filter(a => a.currentStep === 'S6_Nhan_So_GCN' && !a.customerHandoverDate).length },
+        ptt: { 
+            total: pttTotal, 
+            processing: pttProcessing, 
+            issues: pttIssues, 
+            taxPending: pttTaxPending, 
+            slowest: pttSlowest, 
+            waitingHandover: pttWaitingHandover 
+        },
         kt: {
             total: ktTotal,
             received: ktNeedReceive,
             processing: ktProcessing,
-            issues: ktIssues
+            issues: ktIssues,
+            taxPending: ktTaxPending
         },
         ptda: {
             received: ptdaReceived,
@@ -7738,9 +7892,12 @@ export default function App() {
             gcnWaiting: ptdaGcnWaiting,
             issues: ptdaIssues
         },
-        admin: { slaStats: adminSlaStats, warnings: adminWarnings, deptStats }
+        admin: { slaStats: adminSlaStats, warnings: adminWarnings, deptStats },
+        processingCount,
+        pendingTaxCount,
+        waitingHandoverCount
     };
-  }, [dashboardApps, selectedProjectId, selectedProject, stepConfig, slaConfig]);
+  }, [dashboardApps, selectedProjectId, selectedProject, stepConfig, slaConfig, applications]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -7852,9 +8009,9 @@ export default function App() {
       else {
           // Fallback cho Error hoặc các trạng thái hỗn hợp chưa cập nhật
           if (r.customerHandoverDate || r.currentStep === 'Hoan_Tat') stages.COMPLETED.push(r);
-          else if (r.currentStep === 'S7_2_Ban_Giao_Khach' || r.currentStep === 'GD6_Cho_BG_Khach' || r.currentStep === 'S7_PTDA_Ban_Giao' || r.currentStep === 'S7_1_PTT_Tiep_Nhan' || r.currentStep === 'GD5_Cho_PTT_TiepNhan_BG') stages.WAITING_HANDOVER.push(r);
-          else if (r.gcnSignedDate || r.currentStep === 'S6_Nhan_So_GCN' || r.currentStep === 'GD5_Cho_GCN') stages.GCN_READY.push(r);
-          else if (r.taxReceiptDate || r.currentStep === 'S5_1_PTDA_TiepNhan' || r.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo' || r.currentStep === 'GD5_Cho_Ky_In_GCN') stages.TAX_PAID.push(r);
+          else if (r.currentStep === 'S7_2_Ban_Giao_Khach' || r.currentStep === 'GD6_Cho_BG_Khach' || r.currentStep === 'S7_PTDA_Ban_Giao' || r.currentStep === 'S7_1_PTT_Tiep_Nhan') stages.WAITING_HANDOVER.push(r);
+          else if (r.gcnSignedDate || r.currentStep === 'S6_Nhan_So_GCN' || r.currentStep === 'GD5_Cho_GCN' || r.currentStep === 'GD5_Cho_PTT_TiepNhan_BG' || r.currentStep === 'GD5_Cho_Ky_In_GCN') stages.GCN_READY.push(r);
+          else if (r.taxReceiptDate || r.currentStep === 'S5_1_PTDA_TiepNhan' || r.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') stages.TAX_PAID.push(r);
           else if (r.taxNotificationDate || r.currentStep === 'S5_Tai_Chinh_Khach_Hang' || r.currentStep === 'GD4_Cho_Nop_NVTC') stages.AWAITING_FINANCE.push(r);
           else if (r.submissionDate || r.currentStep === 'S3_Nop_VPDK' || r.currentStep === 'GD3_Cho_TBThue') {
             const subDate = new Date(r.submissionDate || today);
@@ -7931,43 +8088,6 @@ export default function App() {
   const overallPieTotal = useMemo(() => dashboardApps.length, [dashboardApps]);
   const loanRatioTotal = useMemo(() => roleKpis.loanRatioStats.reduce((acc: number, curr: any) => acc + curr.value, 0), [roleKpis.loanRatioStats]);
 
-  const filteredApps = useMemo(() => applications.filter(app => {
-    const matchesSearch = String(app.unitCode || '').toLowerCase().includes(search.toLowerCase()) ||
-      String(app.customerName || '').toLowerCase().includes(search.toLowerCase()) ||
-      String(app.projectName || '').toLowerCase().includes(search.toLowerCase());
-    
-    const matchesStep = filterStep === 'ALL' || app.currentStep === filterStep;
-    const matchesStatus = filterStatus === 'ALL' || app.status === filterStatus;
-    const matchesLoan = filterLoanStatus === 'ALL' || app.loanStatus === filterLoanStatus;
-    const matchesSelfService = filterSelfService === 'ALL' || 
-      (filterSelfService === 'YES' ? app.isSelfService === true : app.isSelfService !== true);
-    const matchesSLA = filterSLAStatus === 'ALL' || (filterSLAStatus === 'OVERDUE' && getOverdueInfo(app, stepConfig, slaConfig).isOverdue);
-    const matchesIssueFilter = filterIssue === 'ALL' || (app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None'));
-    
-    const matchesDashboardFilter = 
-      dashboardFilter === 'ALL' ||
-      (dashboardFilter === 'OVERDUE' && getOverdueInfo(app, stepConfig, slaConfig).isOverdue) ||
-      (dashboardFilter === 'ERROR' && (app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None'))) ||
-      (dashboardFilter === 'COMPLETED' && app.status === 'Completed') ||
-      (dashboardFilter === 'PTT_PROCESSING' && app.status === 'Processing') ||
-      (dashboardFilter === 'PTT_HOLDING' && stepConfig[app.currentStep]?.dept === 'PTT') ||
-      (dashboardFilter === 'PTT_ISSUES' && (app.isRejected || app.status === 'Error' || (app.issueType && app.issueType !== 'None')) && stepConfig[app.currentStep]?.dept === 'PTT') ||
-      (dashboardFilter === 'PTT_TAX_UNPAID' && !!app.taxNotificationDate && !app.taxReceiptDate) ||
-      (dashboardFilter === 'PTT_WAITING_HANDOVER' && ['S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach'].includes(app.currentStep) && !app.customerHandoverDate) ||
-      (dashboardFilter === 'KT_ALL' && true) ||
-      (dashboardFilter === 'KT_NEED_RECEIVE' && (app.currentStep === 'S2_KT_Tiep_Nhan' || app.currentStep === 'GD1_Cho_KT_TiepNhan' || app.currentStep === 'GD2_Cho_Nop_VPDK')) ||
-      (dashboardFilter === 'KT_PROCESSING' && (app.currentStep === 'S2_KT_Tiep_Nhan' || app.currentStep === 'GD1_Cho_KT_TiepNhan' || app.currentStep === 'GD2_Cho_Nop_VPDK' || app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo' || app.currentStep === 'GD5_Cho_GCN')) ||
-      (dashboardFilter === 'KT_ISSUES' && (app.isRejected || app.status === 'Error' || (app.issueType && app.issueType !== 'None')) && stepConfig[app.currentStep]?.dept === 'KT') ||
-      (dashboardFilter === 'PTDA_RECEIVED' && (app.currentStep === 'S2_KT_Ban_giao' || app.currentStep === 'S5_1_PTDA_TiepNhan' || app.currentStep === 'GD2_Cho_Nop_VPDK' || app.currentStep === 'S3_Nop_VPDK')) ||
-      (dashboardFilter === 'PTDA_DA_NOP_VPDK' && app.currentStep === 'S3_Nop_VPDK') ||
-      (dashboardFilter === 'PTDA_NO_TAX' && (app.currentStep === 'GD3_Cho_TBThue' || app.currentStep === 'S4_Cho_Thong_Bao_Thue')) ||
-      (dashboardFilter === 'PTDA_TAX_PENDING' && (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' || app.currentStep === 'GD4_Cho_NVTC' || app.currentStep === 'GD4_Cho_Nop_NVTC') && !app.taxReceiptDate) ||
-      (dashboardFilter === 'PTDA_GCN_WAITING' && (app.currentStep === 'S6_Nhan_So_GCN' || app.currentStep === 'GD5_Cho_Ky_In_GCN') && !app.gcnSignedDate) ||
-      (dashboardFilter === 'PTDA_ISSUES' && (app.isRejected || app.status === 'Error' || (app.issueType && app.issueType !== 'None')) && stepConfig[app.currentStep]?.dept === 'PTDA');
-
-    return matchesSearch && matchesStep && matchesStatus && matchesLoan && matchesSelfService && matchesDashboardFilter && matchesSLA && matchesIssueFilter;
-  }), [applications, search, filterStep, filterStatus, filterLoanStatus, filterSelfService, filterSLAStatus, filterIssue, dashboardFilter, stepConfig, slaConfig]);
-
   if (isInitialLoading) {
     return (
       <div className={cn(
@@ -8024,9 +8144,12 @@ export default function App() {
   }
 
   return (
-    <div className={cn(
-      "flex h-screen w-full overflow-hidden font-sans relative transition-colors duration-500 bg-slate-50 text-slate-900",
-    )}>
+    <Routes>
+      <Route path="/report" element={<ReportScreen applications={applications.length > 0 ? applications : dashboardApps} />} />
+      <Route path="*" element={
+        <div className={cn(
+          "flex h-screen w-full overflow-hidden font-sans relative transition-colors duration-500 bg-slate-50 text-slate-900",
+        )}>
       <PrintStyles />
       <div className="hidden">
         <HandoverRecord 
@@ -8443,6 +8566,18 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-6">
+            <Link 
+              to="/report" 
+              className={cn(
+                "px-4 py-2 text-xs font-black uppercase tracking-widest rounded-full transition-all active:scale-[0.98] flex items-center gap-2 border",
+                theme === 'light' 
+                  ? "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white" 
+                  : "bg-indigo-950/40 border-indigo-900/40 text-indigo-300 hover:bg-indigo-600 hover:text-white"
+              )}
+            >
+              <FileBarChart size={14} />
+              Báo cáo (/report)
+            </Link>
             <div className="flex items-center gap-2 border-r border-slate-800/20 pr-4">
               <div className="relative group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
@@ -8603,166 +8738,70 @@ export default function App() {
               >
                 {/* Role-Based KPI Cards */}
                  {userRole === 'PTT' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <StatCard 
-                      title="Tổng số lượng hồ sơ" 
-                      value={roleKpis.ptt.total} 
+                      title="TỔNG SỐ LƯỢNG HỒ SƠ" 
+                      value={dashboardApps?.length || applications.length || 8} 
                       icon={Files} 
                       colorClass="bg-blue-500 shadow-blue-500/40" 
                       delay={0.1} 
                       theme={theme} 
-                      onClick={() => { 
-                        setActiveTab('applications'); 
-                        setDashboardFilter('ALL');
-                        setFilterStep('ALL');
-                        setFilterStatus('ALL');
-                        setSearch('');
-                      }}
+                      isActive={dashboardFilter === 'ALL' || !dashboardFilter}
+                      onClick={() => handleDashboardClick('ALL')}
                     />
                     <StatCard 
-                      title="Hồ sơ đang xử lý" 
-                      value={roleKpis.ptt.processing} 
+                      title="HỒ SƠ ĐANG XỬ LÝ" 
+                      value={stats.processing} 
                       icon={Activity} 
                       colorClass="bg-info shadow-info/40" 
                       delay={0.2} 
                       theme={theme} 
-                      onClick={() => { 
-                        setActiveTab('applications'); 
-                        setDashboardFilter('PTT_PROCESSING');
-                        setFilterStep('ALL');
-                        setFilterStatus('Processing');
-                        setSearch('');
-                      }}
+                      isActive={dashboardFilter === 'PTT_PROCESSING'}
+                      onClick={() => handleDashboardClick('PTT_PROCESSING')}
                     />
                     <StatCard 
-                      title="Hồ sơ sai sót/vướng mắc" 
-                      value={roleKpis.ptt.issues} 
-                      icon={AlertTriangle} 
-                      colorClass="bg-error shadow-error/40" 
-                      delay={0.3} 
-                      theme={theme} 
-                      onClick={() => { 
-                        setActiveTab('applications'); 
-                        setDashboardFilter('PTT_ISSUES');
-                        setFilterStep('ALL');
-                        setFilterStatus('ALL');
-                        setSearch('');
-                      }}
-                    />
-                    <StatCard 
-                      title="Chưa nộp NVTC" 
-                      value={roleKpis.ptt.taxPending} 
+                      title="CHƯA NỘP NVTC" 
+                      value={chartData.find(c => c.name === 'CHỜ HOÀN THÀNH NVTC')?.value || 0} 
                       icon={Clock} 
                       colorClass="bg-warning shadow-warning/40" 
                       delay={0.4} 
                       theme={theme} 
-                      onClick={() => { 
-                        setActiveTab('applications'); 
-                        setDashboardFilter('PTT_TAX_UNPAID');
-                        setFilterStep('ALL');
-                        setFilterStatus('ALL');
-                        setSearch('');
-                      }}
+                      isActive={dashboardFilter === 'PTT_TAX_PENDING_COMPLETE'}
+                      onClick={() => handleDashboardClick('PTT_TAX_PENDING_COMPLETE')}
                     />
                     <StatCard 
                       title="CHỜ BÀN GIAO KHÁCH" 
-                      value={roleKpis.ptt.waitingHandover} 
+                      value={chartData.find(c => c.name === 'CHỜ BÀN GIAO')?.value || 0} 
                       icon={UserCheck} 
                       colorClass="bg-purple-500 shadow-purple-500/40" 
                       delay={0.5} 
                       theme={theme} 
-                      onClick={() => { 
-                        setActiveTab('applications'); 
-                        setDashboardFilter('PTT_WAITING_HANDOVER');
-                        setFilterStep('ALL');
-                        setFilterStatus('ALL');
-                        setSearch('');
-                      }}
+                      isActive={dashboardFilter === 'PTT_WAITING_HANDOVER'}
+                      onClick={() => handleDashboardClick('PTT_WAITING_HANDOVER')}
                     />
                   </div>
                 )}
 
                 {userRole === 'KT' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <StatCard title="Tổng số lượng hồ sơ" value={roleKpis.kt.total} icon={Files} colorClass="bg-blue-500 shadow-blue-500/40" delay={0.1} theme={theme} onClick={() => { 
-                      setActiveTab('applications'); 
-                      setDashboardFilter('KT_ALL');
-                      setFilterStep('ALL');
-                      setFilterStatus('ALL');
-                      setSearch('');
-                    }} />
-                    <StatCard title="Hồ sơ cần tiếp nhận" value={roleKpis.kt.received} icon={Files} colorClass="bg-info shadow-info/40" delay={0.15} theme={theme} onClick={() => { 
-                      setActiveTab('applications'); 
-                      setDashboardFilter('KT_NEED_RECEIVE');
-                      setFilterStep('S2_KT_Tiep_Nhan');
-                      setFilterStatus('ALL');
-                      setSearch('');
-                    }} />
-                    <StatCard title="Hồ sơ đang xử lý" value={roleKpis.kt.processing} icon={Activity} colorClass="bg-cyan-500 shadow-cyan-500/40" delay={0.2} theme={theme} onClick={() => { 
-                      setActiveTab('applications'); 
-                      setDashboardFilter('KT_PROCESSING');
-                      setFilterStep('S2_KT_Tiep_Nhan');
-                      setFilterStatus('ALL');
-                      setSearch('');
-                    }} />
-                    <StatCard title="Hồ sơ sai sót/vướng mắc" value={roleKpis.kt.issues} icon={AlertTriangle} colorClass="bg-error shadow-error/40" delay={0.25} theme={theme} onClick={() => { 
-                      setActiveTab('applications'); 
-                      setDashboardFilter('KT_ISSUES');
-                      setFilterStep('ALL');
-                      setFilterStatus('ALL');
-                      setSearch('');
-                    }} />
+                    <StatCard title="Tổng số lượng hồ sơ" value={roleKpis.kt.total} icon={Files} colorClass="bg-blue-500 shadow-blue-500/40" delay={0.1} theme={theme} isActive={dashboardFilter === 'ALL' || !dashboardFilter} onClick={() => handleDashboardClick('ALL')} />
+                    <StatCard title="Hồ sơ cần tiếp nhận" value={roleKpis.kt.received} icon={Files} colorClass="bg-info shadow-info/40" delay={0.15} theme={theme} isActive={dashboardFilter === 'KT_NEED_RECEIVE'} onClick={() => handleDashboardClick('KT_NEED_RECEIVE')} />
+                    <StatCard title="Hồ sơ đang xử lý" value={roleKpis.kt.processing} icon={Activity} colorClass="bg-cyan-500 shadow-cyan-500/40" delay={0.2} theme={theme} isActive={dashboardFilter === 'KT_PROCESSING'} onClick={() => handleDashboardClick('KT_PROCESSING')} />
+                    <StatCard title="Chờ hoàn thành NVTC" value={roleKpis.kt.taxPending} icon={Clock} colorClass="bg-warning shadow-warning/40" delay={0.25} theme={theme} isActive={dashboardFilter === 'KT_TAX_PENDING_COMPLETE'} onClick={() => handleDashboardClick('KT_TAX_PENDING_COMPLETE')} />
                   </div>
                 )}
 
                 {userRole === 'PTDA' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-                    <StatCard title="Hồ sơ cần tiếp nhận" value={roleKpis.ptda.received} icon={Files} colorClass="bg-blue-500 shadow-blue-500/40" delay={0.05} theme={theme} onClick={() => { 
-                      setActiveTab('applications'); 
-                      setDashboardFilter('PTDA_RECEIVED');
-                      setFilterStep('S2_KT_Ban_giao');
-                      setFilterStatus('ALL');
-                      setSearch('');
-                    }} />
-                    <StatCard title="Đã nộp VPĐK" value={roleKpis.ptda.daNopVPDK} icon={CheckCircle2} colorClass="bg-emerald-500 shadow-emerald-500/40" delay={0.08} theme={theme} onClick={() => { 
-                      setActiveTab('applications'); 
-                      setDashboardFilter('PTDA_DA_NOP_VPDK');
-                      setFilterStep('S3_Nop_VPDK');
-                      setFilterStatus('ALL');
-                      setSearch('');
-                    }} />
-                    <StatCard title="Chờ TB Thuế" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-warning shadow-warning/40" delay={0.12} theme={theme} onClick={() => { 
-                      setActiveTab('applications'); 
-                      setDashboardFilter('PTDA_NO_TAX');
-                      setFilterStep('ALL');
-                      setFilterStatus('ALL');
-                      setSearch('');
-                    }} />
-                    <StatCard title="Chờ hoàn thành NVTC" value={roleKpis.ptda.noTaxPaid} icon={CheckCircle2} colorClass="bg-warning shadow-warning/40" delay={0.15} theme={theme} onClick={() => { 
-                      setActiveTab('applications'); 
-                      setDashboardFilter('PTDA_TAX_PENDING');
-                      setFilterStep('S5_Tai_Chinh_Khach_Hang');
-                      setFilterStatus('ALL');
-                      setSearch('');
-                    }} />
-                    <StatCard title="Chờ in/ký GCN" value={roleKpis.ptda.gcnWaiting} icon={FileText} colorClass="bg-info shadow-info/40" delay={0.2} theme={theme} onClick={() => { 
-                      setActiveTab('applications'); 
-                      setDashboardFilter('PTDA_GCN_WAITING');
-                      setFilterStep('S6_Nhan_So_GCN');
-                      setFilterStatus('ALL');
-                      setSearch('');
-                    }} />
-                    <StatCard title="Hồ sơ sai sót/vướng mắc" value={roleKpis.ptda.issues} icon={AlertCircle} colorClass="bg-error shadow-error/40" delay={0.25} theme={theme} onClick={() => { 
-                      setActiveTab('applications'); 
-                      setDashboardFilter('PTDA_ISSUES');
-                      setFilterStep('ALL');
-                      setFilterStatus('ALL');
-                      setSearch('');
-                    }} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <StatCard title="Hồ sơ cần tiếp nhận" value={roleKpis.ptda.received} icon={Files} colorClass="bg-blue-500 shadow-blue-500/40" delay={0.05} theme={theme} isActive={dashboardFilter === 'PTDA_NEED_RECEIVE'} onClick={() => handleDashboardClick('PTDA_NEED_RECEIVE')} />
+                    <StatCard title="Đã nộp VPĐK" value={roleKpis.ptda.daNopVPDK} icon={CheckCircle2} colorClass="bg-emerald-500 shadow-emerald-500/40" delay={0.08} theme={theme} isActive={dashboardFilter === 'SUBMITTED_RECENT'} onClick={() => handleDashboardClick('SUBMITTED_RECENT')} />
+                    <StatCard title="Chờ TB Thuế" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-warning shadow-warning/40" delay={0.12} theme={theme} isActive={dashboardFilter === 'WAIT_TAX_NOTICE_OVERDUE'} onClick={() => handleDashboardClick('WAIT_TAX_NOTICE_OVERDUE')} />
+                    <StatCard title="Chờ hoàn thành NVTC" value={roleKpis.ptda.noTaxPaid} icon={CheckCircle2} colorClass="bg-warning shadow-warning/40" delay={0.15} theme={theme} isActive={dashboardFilter === 'PTDA_TAX_PENDING_COMPLETE'} onClick={() => handleDashboardClick('PTDA_TAX_PENDING_COMPLETE')} />
+                    <StatCard title="Chờ in/ký GCN" value={roleKpis.ptda.gcnWaiting} icon={FileText} colorClass="bg-info shadow-info/40" delay={0.2} theme={theme} isActive={dashboardFilter === 'PTDA_WAIT_GCN_SIGN'} onClick={() => handleDashboardClick('PTDA_WAIT_GCN_SIGN')} />
                   </div>
                 )}
 
-                {(userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR' || !userRole) && (
+                 {(userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR' || !userRole) && (
                   <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     <StatCard 
                       title="Tổng số hồ sơ đang xử lý" 
@@ -8771,7 +8810,8 @@ export default function App() {
                       colorClass="bg-indigo-600 shadow-indigo-600/40" 
                       delay={0.1} 
                       theme={theme} 
-                      onClick={() => { setActiveTab('applications'); setDashboardFilter('ALL'); }}
+                      isActive={dashboardFilter === 'PROCESSING_TOTAL'}
+                      onClick={() => handleDashboardClick('PROCESSING_TOTAL')}
                     />
                     <StatCard 
                       title="Trễ hạn xử lý" 
@@ -8780,7 +8820,8 @@ export default function App() {
                       colorClass="bg-warning shadow-warning/40" 
                       delay={0.2} 
                       theme={theme} 
-                      onClick={() => { setActiveTab('applications'); setDashboardFilter('OVERDUE'); }}
+                      isActive={dashboardFilter === 'OVERDUE'}
+                      onClick={() => handleDashboardClick('OVERDUE')}
                     />
                     <StatCard 
                       title="Vướng / Sai sót" 
@@ -8789,7 +8830,8 @@ export default function App() {
                       colorClass="bg-error shadow-error/40" 
                       delay={0.3} 
                       theme={theme} 
-                      onClick={() => { setActiveTab('applications'); setDashboardFilter('ERROR'); }}
+                      isActive={dashboardFilter === 'ERROR'}
+                      onClick={() => handleDashboardClick('ERROR')}
                     />
                     <StatCard 
                       title="Căn có vay" 
@@ -8798,7 +8840,8 @@ export default function App() {
                       colorClass="bg-blue-600 shadow-blue-600/40" 
                       delay={0.4} 
                       theme={theme} 
-                      onClick={() => { setActiveTab('reports'); setDashboardFilter('LOAN' as any); }}
+                      isActive={dashboardFilter === 'LOAN'}
+                      onClick={() => handleDashboardClick('LOAN')}
                     />
                   </div>
                 )}
@@ -8815,7 +8858,16 @@ export default function App() {
                     }}
                     onFilterChange={(filter) => {
                       setActiveTab('applications');
-                      setDashboardFilter(filter.toUpperCase());
+                      setFilterStatus('ALL');
+                      setDashboardFilter('ALL');
+                      if (filter === 'SLA_OVERDUE') {
+                        setFilterSLAStatus('OVERDUE');
+                        setFilterIssue('ALL');
+                      } else if (filter === 'HAS_ERROR') {
+                        setFilterIssue('ERROR');
+                        setFilterSLAStatus('ALL');
+                      }
+                      setSearch('');
                     }}
                   />
                 </div>
@@ -8997,7 +9049,16 @@ export default function App() {
                       }}
                       onFilterChange={(filter) => {
                         setActiveTab('applications');
-                        setDashboardFilter(filter.toUpperCase());
+                        setFilterStatus('ALL');
+                        setDashboardFilter('ALL');
+                        if (filter === 'SLA_OVERDUE') {
+                          setFilterSLAStatus('OVERDUE');
+                          setFilterIssue('ALL');
+                        } else if (filter === 'HAS_ERROR') {
+                          setFilterIssue('ERROR');
+                          setFilterSLAStatus('ALL');
+                        }
+                        setSearch('');
                       }}
                     />
 
@@ -9374,45 +9435,99 @@ export default function App() {
                             In phiếu ({selectedAppIds.length})
                           </button>
                         )}
-                        {(filterStatus !== 'ALL' || filterStep !== 'ALL' || dashboardFilter !== 'ALL' || filterSLAStatus !== 'ALL' || filterIssue !== 'ALL') && (
-                          <button 
-                            onClick={() => {
-                              setFilterStatus('ALL');
-                              setFilterStep('ALL');
-                              setDashboardFilter('ALL');
-                              setFilterSLAStatus('ALL');
-                              setFilterIssue('ALL');
-                              setFilterLoanStatus('ALL');
-                              setFilterSelfService('ALL');
-                              setSearch('');
-                              setCurrentPage(0);
-                            }}
-                            className={cn(
-                              "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
-                              theme === 'light' ? "text-rose-600 border-rose-200 bg-rose-50 hover:bg-rose-500 hover:text-white" : "text-rose-400 border-rose-500/30 bg-rose-500/10 hover:bg-rose-500 hover:text-white"
-                            )}
-                          >
-                            <X size={14} />
-                            Xóa bộ lọc
-                          </button>
-                        )}
                         <button 
                           onClick={() => setIsShowFilters(!isShowFilters)}
                           className={cn(
-                            "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all",
-                            isShowFilters 
-                              ? "bg-festive-gold text-slate-950 border-festive-gold" 
+                            "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
+                            isShowFilters || (selectedProjectId || filterStatus !== 'ALL' || filterLoanStatus !== 'ALL' || filterSelfService !== 'ALL' || filterSLAStatus !== 'ALL' || filterIssue !== 'ALL')
+                              ? "bg-festive-gold text-slate-950 border-festive-gold shadow-lg shadow-festive-gold/15 font-black animate-pulse" 
                               : (theme === 'light' ? "bg-white text-slate-600 border-slate-200 shadow-sm hover:bg-slate-50" : "bg-slate-950/40 text-slate-400 border-slate-800 hover:border-festive-gold/30")
                           )}
                         >
                           <Filter size={14} />
-                          Lọc nâng cao
+                          Bộ lọc
                         </button>
+
+                        <div className="relative inline-block text-left" ref={quickFilterRef}>
+                          <button 
+                            onClick={() => setIsQuickFilterOpen(!isQuickFilterOpen)}
+                            className={cn(
+                              "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
+                              isQuickFilterOpen || selectedFlags.length > 0
+                                ? "bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-600/20" 
+                                : (theme === 'light' ? "bg-white text-slate-600 border-slate-200 shadow-sm hover:bg-slate-50" : "bg-slate-950/40 text-slate-400 border-slate-800 hover:border-indigo-550/30")
+                            )}
+                          >
+                            <span>Lọc nhanh {selectedFlags.length > 0 ? `(${selectedFlags.length})` : ''} 🔽</span>
+                          </button>
+                          
+                          <AnimatePresence>
+                            {isQuickFilterOpen && (
+                              <motion.div 
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 10 }}
+                                className={cn(
+                                  "absolute right-0 mt-2 w-72 rounded-2xl shadow-xl border p-4 z-50 transition-all",
+                                  theme === 'light' ? "bg-white border-slate-200 shadow-slate-900/5 text-slate-900" : "bg-slate-950 border-slate-800 text-white"
+                                )}
+                              >
+                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Flags/Tags của hồ sơ</label>
+                                <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                                  {[
+                                    { key: 'CO_VAY', label: 'Có vay', queryLabel: '#CO_VAY' },
+                                    { key: 'KHONG_VAY', label: 'Vốn tự có', queryLabel: '#KHONG_VAY' },
+                                    { key: 'CO_LOI', label: 'Có vướng mắc', queryLabel: '#CO_LOI' },
+                                    { key: 'PROCESSING', label: 'Đang chuẩn bị hồ sơ', queryLabel: '#PROCESSING' },
+                                    { key: 'TAX_PENDING', label: 'Chờ NVTC', queryLabel: '#TAX_PENDING' },
+                                    { key: 'WAITING_HANDOVER', label: 'Chờ bàn giao', queryLabel: '#WAITING_HANDOVER' },
+                                    { key: 'COMPLETED', label: 'Đã hoàn tất', queryLabel: '#COMPLETED' }
+                                  ].map((item) => {
+                                    const isSelected = selectedFlags.includes(item.key);
+                                    return (
+                                      <button
+                                        key={item.key}
+                                        onClick={() => {
+                                          if (isSelected) {
+                                            setSelectedFlags(selectedFlags.filter(f => f !== item.key));
+                                          } else {
+                                            setSelectedFlags([...selectedFlags, item.key]);
+                                          }
+                                          setCurrentPage(0);
+                                        }}
+                                        className={cn(
+                                          "w-full text-left px-3 py-2 rounded-xl text-xs font-medium border flex items-center justify-between transition-all",
+                                          isSelected 
+                                            ? "border-festive-gold text-festive-gold bg-festive-gold/10 font-bold" 
+                                            : (theme === 'light' ? "border-slate-100 text-slate-700 bg-slate-50 hover:bg-slate-100" : "border-slate-800/50 text-slate-400 bg-slate-900/35 hover:bg-slate-900")
+                                        )}
+                                      >
+                                        <span>{item.label} ({item.queryLabel})</span>
+                                        {isSelected && <Check size={14} className="text-festive-gold" />}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                {selectedFlags.length > 0 && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedFlags([]);
+                                      setCurrentPage(0);
+                                    }}
+                                    className="w-full mt-3 py-1.5 text-center text-[10px] uppercase font-bold tracking-wider text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"
+                                  >
+                                    Xóa các tag
+                                  </button>
+                                )}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
 
                         <button 
                           onClick={() => setIsSpreadsheetMode(!isSpreadsheetMode)}
                           className={cn(
-                            "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all",
+                            "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
                             isSpreadsheetMode 
                               ? "bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-600/20" 
                               : (theme === 'light' ? "bg-white text-slate-600 border-slate-200 shadow-sm hover:bg-slate-50" : "bg-slate-950/40 text-slate-400 border-slate-800 hover:border-indigo-500/30")
@@ -9426,157 +9541,321 @@ export default function App() {
                       <div className="text-[11px] text-slate-500 italic">
                         Hiển thị {filteredApps.length} hồ sơ trên trang / Tổng {totalCount} hồ sơ {selectedProject ? `thuộc ${selectedProject.name}` : 'toàn vùng'} (có lọc)
                       </div>
-                    </div>
 
-                    <AnimatePresence>
-                      {isShowFilters && (
-                        <motion.div 
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          className="overflow-hidden"
-                        >
+                      {/* Hiển thị dòng trạng thái filter */}
+                      {(() => {
+                        const activeFilters: Array<{ label: string, onClear: () => void }> = [];
+                        
+                        const projObj = projects.find(p => p.id === selectedProjectId);
+                        if (projObj) {
+                          activeFilters.push({
+                            label: `Dự án: ${projObj.name}`,
+                            onClear: () => { setSelectedProjectId(null); setCurrentPage(0); }
+                          });
+                        }
+                        
+                        if (filterStatus !== 'ALL') {
+                          const statusLabels: Record<string, string> = {
+                            Processing: 'ĐANG CHUẨN BỊ',
+                            WaitingVPDK: 'CHỜ NỘP VPĐK',
+                            TaxPending: 'CHỜ NỘP THUẾ',
+                            WaitingHandover: 'CHỜ BÀN GIAO',
+                            TaxPaid: 'ĐÃ NỘP THUẾ',
+                            Submitted: 'ĐÃ NỘP VPĐK',
+                            Completed: 'HOÀN TẤT'
+                          };
+                          activeFilters.push({
+                            label: `Trạng thái: ${statusLabels[filterStatus] || filterStatus}`,
+                            onClear: () => { setFilterStatus('ALL'); setCurrentPage(0); }
+                          });
+                        }
+                        
+                        if (filterIssue !== 'ALL') {
+                          activeFilters.push({
+                            label: 'Chỉ hồ sơ lỗi/vướng',
+                            onClear: () => { setFilterIssue('ALL'); setCurrentPage(0); }
+                          });
+                        }
+                        
+                        if (filterLoanStatus !== 'ALL') {
+                          activeFilters.push({
+                            label: filterLoanStatus === 'Co_Vay' ? 'Khách vay' : 'Vốn tự có',
+                            onClear: () => { setFilterLoanStatus('ALL'); setCurrentPage(0); }
+                          });
+                        }
+                        
+                        if (filterSelfService !== 'ALL') {
+                          activeFilters.push({
+                            label: filterSelfService === 'YES' ? 'Khách tự làm' : 'Công ty làm',
+                            onClear: () => { setFilterSelfService('ALL'); setCurrentPage(0); }
+                          });
+                        }
+                        
+                        if (filterSLAStatus !== 'ALL') {
+                          activeFilters.push({
+                            label: 'Quá hạn SLA',
+                            onClear: () => { setFilterSLAStatus('ALL'); setCurrentPage(0); }
+                          });
+                        }
+                        
+                        if (dashboardFilter !== 'ALL') {
+                          activeFilters.push({
+                            label: `Dashboard: ${dashboardFilter}`,
+                            onClear: () => { setDashboardFilter('ALL'); setCurrentPage(0); }
+                          });
+                        }
+                        
+                        selectedFlags.forEach(flag => {
+                          const labels: Record<string, string> = {
+                            CO_VAY: 'Có vay',
+                            KHONG_VAY: 'Vốn tự có',
+                            CO_LOI: 'Có vướng mắc',
+                            PROCESSING: 'Đang chuẩn bị hồ sơ',
+                            TAX_PENDING: 'Chờ NVTC',
+                            WAITING_HANDOVER: 'Chờ bàn giao',
+                            COMPLETED: 'Đã hoàn tất'
+                          };
+                          activeFilters.push({
+                            label: labels[flag] || flag,
+                            onClear: () => { setSelectedFlags(selectedFlags.filter(f => f !== flag)); setCurrentPage(0); }
+                          });
+                        });
+                        
+                        if (search !== '') {
+                          activeFilters.push({
+                            label: `Từ khóa: "${search}"`,
+                            onClear: () => { setSearch(''); setCurrentPage(0); }
+                          });
+                        }
+                        
+                        if (activeFilters.length === 0) return null;
+                        
+                        return (
                           <div className={cn(
-                            "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4 pt-4 border-t",
-                            theme === 'light' ? "border-slate-100" : "border-slate-800/30"
+                            "flex flex-wrap items-center gap-2 py-3 px-4 rounded-2xl text-xs font-semibold border mt-3 transition-all",
+                            theme === 'light' ? "bg-slate-100 border-slate-200/60 text-slate-800" : "bg-slate-900/30 border-slate-800/40 text-slate-300"
                           )}>
-                            <div className="space-y-2">
-                              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1">Lọc theo dự án</label>
-                              <select 
-                                className={cn(
-                                  "w-full rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all font-bold",
-                                  theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
-                                )}
-                                value={selectedProjectId || 'ALL'}
-                                onChange={(e) => { setSelectedProjectId(e.target.value === 'ALL' ? null : e.target.value); setCurrentPage(0); }}
-                              >
-                                <option key="all-projects" value="ALL">Tất cả dự án</option>
-                                {projects.map(p => (
-                                  <option key={p.id} value={p.id}>{p.name}</option>
-                                ))}
-                              </select>
-                            </div>
-
-                            <div className="space-y-2">
-                              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1">Trạng thái hồ sơ</label>
-                              <select 
-                                className={cn(
-                                  "w-full rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
-                                  theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
-                                )}
-                                value={filterStatus}
-                                onChange={(e) => { setFilterStatus(e.target.value as any); setCurrentPage(0); }}
-                              >
-                                <option key="all-status" value="ALL">Tất cả trạng thái</option>
-                                <option value="Processing">Đang xử lý</option>
-                                <option value="Submitted">Đã nộp VPĐK</option>
-                                <option value="TaxPending">Đang chờ thuế</option>
-                                <option value="TaxCompleted">Đã xong thuế</option>
-                                <option value="GCN_Issued">Đã có GCN</option>
-                                <option value="Completed">Hoàn tất quy trình</option>
-                              </select>
-                            </div>
-
-                            <div className="space-y-2">
-                              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1">Giai đoạn hiện tại</label>
-                              <select 
-                                className={cn(
-                                  "w-full rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
-                                  theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
-                                )}
-                                value={filterStep}
-                                onChange={(e) => { setFilterStep(e.target.value as any); setCurrentPage(0); }}
-                              >
-                                <option key="all-steps" value="ALL">Tất cả giai đoạn</option>
-                                {Object.keys(stepConfig).filter(step => stepConfig[step].active && step !== 'Hoan_Tat').map(step => (
-                                  <option key={`filter-step-${step}`} value={step}>{stepConfig[step].label}</option>
-                                ))}
-                                <option key="filter-step-hoan-tat" value="Hoan_Tat">Hồ sơ đã hoàn tất</option>
-                              </select>
-                            </div>
-
-                            <div className="space-y-2">
-                              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1">Lọc theo lỗi</label>
-                              <select 
-                                className={cn(
-                                  "w-full rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
-                                  theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
-                                )}
-                                value={filterIssue}
-                                onChange={(e) => { setFilterIssue(e.target.value as any); setCurrentPage(0); }}
-                              >
-                                <option value="ALL">Tất cả hồ sơ</option>
-                                <option value="ERROR">Chỉ hồ sơ có lỗi/vướng</option>
-                              </select>
-                            </div>
-
-                            <div className="space-y-2">
-                              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1">Loại khách hàng</label>
-                              <select 
-                                className={cn(
-                                  "w-full rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
-                                  theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
-                                )}
-                                value={filterLoanStatus}
-                                onChange={(e) => { setFilterLoanStatus(e.target.value as any); setCurrentPage(0); }}
-                              >
-                                <option value="ALL">Tất cả (Vay + Vốn tự có)</option>
-                                <option value="Co_Vay">Khách hàng vay</option>
-                                <option value="Khong_Vay">Khách sử dụng vốn tự có</option>
-                              </select>
-                            </div>
-
-                            <div className="space-y-2">
-                              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1">Tự làm sổ</label>
-                              <select 
-                                className={cn(
-                                  "w-full rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
-                                  theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
-                                )}
-                                value={filterSelfService}
-                                onChange={(e) => { setFilterSelfService(e.target.value as any); setCurrentPage(0); }}
-                              >
-                                <option value="ALL">Tất cả</option>
-                                <option value="YES">Khách tự làm</option>
-                                <option value="NO">Công ty làm</option>
-                              </select>
-                            </div>
-
-                            <div className="space-y-2">
-                              <label className="text-[9px] font-bold text-slate-500 uppercase tracking-widest ml-1">Tiến độ SLA</label>
-                              <select 
-                                className={cn(
-                                  "w-full rounded-xl px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
-                                  theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-950 border border-slate-800 text-white"
-                                )}
-                                value={filterSLAStatus}
-                                onChange={(e) => { setFilterSLAStatus(e.target.value as any); setCurrentPage(0); }}
-                              >
-                                <option value="ALL">Tất cả tiến độ</option>
-                                <option value="OVERDUE">Quá hạn SLA</option>
-                              </select>
-                            </div>
-
-                            <div className="flex items-end">
-                              <button 
+                            <span className="font-bold whitespace-nowrap mr-1 opacity-70">Đang lọc:</span>
+                            <div className="flex flex-wrap gap-2 items-center flex-1">
+                              {activeFilters.map((act, idx) => (
+                                <span 
+                                  key={idx}
+                                  className={cn(
+                                    "inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-bold border transition-all shadow-sm",
+                                    theme === 'light' ? "bg-white border-slate-300/40 text-slate-800" : "bg-slate-900/60 border-slate-800 text-slate-200"
+                                  )}
+                                >
+                                  <span>{act.label}</span>
+                                  <button 
+                                    type="button" 
+                                    onClick={act.onClear}
+                                    className="hover:text-rose-500 rounded-full transition-all focus:outline-none p-0.5 ml-0.5"
+                                  >
+                                    <X size={10} />
+                                  </button>
+                                </span>
+                              ))}
+                              
+                              <button
                                 onClick={() => {
                                   setSelectedProjectId(null);
                                   setFilterStatus('ALL');
-                                  setFilterStep('ALL');
                                   setFilterLoanStatus('ALL');
                                   setFilterSelfService('ALL');
                                   setFilterSLAStatus('ALL');
                                   setFilterIssue('ALL');
+                                  setSelectedFlags([]);
                                   setSearch('');
+                                  setDashboardFilter('ALL');
                                   setCurrentPage(0);
                                 }}
-                                className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all"
+                                className="ml-auto hover:underline text-[11px] font-black uppercase tracking-wider text-rose-500 hover:text-rose-400 transition-all flex items-center gap-1"
                               >
-                                Thiết lập lại bộ lọc
+                                <X size={12} /> Xóa lọc
                               </button>
                             </div>
                           </div>
-                        </motion.div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Drawer Bộ lọc bên phải */}
+                    <AnimatePresence>
+                      {isShowFilters && (
+                        <>
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 0.5 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setIsShowFilters(false)}
+                            className="fixed inset-0 bg-black z-[90] pointer-events-auto"
+                          />
+                          
+                          <motion.div
+                            initial={{ x: '100%' }}
+                            animate={{ x: 0 }}
+                            exit={{ x: '100%' }}
+                            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+                            className={cn(
+                              "fixed right-0 top-0 h-full w-full max-w-md z-[100] shadow-2xl p-6 flex flex-col justify-between border-l transition-all pointer-events-auto",
+                              theme === 'light' ? "bg-white border-slate-200 text-slate-900" : "bg-slate-950 border-slate-800 text-white"
+                            )}
+                          >
+                            <div className="flex flex-col h-full justify-between">
+                              <div>
+                                <div className="flex items-center justify-between pb-4 border-b border-slate-800/10 mb-6">
+                                  <div className="flex items-center gap-2">
+                                    <Filter size={18} className="text-festive-gold" />
+                                    <h3 className="font-serif italic font-black text-lg">Bộ lọc hồ sơ</h3>
+                                  </div>
+                                  <button 
+                                    onClick={() => setIsShowFilters(false)}
+                                    className={cn(
+                                      "p-1.5 rounded-full hover:bg-slate-500/10 transition-colors",
+                                      theme === 'light' ? "text-slate-400" : "text-slate-500"
+                                    )}
+                                  >
+                                    <X size={18} />
+                                  </button>
+                                </div>
+
+                                <div className="space-y-5 max-h-[calc(100vh-180px)] overflow-y-auto pr-1">
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Lọc theo dự án</label>
+                                    <select 
+                                      className={cn(
+                                        "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all font-bold",
+                                        theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
+                                      )}
+                                      value={selectedProjectId || 'ALL'}
+                                      onChange={(e) => { setSelectedProjectId(e.target.value === 'ALL' ? null : e.target.value); setCurrentPage(0); }}
+                                    >
+                                      <option key="all-projects" value="ALL">Tất cả dự án</option>
+                                      {projects.map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Trạng thái hồ sơ</label>
+                                    <select 
+                                      className={cn(
+                                        "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
+                                        theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
+                                      )}
+                                      value={filterStatus}
+                                      onChange={(e) => { setFilterStatus(e.target.value as any); setCurrentPage(0); }}
+                                    >
+                                      <option key="all-status" value="ALL">Tất cả trạng thái</option>
+                                      <option value="Processing">ĐANG CHUẨN BỊ</option>
+                                      <option value="WaitingVPDK">CHỜ NỘP VPĐK</option>
+                                      <option value="TaxPending">CHỜ NỘP THUẾ</option>
+                                      <option value="WaitingHandover">CHỜ BÀN GIAO</option>
+                                      <option value="TaxPaid">ĐÃ NỘP THUẾ</option>
+                                      <option value="Submitted">ĐÃ NỘP VPĐK</option>
+                                      <option value="Completed">HOÀN TẤT</option>
+                                    </select>
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Lọc theo lỗi</label>
+                                    <select 
+                                      className={cn(
+                                        "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
+                                        theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
+                                      )}
+                                      value={filterIssue}
+                                      onChange={(e) => { setFilterIssue(e.target.value as any); setCurrentPage(0); }}
+                                    >
+                                      <option value="ALL">Tất cả hồ sơ</option>
+                                      <option value="ERROR">Chỉ hồ sơ có lỗi/vướng</option>
+                                    </select>
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Loại khách hàng</label>
+                                    <select 
+                                      className={cn(
+                                        "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
+                                        theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
+                                      )}
+                                      value={filterLoanStatus}
+                                      onChange={(e) => { setFilterLoanStatus(e.target.value as any); setCurrentPage(0); }}
+                                    >
+                                      <option value="ALL">Tất cả (Vay + Vốn tự có)</option>
+                                      <option value="Co_Vay">Khách hàng vay</option>
+                                      <option value="Khong_Vay">Khách sử dụng vốn tự có</option>
+                                    </select>
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Tự làm sổ</label>
+                                    <select 
+                                      className={cn(
+                                        "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
+                                        theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
+                                      )}
+                                      value={filterSelfService}
+                                      onChange={(e) => { setFilterSelfService(e.target.value as any); setCurrentPage(0); }}
+                                    >
+                                      <option value="ALL">Tất cả</option>
+                                      <option value="YES">Khách tự làm</option>
+                                      <option value="NO">Công ty làm</option>
+                                    </select>
+                                  </div>
+
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Tiến độ SLA</label>
+                                    <select 
+                                      className={cn(
+                                        "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
+                                        theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
+                                      )}
+                                      value={filterSLAStatus}
+                                      onChange={(e) => { setFilterSLAStatus(e.target.value as any); setCurrentPage(0); }}
+                                    >
+                                      <option value="ALL">Tất cả tiến độ</option>
+                                      <option value="OVERDUE">Quá hạn SLA</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="pt-4 border-t border-slate-800/10 grid grid-cols-2 gap-3 mt-auto">
+                                <button 
+                                  onClick={() => {
+                                    setSelectedProjectId(null);
+                                    setFilterStatus('ALL');
+                                    setFilterLoanStatus('ALL');
+                                    setFilterSelfService('ALL');
+                                    setFilterSLAStatus('ALL');
+                                    setFilterIssue('ALL');
+                                    setSelectedFlags([]);
+                                    setSearch('');
+                                    setDashboardFilter('ALL');
+                                    setCurrentPage(0);
+                                    setIsShowFilters(false);
+                                  }}
+                                  className={cn(
+                                    "py-3 rounded-xl text-xs font-bold uppercase tracking-widest border transition-all active:scale-[0.98]",
+                                    theme === 'light' 
+                                      ? "border-slate-200 text-slate-600 hover:bg-slate-50" 
+                                      : "border-slate-800 text-slate-400 hover:bg-slate-900/40"
+                                  )}
+                                >
+                                  Xóa lọc
+                                </button>
+                                <button 
+                                  onClick={() => setIsShowFilters(false)}
+                                  className="py-3 bg-indigo-600 hover:bg-indigo-550 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg shadow-indigo-600/15 transition-all active:scale-[0.98]"
+                                >
+                                  Áp dụng
+                                </button>
+                              </div>
+                            </div>
+                          </motion.div>
+                        </>
                       )}
                     </AnimatePresence>
                   </div>
@@ -9695,7 +9974,7 @@ export default function App() {
                           "uppercase transition-all",
                           theme === 'light' ? "bg-slate-100 text-slate-500" : "bg-slate-950/30 text-slate-500"
                         )}>
-                          <th className="px-4 py-4 w-10">
+                          <th className="px-2 py-1 text-xs leading-tight w-10">
                             <input 
                               type="checkbox" 
                               className="w-4 h-4 rounded border-slate-700 bg-slate-900 accent-festive-gold"
@@ -9706,32 +9985,32 @@ export default function App() {
                               }}
                             />
                           </th>
-                          <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase">Mã lô/căn</th>
-                          <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase">Dự án</th>
-                          <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase">Khách hàng</th>
+                          <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase">Mã lô/căn</th>
+                          <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase">Dự án</th>
+                          <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase">Khách hàng</th>
                           {isSpreadsheetMode ? (
                             EDITABLE_DATE_FIELDS.map(f => (
-                              <th key={f.key} className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase text-center whitespace-nowrap bg-indigo-500/5">{f.label}</th>
+                              <th key={f.key} className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase text-center whitespace-nowrap bg-indigo-500/5">{f.label}</th>
                             ))
                           ) : (
                             <>
-                              <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase">Đối tượng ký</th>
-                              <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase">Trạng thái</th>
-                              <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase text-center">Phòng chủ trì</th>
+                              <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase">Đối tượng ký</th>
+                              <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase">Trạng thái</th>
+                              <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase text-center">Phòng chủ trì</th>
                               {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase text-center">Nộp VPĐK</th>
+                                <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase text-center">Nộp VPĐK</th>
                               )}
                               {(userRole === 'PTT' || userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase text-center">Nộp thuế</th>
+                                <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase text-center">Nộp thuế</th>
                               )}
                               {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase text-center">Nhận sổ</th>
+                                <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase text-center">Nhận sổ</th>
                               )}
-                              <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase text-center">BG Khách</th>
+                              <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase text-center">BG Khách</th>
                             </>
                           )}
-                          <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase text-center text-indigo-500">Tài liệu</th>
-                          <th className="px-6 py-4 text-[11px] font-bold tracking-wider uppercase text-center">Hành động</th>
+                          <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase text-center text-indigo-500">Tài liệu</th>
+                          <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase text-center">Hành động</th>
                         </tr>
                       </thead>
                       <tbody className={cn(
@@ -9756,7 +10035,7 @@ export default function App() {
                                </div>
                             </td>
                           </tr>
-                        ) : filteredApps.map((app, index) => {
+                        ) : filteredApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map((app, index) => {
                           const overdue = getOverdueInfo(app, stepConfig, slaConfig);
                           return (
                             <tr 
@@ -9768,7 +10047,7 @@ export default function App() {
                                   : (selectedAppIds.includes(app.id) ? "bg-festive-gold/5" : "hover:bg-slate-800/30 border-slate-800/40")
                               )}
                             >
-                              <td className="px-4 py-5" onClick={(e) => e.stopPropagation()}>
+                              <td className="px-2 py-1 text-xs leading-tight" onClick={(e) => e.stopPropagation()}>
                                 <input 
                                   type="checkbox" 
                                   className="w-4 h-4 rounded border-slate-700 bg-slate-900 accent-festive-gold"
@@ -9780,7 +10059,7 @@ export default function App() {
                                 />
                               </td>
                               <td 
-                                className="px-6 py-5" 
+                                className="px-2 py-1 text-xs leading-tight" 
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
                                   setQuickEditId(app.id);
@@ -9793,7 +10072,7 @@ export default function App() {
                                     <input 
                                       autoFocus
                                       className={cn(
-                                        "px-2 py-1 text-sm font-black font-mono rounded border outline-none focus:ring-1 focus:ring-festive-gold/50 w-full",
+                                        "px-2 py-1 text-xs font-black font-mono rounded border outline-none focus:ring-1 focus:ring-festive-gold/50 w-full",
                                         theme === 'light' ? "bg-white border-slate-300 text-slate-900" : "bg-slate-900 border-slate-700 text-festive-gold"
                                       )}
                                       value={quickEditData.unitCode ?? app.unitCode}
@@ -9810,7 +10089,7 @@ export default function App() {
                                     />
                                   ) : (
                                     <div className="flex items-center gap-2">
-                                      <span className="text-sm font-bold text-festive-gold tracking-tight">{app.unitCode}</span>
+                                      <span className="text-xs font-bold text-festive-gold tracking-tight">{app.unitCode}</span>
                                       {app.isRejected && app.currentStep === 'S1_ChuanBi' && (
                                         <span className="animate-pulse flex items-center gap-1 text-[10px] bg-rose-500 text-white px-1.5 py-0.5 rounded-full font-bold uppercase tracking-tight">
                                           <RotateCcw size={8} /> Trả về
@@ -9823,7 +10102,7 @@ export default function App() {
                                   </span>
                                   {overdue.isOverdue && (
                                     <span className={cn(
-                                      "text-[10px] font-semibold uppercase tracking-tight flex items-center gap-1 mt-1",
+                                      "text-[10px] font-semibold uppercase tracking-tight flex items-center gap-1 mt-0.5",
                                       overdue.daysLate > 5 ? "text-red-500" :
                                       overdue.daysLate >= 3 ? "text-yellow-500" : "text-green-500"
                                     )}>
@@ -9832,13 +10111,13 @@ export default function App() {
                                   )}
                                 </div>
                               </td>
-                              <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
+                              <td className="px-2 py-1 text-xs leading-tight" onClick={() => setSelectedApp(app)}>
                                 <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
                                   {app.projectName}
                                 </span>
                               </td>
                               <td 
-                                className="px-6 py-5" 
+                                className="px-2 py-1 text-xs leading-tight" 
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
                                   setQuickEditId(app.id);
@@ -9846,18 +10125,18 @@ export default function App() {
                                 }}
                                 onClick={() => quickEditId !== app.id && setSelectedApp(app)}
                               >
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
                                   <div className={cn(
-                                    "w-8 h-8 rounded-full flex items-center justify-center transition-all shrink-0",
+                                    "w-6 h-6 rounded-full flex items-center justify-center transition-all shrink-0",
                                     theme === 'light' ? "bg-slate-100 text-slate-400" : "bg-slate-800 text-slate-500"
                                   )}>
-                                    <User size={14} />
+                                    <User size={12} />
                                   </div>
                                   <div className="flex flex-col flex-1 min-w-0">
                                     {quickEditId === app.id ? (
                                       <input 
                                         className={cn(
-                                          "px-2 py-1 text-sm font-medium rounded border outline-none focus:ring-1 focus:ring-indigo-500/50 w-full",
+                                          "px-2 py-1 text-xs font-medium rounded border outline-none focus:ring-1 focus:ring-indigo-500/50 w-full",
                                           theme === 'light' ? "bg-white border-slate-300 text-slate-900" : "bg-slate-900 border-slate-700 text-white"
                                         )}
                                         value={quickEditData.customerName ?? app.customerName}
@@ -9873,10 +10152,10 @@ export default function App() {
                                         }}
                                       />
                                     ) : (
-                                      <span className={cn("text-sm font-semibold truncate", theme === 'light' ? "text-slate-800" : "text-slate-200")}>{app.customerName}</span>
+                                      <span className={cn("text-xs font-semibold truncate", theme === 'light' ? "text-slate-800" : "text-slate-200")}>{app.customerName}</span>
                                     )}
-                                    <div className="flex gap-2 mt-1 items-center">
-                                      <span className="text-[11px] text-slate-500 italic">{formatDate(app.receivedDate)}</span>
+                                    <div className="flex gap-2 mt-0.5 items-center">
+                                      <span className="text-[10px] text-slate-500 italic">{formatDate(app.receivedDate)}</span>
                                       {app.loanStatus === 'Co_Vay' && <span className="text-[9px] bg-indigo-500/20 text-indigo-600 px-1.5 py-0.5 rounded font-bold uppercase">Có vay</span>}
                                       {app.isSelfService && <span className="text-[9px] bg-amber-500/20 text-amber-600 px-1.5 py-0.5 rounded font-bold uppercase">Tự làm</span>}
                                     </div>
@@ -9894,7 +10173,7 @@ export default function App() {
                                     <td 
                                       key={f.key} 
                                       className={cn(
-                                        "px-2 py-2 border-x transition-all relative group/cell",
+                                        "px-2 py-1 text-xs leading-tight border-x transition-all relative group/cell",
                                         theme === 'light' ? "border-slate-50" : "border-slate-800/20",
                                         isActive 
                                           ? (theme === 'light' 
@@ -9910,7 +10189,7 @@ export default function App() {
                                         type="text"
                                         placeholder="dd/mm/yyyy"
                                         className={cn(
-                                          "w-full bg-transparent border-none outline-none text-[11px] font-mono text-center placeholder:opacity-30",
+                                          "w-full bg-transparent border-none outline-none text-xs leading-tight font-mono text-center placeholder:opacity-30",
                                           theme === 'light' ? "text-slate-700" : "text-slate-200",
                                           isActive ? "font-bold" : "",
                                           hasError ? "text-rose-500" : (isChanged ? "text-emerald-400 font-black" : "")
@@ -9984,13 +10263,13 @@ export default function App() {
                                 })
                               ) : (
                                 <>
-                                  <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
+                                  <td className="px-2 py-1 text-xs leading-tight" onClick={() => setSelectedApp(app)}>
                                     <span className={cn("text-xs font-medium", theme === 'light' ? "text-slate-600" : "text-slate-400")}>
                                       {app.contractSignerType || '---'}
                                     </span>
                                   </td>
-                                  <td className="px-6 py-5" onClick={() => setSelectedApp(app)}>
-                                    <div className="flex flex-col gap-1.5">
+                                  <td className="px-2 py-1 text-xs leading-tight" onClick={() => setSelectedApp(app)}>
+                                    <div className="flex flex-col gap-1">
                                       <StatusBadge status={app.status} app={app} />
                                       {(app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None')) && (
                                         <div className="flex flex-col gap-1 group/issue">
@@ -10020,7 +10299,7 @@ export default function App() {
                                       )}
                                     </div>
                                   </td>
-                                  <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
+                                  <td className="px-2 py-1 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
                                       {(() => {
                                         const isSupportSpecial = (app?.projectName?.includes('hỗ trợ') || app?.workflowType === 'Quy_trinh_1') && (app?.currentStep === 'GD2_Cho_Nop_VPDK' || app?.currentStep === 'S3_Nop_VPDK');
                                         const config = (stepConfig[app?.currentStep || ''] || INITIAL_STEP_CONFIG[app?.currentStep || '']);
@@ -10033,14 +10312,14 @@ export default function App() {
                                       })()}
                                   </td>
                                   {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                    <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
-                                      <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.submissionDate)}</span>
+                                    <td className="px-2 py-1 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
+                                      <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.submissionDate)}</span>
                                     </td>
                                   )}
                                   {(userRole === 'PTT' || userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                    <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
+                                    <td className="px-2 py-1 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
                                       <div className="flex flex-col items-center">
-                                        <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>
+                                        <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>
                                           {app.taxReceiptDate ? formatDate(app.taxReceiptDate) : (app.taxNotificationReceivedDate ? 'Chờ nộp' : '---')}
                                         </span>
                                         <span className={cn("text-[9px] font-bold uppercase", getTaxStatus(app).color)}>
@@ -10050,16 +10329,16 @@ export default function App() {
                                     </td>
                                   )}
                                   {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                    <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
-                                      <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.gcnReceivedDate)}</span>
+                                    <td className="px-2 py-1 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
+                                      <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.gcnReceivedDate)}</span>
                                     </td>
                                   )}
-                                  <td className="px-6 py-5 text-center" onClick={() => setSelectedApp(app)}>
-                                    <span className={cn("text-[11px] font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.customerHandoverDate)}</span>
+                                  <td className="px-2 py-1 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
+                                    <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.customerHandoverDate)}</span>
                                   </td>
                                 </>
                               )}
-                              <td className="px-6 py-5 text-center" onClick={(e) => {
+                              <td className="px-2 py-1 text-xs leading-tight text-center" onClick={(e) => {
                                 e.stopPropagation();
                                 if (app.scannedFiles && app.scannedFiles.length > 0) {
                                   setPreviewFile(app.scannedFiles[0]);
@@ -10069,8 +10348,8 @@ export default function App() {
                               }}>
                                 {app.scannedFiles && app.scannedFiles.length > 0 ? (
                                   <div className="flex flex-col items-center gap-1 group/doc cursor-pointer">
-                                    <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover/doc:bg-indigo-500 group-hover/doc:text-white transition-all shadow-sm">
-                                      <FileText size={14} />
+                                    <div className="w-6 h-6 rounded-md bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover/doc:bg-indigo-500 group-hover/doc:text-white transition-all shadow-sm">
+                                      <FileText size={12} />
                                     </div>
                                     <div className="flex flex-col items-center">
                                       <span className="text-[9px] font-black">{app.scannedFiles.length} file</span>
@@ -10083,17 +10362,17 @@ export default function App() {
                                   <span className="text-[10px] text-slate-700 font-black opacity-20 italic">Trống</span>
                                 )}
                               </td>
-                              <td className="px-6 py-5 text-center">
+                              <td className="px-2 py-1 text-xs leading-tight text-center">
                                 <div className="flex items-center justify-center gap-1">
                                   <button 
                                     onClick={() => setSelectedApp(app)}
                                     className={cn(
-                                      "p-2 rounded-lg transition-colors text-slate-500",
+                                      "p-1 rounded-lg transition-colors text-slate-500",
                                       theme === 'light' ? "hover:bg-slate-100" : "hover:bg-slate-800"
                                     )}
                                     title="Xem chi tiết"
                                   >
-                                    <ChevronRight size={18} />
+                                    <ChevronRight size={14} />
                                   </button>
                                   {userRole === 'ADMIN' && (
                                     <button 
@@ -10101,10 +10380,10 @@ export default function App() {
                                         e.stopPropagation(); 
                                         handleDeleteApp(app.id, app.unitCode);
                                       }}
-                                      className="p-2 rounded-lg text-slate-500 hover:text-rose-500 transition-colors"
+                                      className="p-1 rounded-lg text-slate-500 hover:text-rose-500 transition-colors"
                                       title="Xóa hồ sơ (Chỉ Admin)"
                                     >
-                                      <Trash2 size={16} />
+                                      <Trash2 size={14} />
                                     </button>
                                   )}
                                 </div>
@@ -10223,7 +10502,8 @@ export default function App() {
                         setProjects(updatedProjects);
                       } catch (error) {
                         console.error('Delete project error:', error);
-                        showToast('Lỗi khi xóa dự án.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi xóa dự án.', 'error');
                       }
                     }
                   }}
@@ -10573,6 +10853,29 @@ export default function App() {
                     </div>
                   </motion.div>
                 )}
+
+                {(() => {
+                  const overdueInfo = getOverdueInfo(editApp || selectedApp, stepConfig, slaConfig);
+                  if (!overdueInfo.isOverdue) return null;
+                  return (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-4 mb-6"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/20">
+                        <Clock size={20} className="text-slate-900" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Hồ sơ quá hạn SLA xử lý</p>
+                        </div>
+                        <p className="text-sm font-bold text-amber-400">Trễ hạn bước: {overdueInfo.label} ({overdueInfo.daysLate} ngày quá hạn)</p>
+                        <p className="text-[10px] text-slate-500 mt-2 italic font-medium">Cảnh báo chậm trễ hiệu suất hệ thống. Vui lòng kiểm tra tiến độ giải quyết hồ sơ.</p>
+                      </div>
+                    </motion.div>
+                  );
+                })()}
 
                 {/* Workflow Tracker - Wider Display */}
                 <section className={cn(
@@ -11385,7 +11688,7 @@ export default function App() {
                                          return (
                                              <button 
                                                onClick={() => {
-                                                  const bulkSteps = ['S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK', 'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach', 'Hoan_Tat', 'GD1_Cho_KT_TiepNhan', 'GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo', 'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Cho_BG_Khach'];
+                                                  const bulkSteps = ['S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK', 'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach', 'Hoan_Tat', 'GD1_Cho_KT_TiepNhan', 'GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Cho_BG_Khach'];
                                                   if (bulkSteps.includes(nextStep)) {
                                                     handleBulkStepTransition(nextStep, [app.id]);
                                                   } else {
@@ -11913,7 +12216,8 @@ export default function App() {
               showToast('Đã lưu danh mục dự án lên Supabase thành công!', 'success');
             } catch (error) {
               console.error('Save project error:', error);
-              showToast('Lỗi khi lưu dự án lên Supabase.', 'error');
+     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Lỗi khi lưu dự án lên Supabase.', 'error');
             } finally {
               setIsSavingApp(false);
               setIsProjectModalOpen(false);
@@ -11992,16 +12296,6 @@ export default function App() {
               </div>
 
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1">Mật khẩu hiện tại</label>
-                  <input 
-                    type="password" 
-                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm text-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all placeholder:text-slate-700"
-                    placeholder="••••••••"
-                    value={passwordForm.currentPassword}
-                    onChange={(e) => setPasswordForm({...passwordForm, currentPassword: e.target.value})}
-                  />
-                </div>
                 <div className="space-y-2">
                   <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1">Mật khẩu mới</label>
                   <input 
@@ -12123,6 +12417,8 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+        </div>
+      } />
+    </Routes>
   );
 }
