@@ -4624,6 +4624,36 @@ export default function App() {
     }, 500);
     return () => clearInterval(handleMobileSignal);
   }, []);
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        // Sync profile if different or not set
+        if (!currentUser || currentUser.id !== session.user.id) {
+          const { data: profile } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+          if (profile) {
+            setCurrentUser(mapUserFromSnakeCase(profile));
+          }
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+        // RESET ALL STATE
+        setApplications([]);
+        setDashboardApps([]);
+        setCurrentPage(0);
+        setSearch('');
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
   const [stepConfig, setStepConfig] = useState<Record<string, { label: string, dept: Dept, status: UnitStatus, slaDays?: number, active: boolean }>>(INITIAL_STEP_CONFIG);
   const [projects, setProjects] = useState<Project[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
@@ -4918,8 +4948,8 @@ export default function App() {
         if (usersData) setUsers(usersData.map(mapUserFromSnakeCase));
         else setUsers(MOCK_USERS);
 
-        // Fetch records is handled separately, just ensure pagination is triggered
-        fetchApplications();
+        // Fetch records is handled separately by currentUser effect
+        // fetchApplications();
         
         setIsLoadingConfig(false);
         setIsInitialLoading(false);
@@ -5075,18 +5105,20 @@ export default function App() {
   }, [search, selectedProjectId, filterStatus, filterLoanStatus, filterSelfService, filterIssue, dashboardFilter, filterSLAStatus, selectedFlags]);
 
   useEffect(() => {
+    if (!currentUser) return;
+
     const handler = setTimeout(() => {
       fetchApplications();
     }, 400);
     
     return () => clearTimeout(handler);
-  }, [search, currentPage, pageSize, selectedProjectId, filterStatus, filterLoanStatus, filterSelfService, filterIssue, dashboardFilter, filterSLAStatus]);
+  }, [currentUser, search, currentPage, pageSize, selectedProjectId, filterStatus, filterLoanStatus, filterSelfService, filterIssue, dashboardFilter, filterSLAStatus]);
 
   useEffect(() => {
-    if (activeTab === 'applications') {
+    if (activeTab === 'applications' && currentUser) {
       fetchApplications();
     }
-  }, [activeTab]);
+  }, [activeTab, currentUser]);
 
   const fetchDashboardApps = async () => {
     setIsLoadingDashboard(true);
@@ -8399,6 +8431,7 @@ export default function App() {
   if (!currentUser) {
     return <LoginScreen theme={theme} onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} onLogin={(user) => {
       setCurrentUser(user);
+      setTimeout(() => window.location.reload(), 100);
     }} />;
   }
 
@@ -8984,7 +9017,10 @@ export default function App() {
                 {(currentUser?.name || 'User').split(' ').map(n => n[0]).join('').slice(0, 2)}
               </div>
               <button 
-                onClick={() => setCurrentUser(null)}
+                onClick={async () => {
+                   setCurrentUser(null);
+                   await supabase.auth.signOut();
+                }}
                 className={cn(
                   "p-2.5 rounded-xl transition-all border",
                   theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 shadow-sm" : "bg-slate-900/50 border-slate-800 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10"
