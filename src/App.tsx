@@ -1764,6 +1764,13 @@ const ReportsView = ({
 }) => {
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [selectedLoanProjectIds, setSelectedLoanProjectIds] = useState<string[]>(projects.map(p => p.id));
+  const [isChartsReady, setIsChartsReady] = useState(false);
+
+  useEffect(() => {
+    setIsChartsReady(false);
+    const id = setTimeout(() => setIsChartsReady(true), 200);
+    return () => clearTimeout(id);
+  }, []);
 
   // Management Objectives & KPIs mapping
   const reportConfig = {
@@ -2438,7 +2445,7 @@ const ReportsView = ({
                      theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950/40 border-slate-800"
                    )}>
                       <h4 className="text-[10px] font-black uppercase text-slate-500 mb-6 tracking-widest text-center">Biểu đồ Năng lực (Hồ sơ/Nhân viên)</h4>
-                      {stats && stats.length > 0 ? (<div className="h-[350px] w-full">
+                      {isChartsReady && stats && stats.length > 0 ? (<div className="h-[350px] w-full">
 <ResponsiveContainer width="100%" height={350}>
 <BarChart data={stats} layout="vertical" margin={{ left: 20 }}>
                                <XAxis type="number" hide />
@@ -4311,7 +4318,10 @@ const getTaxStatus = (app: Application) => {
   return { label: 'Chưa hoàn thành', color: 'text-amber-500' };
 };
 
-const getOverdueInfo = (app: Application, stepConfig: Record<string, any>, slaConfig: Record<string, number>) => {
+const getOverdueInfo = (app: any, stepConfig: Record<string, any>, slaConfig: Record<string, number>) => {
+  if (app._sla) {
+    return app._sla;
+  }
   return calculateSLA(app, stepConfig, slaConfig);
 };
 
@@ -4623,6 +4633,13 @@ export default function App() {
   const [isLoadingApps, setIsLoadingApps] = useState(true);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isChartsReady, setIsChartsReady] = useState(false);
+
+  useEffect(() => {
+    setIsChartsReady(false);
+    const id = setTimeout(() => setIsChartsReady(true), 200);
+    return () => clearTimeout(id);
+  }, [dashboardApps]);
   const [storageStats, setStorageStats] = useState<{ totalSize: number, fileCount: number, folders: string[], dbSize: number }>({ totalSize: 0, fileCount: 0, folders: [], dbSize: 0 });
   const [isFetchingStorage, setIsFetchingStorage] = useState(false);
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
@@ -4681,9 +4698,16 @@ export default function App() {
     });
   });
 
-  const stats = useDashboardStats(dashboardApps || []);
+  const enrichedDashboardApps = useMemo(() => {
+    return (dashboardApps || []).map(a => ({
+      ...a,
+      _sla: calculateSLA(a)
+    }));
+  }, [dashboardApps]);
+
+  const stats = useDashboardStats(enrichedDashboardApps);
   const filteredApps = useApplications(
-    dashboardApps || [], 
+    enrichedDashboardApps, 
     dashboardFilter,
     search,
     filterStatus,

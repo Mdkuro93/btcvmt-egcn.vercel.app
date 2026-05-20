@@ -10,7 +10,12 @@ export function useDashboardStats(applications: any[]) {
     const waitingHandover = applications.filter((a) => a.status === 'WaitingHandover').length;
     const completed = applications.filter((a) => a.status === 'Completed').length;
     
-    const overdue = applications.filter((a) => isOverdue(a)).length;
+    const overdue = applications.filter((a) => {
+      if (a._sla) {
+        return a._sla.isOverdue;
+      }
+      return isOverdue(a);
+    }).length;
 
     return {
       total,

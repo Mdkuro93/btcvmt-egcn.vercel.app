@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer, Cell, LabelList,
@@ -7,6 +7,7 @@ import {
 import { Application } from '../types';
 import { cn } from '../lib/utils';
 
+// ... rest of the file stays the same
 interface DashboardChartsProps {
   theme: 'light' | 'dark';
   chartData: any[];
@@ -21,6 +22,13 @@ export default function DashboardCharts({
   onChartClick 
 }: DashboardChartsProps) {
   
+  const [isReady, setIsReady] = useState(false);
+  useEffect(() => {
+    setIsReady(false);
+    const id = setTimeout(() => setIsReady(true), 200);
+    return () => clearTimeout(id);
+  }, [chartData, pieData]);
+
   const totalUnits = useMemo(() => pieData.reduce((acc, curr) => acc + curr.value, 0), [pieData]);
   
   return (
@@ -49,114 +57,122 @@ export default function DashboardCharts({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         <div className="lg:col-span-2 h-[450px]">
-          <ResponsiveContainer width="100%" height={450}>
-            <BarChart
-              layout="vertical"
-              data={chartData}
-              margin={{ top: 20, right: 60, left: 20, bottom: 5 }}
-              onClick={(data) => {
-                if (data && data.activeLabel) onChartClick(String(data.activeLabel));
-              }}
-            >
-              <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={theme === 'dark' ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)"} />
-              <XAxis 
-                type="number" 
-                hide 
-                domain={[0, (dataMax: number) => Math.ceil(dataMax + dataMax * 0.15) || 10]} 
-              />
-              <YAxis 
-                dataKey="name" 
-                type="category" 
-                width={140}
-                axisLine={false}
-                tickLine={false}
-                tick={{ 
-                    fill: theme === 'dark' ? '#94a3b8' : '#334155', 
-                    fontSize: 10, 
-                    fontWeight: 800,
-                    letterSpacing: '0.025em'
+          {isReady ? (
+            <ResponsiveContainer width="100%" height={450}>
+              <BarChart
+                layout="vertical"
+                data={chartData}
+                margin={{ top: 20, right: 60, left: 20, bottom: 5 }}
+                onClick={(data) => {
+                  if (data && data.activeLabel) onChartClick(String(data.activeLabel));
                 }}
-              />
-              <Tooltip 
-                cursor={{ fill: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}
-                content={({ active, payload, label }) => {
-                  if (active && payload && payload.length) {
-                    return (
-                      <div className={cn(
-                        "p-3 rounded-2xl border shadow-xl backdrop-blur-md",
-                        theme === 'dark' ? "bg-slate-950/90 border-slate-800 text-white" : "bg-white/90 border-slate-200 text-slate-900"
-                      )}>
-                        <p className="text-[10px] font-black uppercase tracking-widest mb-2 border-b border-white/5 pb-1">{label}</p>
-                        <div className="space-y-1">
-                          <div className="flex justify-between gap-4">
-                            <span className="text-[10px] text-slate-500 font-bold">Bình thường:</span>
-                            <span className="text-[10px] font-black">{(payload[0].value || 0)}</span>
-                          </div>
-                          {payload[1] && (
-                            <div className="flex justify-between gap-4">
-                              <span className="text-[10px] text-rose-500 font-bold">Sai sót:</span>
-                              <span className="text-[10px] font-black text-rose-500">{(payload[1].value || 0)}</span>
-                            </div>
-                          )}
-                          <div className="flex justify-between gap-4 pt-1 border-t border-white/5 mt-1">
-                            <span className="text-[10px] font-black uppercase">Tổng:</span>
-                            <span className="text-[11px] font-black">{((payload[0].value as number) + (payload[1]?.value as number || 0))}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
-              <Bar 
-                dataKey="normal" 
-                stackId="a" 
-                barSize={24} 
-                radius={[0, 0, 0, 0]}
               >
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-normal-${index}`} fill={entry.color} />
-                ))}
-              </Bar>
-              <Bar 
-                dataKey="error" 
-                stackId="a" 
-                barSize={24} 
-                radius={[0, 12, 12, 0]}
-              >
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-error-${index}`} fill="#ef4444" />
-                ))}
-                <LabelList 
-                  dataKey="value" 
-                  position="right" 
-                  offset={15} 
-                  content={(props: any) => {
-                     const { x, y, width, height, value } = props;
-                     return (
-                        <text 
-                           x={x + width + 10} 
-                           y={y + height / 2 + 5} 
-                           fill={theme === 'dark' ? '#f8fafc' : '#1e293b'} 
-                           fontSize="12" 
-                           fontWeight="900"
-                           textAnchor="start"
-                        >
-                           {value}
-                        </text>
-                     );
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={theme === 'dark' ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)"} />
+                <XAxis 
+                  type="number" 
+                  hide 
+                  domain={[0, (dataMax: number) => Math.ceil(dataMax + dataMax * 0.15) || 10]} 
+                />
+                <YAxis 
+                  dataKey="name" 
+                  type="category" 
+                  width={140}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ 
+                      fill: theme === 'dark' ? '#94a3b8' : '#334155', 
+                      fontSize: 10, 
+                      fontWeight: 800,
+                      letterSpacing: '0.025em'
                   }}
                 />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+                <Tooltip 
+                  cursor={{ fill: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <div className={cn(
+                          "p-3 rounded-2xl border shadow-xl backdrop-blur-md",
+                          theme === 'dark' ? "bg-slate-950/90 border-slate-800 text-white" : "bg-white/90 border-slate-200 text-slate-900"
+                        )}>
+                          <p className="text-[10px] font-black uppercase tracking-widest mb-2 border-b border-white/5 pb-1">{label}</p>
+                          <div className="space-y-1">
+                            <div className="flex justify-between gap-4">
+                              <span className="text-[10px] text-slate-500 font-bold">Bình thường:</span>
+                              <span className="text-[10px] font-black">{(payload[0].value || 0)}</span>
+                            </div>
+                            {payload[1] && (
+                              <div className="flex justify-between gap-4">
+                                <span className="text-[10px] text-rose-500 font-bold">Sai sót:</span>
+                                <span className="text-[10px] font-black text-rose-500">{(payload[1].value || 0)}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between gap-4 pt-1 border-t border-white/5 mt-1">
+                              <span className="text-[10px] font-black uppercase">Tổng:</span>
+                              <span className="text-[11px] font-black">{((payload[0].value as number) + (payload[1]?.value as number || 0))}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Bar 
+                  dataKey="normal" 
+                  stackId="a" 
+                  barSize={24} 
+                  radius={[0, 0, 0, 0]}
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-normal-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+                <Bar 
+                  dataKey="error" 
+                  stackId="a" 
+                  barSize={24} 
+                  radius={[0, 12, 12, 0]}
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-error-${index}`} fill="#ef4444" />
+                  ))}
+                  <LabelList 
+                    dataKey="value" 
+                    position="right" 
+                    offset={15} 
+                    content={(props: any) => {
+                       const { x, y, width, height, value } = props;
+                       return (
+                          <text 
+                             x={x + width + 10} 
+                             y={y + height / 2 + 5} 
+                             fill={theme === 'dark' ? '#f8fafc' : '#1e293b'} 
+                             fontSize="12" 
+                             fontWeight="900"
+                             textAnchor="start"
+                          >
+                             {value}
+                          </text>
+                       );
+                    }}
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 gap-4">
+              <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-[10px] font-black uppercase tracking-widest italic">Đang tải biểu đồ...</p>
+            </div>
+          )}
         </div>
 
         <div className="h-[450px] flex flex-col items-center">
           <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6 w-full text-center py-2 border-y border-white/5">Tỉ trọng dự án</h3>
           {pieData && pieData.length > 0 ? (
           <div className="flex-1 w-full relative">
+            {isReady ? (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
@@ -188,6 +204,7 @@ export default function DashboardCharts({
                 />
               </PieChart>
             </ResponsiveContainer>
+            ) : null}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
                 <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">Tổng cộng</p>
                 <p className={cn("text-xl font-black mt-1", theme === 'dark' ? "text-white" : "text-slate-800")}>
