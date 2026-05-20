@@ -67,8 +67,8 @@ export function useApplications(
       const stepType = getStepType(currentStep);
 
       // ================= 0. FLAG FILTER =================
-      if (selectedFlags && selectedFlags.length > 0) {
-        const itemFlags = a.flags || [];
+      if (Array.isArray(selectedFlags) && selectedFlags.length > 0) {
+        const itemFlags = Array.isArray(a.flags) ? a.flags : [];
         if (!selectedFlags.every(flag => itemFlags.includes(flag))) return false;
       }
 
@@ -102,6 +102,8 @@ export function useApplications(
       }
 
       // ================= 5. ISSUE =================
+      const issueType = getVal(a, 'issueType', 'issue_type') || 'None';
+      
       if (activeIssue === 'ERROR') {
         const hasIssue =
           a.status === 'Error' ||
@@ -109,14 +111,19 @@ export function useApplications(
           !!a.hasError ||
           !!a.has_error ||
           (Array.isArray(a.errors) && a.errors.length > 0) ||
-          (a.issueType && a.issueType !== 'None');
+          (issueType !== 'None');
 
         if (!hasIssue) return false;
       }
 
       // ================= 6. SLA =================
       if (activeSLAStatus === 'OVERDUE') {
-        const sla = getSLAStatus(a);
+        let sla = 'NORMAL';
+        try {
+          sla = getSLAStatus(a);
+        } catch (e) {
+          console.error("SLA ERROR:", e);
+        }
         if (sla !== 'OVERDUE') return false;
       }
 
@@ -182,13 +189,18 @@ export function useApplications(
             break;
 
           case 'OVERDUE': {
-            const sla = getSLAStatus(a);
+            let sla = 'NORMAL';
+            try {
+              sla = getSLAStatus(a);
+            } catch (e) {
+              console.error("SLA ERROR:", e);
+            }
             if (sla !== 'OVERDUE') return false;
             break;
           }
 
           case 'ERROR':
-            if (!(a.issueType !== 'None' || a.isRejected || a.status === 'Error')) return false;
+            if (!(issueType !== 'None' || a.isRejected || a.status === 'Error')) return false;
             break;
 
           case 'LOAN':
