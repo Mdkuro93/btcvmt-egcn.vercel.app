@@ -249,10 +249,10 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
           "p-8 rounded-[2.5rem] border shadow-2xl relative overflow-hidden",
           theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800"
         )}>
-          <h3 className={cn("text-sm font-black uppercase tracking-widest mb-6", theme === 'light' ? "text-slate-800" : "text-slate-200")}>Phân bổ mức độ nghiêm trọng</h3>
+          <h3 className={cn("text-sm font-black uppercase tracking-widest mb-6", theme === 'light' ? "text-slate-800" : "text-slate-200")}>Phân bộ mức độ nghiêm trọng</h3>
           <div className="h-[280px] w-full relative flex items-center justify-center">
             {severityChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
                   <Pie
                     data={severityChartData}
@@ -310,7 +310,7 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
           <h3 className={cn("text-sm font-black uppercase tracking-widest mb-6", theme === 'light' ? "text-slate-800" : "text-slate-200")}>Phân nhóm Sai sót chính</h3>
           <div className="h-[280px] w-full">
             {typeChartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={typeChartData} layout="vertical" margin={{ left: 10, right: 10 }}>
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={9} width={120} axisLine={false} tickLine={false} />
@@ -423,7 +423,7 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
         <h3 className={cn("text-sm font-black uppercase tracking-widest mb-6", theme === 'light' ? "text-slate-800" : "text-slate-200")}>Sự phân bố sai sót tại các chặng</h3>
         <div className="h-[250px] w-full">
           {stepChartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={250}>
               <BarChart data={stepChartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? "#e2e8f0" : "#ffffff10"} vertical={false} />
                 <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />

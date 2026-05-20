@@ -406,6 +406,23 @@ const mapToSnakeCase = (app: Application) => {
     updated_at: new Date().toISOString()
   };
 
+  // Preserve issue fields on application object if present
+  if ((app as any).issue_status !== undefined) data.issue_status = (app as any).issue_status;
+  if ((app as any).issue_created_at !== undefined) data.issue_created_at = (app as any).issue_created_at;
+  if ((app as any).issue_resolved_at !== undefined) data.issue_resolved_at = (app as any).issue_resolved_at;
+
+  // Sanitize all date/timestamp/deadline columns: if blank/empty string, map to null
+  Object.keys(data).forEach(key => {
+    const isDateField = key.endsWith('_date') || 
+                        key.endsWith('_deadline') || 
+                        key.endsWith('_at') || 
+                        key.includes('date') || 
+                        key.includes('deadline');
+    if (isDateField && (data[key] === '' || data[key] === 'null')) {
+      data[key] = null;
+    }
+  });
+
   // Only include ID if it's not a temporary string ID
   if (app.id && !(typeof app.id === 'string' && app.id.includes('-imp-'))) {
     data.id = app.id;
@@ -2238,7 +2255,7 @@ const ReportsView = ({
                    )}>
                       <h4 className="text-[10px] font-black uppercase text-slate-500 mb-6 tracking-widest text-center">Phân bổ trạng thái Hồ sơ vay</h4>
                       <div className="h-[250px] w-full relative">
-                         <ResponsiveContainer width="100%" height="100%">
+                         <ResponsiveContainer width="100%" height={250}>
                             <PieChart>
                                <Pie
                                  data={loanPieData}
@@ -2295,7 +2312,7 @@ const ReportsView = ({
                    )}>
                       <h4 className="text-[10px] font-black uppercase text-slate-500 mb-6 tracking-widest text-center">Tiến độ hồ sơ vay theo giai đoạn</h4>
                       <div className="h-[250px] w-full">
-                         <ResponsiveContainer width="100%" height="100%">
+                         <ResponsiveContainer width="100%" height={250}>
                             <BarChart data={loanPieData}>
                                <XAxis dataKey="name" stroke="#94a3b8" fontSize={8} tickLine={false} axisLine={false} tick={{ width: 60 }} interval={0} />
                                <YAxis stroke="#94a3b8" fontSize={8} tickLine={false} axisLine={false} />
@@ -2422,7 +2439,7 @@ const ReportsView = ({
                    )}>
                       <h4 className="text-[10px] font-black uppercase text-slate-500 mb-6 tracking-widest text-center">Biểu đồ Năng lực (Hồ sơ/Nhân viên)</h4>
                       <div className="h-[350px] w-full">
-                         <ResponsiveContainer width="100%" height="100%">
+                         <ResponsiveContainer width="100%" height={350}>
                             <BarChart data={stats} layout="vertical" margin={{ left: 20 }}>
                                <XAxis type="number" hide />
                                <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={10} width={100} axisLine={false} tickLine={false} />
@@ -2451,7 +2468,7 @@ const ReportsView = ({
                    )}>
                       <h4 className="text-[10px] font-black uppercase text-slate-500 mb-6 tracking-widest text-center">Phân tích Tốc độ (TAT trung bình)</h4>
                       <div className="h-[350px] w-full">
-                         <ResponsiveContainer width="100%" height="100%">
+                         <ResponsiveContainer width="100%" height={350}>
                             <AreaChart data={stats.slice().sort((a:any, b:any) => a.avgTime - b.avgTime)}>
                                <defs>
                                  <linearGradient id="colorAvg" x1="0" y1="0" x2="0" y2="1">
@@ -2533,7 +2550,7 @@ const ReportsView = ({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                    <div className="h-[400px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height={400}>
                         <BarChart data={slaStats} layout="vertical" margin={{ left: 20 }}>
                           <XAxis type="number" hide />
                           <YAxis dataKey="step" type="category" stroke="#94a3b8" fontSize={10} width={100} axisLine={false} tickLine={false} />
@@ -2590,7 +2607,7 @@ const ReportsView = ({
               </div>
             ) : (
               <div className="h-[400px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={400}>
                   <BarChart data={stats} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? "#e2e8f0" : "#ffffff10"} vertical={false} />
                     <XAxis dataKey="name" stroke="#475569" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
@@ -9040,7 +9057,7 @@ export default function App() {
                       </div>
                     </div>
                     <div className="h-[500px] w-full mt-4 relative z-10">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height={500}>
                           <BarChart 
                             layout="vertical"
                             data={chartData} 
@@ -9210,7 +9227,7 @@ export default function App() {
                           Tỉ lệ Trạng thái
                         </h3>
                         <div className="h-[180px] w-full relative">
-                          <ResponsiveContainer width="100%" height="100%">
+                          <ResponsiveContainer width="100%" height={180}>
                             <PieChart>
                               <Pie 
                                 data={overallPieData} 
@@ -9276,7 +9293,7 @@ export default function App() {
                                   <div className="text-center text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2">Tỷ lệ Vay / Vốn tự có</div>
                                   {roleKpis.loanRatioStats.length > 0 ? (
                                     <div className="h-[150px] w-full relative">
-                                       <ResponsiveContainer width="100%" height="100%">
+                                       <ResponsiveContainer width="100%" height={150}>
                                          <PieChart>
                                            <Pie data={roleKpis.loanRatioStats} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={2} dataKey="value" stroke="none">
                                              {roleKpis.loanRatioStats.map((entry: any, index: number) => (
@@ -9306,7 +9323,7 @@ export default function App() {
                                   <div className="text-center text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2">Tiến độ hồ sơ vay</div>
                                   {loanPieData.length > 0 ? (
                                     <div className="h-[150px] w-full relative">
-                                       <ResponsiveContainer width="100%" height="100%">
+                                       <ResponsiveContainer width="100%" height={150}>
                                          <PieChart>
                                            <Pie 
                                               data={loanPieData} 

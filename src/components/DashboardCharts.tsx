@@ -49,7 +49,7 @@ export default function DashboardCharts({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         <div className="lg:col-span-2 h-[450px]">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={450}>
             <BarChart
               layout="vertical"
               data={chartData}
@@ -157,7 +157,7 @@ export default function DashboardCharts({
           <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6 w-full text-center py-2 border-y border-white/5">Tỉ trọng dự án</h3>
           {pieData && pieData.length > 0 ? (
           <div className="flex-1 w-full relative">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
                   data={pieData}
