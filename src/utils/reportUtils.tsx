@@ -56,3 +56,17 @@ export const buildStepStats = (apps: any[]) => {
 
   return res;
 };
+
+export const getActiveErrors = (apps: any[]) => {
+  return apps.filter(a => {
+    const status = a.issue_status || a.issueStatus;
+    return status === 'OPEN';
+  });
+};
+
+export const getAllErrors = (apps: any[]) => {
+  return apps.filter(a => {
+    const type = a.issue_type || a.issueType;
+    return type && type !== 'None';
+  });
+};

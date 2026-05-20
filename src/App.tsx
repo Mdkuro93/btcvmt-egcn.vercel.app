@@ -80,6 +80,7 @@ import {
   UserCheck
 } from 'lucide-react';
 import DashboardAlerts from './components/DashboardAlerts';
+import ErrorReportView from './components/ErrorReportView';
 import { Routes, Route, Link } from 'react-router-dom';
 import ReportScreen from './pages/ReportScreen';
 import { cn } from './lib/utils';
@@ -834,7 +835,7 @@ const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Appli
 
   const config = configs[effectiveStatus] || configs.Processing;
   return (
-    <span className={cn("px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider", config.classes)}>
+    <span className={cn("px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap inline-block", config.classes)}>
       {config.label}
     </span>
   );
@@ -1728,7 +1729,9 @@ const ReportsView = ({
   setDashboardFilter,
   setFilterLoanStatus,
   stepConfig,
-  slaConfig
+  slaConfig,
+  reportType,
+  setReportType
 }: { 
   applications: Application[], 
   projects: Project[], 
@@ -1738,9 +1741,10 @@ const ReportsView = ({
   setDashboardFilter: (filter: any) => void,
   setFilterLoanStatus: (filter: any) => void,
   stepConfig: any,
-  slaConfig: Record<string, number>
+  slaConfig: Record<string, number>,
+  reportType: 'PROJECT' | 'REGION' | 'LOAN' | 'SLA' | 'PERFORMANCE' | 'ERROR',
+  setReportType: (type: 'PROJECT' | 'REGION' | 'LOAN' | 'SLA' | 'PERFORMANCE' | 'ERROR') => void
 }) => {
-  const [reportType, setReportType] = useState<'PROJECT' | 'REGION' | 'LOAN' | 'SLA' | 'PERFORMANCE'>('LOAN');
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [selectedLoanProjectIds, setSelectedLoanProjectIds] = useState<string[]>(projects.map(p => p.id));
 
@@ -1963,6 +1967,60 @@ const ReportsView = ({
     ].filter(d => d.value > 0 || d.error > 0);
   }, [loanApps]);
 
+  if (reportType === 'ERROR') {
+    return (
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 text-left">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+          <div>
+             <div className="flex items-center gap-3 mb-1">
+               <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
+                  <FileBarChart className="text-indigo-500" size={20} />
+               </div>
+               <h2 className={cn("text-3xl font-black italic font-serif tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>
+                 Trung tâm Điều hành & Quản trị
+               </h2>
+             </div>
+             <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em]">Hệ thống phân tích báo cáo rủi ro đa chiều</p>
+          </div>
+        </header>
+
+        {/* Report Navigation */}
+        <div className="flex flex-wrap gap-2">
+          {(Object.keys(reportConfig) as Array<keyof typeof reportConfig>).map(type => (
+            <button
+              key={type}
+              onClick={() => { setReportType(type); setSelectedItem(null); }}
+              className={cn(
+                "px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all tracking-[0.15em] border flex items-center gap-2 group",
+                (reportType as string) === type 
+                  ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20" 
+                  : theme === 'light' ? "bg-white border-slate-200 text-slate-500 hover:border-slate-300" : "bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300"
+              )}
+            >
+              {type === 'LOAN' && <AlertTriangle size={12} className={(reportType as string) === type ? "text-white" : "text-rose-500"} />}
+              {reportConfig[type].title}
+            </button>
+          ))}
+          <button
+            key="ERROR"
+            onClick={() => { setReportType('ERROR'); setSelectedItem(null); }}
+            className={cn(
+              "px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all tracking-[0.15em] border flex items-center gap-2 group",
+              (reportType as string) === 'ERROR' 
+                ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20" 
+                : theme === 'light' ? "bg-white border-slate-200 text-slate-500 hover:border-slate-300" : "bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300"
+            )}
+          >
+            <AlertCircle size={12} className={(reportType as string) === 'ERROR' ? "text-white" : "text-rose-500"} />
+            Báo cáo sai sót
+          </button>
+        </div>
+
+        <ErrorReportView applications={applications} theme={theme} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 text-left">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
@@ -1995,15 +2053,28 @@ const ReportsView = ({
             onClick={() => { setReportType(type); setSelectedItem(null); }}
             className={cn(
               "px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all tracking-[0.15em] border flex items-center gap-2 group",
-              reportType === type 
+              (reportType as string) === type 
                 ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20" 
                 : theme === 'light' ? "bg-white border-slate-200 text-slate-500 hover:border-slate-300" : "bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300"
             )}
           >
-            {type === 'LOAN' && <AlertTriangle size={12} className={reportType === type ? "text-white" : "text-rose-500"} />}
+            {type === 'LOAN' && <AlertTriangle size={12} className={(reportType as string) === type ? "text-white" : "text-rose-500"} />}
             {reportConfig[type].title}
           </button>
         ))}
+        <button
+          key="ERROR"
+          onClick={() => { setReportType('ERROR'); setSelectedItem(null); }}
+          className={cn(
+            "px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all tracking-[0.15em] border flex items-center gap-2 group",
+            (reportType as string) === 'ERROR' 
+              ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20" 
+              : theme === 'light' ? "bg-white border-slate-200 text-slate-500 hover:border-slate-300" : "bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300"
+          )}
+        >
+          <AlertCircle size={12} className={(reportType as string) === 'ERROR' ? "text-white" : "text-rose-500"} />
+          Báo cáo sai sót
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -4489,6 +4560,7 @@ export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'applications' | 'users' | 'resources' | 'reports' | 'settings'>('dashboard');
+  const [reportType, setReportType] = useState<'PROJECT' | 'REGION' | 'LOAN' | 'SLA' | 'PERFORMANCE' | 'ERROR'>('LOAN');
 
   useEffect(() => {
     if (theme === 'light') {
@@ -7112,6 +7184,12 @@ export default function App() {
       issueNotes: note,
       issueType: type,
       issueSeverity: severity,
+      issue_status: 'OPEN',
+      issue_created_at: new Date().toISOString(),
+      issue_resolved_at: null,
+      issue_type: type,
+      issue_severity: severity,
+      issue_notes: note,
       auditTrail: [auditEntry, ...(app.auditTrail || [])]
     };
   };
@@ -7173,8 +7251,13 @@ export default function App() {
     const updatedApp = {
       ...app,
       status: stepConfig[app.currentStep]?.status || 'Processing',
-      issueType: 'None',
+      issueType: 'None' as const,
       issueNotes: '',
+      issue_status: 'RESOLVED' as const,
+      issue_resolved_at: new Date().toISOString(),
+      issue_type: app.issue_type || app.issueType || 'Sai sót Khác',
+      issue_severity: app.issue_severity || app.issueSeverity || 'Trung bình',
+      issue_notes: app.issue_notes || app.issueNotes || app.issueNotes || '',
       isRejected: false,
       history: newHistory
     };
@@ -7222,6 +7305,11 @@ export default function App() {
         issueType: 'None' as const,
         issueSeverity: 'Minor' as const,
         issueNotes: '',
+        issue_status: 'RESOLVED' as const,
+        issue_resolved_at: new Date().toISOString(),
+        issue_type: app.issue_type || app.issueType || 'Sai sót Khác',
+        issue_severity: app.issue_severity || app.issueSeverity || 'Trung bình',
+        issue_notes: app.issue_notes || app.issueNotes || app.issueNotes || '',
         history: newHistory
       };
 
@@ -7393,19 +7481,45 @@ export default function App() {
           nextApp.issueType = 'Sai sót Khác';
         }
         nextApp.status = 'Error';
+        nextApp.issue_type = nextApp.issueType;
+        nextApp.issue_notes = value;
+        nextApp.issue_severity = nextApp.issueSeverity || 'Trung bình';
+        nextApp.issue_status = 'OPEN';
+        nextApp.issue_resolved_at = null;
+        if (!nextApp.issue_created_at) {
+          nextApp.issue_created_at = new Date().toISOString();
+        }
+      }
+
+      if (field === 'issueType') {
+        if (value && value !== 'None') {
+          nextApp.issue_type = value;
+          nextApp.issue_status = 'OPEN';
+          nextApp.issue_resolved_at = null;
+          if (!nextApp.issue_created_at) {
+            nextApp.issue_created_at = new Date().toISOString();
+          }
+        } else {
+          nextApp.issue_status = 'RESOLVED';
+          nextApp.issue_resolved_at = new Date().toISOString();
+        }
+      }
+
+      if (field === 'issueSeverity') {
+        nextApp.issue_severity = value;
       }
       
       if (field === 'currentStep') {
-      const historyItem: ApplicationHistory = {
-        id: Math.random().toString(36).substr(2, 9),
-        timestamp: new Date().toLocaleString('vi-VN'),
-        user: userRole,
-        action: `Chuyển trạng thái sang: ${value}`,
-      };
-      nextApp.history = [historyItem, ...(editApp.history || [])];
-    }
-    
-    setEditApp(nextApp);
+        const historyItem: ApplicationHistory = {
+          id: Math.random().toString(36).substr(2, 9),
+          timestamp: new Date().toLocaleString('vi-VN'),
+          user: userRole,
+          action: `Chuyển trạng thái sang: ${value}`,
+        };
+        nextApp.history = [historyItem, ...(editApp.history || [])];
+      }
+      
+      setEditApp(nextApp);
     } else if (selectedApp) {
       setApplications(prev => prev.map(app => {
         if (app.id === selectedApp.id) {
@@ -7434,7 +7548,34 @@ export default function App() {
               nextApp.issueType = 'Sai sót Khác';
             }
             nextApp.status = 'Error';
+            nextApp.issue_type = nextApp.issueType;
+            nextApp.issue_notes = value;
+            nextApp.issue_severity = nextApp.issueSeverity || 'Trung bình';
+            nextApp.issue_status = 'OPEN';
+            nextApp.issue_resolved_at = null;
+            if (!nextApp.issue_created_at) {
+              nextApp.issue_created_at = new Date().toISOString();
+            }
           }
+
+          if (field === 'issueType') {
+            if (value && value !== 'None') {
+              nextApp.issue_type = value;
+              nextApp.issue_status = 'OPEN';
+              nextApp.issue_resolved_at = null;
+              if (!nextApp.issue_created_at) {
+                nextApp.issue_created_at = new Date().toISOString();
+              }
+            } else {
+              nextApp.issue_status = 'RESOLVED';
+              nextApp.issue_resolved_at = new Date().toISOString();
+            }
+          }
+
+          if (field === 'issueSeverity') {
+            nextApp.issue_severity = value;
+          }
+
           setSelectedApp(nextApp);
           return nextApp;
         }
@@ -8566,18 +8707,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-6">
-            <Link 
-              to="/report" 
-              className={cn(
-                "px-4 py-2 text-xs font-black uppercase tracking-widest rounded-full transition-all active:scale-[0.98] flex items-center gap-2 border",
-                theme === 'light' 
-                  ? "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white" 
-                  : "bg-indigo-950/40 border-indigo-900/40 text-indigo-300 hover:bg-indigo-600 hover:text-white"
-              )}
-            >
-              <FileBarChart size={14} />
-              Báo cáo (/report)
-            </Link>
             <div className="flex items-center gap-2 border-r border-slate-800/20 pr-4">
               <div className="relative group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
@@ -8814,34 +8943,43 @@ export default function App() {
                       onClick={() => handleDashboardClick('PROCESSING_TOTAL')}
                     />
                     <StatCard 
-                      title="Trễ hạn xử lý" 
+                      title="BÁO CÁO TRỄ HẠN" 
                       value={kpis.overdue} 
                       icon={AlertCircle} 
                       colorClass="bg-warning shadow-warning/40" 
                       delay={0.2} 
                       theme={theme} 
                       isActive={dashboardFilter === 'OVERDUE'}
-                      onClick={() => handleDashboardClick('OVERDUE')}
+                      onClick={() => {
+                        setActiveTab('reports');
+                        setReportType('SLA');
+                      }}
                     />
                     <StatCard 
-                      title="Vướng / Sai sót" 
+                      title="BÁO CÁO SAI SÓT" 
                       value={kpis.error} 
                       icon={AlertCircle} 
                       colorClass="bg-error shadow-error/40" 
                       delay={0.3} 
                       theme={theme} 
                       isActive={dashboardFilter === 'ERROR'}
-                      onClick={() => handleDashboardClick('ERROR')}
+                      onClick={() => {
+                        setActiveTab('reports');
+                        setReportType('ERROR');
+                      }}
                     />
                     <StatCard 
-                      title="Căn có vay" 
+                      title="BÁO CÁO HỒ SƠ VAY" 
                       value={applications.filter(a => a.loanStatus === 'Co_Vay').length} 
                       icon={CreditCard} 
                       colorClass="bg-blue-600 shadow-blue-600/40" 
                       delay={0.4} 
                       theme={theme} 
                       isActive={dashboardFilter === 'LOAN'}
-                      onClick={() => handleDashboardClick('LOAN')}
+                      onClick={() => {
+                        setActiveTab('reports');
+                        setReportType('LOAN');
+                      }}
                     />
                   </div>
                 )}
@@ -9971,10 +10109,10 @@ export default function App() {
                     <table className="w-full text-left">
                       <thead>
                         <tr className={cn(
-                          "uppercase transition-all",
-                          theme === 'light' ? "bg-slate-100 text-slate-500" : "bg-slate-950/30 text-slate-500"
+                          "transition-all border-b",
+                          theme === 'light' ? "bg-slate-100/60 border-slate-200/80 text-slate-500" : "bg-slate-950/30 border-slate-800/60 text-slate-400"
                         )}>
-                          <th className="px-2 py-1 text-xs leading-tight w-10">
+                          <th className="px-3 py-2 text-[11px] font-medium leading-tight w-10">
                             <input 
                               type="checkbox" 
                               className="w-4 h-4 rounded border-slate-700 bg-slate-900 accent-festive-gold"
@@ -9985,32 +10123,32 @@ export default function App() {
                               }}
                             />
                           </th>
-                          <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase">Mã lô/căn</th>
-                          <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase">Dự án</th>
-                          <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase">Khách hàng</th>
+                          <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-slate-500 dark:text-slate-400">Mã lô/căn</th>
+                          <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-slate-500 dark:text-slate-400">Dự án</th>
+                          <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-slate-500 dark:text-slate-400">Khách hàng</th>
                           {isSpreadsheetMode ? (
                             EDITABLE_DATE_FIELDS.map(f => (
-                              <th key={f.key} className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase text-center whitespace-nowrap bg-indigo-500/5">{f.label}</th>
+                              <th key={f.key} className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-center whitespace-nowrap bg-indigo-500/5 text-slate-500 dark:text-slate-400">{f.label}</th>
                             ))
                           ) : (
                             <>
-                              <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase">Đối tượng ký</th>
-                              <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase">Trạng thái</th>
-                              <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase text-center">Phòng chủ trì</th>
+                              <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-slate-500 dark:text-slate-400">Đối tượng ký</th>
+                              <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-slate-500 dark:text-slate-400">Trạng thái</th>
+                              <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-center text-slate-500 dark:text-slate-400">Phòng chủ trì</th>
                               {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase text-center">Nộp VPĐK</th>
+                                <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-center text-slate-500 dark:text-slate-400">Nộp VPĐK</th>
                               )}
                               {(userRole === 'PTT' || userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase text-center">Nộp thuế</th>
+                                <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-center text-slate-500 dark:text-slate-400">Nộp thuế</th>
                               )}
                               {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase text-center">Nhận sổ</th>
+                                <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-center text-slate-500 dark:text-slate-400">Nhận sổ</th>
                               )}
-                              <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase text-center">BG Khách</th>
+                              <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-center text-slate-500 dark:text-slate-400">BG Khách</th>
                             </>
                           )}
-                          <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase text-center text-indigo-500">Tài liệu</th>
-                          <th className="px-2 py-1 text-xs leading-tight font-bold tracking-wider uppercase text-center">Hành động</th>
+                          <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-center text-indigo-500">Tài liệu</th>
+                          <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-center text-slate-500 dark:text-slate-400">Hành động</th>
                         </tr>
                       </thead>
                       <tbody className={cn(
@@ -10037,17 +10175,18 @@ export default function App() {
                           </tr>
                         ) : filteredApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map((app, index) => {
                           const overdue = getOverdueInfo(app, stepConfig, slaConfig);
+                          const isEven = index % 2 === 1;
                           return (
                             <tr 
                               key={`${app.id}-${index}`} 
                               className={cn(
                                 "transition-colors cursor-pointer group border-b",
                                 theme === 'light' 
-                                  ? (selectedAppIds.includes(app.id) ? "bg-festive-gold/10" : "hover:bg-slate-50 border-slate-100") 
-                                  : (selectedAppIds.includes(app.id) ? "bg-festive-gold/5" : "hover:bg-slate-800/30 border-slate-800/40")
+                                  ? (selectedAppIds.includes(app.id) ? "bg-festive-gold/15" : (isEven ? "bg-slate-50/50 hover:bg-indigo-50/20 border-slate-100" : "bg-white hover:bg-indigo-50/20 border-slate-100")) 
+                                  : (selectedAppIds.includes(app.id) ? "bg-festive-gold/10" : (isEven ? "bg-slate-900/20 hover:bg-indigo-950/20 border-slate-800/40" : "bg-transparent hover:bg-indigo-950/20 border-slate-800/40"))
                               )}
                             >
-                              <td className="px-2 py-1 text-xs leading-tight" onClick={(e) => e.stopPropagation()}>
+                              <td className="px-3 py-1.5 text-xs leading-tight" onClick={(e) => e.stopPropagation()}>
                                 <input 
                                   type="checkbox" 
                                   className="w-4 h-4 rounded border-slate-700 bg-slate-900 accent-festive-gold"
@@ -10059,7 +10198,7 @@ export default function App() {
                                 />
                               </td>
                               <td 
-                                className="px-2 py-1 text-xs leading-tight" 
+                                className="px-3 py-1.5 text-xs leading-tight" 
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
                                   setQuickEditId(app.id);
@@ -10067,7 +10206,7 @@ export default function App() {
                                 }}
                                 onClick={() => quickEditId !== app.id && setSelectedApp(app)}
                               >
-                                <div className="flex flex-col">
+                                <div className="flex flex-col text-slate-600 dark:text-slate-300">
                                   {quickEditId === app.id ? (
                                     <input 
                                       autoFocus
@@ -10111,13 +10250,13 @@ export default function App() {
                                   )}
                                 </div>
                               </td>
-                              <td className="px-2 py-1 text-xs leading-tight" onClick={() => setSelectedApp(app)}>
-                                <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                              <td className="px-3 py-1.5 text-xs leading-tight font-medium text-slate-600 dark:text-slate-300" onClick={() => setSelectedApp(app)}>
+                                <span className="text-xs font-medium text-slate-600 dark:text-slate-300 truncate block max-w-[200px]" title={app.projectName}>
                                   {app.projectName}
                                 </span>
                               </td>
                               <td 
-                                className="px-2 py-1 text-xs leading-tight" 
+                                className="px-3 py-1.5 text-xs leading-tight" 
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
                                   setQuickEditId(app.id);
@@ -10152,12 +10291,12 @@ export default function App() {
                                         }}
                                       />
                                     ) : (
-                                      <span className={cn("text-xs font-semibold truncate", theme === 'light' ? "text-slate-800" : "text-slate-200")}>{app.customerName}</span>
+                                      <span className={cn("text-xs font-medium truncate", theme === 'light' ? "text-slate-600" : "text-slate-300")}>{app.customerName}</span>
                                     )}
                                     <div className="flex gap-2 mt-0.5 items-center">
-                                      <span className="text-[10px] text-slate-500 italic">{formatDate(app.receivedDate)}</span>
-                                      {app.loanStatus === 'Co_Vay' && <span className="text-[9px] bg-indigo-500/20 text-indigo-600 px-1.5 py-0.5 rounded font-bold uppercase">Có vay</span>}
-                                      {app.isSelfService && <span className="text-[9px] bg-amber-500/20 text-amber-600 px-1.5 py-0.5 rounded font-bold uppercase">Tự làm</span>}
+                                      <span className="text-[10px] text-slate-400 dark:text-slate-500 italic">{formatDate(app.receivedDate)}</span>
+                                      {app.loanStatus === 'Co_Vay' && <span className="text-[9px] bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 px-1.5 py-0.5 rounded font-medium uppercase">Có vay</span>}
+                                      {app.isSelfService && <span className="text-[9px] bg-amber-500/10 text-amber-500 dark:text-amber-400 px-1.5 py-0.5 rounded font-medium uppercase">Tự làm</span>}
                                     </div>
                                   </div>
                                 </div>
@@ -10173,7 +10312,7 @@ export default function App() {
                                     <td 
                                       key={f.key} 
                                       className={cn(
-                                        "px-2 py-1 text-xs leading-tight border-x transition-all relative group/cell",
+                                        "px-3 py-1.5 text-xs leading-tight border-x transition-all relative group/cell",
                                         theme === 'light' ? "border-slate-50" : "border-slate-800/20",
                                         isActive 
                                           ? (theme === 'light' 
@@ -10190,7 +10329,7 @@ export default function App() {
                                         placeholder="dd/mm/yyyy"
                                         className={cn(
                                           "w-full bg-transparent border-none outline-none text-xs leading-tight font-mono text-center placeholder:opacity-30",
-                                          theme === 'light' ? "text-slate-700" : "text-slate-200",
+                                          theme === 'light' ? "text-slate-600" : "text-slate-300",
                                           isActive ? "font-bold" : "",
                                           hasError ? "text-rose-500" : (isChanged ? "text-emerald-400 font-black" : "")
                                         )}
@@ -10263,12 +10402,12 @@ export default function App() {
                                 })
                               ) : (
                                 <>
-                                  <td className="px-2 py-1 text-xs leading-tight" onClick={() => setSelectedApp(app)}>
-                                    <span className={cn("text-xs font-medium", theme === 'light' ? "text-slate-600" : "text-slate-400")}>
+                                  <td className="px-3 py-1.5 text-xs leading-tight text-slate-500 dark:text-slate-400" onClick={() => setSelectedApp(app)}>
+                                    <span className="text-xs font-medium">
                                       {app.contractSignerType || '---'}
                                     </span>
                                   </td>
-                                  <td className="px-2 py-1 text-xs leading-tight" onClick={() => setSelectedApp(app)}>
+                                  <td className="px-3 py-1.5 text-xs leading-tight" onClick={() => setSelectedApp(app)}>
                                     <div className="flex flex-col gap-1">
                                       <StatusBadge status={app.status} app={app} />
                                       {(app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None')) && (
@@ -10299,46 +10438,46 @@ export default function App() {
                                       )}
                                     </div>
                                   </td>
-                                  <td className="px-2 py-1 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
+                                  <td className="px-3 py-1.5 text-xs leading-tight text-center text-slate-400 dark:text-slate-500" onClick={() => setSelectedApp(app)}>
                                       {(() => {
                                         const isSupportSpecial = (app?.projectName?.includes('hỗ trợ') || app?.workflowType === 'Quy_trinh_1') && (app?.currentStep === 'GD2_Cho_Nop_VPDK' || app?.currentStep === 'S3_Nop_VPDK');
                                         const config = (stepConfig[app?.currentStep || ''] || INITIAL_STEP_CONFIG[app?.currentStep || '']);
                                         const dept = isSupportSpecial ? 'KT' : (config?.dept || '---');
                                         return (
-                                          <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                          <span className="text-[10px] font-semibold uppercase tracking-widest">
                                             {dept}
                                           </span>
                                         );
                                       })()}
                                   </td>
                                   {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                    <td className="px-2 py-1 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
-                                      <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.submissionDate)}</span>
+                                    <td className="px-3 py-1.5 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
+                                      <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.submissionDate)}</span>
                                     </td>
                                   )}
                                   {(userRole === 'PTT' || userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                    <td className="px-2 py-1 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
+                                    <td className="px-3 py-1.5 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
                                       <div className="flex flex-col items-center">
-                                        <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>
+                                        <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>
                                           {app.taxReceiptDate ? formatDate(app.taxReceiptDate) : (app.taxNotificationReceivedDate ? 'Chờ nộp' : '---')}
                                         </span>
-                                        <span className={cn("text-[9px] font-bold uppercase", getTaxStatus(app).color)}>
+                                        <span className={cn("text-[8px] px-1 py-0.5 rounded font-bold uppercase", getTaxStatus(app).color)}>
                                           {getTaxStatus(app).label}
                                         </span>
                                       </div>
                                     </td>
                                   )}
                                   {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                    <td className="px-2 py-1 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
-                                      <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.gcnReceivedDate)}</span>
+                                    <td className="px-3 py-1.5 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
+                                      <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.gcnReceivedDate)}</span>
                                     </td>
                                   )}
-                                  <td className="px-2 py-1 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
-                                    <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-400" : "text-slate-500")}>{formatDate(app.customerHandoverDate)}</span>
+                                  <td className="px-3 py-1.5 text-xs leading-tight text-center" onClick={() => setSelectedApp(app)}>
+                                    <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.customerHandoverDate)}</span>
                                   </td>
                                 </>
                               )}
-                              <td className="px-2 py-1 text-xs leading-tight text-center" onClick={(e) => {
+                              <td className="px-3 py-1.5 text-xs leading-tight text-center" onClick={(e) => {
                                 e.stopPropagation();
                                 if (app.scannedFiles && app.scannedFiles.length > 0) {
                                   setPreviewFile(app.scannedFiles[0]);
@@ -10354,7 +10493,7 @@ export default function App() {
                                     <div className="flex flex-col items-center">
                                       <span className="text-[9px] font-black">{app.scannedFiles.length} file</span>
                                       {app.scannedFiles.some(f => f.isShared) && (
-                                        <span className="text-[7px] text-indigo-400 font-black uppercase">🔗 Shared</span>
+                                        <span className="text-[7px] text-indigo-400 font-extrabold uppercase">🔗 Shared</span>
                                       )}
                                     </div>
                                   </div>
@@ -10362,7 +10501,7 @@ export default function App() {
                                   <span className="text-[10px] text-slate-700 font-black opacity-20 italic">Trống</span>
                                 )}
                               </td>
-                              <td className="px-2 py-1 text-xs leading-tight text-center">
+                              <td className="px-3 py-1.5 text-xs leading-tight text-center">
                                 <div className="flex items-center justify-center gap-1">
                                   <button 
                                     onClick={() => setSelectedApp(app)}
@@ -10530,6 +10669,8 @@ export default function App() {
                   setFilterLoanStatus={setFilterLoanStatus}
                   stepConfig={stepConfig}
                   slaConfig={slaConfig}
+                  reportType={reportType}
+                  setReportType={setReportType}
                 />
               </motion.div>
             )}
