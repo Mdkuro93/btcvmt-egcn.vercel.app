@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useDashboardStats } from './modules/dashboard/useDashboardStats';
-import { useApplications } from './modules/applications/useApplications';
 import { calculateSLA } from './utils/statusEngine';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Cell,
@@ -88,6 +87,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { createClient } from '@supabase/supabase-js';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import debounce from 'lodash.debounce';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { MOCK_APPLICATIONS, PROJECTS, STEP_CONFIG as INITIAL_STEP_CONFIG, MOCK_USERS, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS, getNextStep, CONST_QUY_TRINH_1, CONST_QUY_TRINH_2, REGION_ORDER } from './constants';
@@ -140,6 +140,30 @@ function diffDays(date: any) {
   
   return Math.floor((utcNow - utcTarget) / (1000 * 60 * 60 * 24));
 }
+
+/**
+ * Phân loại lỗi để tránh hiển thị thông báo lỗi (popups) không cần thiết
+ * đối với các cảnh báo về hiệu năng hoặc lỗi browser benign.
+ */
+const isCriticalError = (error: any): boolean => {
+  const msg = (error?.message || String(error)).toLowerCase();
+
+  // Suppress common performance and non-breaking browser errors
+  if (
+    msg.includes('requestanimationframe') ||
+    msg.includes('resizeobserver') ||
+    msg.includes('timeout') ||
+    msg.includes('network request failed') ||
+    msg.includes('-1') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('user aborted') ||
+    msg.includes('script error')
+  ) {
+    return false;
+  }
+
+  return true;
+};
 
 const buildFlags = (app: any): string[] => {
   const flags: string[] = [];
@@ -334,7 +358,7 @@ const useSelfHealingData = (applications: Application[], setApplications: (apps:
           setApplications(updatedApps);
         } catch (error) {
           console.error('[Self-Healing] Error fixing records:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) alert('Có lỗi xảy ra, vui lòng thử lại');
      }
       };
 
@@ -561,7 +585,7 @@ const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplicati
     return updatedAppsLocal;
   } catch (error) {
     console.error('Lỗi nghiêm trọng trong quá trình bulk sync:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) alert('Có lỗi xảy ra, vui lòng thử lại');
      throw error;
   }
 };
@@ -703,7 +727,7 @@ const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserPr
       alert('Tên đăng nhập hoặc mật khẩu không chính xác!');
     } catch (err) {
       console.error('System login error:', err);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(err)) alert('Có lỗi xảy ra, vui lòng thử lại');
      alert('Đã xảy ra lỗi hệ thống khi đăng nhập!');
     } finally {
       setIsLoading(false);
@@ -2917,7 +2941,7 @@ const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewFileMobile, setPreviewFileMobile] = useState<ScannedFile | null>(null);
   
-  const filteredApps = useMemo(() => applications.filter(a => {
+  const applicationsForTable = useMemo(() => applications.filter(a => {
     const matchesSearch = String(a.unitCode || '').toLowerCase().includes(search.toLowerCase()) || 
                          String(a.customerName || '').toLowerCase().includes(search.toLowerCase()) ||
                          String(a.projectName || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -2991,8 +3015,8 @@ const FieldModeView = ({ applications, projects, onUpdateApp, theme, onExit }: {
        </div>
 
        <div className="space-y-4 pb-24 text-left">
-          {filteredApps.length > 0 ? (
-            filteredApps.map(app => (
+          {applicationsForTable.length > 0 ? (
+            applicationsForTable.map(app => (
               <div 
                 key={app.id} 
                 onClick={() => setSelectedApp(app)}
@@ -4581,6 +4605,35 @@ export default function App() {
   
   const [search, setSearch] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+
+  // Global Error Handling Setup
+  useEffect(() => {
+    const handleGlobalError = (event: ErrorEvent) => {
+      // Ignored non-critical errors to prevent annoying popups
+      if (!isCriticalError(event.error || event.message)) {
+        event.preventDefault();
+        console.warn('Suppressed non-critical global error:', event.message);
+        return;
+      }
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (!isCriticalError(event.reason)) {
+        event.preventDefault();
+        console.warn('Suppressed non-critical unhandled rejection:', event.reason);
+        return;
+      }
+    };
+
+    window.addEventListener('error', handleGlobalError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener('error', handleGlobalError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
+
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'applications' | 'users' | 'resources' | 'reports' | 'settings'>('dashboard');
   const [reportType, setReportType] = useState<'PROJECT' | 'REGION' | 'LOAN' | 'SLA' | 'PERFORMANCE' | 'ERROR'>('LOAN');
@@ -4698,33 +4751,14 @@ export default function App() {
     });
   });
 
-  const enrichedDashboardApps = useMemo(() => {
-    return (dashboardApps || []).map(a => ({
-      ...a,
-      _sla: calculateSLA(a)
-    }));
-  }, [dashboardApps]);
-
-  const stats = useDashboardStats(enrichedDashboardApps);
-  const filteredApps = useApplications(
-    enrichedDashboardApps, 
-    dashboardFilter,
-    search,
-    filterStatus,
-    filterLoanStatus,
-    filterSelfService,
-    filterIssue,
-    currentUser?.dept,
-    filterSLAStatus,
-    selectedFlags
-  );
-
-  useEffect(() => {
-    if (filteredApps.length !== totalCount) {
-      setTotalCount(filteredApps.length);
-    }
-  }, [filteredApps.length]);
+  const stats = useDashboardStats(dashboardApps);
   
+  // PRIMARY DATA SOURCE FOR TABLE: 
+  // Use 'applications' (paginated from server) instead of 'applicationsForTable' (client-filtered full list)
+  const applicationsForTable = useMemo(() => {
+    return applications; // Already filtered on server in fetchApplications
+  }, [applications]);
+
   const handleUpdatePassword = async () => {
     if (!currentUser?.username) {
       showToast('Không tìm thấy thông tin phiên đăng nhập hiện tại.', 'error');
@@ -4754,7 +4788,7 @@ export default function App() {
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (error: any) {
       console.error('Lỗi đổi mật khẩu:', error.message);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast(`Đổi mật khẩu thất bại: ${error.message || 'Lỗi hệ thống'}`, 'error');
     } finally {
       setIsSavingApp(false);
@@ -4831,7 +4865,7 @@ export default function App() {
       });
     } catch (error) {
       console.error('Error fetching storage stats:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      } finally {
       setIsFetchingStorage(false);
     }
@@ -4853,11 +4887,14 @@ export default function App() {
         const usersRes = responses[0].status === 'fulfilled' ? responses[0].value : { data: null, error: (responses[0] as any).reason };
         const configRes = responses[1].status === 'fulfilled' ? responses[1].value : { data: null, error: (responses[1] as any).reason };
 
-        if (usersRes.error) console.error('Error fetching users:', usersRes.error);
-        alert('Có lỗi xảy ra, vui lòng thử lại');
-        if (configRes.error) console.error('Error fetching config:', configRes.error);
-
-        alert('Có lỗi xảy ra, vui lòng thử lại');
+        if (usersRes.error) {
+          console.error('Error fetching users:', usersRes.error);
+          if (isCriticalError(usersRes.error)) showToast('Lỗi khi tải thông tin người dùng', 'error');
+        }
+        if (configRes.error) {
+          console.error('Error fetching config:', configRes.error);
+          if (isCriticalError(configRes.error)) showToast('Lỗi khi tải cấu hình hệ thống', 'error');
+        }
 
         const usersData = usersRes.data;
         const configData = configRes.data;
@@ -4925,7 +4962,7 @@ export default function App() {
         setIsInitialLoading(false);
       } catch (e) {
          console.error('Error initializing:', e);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(e)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      setIsLoadingConfig(false);
          setIsInitialLoading(false);
          setApplications(MOCK_APPLICATIONS);
@@ -5061,7 +5098,7 @@ export default function App() {
       setTotalCount(count || 0);
     } catch (error) {
       console.error('Error fetching paginated records:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      setApplications([]);
       setTotalCount(0);
       // Suppress UI error to keep dashboard smooth
@@ -5070,17 +5107,20 @@ export default function App() {
     }
   };
 
+  // Use debounced fetch to avoid unnecessary API calls during rapid typing/filtering
+  const debouncedFetchApplications = useMemo(
+    () => debounce(() => fetchApplications(), 400),
+    [fetchApplications]
+  );
+
   useEffect(() => {
     setCurrentPage(0);
   }, [search, selectedProjectId, filterStatus, filterLoanStatus, filterSelfService, filterIssue, dashboardFilter, filterSLAStatus, selectedFlags]);
 
   useEffect(() => {
-    const handler = setTimeout(() => {
-      fetchApplications();
-    }, 400);
-    
-    return () => clearTimeout(handler);
-  }, [search, currentPage, pageSize, selectedProjectId, filterStatus, filterLoanStatus, filterSelfService, filterIssue, dashboardFilter, filterSLAStatus]);
+    debouncedFetchApplications();
+    return () => debouncedFetchApplications.cancel();
+  }, [search, currentPage, pageSize, selectedProjectId, filterStatus, filterLoanStatus, filterSelfService, filterIssue, dashboardFilter, filterSLAStatus, debouncedFetchApplications]);
 
   useEffect(() => {
     if (activeTab === 'applications') {
@@ -5091,12 +5131,12 @@ export default function App() {
   const fetchDashboardApps = async () => {
     setIsLoadingDashboard(true);
     try {
-      // Fetch ALL records for dashboard stats, ignoring pagination and filters
-      let query = supabase.from('records').select('*');
+      // PRO TIP: To handle 10k+ records, we ONLY select minimal columns for stats/charts.
+      // This drastically reduces payload size and memory usage.
+      let query = supabase.from('records').select('id, project_name, status, loan_status, issue_type, is_rejected, current_step, submission_date, tax_notification_date, tax_receipt_date, gcn_signed_date, gcn_received_date, contract_signing_date, received_date, accounting_handover_date, ptda_handover_date, customer_handover_date, commitment_date');
       
       const currentUserRole = currentUser?.dept || 'PTT';
       
-      // We still respect project filtering if set, but we fetch ALL records within that scope
       if (selectedProjectId) {
         const currentSelectedProject = projects.find(p => p.id === selectedProjectId);
         if (currentSelectedProject) {
@@ -5114,11 +5154,21 @@ export default function App() {
 
       const { data, error } = await query;
       if (error) throw error;
-      setDashboardApps((data || []).map(mapFromSnakeCase));
+      
+      // Compute SLA once during fetch to avoid re-calculating in render loops
+      const mapped = (data || []).map(item => {
+        const app = mapFromSnakeCase(item);
+        return {
+          ...app,
+          _sla: calculateSLA(app) // Cache SLA info on the object
+        };
+      });
+      
+      setDashboardApps(mapped);
     } catch (error) {
       console.error('Error fetching dashboard records:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
-     setDashboardApps([]);
+      showToast('Không thể tải dữ liệu dashboard', 'error');
+      setDashboardApps([]);
     } finally {
       setIsLoadingDashboard(false);
     }
@@ -5164,7 +5214,7 @@ export default function App() {
       setNotifications(prev => prev.filter(n => n.appId !== recordId));
     } catch (error) {
       console.error('Error deleting notifications for record:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      }
   };
 
@@ -5178,7 +5228,7 @@ export default function App() {
       setNotifications(prev => prev.filter(n => n.id !== id));
     } catch (error) {
       console.error('Error deleting notification:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      }
   };
 
@@ -5193,7 +5243,7 @@ export default function App() {
       showToast('Đã xóa toàn bộ thông báo hệ thống.', 'success');
     } catch (error) {
       console.error('Error clearing all notifications:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi dọn dẹp thông báo.', 'error');
     }
   };
@@ -5240,7 +5290,7 @@ export default function App() {
       fetchStorageUsage();
     } catch (e) {
       console.error('Error cleaning up junk files:', e);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(e)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Có lỗi xảy ra khi dọn dẹp file rác.', 'error');
     } finally {
       setIsLoadingConfig(false);
@@ -5262,7 +5312,7 @@ export default function App() {
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      }
   };
 
@@ -5273,7 +5323,7 @@ export default function App() {
       if (error) throw error;
     } catch (error) {
       console.error('Error creating notification:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      }
   };
 
@@ -5309,7 +5359,7 @@ export default function App() {
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
     } catch (error) {
       console.error('Error marking notification as read:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      }
   };
 
@@ -5326,7 +5376,7 @@ export default function App() {
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
     } catch (error) {
       console.error('Error marking all as read:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      }
   };
 
@@ -5497,7 +5547,7 @@ export default function App() {
 
       // Table keyboard navigation for 'applications' tab
       if (activeTab === 'applications' && !isInputFocused && !selectedApp) {
-        const visibleApps = filteredApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+        const visibleApps = applicationsForTable;
         
         if (e.key === 'ArrowDown') {
           e.preventDefault();
@@ -5551,17 +5601,17 @@ export default function App() {
         // Ctrl + A: Select all filtered rows
         if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
           e.preventDefault();
-          const allIds = filteredApps.map(a => a.id);
+          const allIds = applicationsForTable.map(a => a.id);
           setSelectedRows(new Set(allIds));
           setSelectedAppIds(allIds);
-          showToast(`Đã chọn tất cả ${filteredApps.length} hồ sơ`, 'success');
+          showToast(`Đã chọn tất cả ${applicationsForTable.length} hồ sơ`, 'success');
         }
 
         // Ctrl + C: Copy selected rows to clipboard for Excel
         if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
           if (selectedRows.size > 0) {
             e.preventDefault();
-            const rowsToCopy = filteredApps.filter(app => selectedRows.has(app.id));
+            const rowsToCopy = applicationsForTable.filter(app => selectedRows.has(app.id));
             
             const header = ['Dự án', 'Mã căn', 'Tên khách hàng', 'Trạng thái', 'Tiến độ'].join('\t');
             const dataRows = rowsToCopy.map(r => [
@@ -5582,9 +5632,14 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedApp, isEditing, currentUser, activeTab, filteredApps, selectedIndex, selectedRows, lastSelectedIndex, currentPage, pageSize, isProjectModalOpen]);
+  }, [selectedApp, isEditing, currentUser, activeTab, applicationsForTable, selectedIndex, selectedRows, lastSelectedIndex, currentPage, pageSize, isProjectModalOpen]);
+
 
   const showToast = (message: string, type: 'success' | 'error' | 'warning' = 'success') => {
+    if (type === 'error' && !isCriticalError(message)) {
+      console.warn('Suppressed non-critical toast:', message);
+      return;
+    }
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
@@ -5611,7 +5666,7 @@ export default function App() {
       showToast(`Đã lưu cấu hình ${key} lên Supabase thành công!`, 'success');
     } catch (error) {
       console.error(`Supabase config save error (${key}):`, error);
-      alert('Có lỗi xảy ra, vui lòng thử lại');
+      if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
       showToast(`Lỗi khi lưu cấu hình ${key} lên Supabase.`, 'error');
     } finally {
       setIsSavingApp(false);
@@ -5665,7 +5720,7 @@ export default function App() {
       setQuickEditData({});
     } catch (error) {
       console.error('Quick save error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi cập nhật nhanh lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -5731,7 +5786,7 @@ export default function App() {
         showToast(`Đã báo cáo sai sót cho ${apps.length} hồ sơ thành công.`, 'success');
     } catch(e) {
         console.error(e);
-        alert('Có lỗi xảy ra, vui lòng thử lại');
+        if (isCriticalError(e)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
         showToast('Lỗi khi ghi nhận sai sót hàng loạt.', 'error');
     } finally {
         setIsSavingApp(false);
@@ -5830,14 +5885,14 @@ export default function App() {
     const newChanges = { ...spreadsheetChanges };
     const newErrors = { ...spreadsheetErrors };
     
-    const startIdx = filteredApps.findIndex(a => a.id === startId);
+    const startIdx = applicationsForTable.findIndex(a => a.id === startId);
     if (startIdx === -1) return;
     
     const startFieldIdx = EDITABLE_DATE_FIELDS.findIndex(f => f.key === startField);
 
     rows.forEach((row, ri) => {
       const columns = row.split('\t');
-      let targetApp: Application | undefined = filteredApps[startIdx + ri];
+      let targetApp: Application | undefined = applicationsForTable[startIdx + ri];
       let rowData = columns;
       let fieldOffset = startFieldIdx;
 
@@ -6030,7 +6085,7 @@ export default function App() {
       }
     } catch (error: any) {
       console.error('Spreadsheet bulk update error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast(`Lỗi khi cập nhật hàng loạt: ${error.message || 'Lỗi không xác định'}`, 'error');
     } finally {
       setIsSavingApp(false);
@@ -6453,7 +6508,7 @@ export default function App() {
       showToast('Đã cập nhật thông tin hồ sơ và đồng bộ Supabase thành công!', 'success');
     } catch (error: any) {
       console.error('Supabase update error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast(`Lỗi khi lưu dữ liệu lên Supabase: ${error.message || 'Vui lòng kiểm tra cấu hình.'}`, 'error');
     } finally {
       setIsSavingApp(false);
@@ -6480,7 +6535,7 @@ export default function App() {
         }
       } catch (err) {
         console.error('Catch error in storage bulk delete:', err);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(err)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      }
     }
   };
@@ -6518,7 +6573,7 @@ export default function App() {
         showToast('Đã xóa hồ sơ và tài liệu đính kèm thành công', 'success');
       } catch (error) {
         console.error('Supabase delete error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi xóa dữ liệu trên Supabase.', 'error');
       } finally {
         setIsSavingApp(false);
@@ -6730,7 +6785,7 @@ export default function App() {
       showToast(`Đã chuyển hồ sơ sang bước: ${(stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label} (Đã đồng bộ Supabase)`, 'success');
     } catch (error) {
       console.error('Supabase transition error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi cập nhật trạng thái lên Supabase.', 'error');
     }
   };
@@ -7015,7 +7070,7 @@ export default function App() {
       showToast(`Đã xử lý hàng loạt ${actuallyUpdatedCount} hồ sơ lên Supabase thành công.`, 'success');
     } catch (error) {
       console.error('Supabase bulk transition error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi cập nhật hàng loạt lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -7041,7 +7096,7 @@ export default function App() {
       setSelectedAppIds([]);
     } catch (err) {
       console.error('Error reporting bulk issue:', err);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(err)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Có lỗi xảy ra khi ghi nhận vướng mắc hàng loạt.', 'error');
     }
   };
@@ -7077,7 +7132,7 @@ export default function App() {
       showToast(`Đã xóa hàng loạt ${count} hồ sơ và tài liệu đính kèm thành công.`, 'success');
     } catch (error) {
       console.error('Supabase bulk delete error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi xóa hàng loạt trên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -7108,7 +7163,7 @@ export default function App() {
       setSelectedAppIds([]);
     } catch (error) {
       console.error('Supabase bulk note update error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi cập nhật ghi chú lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -7168,7 +7223,7 @@ export default function App() {
       showToast(`Đã tải tài liệu "${file.name}" lên Supabase Storage thành công.`, 'success');
     } catch (error) {
       console.error('Supabase file upload error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi tải tài liệu lên Supabase. Vui lòng kiểm tra quyền và bucket "Documents-GCN".', 'error');
     } finally {
       setIsSavingApp(false);
@@ -7214,7 +7269,7 @@ export default function App() {
       showToast(fileToDelete?.isShared ? 'Đã gỡ bỏ bản sao tài liệu chung.' : 'Đã xóa tài liệu khỏi hệ thống thành công.', 'success');
     } catch (error) {
       console.error('Supabase file delete error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi xóa tài liệu.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -7285,7 +7340,7 @@ export default function App() {
       setSelectedAppIds([]);
     } catch (error) {
       console.error('Bulk file upload error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi tải tài liệu chung lên.', 'error');
     } finally {
       setIsUploadingShared(false);
@@ -7367,7 +7422,7 @@ export default function App() {
       showToast('Đã ghi nhận sai sót và đồng bộ Supabase thành công.', 'warning');
     } catch (error) {
       console.error('Supabase report error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi ghi nhận sai sót lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -7414,7 +7469,7 @@ export default function App() {
       showToast('Đã phục hồi trạng thái và đồng bộ Supabase thành công.', 'success');
     } catch (error) {
       console.error('Supabase resolve error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi lưu trạng thái phục hồi lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -7464,7 +7519,7 @@ export default function App() {
       showToast('Đã xác nhận khắc phục xong vướng khoán.', 'success');
     } catch (error) {
       console.error(error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi cập nhật trạng thái.', 'error');
     }
   };
@@ -7536,7 +7591,7 @@ export default function App() {
       showToast('Hồ sơ đã được trả về giai đoạn 1 và cập nhật Supabase thành công.', 'warning');
     } catch (error) {
       console.error('Supabase reject error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi lưu yêu cầu bổ sung lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -7824,7 +7879,7 @@ export default function App() {
       setActiveTab('applications');
     } catch (error: any) {
       console.error('Supabase insert error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast(`Lỗi khi lưu hồ sơ mới lên Supabase: ${error.message || ''}`, 'error');
     } finally {
       setIsSavingApp(false);
@@ -7853,7 +7908,7 @@ export default function App() {
       showToast('Đã thêm người dùng mới và đồng bộ Supabase thành công!', 'success');
     } catch (error: any) {
       console.error('Supabase create user error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast(`Lỗi khi tạo người dùng lên Supabase: ${error.message || ''}`, 'error');
     } finally {
       setIsSavingApp(false);
@@ -7874,7 +7929,7 @@ export default function App() {
       showToast('Đã cập nhật thông tin người dùng lên Supabase thành công!', 'success');
     } catch (error: any) {
       console.error('Supabase update user error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast(`Lỗi khi cập nhật người dùng: ${error.message || ''}`, 'error');
     } finally {
       setIsSavingApp(false);
@@ -7891,7 +7946,7 @@ export default function App() {
       showToast('Đã xóa người dùng khỏi Supabase!', 'success');
     } catch (error) {
       console.error('Supabase delete user error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi xóa người dùng.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -7909,7 +7964,7 @@ export default function App() {
       showToast(`Đã reset mật khẩu cho @${u.username} thành 123456`, 'success');
     } catch (error) {
       console.error('Supabase reset password error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi reset mật khẩu.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -8223,10 +8278,10 @@ export default function App() {
         const target = e.target as HTMLElement;
         if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
           e.preventDefault();
-          if (selectedAppIds.length === filteredApps.length) {
+          if (selectedAppIds.length === applicationsForTable.length) {
             setSelectedAppIds([]);
           } else {
-            setSelectedAppIds(filteredApps.map(a => a.id));
+            setSelectedAppIds(applicationsForTable.map(a => a.id));
           }
         }
       }
@@ -9820,7 +9875,7 @@ export default function App() {
                         </button>
                       </div>
                       <div className="text-[11px] text-slate-500 italic">
-                        Hiển thị {filteredApps.length} hồ sơ trên trang / Tổng {totalCount} hồ sơ {selectedProject ? `thuộc ${selectedProject.name}` : 'toàn vùng'} (có lọc)
+                        Hiển thị {applicationsForTable.length} hồ sơ trên trang / Tổng {totalCount} hồ sơ {selectedProject ? `thuộc ${selectedProject.name}` : 'toàn vùng'} (có lọc)
                       </div>
 
                       {/* Hiển thị dòng trạng thái filter */}
@@ -10313,7 +10368,7 @@ export default function App() {
                                </div>
                             </td>
                           </tr>
-                        ) : filteredApps.length === 0 ? (
+                        ) : applicationsForTable.length === 0 ? (
                           <tr>
                             <td colSpan={13} className="px-6 py-12 text-center text-slate-500 italic font-medium">
                                <div className="flex flex-col items-center gap-4 opacity-40">
@@ -10322,7 +10377,7 @@ export default function App() {
                                </div>
                             </td>
                           </tr>
-                        ) : filteredApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map((app, index) => {
+                        ) : applicationsForTable.map((app, index) => {
                           const overdue = getOverdueInfo(app, stepConfig, slaConfig);
                           const isEven = index % 2 === 1;
                           const isFocused = selectedIndex === index;
@@ -10341,7 +10396,7 @@ export default function App() {
                               onClick={(e) => {
                                 setSelectedIndex(index);
                                 if (e.shiftKey && lastSelectedIndex !== null) {
-                                  const visibleApps = filteredApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+                                  const visibleApps = applicationsForTable;
                                   const start = Math.min(lastSelectedIndex, index);
                                   const end = Math.max(lastSelectedIndex, index);
                                   const newSelection = new Set(selectedRows);
@@ -10527,20 +10582,20 @@ export default function App() {
                                             
                                             // ArrowUp/Down/Left/Right/Enter and Tab/ShiftTab
                                             e.preventDefault();
-                                            const currentIdx = filteredApps.findIndex(a => a.id === app.id);
+                                            const currentIdx = applicationsForTable.findIndex(a => a.id === app.id);
                                             const currentFldIdx = EDITABLE_DATE_FIELDS.findIndex(fd => fd.key === f.key);
                                             
                                             let nextId = app.id;
                                             let nextFld = f.key;
-                                            const isLastRow = currentIdx === filteredApps.length - 1;
+                                            const isLastRow = currentIdx === applicationsForTable.length - 1;
                                             const isFirstRow = currentIdx === 0;
                                             const isLastField = currentFldIdx === EDITABLE_DATE_FIELDS.length - 1;
                                             const isFirstField = currentFldIdx === 0;
 
                                             if (e.key === 'ArrowUp' && !isFirstRow) {
-                                              nextId = filteredApps[currentIdx - 1].id;
+                                              nextId = applicationsForTable[currentIdx - 1].id;
                                             } else if ((e.key === 'ArrowDown' || e.key === 'Enter') && !isLastRow) {
-                                              nextId = filteredApps[currentIdx + 1].id;
+                                              nextId = applicationsForTable[currentIdx + 1].id;
                                             } else if (e.key === 'ArrowLeft' && !isFirstField) {
                                               nextFld = EDITABLE_DATE_FIELDS[currentFldIdx - 1].key;
                                             } else if (e.key === 'ArrowRight' && !isLastField) {
@@ -10548,7 +10603,7 @@ export default function App() {
                                             } else if (isTab && !isShiftTab) {
                                               if (isLastField) {
                                                 if (!isLastRow) {
-                                                  nextId = filteredApps[currentIdx + 1].id;
+                                                  nextId = applicationsForTable[currentIdx + 1].id;
                                                   nextFld = EDITABLE_DATE_FIELDS[0].key;
                                                 }
                                               } else {
@@ -10557,7 +10612,7 @@ export default function App() {
                                             } else if (isShiftTab) {
                                               if (isFirstField) {
                                                 if (!isFirstRow) {
-                                                  nextId = filteredApps[currentIdx - 1].id;
+                                                  nextId = applicationsForTable[currentIdx - 1].id;
                                                   nextFld = EDITABLE_DATE_FIELDS[EDITABLE_DATE_FIELDS.length - 1].key;
                                                 }
                                               } else {
@@ -10826,7 +10881,7 @@ export default function App() {
                         setProjects(updatedProjects);
                       } catch (error) {
                         console.error('Delete project error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi xóa dự án.', 'error');
                       }
                     }
@@ -12542,7 +12597,7 @@ export default function App() {
               showToast('Đã lưu danh mục dự án lên Supabase thành công!', 'success');
             } catch (error) {
               console.error('Save project error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     if (isCriticalError(error)) showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      showToast('Lỗi khi lưu dự án lên Supabase.', 'error');
             } finally {
               setIsSavingApp(false);
