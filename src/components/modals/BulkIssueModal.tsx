@@ -96,9 +96,9 @@ export default function BulkIssueModal({
           <div className="space-y-2">
             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Mức độ nghiêm trọng</label>
             <div className="flex gap-2">
-              {(['Nghiêm trọng', 'Cao', 'Trung bình', 'Thấp'] as IssueSeverity[]).map((s, idx) => (
+              {(['Nghiêm trọng', 'Cao', 'Trung bình', 'Thấp'] as IssueSeverity[]).map((s) => (
                 <button
-                  key={idx}
+                  key={`severity-${s}`}
                   type="button"
                   onClick={() => onChangeSeverity(s)}
                   className={cn(

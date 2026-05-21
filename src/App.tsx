@@ -2686,11 +2686,15 @@ export default function App() {
     const app = editApp || selectedApp;
     if (!app) return;
 
-    // Self-Service Priority Override: Jump to HANDOVER (Hoan_Tat) from PTT, PTDA, or KT
-    const currentStepDept = (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.dept;
-    if (app.isSelfService && ['PTT', 'PTDA', 'KT'].includes(currentStepDept as any)) {
+    // --- PRIORITIZED SELF-SERVICE JUMP LOGIC (At the absolute top) ---
+    const currStepCfg = stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep];
+    const currentStepDept = currStepCfg?.dept;
+    const isSelfServiceJumpEligible = app.isSelfService && ['PTT', 'PTDA', 'KT'].includes(currentStepDept as any);
+
+    if (isSelfServiceJumpEligible) {
       nextStep = 'Hoan_Tat';
     }
+    // -------------------------------------------------------------
     
     // Allow transition if returning (nextIdx < currentIdx) even if there are errors, 
     // because returning is often the way to flag an error.
@@ -2707,10 +2711,8 @@ export default function App() {
     // Field validations
     if (isMovingForward) {
       if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
-        const isSelfServiceJump = app.isSelfService && ['PTT', 'PTDA', 'KT'].includes(currentStepDept as any);
-        if (nextIdx > currentIdx + 1 && !isSelfServiceJump) {
-          showToast('Không được nhảy cóc quá trình. Vui lòng chuyển đúng bước tuần tự.', 'error');
-          // We can allow ADMIN/MANAGER to jump steps, but others must be step by step.
+        if (nextIdx > currentIdx + 1 && !isSelfServiceJumpEligible) {
+          showToast('Hồ sơ yêu cầu chuyển bước tuần tự (trừ hồ sơ khách tự làm sổ).', 'error');
           return;
         }
       }
@@ -2991,18 +2993,20 @@ export default function App() {
         const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
         const currentIdx = workflowSteps.indexOf(app.currentStep);
         
-        // Self-service jump override for bulk too
+        // --- PRIORITIZED SELF-SERVICE JUMP LOGIC (Bulk) ---
         let recordNextStep = nextStep;
-        const currentDept = (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.dept;
-        if (app.isSelfService && ['PTT', 'PTDA', 'KT'].includes(currentDept as any)) {
+        const currentStepCfg = stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep];
+        const currentDept = currentStepCfg?.dept;
+        const isSelfServiceJumpEligible = app.isSelfService && ['PTT', 'PTDA', 'KT'].includes(currentDept as any);
+
+        if (isSelfServiceJumpEligible) {
           recordNextStep = 'Hoan_Tat';
         }
         
         const nextIdx = workflowSteps.indexOf(recordNextStep);
         
         if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
-          const isSelfServiceJump = app.isSelfService && ['PTT', 'PTDA', 'KT'].includes(currentDept as any);
-          if (nextIdx !== currentIdx + 1 && !isSelfServiceJump) {
+          if (nextIdx !== currentIdx + 1 && !isSelfServiceJumpEligible) {
             return app;
           }
         }
@@ -3015,7 +3019,7 @@ export default function App() {
           (appWithDate as any)[bulkTransitionField.key] = dateValue;
         }
 
-        if (['S4_Cho_Thong_Bao_Thue', 'S3_Nop_VPDK', 'GD3_Cho_TBThue', 'GD1_Nop_VPDK', 'GD2_Cho_Nop_VPDK'].includes(nextStep)) {
+        if (['S4_Cho_Thong_Bao_Thue', 'S3_Nop_VPDK', 'GD3_Cho_TBThue', 'GD1_Nop_VPDK', 'GD2_Cho_Nop_VPDK'].includes(recordNextStep)) {
           if (location) appWithDate.submissionLocation = location as any;
           if (refCode) appWithDate.vpdkCode = refCode;
         }
@@ -6020,7 +6024,7 @@ export default function App() {
                             <div className="flex flex-wrap gap-2 items-center flex-1">
                               {activeFilters.map((act, idx) => (
                                 <span 
-                                  key={idx}
+                                  key={`filter-tag-${idx}-${act.label}`}
                                   className={cn(
                                     "inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-bold border transition-all shadow-sm",
                                     theme === 'light' ? "bg-white border-slate-300/40 text-slate-800" : "bg-slate-900/60 border-slate-800 text-slate-200"
@@ -6430,7 +6434,7 @@ export default function App() {
                           
                           return (
                             <tr 
-                              key={`${app.id}-${index}`} 
+                              key={`app-row-${app.id}-${currentPage}-${index}`} 
                               className={cn(
                                 "transition-all cursor-pointer group border-b relative",
                                 isFocused && (theme === 'light' ? "ring-2 ring-indigo-500/50 z-10" : "ring-2 ring-indigo-400/50 z-10"),
