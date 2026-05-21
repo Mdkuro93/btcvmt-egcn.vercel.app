@@ -2685,6 +2685,12 @@ export default function App() {
   const handleStepTransition = async (nextStep: StepName, note?: string) => {
     const app = editApp || selectedApp;
     if (!app) return;
+
+    // Self-Service Priority Override: Jump to HANDOVER (Hoan_Tat) from PTT, PTDA, or KT
+    const currentStepDept = (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.dept;
+    if (app.isSelfService && ['PTT', 'PTDA', 'KT'].includes(currentStepDept as any)) {
+      nextStep = 'Hoan_Tat';
+    }
     
     // Allow transition if returning (nextIdx < currentIdx) even if there are errors, 
     // because returning is often the way to flag an error.
@@ -2701,7 +2707,8 @@ export default function App() {
     // Field validations
     if (isMovingForward) {
       if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
-        if (nextIdx > currentIdx + 1) {
+        const isSelfServiceJump = app.isSelfService && ['PTT', 'PTDA', 'KT'].includes(currentStepDept as any);
+        if (nextIdx > currentIdx + 1 && !isSelfServiceJump) {
           showToast('Không được nhảy cóc quá trình. Vui lòng chuyển đúng bước tuần tự.', 'error');
           // We can allow ADMIN/MANAGER to jump steps, but others must be step by step.
           return;
@@ -2773,14 +2780,6 @@ export default function App() {
     let targetStep = nextStep;
     if (app.currentStep === 'S3_Nop_VPDK' && isMovingForward && nextStep === 'S4_Cho_Thong_Bao_Thue') {
       targetStep = 'S5_Tai_Chinh_Khach_Hang';
-    }
-
-    const intermediateSteps: StepName[] = [
-      'S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK',
-      'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach'
-    ];
-    if (app.isSelfService && intermediateSteps.includes(nextStep)) {
-      targetStep = 'Hoan_Tat';
     }
 
     const nowStr = new Date().toISOString().split('T')[0];
@@ -2991,10 +2990,19 @@ export default function App() {
         // This prevents the issue where one dept accepts apps that haven't been handed over by the previous dept
         const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
         const currentIdx = workflowSteps.indexOf(app.currentStep);
-        const nextIdx = workflowSteps.indexOf(nextStep);
+        
+        // Self-service jump override for bulk too
+        let recordNextStep = nextStep;
+        const currentDept = (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.dept;
+        if (app.isSelfService && ['PTT', 'PTDA', 'KT'].includes(currentDept as any)) {
+          recordNextStep = 'Hoan_Tat';
+        }
+        
+        const nextIdx = workflowSteps.indexOf(recordNextStep);
         
         if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
-          if (nextIdx !== currentIdx + 1) {
+          const isSelfServiceJump = app.isSelfService && ['PTT', 'PTDA', 'KT'].includes(currentDept as any);
+          if (nextIdx !== currentIdx + 1 && !isSelfServiceJump) {
             return app;
           }
         }
@@ -3018,15 +3026,7 @@ export default function App() {
           chronoErrors.push(`Căn ${appWithDate.unitCode}: ${chronoError}`);
         }
         
-        let targetStep = nextStep;
-
-        const intermediateSteps: StepName[] = [
-          'S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK',
-          'S4_Cho_Thong_Bao_Thue', 'S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach'
-        ];
-        if (appWithDate.isSelfService && intermediateSteps.includes(nextStep)) {
-          targetStep = 'Hoan_Tat';
-        }
+        let targetStep = recordNextStep;
         
         const prevHistory = [...appWithDate.history];
         if (prevHistory.length > 0) {
