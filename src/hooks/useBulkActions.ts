@@ -54,7 +54,6 @@ export function useBulkActions({
       setSelectedAppIds([]);
     } catch (error: any) {
       console.error('Supabase bulk note update error:', error);
-      alert('Có lỗi xảy ra, vui lòng thử lại');
       showToast('Lỗi khi cập nhật ghi chú lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -81,7 +80,6 @@ export function useBulkActions({
       setSelectedAppIds([]);
     } catch (err) {
       console.error('Error reporting bulk issue:', err);
-      alert('Có lỗi xảy ra, vui lòng thử lại');
       showToast('Có lỗi xảy ra khi ghi nhận vướng mắc hàng loạt.', 'error');
     } finally {
       setIsSavingApp(false);

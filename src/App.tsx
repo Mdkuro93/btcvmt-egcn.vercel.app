@@ -139,6 +139,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
  * this function identifies it and triggers a sync back to Supabase.
  */
 const useSelfHealingData = (applications: Application[], setApplications: (apps: Application[]) => void) => {
+  const { showToast } = useToast();
   useEffect(() => {
     if (applications.length === 0) return;
 
@@ -165,12 +166,12 @@ const useSelfHealingData = (applications: Application[], setApplications: (apps:
 
         try {
           // Bulk update the inconsistent ones
-          const updatedApps = await bulkSyncRecordsToSupabase(healedApps, applications);
+          const updatedApps = await bulkSyncRecordsToSupabase(healedApps, applications, showToast);
           setApplications(updatedApps);
         } catch (error) {
           console.error('[Self-Healing] Error fixing records:', error);
-      alert('Có lỗi xảy ra, vui lòng thử lại');
-      }
+          showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
+        }
       };
 
       fixApps();
@@ -232,7 +233,7 @@ const syncRecordToSupabase = async (app: Application) => {
   return app;
 };
 
-const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplications: Application[]) => {
+const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplications: Application[], showToast?: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void) => {
   if (appsToSync.length === 0) return allApplications;
   try {
     const recordsToInsert: any[] = [];
@@ -279,8 +280,10 @@ const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplicati
     return updatedAppsLocal;
   } catch (error) {
     console.error('Lỗi nghiêm trọng trong quá trình bulk sync:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
-     throw error;
+    if (showToast) {
+      showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
+    }
+    throw error;
   }
 };
 
@@ -358,6 +361,7 @@ const parseExcelDate = (val: any): string => {
 };
 
 const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserProfile) => void, theme: 'light' | 'dark', onThemeToggle: () => void }) => {
+  const { showToast } = useToast();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -421,8 +425,8 @@ const LoginScreen = ({ onLogin, theme, onThemeToggle }: { onLogin: (user: UserPr
       alert('Tên đăng nhập hoặc mật khẩu không chính xác!');
     } catch (err) {
       console.error('System login error:', err);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
-     alert('Đã xảy ra lỗi hệ thống khi đăng nhập!');
+      showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
+      alert('Đã xảy ra lỗi hệ thống khi đăng nhập!');
     } finally {
       setIsLoading(false);
     }
@@ -4056,8 +4060,7 @@ export default function App() {
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (error: any) {
       console.error('Lỗi đổi mật khẩu:', error.message);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
-     showToast(`Đổi mật khẩu thất bại: ${error.message || 'Lỗi hệ thống'}`, 'error');
+      showToast(`Đổi mật khẩu thất bại: ${error.message || 'Lỗi hệ thống'}`, 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -4133,7 +4136,7 @@ export default function App() {
       });
     } catch (error) {
       console.error('Error fetching storage stats:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      } finally {
       setIsFetchingStorage(false);
     }
@@ -4156,10 +4159,7 @@ export default function App() {
         const configRes = responses[1].status === 'fulfilled' ? responses[1].value : { data: null, error: (responses[1] as any).reason };
 
         if (usersRes.error) console.error('Error fetching users:', usersRes.error);
-        alert('Có lỗi xảy ra, vui lòng thử lại');
         if (configRes.error) console.error('Error fetching config:', configRes.error);
-
-        alert('Có lỗi xảy ra, vui lòng thử lại');
 
         const usersData = usersRes.data;
         const configData = configRes.data;
@@ -4227,7 +4227,7 @@ export default function App() {
         setIsInitialLoading(false);
       } catch (e) {
          console.error('Error initializing:', e);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      setIsLoadingConfig(false);
          setIsInitialLoading(false);
          setApplications(MOCK_APPLICATIONS);
@@ -4350,7 +4350,7 @@ export default function App() {
       setTotalCount(count || 0);
     } catch (error) {
       console.error('Error fetching paginated records:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      setApplications([]);
       setTotalCount(0);
       // Suppress UI error to keep dashboard smooth
@@ -4408,7 +4408,7 @@ export default function App() {
       setDashboardApps((data || []).map(mapFromSnakeCase));
     } catch (error) {
       console.error('Error fetching dashboard records:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      setDashboardApps([]);
     } finally {
       setIsLoadingDashboard(false);
@@ -4448,7 +4448,7 @@ export default function App() {
       setNotifications(prev => prev.filter(n => n.appId !== recordId));
     } catch (error) {
       console.error('Error deleting notifications for record:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      }
   };
 
@@ -4462,7 +4462,7 @@ export default function App() {
       setNotifications(prev => prev.filter(n => n.id !== id));
     } catch (error) {
       console.error('Error deleting notification:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      }
   };
 
@@ -4477,7 +4477,6 @@ export default function App() {
       showToast('Đã xóa toàn bộ thông báo hệ thống.', 'success');
     } catch (error) {
       console.error('Error clearing all notifications:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Lỗi khi dọn dẹp thông báo.', 'error');
     }
   };
@@ -4524,7 +4523,6 @@ export default function App() {
       fetchStorageUsage();
     } catch (e) {
       console.error('Error cleaning up junk files:', e);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Có lỗi xảy ra khi dọn dẹp file rác.', 'error');
     } finally {
       setIsLoadingConfig(false);
@@ -4546,7 +4544,7 @@ export default function App() {
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      }
   };
 
@@ -4557,7 +4555,7 @@ export default function App() {
       if (error) throw error;
     } catch (error) {
       console.error('Error creating notification:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      }
   };
 
@@ -4593,7 +4591,7 @@ export default function App() {
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
     } catch (error) {
       console.error('Error marking notification as read:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      }
   };
 
@@ -4610,7 +4608,7 @@ export default function App() {
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
     } catch (error) {
       console.error('Error marking all as read:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
+     showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      }
   };
 
@@ -4910,7 +4908,6 @@ export default function App() {
       showToast(`Đã lưu cấu hình ${key} lên Supabase thành công!`, 'success');
     } catch (error) {
       console.error(`Supabase config save error (${key}):`, error);
-      alert('Có lỗi xảy ra, vui lòng thử lại');
       showToast(`Lỗi khi lưu cấu hình ${key} lên Supabase.`, 'error');
     } finally {
       setIsSavingApp(false);
@@ -4964,7 +4961,6 @@ export default function App() {
       setQuickEditData({});
     } catch (error) {
       console.error('Quick save error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Lỗi khi cập nhật nhanh lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -5022,7 +5018,6 @@ export default function App() {
         showToast(`Đã báo cáo sai sót cho ${apps.length} hồ sơ thành công.`, 'success');
     } catch(e) {
         console.error(e);
-        alert('Có lỗi xảy ra, vui lòng thử lại');
         showToast('Lỗi khi ghi nhận sai sót hàng loạt.', 'error');
     } finally {
         setIsSavingApp(false);
@@ -5321,7 +5316,6 @@ export default function App() {
       }
     } catch (error: any) {
       console.error('Spreadsheet bulk update error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast(`Lỗi khi cập nhật hàng loạt: ${error.message || 'Lỗi không xác định'}`, 'error');
     } finally {
       setIsSavingApp(false);
@@ -5810,7 +5804,6 @@ export default function App() {
       showToast('Đã cập nhật thông tin hồ sơ và đồng bộ Supabase thành công!', 'success');
     } catch (error: any) {
       console.error('Supabase update error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast(`Lỗi khi lưu dữ liệu lên Supabase: ${error.message || 'Vui lòng kiểm tra cấu hình.'}`, 'error');
     } finally {
       setIsSavingApp(false);
@@ -5837,7 +5830,6 @@ export default function App() {
         }
       } catch (err) {
         console.error('Catch error in storage bulk delete:', err);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      }
     }
   };
@@ -5875,7 +5867,6 @@ export default function App() {
         showToast('Đã xóa hồ sơ và tài liệu đính kèm thành công', 'success');
       } catch (error) {
         console.error('Supabase delete error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Lỗi khi xóa dữ liệu trên Supabase.', 'error');
       } finally {
         setIsSavingApp(false);
@@ -6087,7 +6078,6 @@ export default function App() {
       showToast(`Đã chuyển hồ sơ sang bước: ${(stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label} (Đã đồng bộ Supabase)`, 'success');
     } catch (error) {
       console.error('Supabase transition error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Lỗi khi cập nhật trạng thái lên Supabase.', 'error');
     }
   };
@@ -6372,7 +6362,6 @@ export default function App() {
       showToast(`Đã xử lý hàng loạt ${actuallyUpdatedCount} hồ sơ lên Supabase thành công.`, 'success');
     } catch (error) {
       console.error('Supabase bulk transition error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Lỗi khi cập nhật hàng loạt lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -6412,7 +6401,6 @@ export default function App() {
       showToast(`Đã xóa hàng loạt ${count} hồ sơ và tài liệu đính kèm thành công.`, 'success');
     } catch (error) {
       console.error('Supabase bulk delete error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Lỗi khi xóa hàng loạt trên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -6474,7 +6462,6 @@ export default function App() {
       showToast(`Đã tải tài liệu "${file.name}" lên Supabase Storage thành công.`, 'success');
     } catch (error) {
       console.error('Supabase file upload error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Lỗi khi tải tài liệu lên Supabase. Vui lòng kiểm tra quyền và bucket "Documents-GCN".', 'error');
     } finally {
       setIsSavingApp(false);
@@ -6520,7 +6507,6 @@ export default function App() {
       showToast(fileToDelete?.isShared ? 'Đã gỡ bỏ bản sao tài liệu chung.' : 'Đã xóa tài liệu khỏi hệ thống thành công.', 'success');
     } catch (error) {
       console.error('Supabase file delete error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Lỗi khi xóa tài liệu.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -6591,7 +6577,6 @@ export default function App() {
       setSelectedAppIds([]);
     } catch (error) {
       console.error('Bulk file upload error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Lỗi khi tải tài liệu chung lên.', 'error');
     } finally {
       setIsUploadingShared(false);
@@ -6673,7 +6658,6 @@ export default function App() {
       showToast('Đã ghi nhận sai sót và đồng bộ Supabase thành công.', 'warning');
     } catch (error) {
       console.error('Supabase report error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Lỗi khi ghi nhận sai sót lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -6720,7 +6704,6 @@ export default function App() {
       showToast('Đã phục hồi trạng thái và đồng bộ Supabase thành công.', 'success');
     } catch (error) {
       console.error('Supabase resolve error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Lỗi khi lưu trạng thái phục hồi lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -6770,7 +6753,6 @@ export default function App() {
       showToast('Đã xác nhận khắc phục xong vướng khoán.', 'success');
     } catch (error) {
       console.error(error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Lỗi khi cập nhật trạng thái.', 'error');
     }
   };
@@ -6842,7 +6824,6 @@ export default function App() {
       showToast('Hồ sơ đã được trả về giai đoạn 1 và cập nhật Supabase thành công.', 'warning');
     } catch (error) {
       console.error('Supabase reject error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Lỗi khi lưu yêu cầu bổ sung lên Supabase.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -7130,7 +7111,6 @@ export default function App() {
       setActiveTab('applications');
     } catch (error: any) {
       console.error('Supabase insert error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast(`Lỗi khi lưu hồ sơ mới lên Supabase: ${error.message || ''}`, 'error');
     } finally {
       setIsSavingApp(false);
@@ -7159,7 +7139,6 @@ export default function App() {
       showToast('Đã thêm người dùng mới và đồng bộ Supabase thành công!', 'success');
     } catch (error: any) {
       console.error('Supabase create user error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast(`Lỗi khi tạo người dùng lên Supabase: ${error.message || ''}`, 'error');
     } finally {
       setIsSavingApp(false);
@@ -7180,7 +7159,6 @@ export default function App() {
       showToast('Đã cập nhật thông tin người dùng lên Supabase thành công!', 'success');
     } catch (error: any) {
       console.error('Supabase update user error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast(`Lỗi khi cập nhật người dùng: ${error.message || ''}`, 'error');
     } finally {
       setIsSavingApp(false);
@@ -7197,7 +7175,6 @@ export default function App() {
       showToast('Đã xóa người dùng khỏi Supabase!', 'success');
     } catch (error) {
       console.error('Supabase delete user error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Lỗi khi xóa người dùng.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -7215,7 +7192,6 @@ export default function App() {
       showToast(`Đã reset mật khẩu cho @${u.username} thành 123456`, 'success');
     } catch (error) {
       console.error('Supabase reset password error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Lỗi khi reset mật khẩu.', 'error');
     } finally {
       setIsSavingApp(false);
@@ -10142,7 +10118,6 @@ export default function App() {
                         setProjects(updatedProjects);
                       } catch (error) {
                         console.error('Delete project error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Lỗi khi xóa dự án.', 'error');
                       }
                     }
@@ -11858,7 +11833,6 @@ export default function App() {
               showToast('Đã lưu danh mục dự án lên Supabase thành công!', 'success');
             } catch (error) {
               console.error('Save project error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
      showToast('Lỗi khi lưu dự án lên Supabase.', 'error');
             } finally {
               setIsSavingApp(false);
