@@ -406,7 +406,7 @@ const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark',
   </motion.div>
 );
 
-const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Application }) => {
+const StatusBadge = ({ status, app, variant = 'default' }: { status: UnitStatus | string; app?: Application; variant?: 'default' | 'compact' }) => {
   let effectiveStatus: string = status;
   if (app) {
     if (app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK' || app.currentStep === 'GD3_Cho_TBThue') {
@@ -440,7 +440,11 @@ const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Appli
 
   const config = configs[effectiveStatus] || configs.Processing;
   return (
-    <span className={cn("px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap inline-block", config.classes)}>
+    <span className={cn(
+      variant === 'compact' ? "px-1 py-0 rounded text-[9px] font-bold uppercase tracking-tighter" : "px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider",
+      "whitespace-nowrap inline-block", 
+      config.classes
+    )}>
       {config.label}
     </span>
   );
@@ -1499,6 +1503,23 @@ export default function App() {
     }
   }, [activeTab]);
   const userRole = useMemo(() => currentUser?.dept || 'PTT', [currentUser]);
+
+  const canEdit = (user: UserProfile | null): boolean => {
+    if (!user) return false;
+    if (user.dept === 'ADMIN') return true;
+    if (['KT', 'PTT', 'PTDA'].includes(user.dept)) return true;
+    return user.permission === 'EDIT' || user.permission === 'FULL';
+  };
+
+  const userCanEdit = useMemo(() => canEdit(currentUser), [currentUser]);
+  
+  const isManagementEdit = useMemo(() => {
+    return userRole === 'ADMIN' || (['MANAGER', 'DIRECTOR'].includes(userRole) && userCanEdit);
+  }, [userRole, userCanEdit]);
+
+  const isManagement = useMemo(() => {
+    return ['ADMIN', 'MANAGER', 'DIRECTOR'].includes(userRole);
+  }, [userRole]);
   const [isEditing, setIsEditing] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editUser, setEditUser] = useState<UserProfile | null>(null);
@@ -1573,6 +1594,17 @@ export default function App() {
     setIsSavingApp,
   });
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const tableRowRefs = useRef<(HTMLTableRowElement | null)[]>([]);
+
+  useEffect(() => {
+    if (activeTab === 'applications' && selectedIndex !== null && tableRowRefs.current[selectedIndex]) {
+      tableRowRefs.current[selectedIndex]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest'
+      });
+    }
+  }, [selectedIndex, activeTab]);
+
   const [selectedRows, setSelectedRows] = useState<Set<string | number>>(new Set());
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const [projectSearch, setProjectSearch] = useState('');
@@ -1598,7 +1630,7 @@ export default function App() {
       }
 
       if (e.key === 'F2') {
-        if (selectedApp && !isEditing && currentUser?.permission !== 'VIEW') {
+        if (selectedApp && !isEditing && userCanEdit) {
           e.preventDefault();
           setIsEditing(true);
           setEditApp(selectedApp);
@@ -1613,6 +1645,7 @@ export default function App() {
         if (e.key === 'ArrowDown') {
           e.preventDefault();
           setSelectedIndex(prev => {
+            if (e.ctrlKey || e.metaKey) return visibleApps.length - 1;
             const next = (prev === null) ? 0 : Math.min(prev + 1, visibleApps.length - 1);
             if (e.shiftKey && lastSelectedIndex !== null) {
               const start = Math.min(lastSelectedIndex, next);
@@ -1626,10 +1659,16 @@ export default function App() {
             }
             return next;
           });
-          if (!e.shiftKey) setLastSelectedIndex((selectedIndex === null) ? 0 : Math.min(selectedIndex + 1, visibleApps.length - 1));
+          if (!e.shiftKey) {
+            setLastSelectedIndex(prev => {
+              if (e.ctrlKey || e.metaKey) return visibleApps.length - 1;
+              return (selectedIndex === null) ? 0 : Math.min(selectedIndex + 1, visibleApps.length - 1);
+            });
+          }
         } else if (e.key === 'ArrowUp') {
           e.preventDefault();
           setSelectedIndex(prev => {
+            if (e.ctrlKey || e.metaKey) return 0;
             const next = (prev === null) ? 0 : Math.max(prev - 1, 0);
             if (e.shiftKey && lastSelectedIndex !== null) {
               const start = Math.min(lastSelectedIndex, next);
@@ -1643,7 +1682,24 @@ export default function App() {
             }
             return next;
           });
-          if (!e.shiftKey) setLastSelectedIndex((selectedIndex === null) ? 0 : Math.max((selectedIndex || 0) - 1, 0));
+          if (!e.shiftKey) {
+            setLastSelectedIndex(prev => {
+              if (e.ctrlKey || e.metaKey) return 0;
+              return (selectedIndex === null) ? 0 : Math.max((selectedIndex || 0) - 1, 0);
+            });
+          }
+        } else if (e.key === 'ArrowRight' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          if ((currentPage + 1) * pageSize < totalCount) {
+             setCurrentPage(p => p + 1);
+             setSelectedIndex(0);
+          }
+        } else if (e.key === 'ArrowLeft' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          if (currentPage > 0) {
+             setCurrentPage(p => p - 1);
+             setSelectedIndex(0);
+          }
         } else if (e.key === 'Enter' && selectedIndex !== null) {
           e.preventDefault();
           setSelectedApp(visibleApps[selectedIndex]);
@@ -2203,7 +2259,7 @@ export default function App() {
     let data: any[][] = [];
     const sourceApps = selectedProjectId ? dashboardApps : applications;
 
-    if (userRole === 'ADMIN' || userRole === 'DIRECTOR') {
+    if (isManagementEdit) {
       headers = [
         "Dự án", "Mã lô/căn", "Khách hàng", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)", 
         "Hạn GCN cam kết", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Tự làm sổ (Có/Không)",
@@ -2351,7 +2407,7 @@ export default function App() {
           const unitCode = row[1];
           if (!unitCode) return;
 
-          if (userRole === 'ADMIN' || userRole === 'DIRECTOR') {
+          if (isManagementEdit) {
             const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
             
             const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
@@ -3644,10 +3700,16 @@ export default function App() {
 
   const isFieldEditable = (fieldName: string) => {
     if (!isEditing) return false;
-    if (userRole === 'ADMIN' || userRole === 'DIRECTOR') return true;
-    if (userRole === 'MANAGER') return false; // Managers are read-only
+    
+    // Admin always has edit rights
+    if (userRole === 'ADMIN') return true;
+    
+    // Management/Leadership roles depend on the permission field from DB
+    if (userRole === 'MANAGER' || userRole === 'DIRECTOR') {
+      return userCanEdit;
+    }
 
-    // Custom restrictions
+    // Specialist roles logic remains as is (they are always allowed to edit their assigned fields)
     if (userRole === 'PTDA' && fieldName === 'vpdkCode') return false;
 
     const pttFields = [
@@ -3677,7 +3739,7 @@ export default function App() {
   };
 
   const isFieldVisible = (fieldName: string) => {
-    if (userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') return true;
+    if (isManagement) return true;
 
     // PTDA and KT don't need to see doc checklist
     if (fieldName === 'checklist') {
@@ -4293,7 +4355,7 @@ export default function App() {
       // Ctrl + N (New)
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
         e.preventDefault();
-        const canCreate = userRole === 'ADMIN' || userRole === 'PTT';
+        const canCreate = userRole === 'PTT' || isManagementEdit;
         if (!isCreateModalOpen && canCreate) {
           const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
           setNewApp(prev => ({ ...prev, projectName: defaultProj }));
@@ -4642,7 +4704,7 @@ export default function App() {
             </AnimatePresence>
           </button>
 
-          {(userRole === 'ADMIN' || userRole === 'DIRECTOR') && (
+          {isManagement && (
             <button 
               onClick={() => setActiveTab('reports')}
               className={cn(
@@ -4945,20 +5007,6 @@ export default function App() {
 
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2 border-r border-slate-800/20 pr-4">
-              <div className="relative group">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={14} />
-                <input 
-                  type="text" 
-                  placeholder="Tìm hồ sơ..." 
-                  className={cn(
-                    "pl-9 pr-4 py-2 rounded-full text-xs font-bold transition-all w-48 outline-none border",
-                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-800 focus:ring-slate-200" : "bg-slate-950/50 border-slate-700/50 text-slate-200 focus:ring-festive-gold/20"
-                  )}
-                  value={search}
-                  onChange={(e) => { setSearch(e.target.value); setCurrentPage(0); }}
-                />
-              </div>
-              
               <button 
                 onClick={handleDownloadTemplate}
                 className={cn(
@@ -4997,7 +5045,7 @@ export default function App() {
                 </button>
               </div>
 
-              {(userRole === 'ADMIN' || userRole === 'PTT') && (
+              {(userRole === 'PTT' || isManagementEdit) && (
                     <button 
                   onClick={() => {
                     const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
@@ -5102,7 +5150,7 @@ export default function App() {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-8 bg-transparent custom-scrollbar relative">
+        <div className="flex-1 overflow-y-auto px-4 py-4 md:px-8 bg-transparent custom-scrollbar relative">
           <AnimatePresence mode="wait">
             {activeTab === 'dashboard' && (
               <motion.div 
@@ -5177,7 +5225,7 @@ export default function App() {
                   </div>
                 )}
 
-                 {(userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR' || !userRole) && (
+                 {(isManagement || !userRole) && (
                   <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     <StatCard 
                       title="Tổng số hồ sơ đang xử lý" 
@@ -5783,53 +5831,66 @@ export default function App() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="max-w-7xl mx-auto"
+                className="w-full"
               >
                 <div className={cn(
                   "backdrop-blur-md rounded-3xl shadow-2xl border transition-all overflow-hidden",
                   theme === 'light' ? "bg-white border-slate-200 shadow-slate-900/5" : "bg-slate-900/40 border-slate-800/50"
                 )}>
-                  <div className={cn("p-6 border-b", theme === 'light' ? "border-slate-100 shadow-inner bg-slate-50/50" : "border-slate-800/50")}>
-                    <div className="flex flex-col gap-4 mb-4">
-                      <div className="flex justify-between items-center">
-                        <div className={cn("flex items-center gap-4 text-[11px]", theme === 'light' ? "text-slate-800" : "text-slate-200")}>
-                          <select 
-                            value={pageSize}
-                            onChange={(e) => {setPageSize(Number(e.target.value)); setCurrentPage(0);}}
-                            className={cn("px-2 py-1 rounded-lg text-[10px] outline-none font-bold", theme === 'light' ? "bg-slate-200/50 text-slate-800 border border-slate-300/50" : "bg-slate-800 text-slate-200 border border-slate-700")}
-                          >
-                            <option value={20}>20 / trang</option>
-                            <option value={50}>50 / trang</option>
-                            <option value={100}>100 / trang</option>
-                          </select>
-                          <div className={cn("flex items-center gap-2 font-bold", theme === 'light' ? "text-slate-600" : "text-slate-400")}>
-                            <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className={cn("p-1 transition-colors disabled:opacity-30", theme === 'light' ? "hover:text-indigo-600" : "hover:text-festive-gold")}>Trước</button>
-                            <span className={cn("px-3 py-1 rounded-lg", theme === 'light' ? "bg-slate-200/50 text-slate-900" : "bg-slate-800 text-white")}>Trang {currentPage + 1}</span>
-                            <button onClick={() => setCurrentPage(p => ( (p+1)*pageSize < totalCount ? p + 1 : p))} disabled={(currentPage+1)*pageSize >= totalCount} className={cn("p-1 transition-colors disabled:opacity-30", theme === 'light' ? "hover:text-indigo-600" : "hover:text-festive-gold")}>Sau</button>
-                          </div>
-                          <span className="text-slate-500 font-bold italic opacity-70">Tổng: {totalCount.toLocaleString()} hồ sơ</span>
+                  <div className={cn("p-3 border-b", theme === 'light' ? "border-slate-100 shadow-inner bg-slate-50/50" : "border-slate-800/50")}>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className={cn("flex items-center gap-4 text-[11px]", theme === 'light' ? "text-slate-800" : "text-slate-200")}>
+                        <select 
+                          value={pageSize}
+                          onChange={(e) => {setPageSize(Number(e.target.value)); setCurrentPage(0);}}
+                          className={cn("px-2 py-1 rounded-lg text-[10px] outline-none font-bold", theme === 'light' ? "bg-slate-200/50 text-slate-800 border border-slate-300/50" : "bg-slate-800 text-slate-200 border border-slate-700")}
+                        >
+                          <option value={20}>20 / trang</option>
+                          <option value={50}>50 / trang</option>
+                          <option value={100}>100 / trang</option>
+                        </select>
+                        <div className={cn("flex items-center gap-2 font-bold", theme === 'light' ? "text-slate-600" : "text-slate-400")}>
+                          <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className={cn("p-1 transition-colors disabled:opacity-30", theme === 'light' ? "hover:text-indigo-600" : "hover:text-festive-gold")}>Trước</button>
+                          <span className={cn("px-3 py-1 rounded-lg", theme === 'light' ? "bg-slate-200/50 text-slate-900" : "bg-slate-800 text-white")}>Trang {currentPage + 1}</span>
+                          <button onClick={() => setCurrentPage(p => ( (p+1)*pageSize < totalCount ? p + 1 : p))} disabled={(currentPage+1)*pageSize >= totalCount} className={cn("p-1 transition-colors disabled:opacity-30", theme === 'light' ? "hover:text-indigo-600" : "hover:text-festive-gold")}>Sau</button>
                         </div>
+                        <span className="text-slate-500 font-bold italic opacity-70">Tổng: {totalCount.toLocaleString()} hồ sơ</span>
                       </div>
-                      <div className="flex items-center justify-between gap-4">
+
+                      <div className="flex items-center gap-2">
+                        <div className="relative group">
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                          <input 
+                            type="text" 
+                            placeholder="Tìm kiếm nhanh..." 
+                            className={cn(
+                              "pl-8 pr-3 py-1.5 rounded-full text-[10px] font-bold transition-all w-40 outline-none border tracking-tight",
+                              theme === 'light' ? "bg-white border-slate-200 text-slate-800 focus:border-indigo-500/50 shadow-sm" : "bg-slate-950/40 border-slate-800 text-slate-200 focus:border-festive-gold/50"
+                            )}
+                            value={search}
+                            onChange={(e) => { setSearch(e.target.value); setCurrentPage(0); }}
+                          />
+                        </div>
+
                         {selectedAppIds.length > 0 && (
                           <button 
                             onClick={handleBulkPrint}
-                            className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-full text-xs font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 active:scale-95 transition-all"
+                            className="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 active:scale-95 transition-all"
                           >
-                            <Printer size={14} />
-                            In phiếu ({selectedAppIds.length})
+                            <Printer size={12} />
+                            In ({selectedAppIds.length})
                           </button>
                         )}
                         <button 
                           onClick={() => setIsShowFilters(!isShowFilters)}
                           className={cn(
-                            "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
+                            "flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
                             isShowFilters || (selectedProjectId || filterStatus !== 'ALL' || filterLoanStatus !== 'ALL' || filterSelfService !== 'ALL' || filterSLAStatus !== 'ALL' || filterIssue !== 'ALL')
-                              ? "bg-festive-gold text-slate-950 border-festive-gold shadow-lg shadow-festive-gold/15 font-black animate-pulse" 
+                              ? "bg-festive-gold text-slate-950 border-festive-gold shadow-lg shadow-festive-gold/15 font-black" 
                               : (theme === 'light' ? "bg-white text-slate-600 border-slate-200 shadow-sm hover:bg-slate-50" : "bg-slate-950/40 text-slate-400 border-slate-800 hover:border-festive-gold/30")
                           )}
                         >
-                          <Filter size={14} />
+                          <Filter size={12} />
                           Bộ lọc
                         </button>
 
@@ -5837,7 +5898,7 @@ export default function App() {
                           <button 
                             onClick={() => setIsQuickFilterOpen(!isQuickFilterOpen)}
                             className={cn(
-                              "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
+                              "flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
                               isQuickFilterOpen || selectedFlags.length > 0
                                 ? "bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-600/20" 
                                 : (theme === 'light' ? "bg-white text-slate-600 border-slate-200 shadow-sm hover:bg-slate-50" : "bg-slate-950/40 text-slate-400 border-slate-800 hover:border-indigo-550/30")
@@ -5912,17 +5973,18 @@ export default function App() {
                         <button 
                           onClick={() => setIsSpreadsheetMode(!isSpreadsheetMode)}
                           className={cn(
-                            "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
+                            "flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
                             isSpreadsheetMode 
                               ? "bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-600/20" 
                               : (theme === 'light' ? "bg-white text-slate-600 border-slate-200 shadow-sm hover:bg-slate-50" : "bg-slate-950/40 text-slate-400 border-slate-800 hover:border-indigo-500/30")
                           )}
                           title="Chế độ nhập liệu Spreadsheet (Excel-like)"
                         >
-                          <FileSpreadsheet size={14} />
-                          Nhập liệu nhanh
+                          <FileSpreadsheet size={12} />
+                          Spreadsheet
                         </button>
                       </div>
+                    </div>
                       <div className="text-[11px] text-slate-500 italic">
                         Hiển thị {filteredApps.length} hồ sơ trên trang / Tổng {totalCount} hồ sơ {selectedProject ? `thuộc ${selectedProject.name}` : 'toàn vùng'} (có lọc)
                       </div>
@@ -6243,22 +6305,33 @@ export default function App() {
                         </>
                       )}
                     </AnimatePresence>
-                  </div>
-
+                  
                   {/* Bulk Actions Bar (Floating) */}
                   <AnimatePresence>
                     {selectedAppIds.length > 0 && (
                       <motion.div 
-                        initial={{ opacity: 0, y: -100 }}
+                        initial={{ opacity: 0, y: 100 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -100 }}
-                        className="fixed top-24 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-1 p-2 bg-slate-950/90 border border-slate-800 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-xl ring-1 ring-white/10"
+                        exit={{ opacity: 0, y: 100 }}
+                        className={cn(
+                          "fixed bottom-10 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-1 p-2 border rounded-3xl backdrop-blur-xl ring-1 shadow-2xl transition-all",
+                          theme === 'light' ? "bg-white/90 border-slate-200 ring-slate-900/5 shadow-slate-900/10 text-slate-800" : "bg-slate-950/90 border-slate-800 ring-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] text-slate-200"
+                        )}
                       >
-                        <div className="flex items-center gap-3 px-4 mr-2 border-r border-slate-800">
-                          <div className="w-8 h-8 rounded-full bg-festive-gold flex items-center justify-center text-slate-950 font-black text-xs">
+                        <div className={cn(
+                          "flex items-center gap-3 px-4 mr-2 border-r",
+                          theme === 'light' ? "border-slate-200" : "border-slate-800"
+                        )}>
+                          <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center font-black text-xs",
+                            theme === 'light' ? "bg-indigo-500 text-white" : "bg-festive-gold text-slate-950"
+                          )}>
                             {selectedAppIds.length}
                           </div>
-                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Đã chọn</span>
+                          <span className={cn(
+                            "text-[10px] font-black uppercase tracking-wider",
+                            theme === 'light' ? "text-slate-600" : "text-slate-500"
+                          )}>Đã chọn</span>
                         </div>
 
                         <div className="flex items-center gap-1">
@@ -6277,7 +6350,7 @@ export default function App() {
                               
                               // Step 7.2 Quy_trinh_2 custom logic
                               if (workflowType === 'Quy_trinh_2' && firstApp.currentStep === 'S7_2_Ban_Giao_Khach') {
-                                 if (userRole === 'PTT' || userRole === 'ADMIN') {
+                                 if (userRole === 'PTT' || isManagementEdit) {
                                     return (
                                        <button 
                                         onClick={() => handleBulkStepTransition('Hoan_Tat')}
@@ -6290,7 +6363,7 @@ export default function App() {
                                  return null;
                               }
                               
-                              if (nextStep && (userRole === 'ADMIN' || userRole === 'MANAGER' || effectiveDept === userRole || (firstApp.currentStep === 'S1_ChuanBi' && userRole === 'PTT') || (firstApp.currentStep === 'GD1_ChuanBi' && userRole === 'PTT'))) {
+                              if (nextStep && (isManagementEdit || effectiveDept === userRole || (firstApp.currentStep === 'S1_ChuanBi' && userRole === 'PTT') || (firstApp.currentStep === 'GD1_ChuanBi' && userRole === 'PTT'))) {
                                 return (
                                   <button 
                                     onClick={() => handleBulkStepTransition(nextStep)}
@@ -6309,7 +6382,10 @@ export default function App() {
                           
                           <button 
                             onClick={() => setIsBulkNoteOpen(true)}
-                            className="w-10 h-10 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full transition-all flex items-center justify-center border border-slate-700/50"
+                            className={cn(
+                              "w-10 h-10 rounded-full transition-all flex items-center justify-center border",
+                              theme === 'light' ? "bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border-slate-200" : "bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border-slate-700/50"
+                            )}
                             title="Ghi chú hàng loạt"
                           >
                             <MessageSquare size={16} />
@@ -6325,16 +6401,22 @@ export default function App() {
 
                           <button 
                             onClick={() => setIsBulkIssueOpen(true)}
-                            className="w-10 h-10 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-full transition-all flex items-center justify-center border border-rose-500/20"
+                            className={cn(
+                              "w-10 h-10 rounded-full transition-all flex items-center justify-center border",
+                              theme === 'light' ? "bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border-rose-200" : "bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white border-rose-500/20"
+                            )}
                             title="Báo lỗi / Sai sót hàng loạt"
                           >
                             <AlertTriangle size={16} />
                           </button>
 
-                          {(userRole === 'ADMIN' || userRole === 'DIRECTOR' || userRole === 'PTT') && (
+                          {(isManagementEdit || userRole === 'PTT') && (
                             <button 
                               onClick={handleBulkDelete}
-                              className="w-10 h-10 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-full transition-all flex items-center justify-center border border-rose-500/20"
+                              className={cn(
+                                "w-10 h-10 rounded-full transition-all flex items-center justify-center border",
+                                theme === 'light' ? "bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border-rose-200" : "bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white border-rose-500/20"
+                              )}
                               title="Xóa đã chọn"
                             >
                               <Trash2 size={16} />
@@ -6343,7 +6425,10 @@ export default function App() {
 
                           <button 
                             onClick={() => setSelectedAppIds([])}
-                            className="w-10 h-10 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full transition-all flex items-center justify-center border border-slate-700/50 ml-2"
+                            className={cn(
+                              "w-10 h-10 rounded-full transition-all flex items-center justify-center border ml-2",
+                              theme === 'light' ? "bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border-slate-200" : "bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border-slate-700/50"
+                            )}
                             title="Hủy chọn"
                           >
                             <X size={16} />
@@ -6352,17 +6437,17 @@ export default function App() {
                     )}
                   </AnimatePresence>
 
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead>
+                  <div className="overflow-auto max-h-[calc(100vh-180px)] relative border-t border-slate-800/10">
+                    <table className="w-full text-left border-separate border-spacing-0">
+                      <thead className="sticky top-0 z-20">
                         <tr className={cn(
-                          "transition-all border-b",
-                          theme === 'light' ? "bg-slate-100/60 border-slate-200/80 text-slate-500" : "bg-slate-950/30 border-slate-800/60 text-slate-400"
+                          "transition-all border-b font-black uppercase tracking-tighter text-[10px]",
+                          theme === 'light' ? "bg-slate-100 text-slate-500" : "bg-slate-950 text-slate-400"
                         )}>
-                          <th className="px-3 py-2 text-[11px] font-medium leading-tight w-10">
+                          <th className="px-2 py-2 w-10 border-b border-slate-800/10">
                             <input 
                               type="checkbox" 
-                              className="w-4 h-4 rounded border-slate-700 bg-slate-900 accent-festive-gold"
+                              className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-900 accent-festive-gold"
                               checked={selectedRows.size === applications.length && applications.length > 0}
                               onChange={(e) => {
                                 if (e.target.checked) {
@@ -6376,32 +6461,32 @@ export default function App() {
                               }}
                             />
                           </th>
-                          <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-slate-500 dark:text-slate-400">Mã lô/căn</th>
-                          <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-slate-500 dark:text-slate-400">Dự án</th>
-                          <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-slate-500 dark:text-slate-400">Khách hàng</th>
+                          <th className="px-2 py-2 border-b border-slate-800/10">Mã căn</th>
+                          <th className="px-2 py-2 border-b border-slate-800/10">Dự án</th>
+                          <th className="px-2 py-2 border-b border-slate-800/10">Khách hàng</th>
                           {isSpreadsheetMode ? (
                             EDITABLE_DATE_FIELDS.map(f => (
-                              <th key={f.key} className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-center whitespace-nowrap bg-indigo-500/5 text-slate-500 dark:text-slate-400">{f.label}</th>
+                              <th key={f.key} className="px-2 py-2 text-center whitespace-nowrap bg-indigo-500/5 border-b border-slate-800/10">{f.label}</th>
                             ))
                           ) : (
                             <>
-                              <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-slate-500 dark:text-slate-400">Đối tượng ký</th>
-                              <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-slate-500 dark:text-slate-400">Trạng thái</th>
-                              <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-center text-slate-500 dark:text-slate-400">Phòng chủ trì</th>
-                              {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-center text-slate-500 dark:text-slate-400">Nộp VPĐK</th>
+                              <th className="px-2 py-2 border-b border-slate-800/10">Loại lô</th>
+                              <th className="px-2 py-2 border-b border-slate-800/10">Trạng thái</th>
+                              <th className="px-2 py-2 text-center border-b border-slate-800/10">Cơ quan</th>
+                              {(userRole === 'PTT' || isManagement) && (
+                                <th className="px-2 py-2 text-center border-b border-slate-800/10">Nộp VPĐK</th>
                               )}
-                              {(userRole === 'PTT' || userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-center text-slate-500 dark:text-slate-400">Nộp thuế</th>
+                              {(userRole === 'PTT' || userRole === 'KT' || isManagement) && (
+                                <th className="px-2 py-2 text-center border-b border-slate-800/10">Nộp thuế</th>
                               )}
-                              {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-center text-slate-500 dark:text-slate-400">Nhận sổ</th>
+                              {(userRole === 'PTDA' || isManagement) && (
+                                <th className="px-2 py-2 text-center border-b border-slate-800/10">Nhận sổ</th>
                               )}
-                              <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-center text-slate-500 dark:text-slate-400">BG Khách</th>
+                              <th className="px-2 py-2 text-center border-b border-slate-800/10">BG Khách</th>
                             </>
                           )}
-                          <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-center text-indigo-500">Tài liệu</th>
-                          <th className="px-3 py-2 text-[11px] font-medium leading-tight tracking-wider text-center text-slate-500 dark:text-slate-400">Hành động</th>
+                          <th className="px-2 py-2 text-center text-indigo-500 border-b border-slate-800/10">Files</th>
+                          <th className="px-2 py-2 text-center border-b border-slate-800/10">Cmd</th>
                         </tr>
                       </thead>
                       <tbody className={cn(
@@ -6435,12 +6520,14 @@ export default function App() {
                           return (
                             <tr 
                               key={`app-row-${app.id}-${currentPage}-${index}`} 
+                              ref={el => tableRowRefs.current[index] = el}
                               className={cn(
-                                "transition-all cursor-pointer group border-b relative",
-                                isFocused && (theme === 'light' ? "ring-2 ring-indigo-500/50 z-10" : "ring-2 ring-indigo-400/50 z-10"),
+                                "transition-all cursor-pointer group border-b relative h-[32px]",
+                                isFocused && (theme === 'light' ? "bg-indigo-50/80 ring-1 ring-inset ring-indigo-500/20 z-10" : "bg-indigo-900/20 ring-1 ring-inset ring-indigo-400/30 z-10"),
+                                !isFocused && isSelected && (theme === 'light' ? "bg-festive-gold/10" : "bg-festive-gold/15"),
                                 theme === 'light' 
-                                  ? (isSelected ? "bg-festive-gold/20" : (isFocused ? "bg-indigo-50/50" : (isEven ? "bg-slate-50/50 hover:bg-indigo-50/20 border-slate-100" : "bg-white hover:bg-indigo-50/20 border-slate-100"))) 
-                                  : (isSelected ? "bg-festive-gold/15" : (isFocused ? "bg-indigo-950/40" : (isEven ? "bg-slate-900/20 hover:bg-indigo-950/20 border-slate-800/40" : "bg-transparent hover:bg-indigo-950/20 border-slate-800/40")))
+                                  ? (!isFocused && !isSelected ? (isEven ? "bg-slate-50/50 hover:bg-indigo-50/20 border-slate-100" : "bg-white hover:bg-indigo-50/20 border-slate-100") : "")
+                                  : (!isFocused && !isSelected ? (isEven ? "bg-slate-900/20 hover:bg-indigo-950/20 border-slate-800/40" : "bg-transparent hover:bg-indigo-950/20 border-slate-800/40") : "")
                               )}
                               onClick={(e) => {
                                 setSelectedIndex(index);
@@ -6458,7 +6545,6 @@ export default function App() {
                                   const newSelection = new Set(selectedRows);
                                   if (newSelection.has(app.id)) newSelection.delete(app.id);
                                   else newSelection.add(app.id);
-                                  setSelectedRows(newSelection);
                                   setSelectedAppIds(Array.from(newSelection));
                                   setLastSelectedIndex(index);
                                 } else {
@@ -6470,10 +6556,10 @@ export default function App() {
                               }}
                               onDoubleClick={() => setSelectedApp(app)}
                             >
-                              <td className="px-3 py-1.5 text-xs leading-tight" onClick={(e) => e.stopPropagation()}>
+                              <td className="px-2 py-0 text-center" onClick={(e) => e.stopPropagation()}>
                                 <input 
                                   type="checkbox" 
-                                  className="w-4 h-4 rounded border-slate-700 bg-slate-900 accent-festive-gold"
+                                  className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-900 accent-festive-gold"
                                   checked={isSelected}
                                   onChange={(e) => {
                                     const newSelection = new Set(selectedRows);
@@ -6488,7 +6574,7 @@ export default function App() {
                                 />
                               </td>
                               <td 
-                                className="px-3 py-1.5 text-xs leading-tight" 
+                                className="px-2 py-0 text-[11px] font-bold font-mono tracking-tighter" 
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
                                   setQuickEditId(app.id);
@@ -6500,7 +6586,7 @@ export default function App() {
                                     <input 
                                       autoFocus
                                       className={cn(
-                                        "px-2 py-1 text-xs font-black font-mono rounded border outline-none focus:ring-1 focus:ring-festive-gold/50 w-full",
+                                        "px-2 py-0 h-6 text-[11px] font-black font-mono rounded border outline-none focus:ring-1 focus:ring-festive-gold/50 w-full",
                                         theme === 'light' ? "bg-white border-slate-300 text-slate-900" : "bg-slate-900 border-slate-700 text-festive-gold"
                                       )}
                                       value={quickEditData.unitCode ?? app.unitCode}
@@ -6516,36 +6602,36 @@ export default function App() {
                                       }}
                                     />
                                   ) : (
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs font-bold text-festive-gold tracking-tight">{app.unitCode}</span>
+                                    <div className="flex items-center gap-1">
+                                      <span className={cn("text-[12px] font-black tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>{app.unitCode}</span>
                                       {app.isRejected && app.currentStep === 'S1_ChuanBi' && (
-                                        <span className="animate-pulse flex items-center gap-1 text-[10px] bg-rose-500 text-white px-1.5 py-0.5 rounded-full font-bold uppercase tracking-tight">
+                                        <span className="animate-pulse flex items-center gap-1 text-[9px] bg-rose-500 text-white px-1 py-0.5 rounded-full font-bold uppercase tracking-tight">
                                           <RotateCcw size={8} /> Trả về
                                         </span>
                                       )}
                                     </div>
                                   )}
-                                  <span className="text-[10px] text-slate-400 font-medium uppercase mt-0.5">
-                                    SLA: {(stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.slaDays || 0} ngày
+                                  <span className="text-[9px] text-slate-500 font-medium uppercase mt-0.5">
+                                    SLA: {(stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.slaDays || 0}d
                                   </span>
                                   {overdue.isOverdue && (
                                     <span className={cn(
-                                      "text-[10px] font-semibold uppercase tracking-tight flex items-center gap-1 mt-0.5",
+                                      "text-[9px] font-semibold uppercase tracking-tight flex items-center gap-1 mt-0.5",
                                       overdue.daysLate > 5 ? "text-red-500" :
                                       overdue.daysLate >= 3 ? "text-yellow-500" : "text-green-500"
                                     )}>
-                                      <AlertTriangle size={10} /> {overdue.label} ({overdue.daysLate} ngày)
+                                      <AlertTriangle size={9} /> Trễ ({overdue.daysLate}d)
                                     </span>
                                   )}
                                 </div>
                               </td>
-                              <td className="px-3 py-1.5 text-xs leading-tight font-medium text-slate-600 dark:text-slate-300">
-                                <span className="text-xs font-medium text-slate-600 dark:text-slate-300 truncate block max-w-[200px]" title={app.projectName}>
+                              <td className="px-2 py-0">
+                                <span className={cn("text-[10px] font-medium truncate block max-w-[100px]", theme === 'light' ? "text-slate-600" : "text-slate-200")} title={app.projectName}>
                                   {app.projectName}
                                 </span>
                               </td>
                               <td 
-                                className="px-3 py-1.5 text-xs leading-tight" 
+                                className="px-2 py-0 text-[11px] leading-tight" 
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
                                   setQuickEditId(app.id);
@@ -6553,18 +6639,18 @@ export default function App() {
                                 }}
                                 onClick={() => quickEditId !== app.id && setSelectedApp(app)}
                               >
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1.5">
                                   <div className={cn(
-                                    "w-6 h-6 rounded-full flex items-center justify-center transition-all shrink-0",
+                                    "w-5 h-5 rounded-full flex items-center justify-center transition-all shrink-0",
                                     theme === 'light' ? "bg-slate-100 text-slate-400" : "bg-slate-800 text-slate-500"
                                   )}>
-                                    <User size={12} />
+                                    <User size={10} />
                                   </div>
                                   <div className="flex flex-col flex-1 min-w-0">
                                     {quickEditId === app.id ? (
                                       <input 
                                         className={cn(
-                                          "px-2 py-1 text-xs font-medium rounded border outline-none focus:ring-1 focus:ring-indigo-500/50 w-full",
+                                          "px-2 py-0 h-6 text-[11px] font-medium rounded border outline-none focus:ring-1 focus:ring-indigo-500/50 w-full",
                                           theme === 'light' ? "bg-white border-slate-300 text-slate-900" : "bg-slate-900 border-slate-700 text-white"
                                         )}
                                         value={quickEditData.customerName ?? app.customerName}
@@ -6691,82 +6777,66 @@ export default function App() {
                                 })
                               ) : (
                                 <>
-                                  <td className="px-3 py-1.5 text-xs leading-tight text-slate-500 dark:text-slate-400">
-                                    <span className="text-xs font-medium">
+                                  <td className="px-2 py-0 text-[10px] leading-tight text-slate-500 dark:text-slate-400">
+                                    <span className="font-medium">
                                       {app.contractSignerType || '---'}
                                     </span>
                                   </td>
-                                  <td className="px-3 py-1.5 text-xs leading-tight">
-                                    <div className="flex flex-col gap-1">
-                                      <StatusBadge status={app.status} app={app} />
+                                  <td className="px-2 py-0">
+                                    <div className="flex flex-col gap-0.5">
+                                      <StatusBadge status={app.status} app={app} variant="compact" />
                                       {(app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None')) && (
-                                        <div className="flex flex-col gap-1 group/issue">
-                                          <div className="flex items-center gap-1.5">
-                                            {app.issueSource && app.issueSource !== 'None' && (
-                                              <span className={cn(
-                                                "text-[8px] font-black uppercase px-1.5 py-0.5 rounded border leading-none shrink-0",
-                                                app.issueSource === 'Chu_Dau_Tu' ? "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" :
-                                                app.issueSource === 'Nha_Nuoc' ? "bg-amber-500/10 text-amber-500 border-amber-500/20" :
-                                                app.issueSource === 'Noi_Bo' ? "bg-slate-500/10 text-slate-500 border-slate-500/20" :
-                                                "bg-rose-500/10 text-rose-500 border-rose-500/20"
-                                              )}>
-                                                {app.issueSource === 'Chu_Dau_Tu' ? 'CĐT' : 
-                                                 app.issueSource === 'Nha_Nuoc' ? 'Nhà nước' : 
-                                                 app.issueSource === 'Noi_Bo' ? 'Nội bộ' : 'Khách'}
-                                              </span>
-                                            )}
-                                            <span className={cn(
-                                              "text-[9px] font-black uppercase truncate max-w-[100px]",
-                                              app.issueSeverity === 'Critical' ? "text-rose-600 animate-bounce" : 
-                                              app.issueSeverity === 'Moderate' ? "text-amber-500" : "text-slate-400"
-                                            )}>
-                                              {app.issueNotes || 'Vướng mắc'}
-                                            </span>
-                                          </div>
+                                        <div className="flex items-center gap-1">
+                                          <AlertTriangle size={8} className={cn(
+                                            app.issueSeverity === 'Critical' ? "text-rose-600" : "text-amber-500"
+                                          )} />
+                                          <span className="text-[9px] font-medium truncate max-w-[80px] text-slate-400 uppercase tracking-tighter">
+                                              {app.issueNotes || 'Vướng'}
+                                          </span>
                                         </div>
                                       )}
                                     </div>
                                   </td>
-                                  <td className="px-3 py-1.5 text-xs leading-tight text-center text-slate-400 dark:text-slate-500">
+                                  <td className="px-2 py-0 text-center">
                                       {(() => {
                                         const isSupportSpecial = (app?.projectName?.includes('hỗ trợ') || app?.workflowType === 'Quy_trinh_1') && (app?.currentStep === 'GD2_Cho_Nop_VPDK' || app?.currentStep === 'S3_Nop_VPDK');
                                         const config = (stepConfig[app?.currentStep || ''] || INITIAL_STEP_CONFIG[app?.currentStep || '']);
                                         const dept = isSupportSpecial ? 'KT' : (config?.dept || '---');
                                         return (
-                                          <span className="text-[10px] font-semibold uppercase tracking-widest">
+                                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
                                             {dept}
                                           </span>
                                         );
                                       })()}
                                   </td>
-                                  {(userRole === 'PTT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                    <td className="px-3 py-1.5 text-xs leading-tight text-center">
-                                      <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.submissionDate)}</span>
+                                  {(userRole === 'PTT' || isManagement) && (
+                                    <td className="px-2 py-0 text-center">
+                                      <span className={cn("text-[10px] leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.submissionDate)}</span>
                                     </td>
                                   )}
-                                  {(userRole === 'PTT' || userRole === 'KT' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                    <td className="px-3 py-1.5 text-xs leading-tight text-center">
+                                  {(userRole === 'PTT' || userRole === 'KT' || isManagement) && (
+                                    <td className="px-2 py-0 text-center">
                                       <div className="flex flex-col items-center">
-                                        <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>
+                                        <span className={cn("text-[10px] leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>
                                           {app.taxReceiptDate ? formatDate(app.taxReceiptDate) : (app.taxNotificationReceivedDate ? 'Chờ nộp' : '---')}
                                         </span>
-                                        <span className={cn("text-[8px] px-1 py-0.5 rounded font-bold uppercase", getTaxStatus(app).color)}>
+                                        <span className={cn("text-[8px] px-1 py-[1px] mt-[1px] rounded font-bold uppercase", getTaxStatus(app).color)}>
                                           {getTaxStatus(app).label}
                                         </span>
                                       </div>
                                     </td>
                                   )}
-                                  {(userRole === 'PTDA' || userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
-                                    <td className="px-3 py-1.5 text-xs leading-tight text-center">
-                                      <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.gcnReceivedDate)}</span>
+                                  {(userRole === 'PTDA' || isManagement) && (
+                                    <td className="px-2 py-0 text-center">
+                                      <span className={cn("text-[10px] leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.gcnReceivedDate)}</span>
                                     </td>
                                   )}
-                                  <td className="px-3 py-1.5 text-xs leading-tight text-center">
-                                    <span className={cn("text-xs leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.customerHandoverDate)}</span>
+                                  <td className="px-2 py-0 text-center">
+                                    <span className={cn("text-[10px] font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.customerHandoverDate)}</span>
                                   </td>
                                 </>
                               )}
-                              <td className="px-3 py-1.5 text-xs leading-tight text-center" onClick={(e) => {
+                              <td className="px-2 py-0 text-center" onClick={(e) => {
                                 e.stopPropagation();
                                 if (app.scannedFiles && app.scannedFiles.length > 0) {
                                   setPreviewFile(app.scannedFiles[0]);
@@ -6775,32 +6845,24 @@ export default function App() {
                                 }
                               }}>
                                 {app.scannedFiles && app.scannedFiles.length > 0 ? (
-                                  <div className="flex flex-col items-center gap-1 group/doc cursor-pointer">
-                                    <div className="w-6 h-6 rounded-md bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover/doc:bg-indigo-500 group-hover/doc:text-white transition-all shadow-sm">
-                                      <FileText size={12} />
+                                  <div className="flex flex-col items-center group/doc cursor-pointer">
+                                    <div className="w-5 h-5 rounded bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover/doc:bg-indigo-500 group-hover/doc:text-white transition-all">
+                                      <FileText size={10} />
                                     </div>
-                                    <div className="flex flex-col items-center">
-                                      <span className="text-[9px] font-black">{app.scannedFiles.length} file</span>
-                                      {app.scannedFiles.some(f => f.isShared) && (
-                                        <span className="text-[7px] text-indigo-400 font-extrabold uppercase">🔗 Shared</span>
-                                      )}
-                                    </div>
+                                    <span className="text-[8px] font-black">{app.scannedFiles.length} file</span>
                                   </div>
                                 ) : (
-                                  <span className="text-[10px] text-slate-700 font-black opacity-20 italic">Trống</span>
+                                  <span className="text-[9px] text-slate-700 font-bold opacity-20">---</span>
                                 )}
                               </td>
-                              <td className="px-3 py-1.5 text-xs leading-tight text-center">
-                                <div className="flex items-center justify-center gap-1">
+                              <td className="px-2 py-0 text-center">
+                                <div className="flex items-center justify-center gap-0.5">
                                   <button 
                                     onClick={() => setSelectedApp(app)}
-                                    className={cn(
-                                      "p-1 rounded-lg transition-colors text-slate-500",
-                                      theme === 'light' ? "hover:bg-slate-100" : "hover:bg-slate-800"
-                                    )}
-                                    title="Xem chi tiết"
+                                    className="p-1 rounded transition-colors text-slate-500 hover:bg-indigo-500/10 hover:text-indigo-500"
+                                    title="Xem"
                                   >
-                                    <ChevronRight size={14} />
+                                    <ChevronRight size={12} />
                                   </button>
                                   {userRole === 'ADMIN' && (
                                     <button 
@@ -6808,10 +6870,10 @@ export default function App() {
                                         e.stopPropagation(); 
                                         handleDeleteApp(app.id, app.unitCode);
                                       }}
-                                      className="p-1 rounded-lg text-slate-500 hover:text-rose-500 transition-colors"
-                                      title="Xóa hồ sơ (Chỉ Admin)"
+                                      className="p-1 rounded text-slate-500 hover:text-rose-500 transition-colors"
+                                      title="Xóa"
                                     >
-                                      <Trash2 size={14} />
+                                      <Trash2 size={12} />
                                     </button>
                                   )}
                                 </div>
@@ -6904,7 +6966,7 @@ export default function App() {
               </motion.div>
             )}
 
-            {activeTab === 'projects' && (userRole === 'ADMIN' || userRole === 'DIRECTOR') && (
+            {activeTab === 'projects' && isManagementEdit && (
               <motion.div 
                 key="projects"
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -7173,7 +7235,7 @@ export default function App() {
                         {(editApp || selectedApp).rejectionCount > 0 && <span className="ml-2 text-[10px] font-mono bg-error/20 px-1.5 py-0.5 rounded">Trả về: {(editApp || selectedApp).rejectionCount} lần</span>}
                       </div>
                       
-                      {currentUser?.permission !== 'VIEW' && (
+                      {userCanEdit && (
                         <button 
                           onClick={() => handleResolveIssue((editApp || selectedApp).id)}
                           className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md flex items-center gap-2"
@@ -7187,7 +7249,7 @@ export default function App() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                  {(userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
+                  {isManagement && (
                     <button 
                       onClick={() => setExpandedSections(expandedSections.length > 0 ? [] : ['PTT_SECTION', 'KT_SECTION', 'PTDA_SECTION', 'OTHER_SECTION'])}
                       className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all border border-slate-700 mr-2"
@@ -7196,7 +7258,7 @@ export default function App() {
                     </button>
                   )}
                   {!isEditing ? (
-                    currentUser?.permission !== 'VIEW' && (
+                    userCanEdit && (
                       <button 
                         onClick={() => {
                           setIsEditing(true);
@@ -8074,7 +8136,7 @@ export default function App() {
                                      )}
 
                                      {/* Edit Icon */}
-                                     {currentUser?.permission !== 'VIEW' && (
+                                     {userCanEdit && (
                                          <button 
                                             onClick={() => {
                                                 setEditApp(selectedApp);
