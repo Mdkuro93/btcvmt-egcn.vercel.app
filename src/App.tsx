@@ -103,7 +103,12 @@ import SettingsView from './components/SettingsView';
 import FieldModeView from './components/FieldModeView';
 import NotificationPanel from './components/NotificationPanel';
 import ProjectManagementView from './components/ProjectManagementView';
+import UserManagementView from './components/UserManagementView';
+import HandoverRecord from './components/HandoverRecord';
 import LoginScreen from './components/LoginScreen';
+import ProjectModal from './components/modals/ProjectModal';
+import HandoverTicketModal from './components/modals/HandoverTicketModal';
+import BulkDocumentModal from './components/modals/BulkDocumentModal';
 import BulkNoteModal from './components/modals/BulkNoteModal';
 import ChangePasswordModal from './components/modals/ChangePasswordModal';
 import FilePreviewModal from './components/modals/FilePreviewModal';
@@ -112,6 +117,7 @@ import BulkIssueModal from './components/modals/BulkIssueModal';
 import { Routes, Route, Link } from 'react-router-dom';
 import ReportScreen from './pages/ReportScreen';
 import { cn } from './lib/utils';
+import { formatDate } from './utils/dateUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { createClient } from '@supabase/supabase-js';
 import { clsx, type ClassValue } from 'clsx';
@@ -254,31 +260,18 @@ const syncRecordToSupabase = async (app: Application) => {
 const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplications: Application[], showToast?: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void) => {
   if (appsToSync.length === 0) return allApplications;
   try {
-    const recordsToInsert: any[] = [];
-    const recordsToUpdate: any[] = [];
+    const recordsToInsert: any[] = appsToSync
+      .filter(a => !a.id || typeof a.id === 'string')
+      .map(app => {
+        const snakeObj = mapToSnakeCase(app);
+        delete snakeObj.id; // Ensure id is NOT sent for insert
+        return snakeObj;
+      });
 
-    appsToSync.forEach(app => {
-      const snakeObj = mapToSnakeCase(app);
-      // Change: Use a more reliable way to detect new records if we moved away from -imp- prefix,
-      // but to preserve logic we keep checking for -imp- for backward compatibility if any remain.
-      // However, for new UUIDs that are meant to be inserts, we need a way to identify them.
-      // If we are providing valid UUIDs from the start, we don't necessarily need to delete them
-      // unless we want Supabase to generate them. But user 23502 error suggests we SHOULD provide them.
-      if (typeof snakeObj.id === 'string' && (snakeObj.id.includes('-imp-') || !allApplications.some(a => a.id === snakeObj.id))) {
-        // If it's a temporary ID, we can still delete it IF we trust Supabase has a default.
-        // But the user error says it doesn't. So we should NOT delete it if it's a valid UUID.
-        if (snakeObj.id.includes('-imp-')) {
-          delete snakeObj.id;
-          recordsToInsert.push(snakeObj);
-        } else {
-          // It's a new UUID we generated, so we keep it and use it for insert
-          recordsToInsert.push(snakeObj);
-        }
-      } else {
-        recordsToUpdate.push(snakeObj);
-      }
-    });
-    
+    const recordsToUpdate: any[] = appsToSync
+      .filter(a => a.id && typeof a.id === 'number')
+      .map(app => mapToSnakeCase(app));
+
     let insertedData: any[] = [];
     if (recordsToInsert.length > 0) {
       const { data: insertResult, error: insertError } = await supabase.from('records').insert(recordsToInsert).select();
@@ -299,7 +292,12 @@ const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplicati
     if (allReturnedData.length > 0) {
       allReturnedData.forEach(item => {
         const returnedApp = mapFromSnakeCase(item);
-        const idx = updatedAppsLocal.findIndex(a => a.id === returnedApp.id);
+        // Find existing app by unitCode if it was a new record (no numeric id yet)
+        const idx = updatedAppsLocal.findIndex(a => 
+          (typeof returnedApp.id === 'number' && a.id === returnedApp.id) || 
+          (a.unitCode === returnedApp.unitCode && typeof a.id !== 'number')
+        );
+        
         if (idx !== -1) {
           updatedAppsLocal[idx] = returnedApp;
         } else {
@@ -317,22 +315,6 @@ const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplicati
   }
 };
 
-const formatDate = (val: string | Date | undefined) => {
-    if (!val) return '---';
-    // If it's already in dd/mm/yyyy format, return it
-    if (typeof val === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(val)) return val;
-    
-    const date = new Date(val);
-    if (isNaN(date.getTime())) {
-      // If it's a string that doesn't look like ISO but might be something else
-      return String(val);
-    }
-    
-    const d = date.getDate().toString().padStart(2, '0');
-    const m = (date.getMonth() + 1).toString().padStart(2, '0');
-    const y = date.getFullYear();
-    return `${d}/${m}/${y}`;
-  };
 
 const formatExcelDate = (val: string | Date | undefined) => {
   if (!val) return '';
@@ -579,456 +561,14 @@ const FestiveBranding = () => (
 
 
 
-const HandoverTicketModal = ({ 
-  isOpen, 
-  onClose, 
-  app, 
-  theme 
-}: { 
-  isOpen: boolean; 
-  onClose: () => void; 
-  app: Application | null;
-  theme: 'light' | 'dark'
-}) => {
-  if (!app) return null;
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60]"
-          />
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className={cn(
-              "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[90vh] overflow-y-auto z-[70] rounded-[2.5rem] shadow-2xl border print:shadow-none print:border-none print:static print:translate-x-0 print:translate-y-0 print:max-h-none",
-              theme === 'dark' ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900"
-            )}
-          >
-            <div className="p-8 md:p-12 space-y-8 print:p-0">
-               <div className="flex justify-between items-start border-b pb-6 border-slate-200/20 print:border-slate-800">
-                  <div className="space-y-1">
-                    <h2 className="text-2xl font-black font-serif italic tracking-tight text-festive-gold">BIÊN BẢN BÀN GIAO</h2>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-60">Giấy chứng nhận Quyền sử dụng đất</p>
-                  </div>
-                  <div className="text-right space-y-1">
-                    <p className="text-[10px] font-mono opacity-60">Số: {app.unitCode}/{new Date().getFullYear()}/BBBG</p>
-                    <p className="text-[10px] font-mono opacity-60">{new Date().toLocaleDateString('vi-VN')}</p>
-                  </div>
-               </div>
-
-               <div className="space-y-6">
-                 <div>
-                   <h3 className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-3 border-b border-indigo-500/10 pb-1">BÊN GIAO (PHÒNG THỦ TỤC - PTT)</h3>
-                   <div className="grid grid-cols-2 gap-4 text-xs">
-                     <div>
-                       <p className="opacity-50 mb-0.5">Họ và tên người giao:</p>
-                       <p className="font-bold">Ban QL Dự án {app.projectName}</p>
-                     </div>
-                     <div>
-                       <p className="opacity-50 mb-0.5">Bộ phận:</p>
-                       <p className="font-bold">Phòng Thủ tục hồ sơ</p>
-                     </div>
-                   </div>
-                 </div>
-
-                 <div>
-                   <h3 className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-3 border-b border-emerald-500/10 pb-1">BÊN NHẬN (KHÁCH HÀNG)</h3>
-                   <div className="grid grid-cols-2 gap-4 text-xs">
-                     <div>
-                       <p className="opacity-50 mb-0.5">Họ và tên:</p>
-                       <p className="font-bold">{app.customerName}</p>
-                     </div>
-                     <div>
-                       <p className="opacity-50 mb-0.5">Số điện thoại:</p>
-                       <p className="font-bold">{app.phoneNumber || '---'}</p>
-                     </div>
-                     <div className="col-span-2">
-                       <p className="opacity-50 mb-0.5">Mã sản phẩm / Lô căn:</p>
-                       <p className="font-bold text-lg">{app.unitCode} - Dự án {app.projectName}</p>
-                     </div>
-                   </div>
-                 </div>
-
-                 <div>
-                   <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 border-b border-slate-700 pb-1">DANH MỤC TÀI LIỆU BÀN GIAO</h3>
-                   <table className="w-full text-xs border-collapse">
-                     <thead>
-                       <tr className="bg-slate-800/10 dark:bg-slate-800/50">
-                         <th className="border border-slate-700/50 p-2 text-left">STT</th>
-                         <th className="border border-slate-700/50 p-2 text-left text-[10px] uppercase">Loại tài liệu / Giấy tờ</th>
-                         <th className="border border-slate-700/50 p-2 text-center text-[10px] uppercase">Số lượng</th>
-                         <th className="border border-slate-700/50 p-2 text-left text-[10px] uppercase">Ghi chú</th>
-                       </tr>
-                     </thead>
-                     <tbody>
-                       <tr>
-                         <td className="border border-slate-700/50 p-2 text-center">1</td>
-                         <td className="border border-slate-700/50 p-2 font-bold">Giấy chứng nhận Quyền sử dụng Đất (GCN)</td>
-                         <td className="border border-slate-700/50 p-2 text-center">01 bản gốc</td>
-                         <td className="border border-slate-700/50 p-2 italic opacity-60">Kèm thông báo nộp thuế</td>
-                       </tr>
-                       <tr>
-                         <td className="border border-slate-700/50 p-2 text-center">2</td>
-                         <td className="border border-slate-700/50 p-2 pr-4 font-bold">Hồ sơ kỹ thuật / Biên bản đo đạc</td>
-                         <td className="border border-slate-700/50 p-2 text-center">01 bộ</td>
-                         <td className="border border-slate-700/50 p-2 italic opacity-60"></td>
-                       </tr>
-                       {app.isSelfService && (
-                         <tr>
-                           <td className="border border-slate-700/50 p-2 text-center">3</td>
-                           <td className="border border-slate-700/50 p-2 font-bold">Tài liệu hướng dẫn sang tên</td>
-                           <td className="border border-slate-700/50 p-2 text-center">01 bộ</td>
-                           <td className="border border-slate-700/50 p-2 italic opacity-60">Khách hàng tự làm hồ sơ</td>
-                         </tr>
-                       )}
-                     </tbody>
-                   </table>
-                 </div>
-
-                 <div className="pt-8 grid grid-cols-2 gap-12">
-                    <div className="text-center space-y-20">
-                       <p className="text-[10px] font-black uppercase tracking-widest opacity-60">ĐẠI DIỆN BÊN GIAO</p>
-                       <p className="text-xs font-bold">(Ký và ghi rõ họ tên)</p>
-                    </div>
-                    <div className="text-center space-y-20">
-                       <p className="text-[10px] font-black uppercase tracking-widest opacity-60">ĐẠI DIỆN BÊN NHẬN</p>
-                       <p className="text-xs font-bold">(Ký và ghi rõ họ tên)</p>
-                    </div>
-                 </div>
-
-                 <div className="pt-10 border-t border-slate-800 border-dashed text-[9px] italic text-slate-500 text-center uppercase tracking-widest">
-                    Vui lòng bảo quản cẩn thận giấy tờ gốc. Mọi khiếu nại sau khi ký biên bản này sẽ được xử lý theo quy định công ty.
-                 </div>
-               </div>
-
-               <div className="flex gap-3 pt-6 print:hidden">
-                 <button 
-                   onClick={onClose}
-                   className="flex-1 py-3 border border-slate-700 rounded-xl text-xs font-bold uppercase tracking-widest text-slate-500 hover:bg-slate-800 transition-colors"
-                 >
-                   Đóng lại
-                 </button>
-                 <button 
-                   onClick={handlePrint}
-                   className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
-                 >
-                   <Printer size={16} /> In Phiếu BĐ
-                 </button>
-               </div>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  );
-};
 
 // BulkTransitionModal and BulkIssueModal have been moved to components/modals/
 
-const ProjectModal = ({ 
-  isOpen, 
-  onClose, 
-  onSave, 
-  project, 
-  theme 
-}: { 
-  isOpen: boolean; 
-  onClose: () => void; 
-  onSave: (p: Partial<Project>) => void; 
-  project: Project | null;
-  theme: 'light' | 'dark'
-}) => {
-  const [formData, setFormData] = useState<Partial<Project>>({
-    name: '',
-    region: 'Quảng Trị',
-    totalUnits: 0,
-    workflowType: 'Quy_trinh_1'
-  });
-
-  useEffect(() => {
-    if (project) {
-      // Deep check or just name check to avoid loop if parent re-renders and passes "new" project
-      if (formData.name !== project.name || formData.region !== project.region || formData.totalUnits !== project.totalUnits || formData.workflowType !== project.workflowType) {
-        setFormData(project);
-      }
-    } else if (isOpen) {
-      // Only reset if it's not already reset
-      if (formData.name !== '' || formData.totalUnits !== 0) {
-        setFormData({
-          name: '',
-          region: 'Quảng Trị',
-          totalUnits: 0,
-          workflowType: 'Quy_trinh_1'
-        });
-      }
-    }
-  }, [project, isOpen]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
-      />
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className={cn(
-          "relative w-full max-w-lg rounded-[2.5rem] border shadow-2xl overflow-hidden",
-          theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900 border-slate-800"
-        )}
-      >
-        <div className="p-8">
-          <div className="flex justify-between items-center mb-8">
-            <div>
-              <h2 className={cn("text-2xl font-black italic font-serif", theme === 'light' ? "text-slate-900" : "text-white")}>
-                {project ? 'Chỉnh sửa Dự án' : 'Tạo Dự án Mới'}
-              </h2>
-              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mt-1">Thông tin vận hành hệ thống</p>
-            </div>
-            <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-500/10 transition-all">
-              <X size={20} className="text-slate-500" />
-            </button>
-          </div>
-
-          <div className="space-y-6">
-            <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Tên dự án</label>
-              <input 
-                type="text"
-                value={formData.name}
-                onChange={e => setFormData({ ...formData, name: e.target.value })}
-                placeholder="VD: Sunshine Riverside"
-                className={cn(
-                  "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none transition-all",
-                  theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900 focus:border-indigo-500" : "bg-slate-950 border-slate-800 text-white focus:border-festive-gold"
-                )}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Khu vực / Tỉnh thành</label>
-                <select 
-                  value={formData.region}
-                  onChange={e => setFormData({ ...formData, region: e.target.value })}
-                  className={cn(
-                    "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none transition-all",
-                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900" : "bg-slate-950 border-slate-800 text-white"
-                  )}
-                >
-                  <option value="Quảng Trị">Quảng Trị</option>
-                  <option value="Đà Nẵng">Đà Nẵng</option>
-                  <option value="Quảng Ngãi">Quảng Ngãi</option>
-                  <option value="Khánh Hòa">Khánh Hòa</option>
-                  <option value="Gia Lai">Gia Lai</option>
-                  <option value="Lâm Đồng">Lâm Đồng</option>
-                  <option value="Đắk Lắk">Đắk Lắk</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Tổng số sản phẩm</label>
-                <input 
-                  type="number"
-                  value={formData.totalUnits}
-                  onChange={e => setFormData({ ...formData, totalUnits: parseInt(e.target.value) || 0 })}
-                  className={cn(
-                    "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none transition-all focus:border-indigo-500",
-                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900" : "bg-slate-950 border-slate-800 text-white"
-                  )}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 mt-4">
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Loại quy trình</label>
-                <select 
-                  value={formData.workflowType || 'Quy_trinh_1'}
-                  onChange={e => setFormData({ ...formData, workflowType: e.target.value as any })}
-                  disabled={!!project}
-                  className={cn(
-                    "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none transition-all",
-                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900 focus:border-indigo-500" : "bg-slate-950 border-slate-800 text-white focus:border-festive-gold",
-                    !!project && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  <option value="Quy_trinh_1">Quy trình hỗ trợ (GD_)</option>
-                  <option value="Quy_trinh_2">Quy trình thông thường (S_)</option>
-                </select>
-                {project && <p className="text-[9px] text-amber-500 font-bold mt-2 italic">* Không thể thay đổi quy trình sau khi dự án đã được tạo.</p>}
-              </div>
-
-              <div className="mt-4">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Danh mục hồ sơ gốc (Tham khảo)</label>
-                <div className="space-y-2">
-                  {(formData.originalDocumentChecklist || []).map((item, idx) => (
-                    <div key={`${item}-${idx}`} className="flex gap-2">
-                      <input 
-                        type="text"
-                        value={item}
-                        onChange={e => {
-                          const newList = [...(formData.originalDocumentChecklist || [])];
-                          newList[idx] = e.target.value;
-                          setFormData({ ...formData, originalDocumentChecklist: newList });
-                        }}
-                        placeholder="Tên hồ sơ..."
-                        className={cn(
-                          "flex-1 px-4 py-2 rounded-xl border text-xs font-bold transition-all focus:ring-1 focus:ring-indigo-500",
-                          theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900" : "bg-slate-950 border-slate-800 text-white"
-                        )}
-                      />
-                      <button 
-                        onClick={() => {
-                          const newList = (formData.originalDocumentChecklist || []).filter((_, i) => i !== idx);
-                          setFormData({ ...formData, originalDocumentChecklist: newList });
-                        }}
-                        className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  ))}
-                  <button 
-                    onClick={() => setFormData({ ...formData, originalDocumentChecklist: [...(formData.originalDocumentChecklist || []), ''] })}
-                    className="w-full py-2 border-2 border-dashed border-slate-700/50 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:border-indigo-500/50 hover:text-indigo-500 transition-all flex items-center justify-center gap-2"
-                  >
-                    <Plus size={14} /> Thêm hạng mục hồ sơ
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-4 mt-12">
-            <button 
-              onClick={onClose}
-              className="flex-1 px-8 py-4 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:bg-slate-500/10 transition-all"
-            >
-              Hủy bỏ
-            </button>
-            <button 
-              onClick={() => onSave(formData)}
-              className="flex-1 px-8 py-4 bg-emerald-600 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 transition-all"
-            >
-              Lưu thông tin
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
 
 // FilePreviewModal has been moved to components/modals/
 
-const BulkDocumentModal = ({
-  onClose,
-  onUpload,
-  isUploading,
-  theme
-}: {
-  onClose: () => void,
-  onUpload: (file: File) => void,
-  isUploading: boolean,
-  theme: 'light' | 'dark'
-}) => {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className={cn(
-          "w-full max-w-lg rounded-[2.5rem] border p-8 relative shadow-2xl",
-          theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900 border-slate-800"
-        )}
-      >
-        <button onClick={onClose} className="absolute top-6 right-6 p-2 rounded-xl text-slate-500 hover:bg-slate-500/10 transition-all">
-          <X size={20} />
-        </button>
-        
-        <div className="mb-8 text-center pt-4">
-          <div className="w-16 h-16 bg-indigo-500/10 rounded-[1.5rem] flex items-center justify-center text-indigo-400 mx-auto mb-4">
-            <GitMerge size={32} />
-          </div>
-          <h2 className="text-xl font-black italic tracking-tight">Cập nhật tài liệu chung</h2>
-          <p className="text-xs text-slate-500 mt-2">File này sẽ được liên kết đồng bộ cho tất cả các hồ sơ đã chọn.</p>
-        </div>
-
-        <div className="space-y-6">
-          <label className="block">
-            <div className={cn(
-              "border-2 border-dashed rounded-[2rem] p-10 flex flex-col items-center justify-center gap-4 transition-all cursor-pointer group",
-              selectedFile ? "border-emerald-500/30 bg-emerald-500/5" : (theme === 'light' ? "border-slate-200 hover:border-indigo-500/30 hover:bg-indigo-500/5" : "border-slate-800 hover:border-indigo-500/30 hover:bg-indigo-500/5")
-            )}>
-              <Upload className={cn("transition-transform group-hover:-translate-y-1", selectedFile ? "text-emerald-500" : "text-slate-500")} size={32} />
-              <div className="text-center">
-                <p className="text-xs font-black uppercase tracking-widest text-slate-400">{selectedFile ? selectedFile.name : 'Chọn file hoặc chụp ảnh'}</p>
-                <p className="text-[10px] text-slate-500 mt-1 font-bold italic">Hệ thống sẽ chỉ lưu 1 bản duy nhất</p>
-              </div>
-              <input 
-                type="file" 
-                className="hidden" 
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) setSelectedFile(f);
-                }} 
-              />
-            </div>
-          </label>
-
-          <div className="flex gap-4 pt-4">
-            <button 
-              onClick={onClose}
-              className="flex-1 py-4 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:bg-slate-500/10 transition-all"
-            >
-              Hủy
-            </button>
-            <button 
-              disabled={!selectedFile || isUploading}
-              onClick={() => selectedFile && onUpload(selectedFile)}
-              className={cn(
-                "flex-1 py-4 rounded-2xl text-[10px] font-black uppercase shadow-xl transition-all flex items-center justify-center gap-2",
-                selectedFile && !isUploading ? "bg-indigo-600 text-white shadow-indigo-600/20 hover:scale-[1.02]" : "bg-slate-800 text-slate-500 cursor-not-allowed"
-              )}
-            >
-              {isUploading ? (
-                <>
-                  <RefreshCcw size={16} className="animate-spin" />
-                  Đang xử lý...
-                </>
-              ) : (
-                <>
-                  <PlusCircle size={16} />
-                  Gắn tài liệu chung
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
+// FilePreviewModal has been moved to components/modals/
 
 const calculateDaysDiff = (dateStr: string) => {
   const date = new Date(dateStr);
@@ -1081,123 +621,6 @@ const getOverdueInfo = (app: any, stepConfig: Record<string, any>, slaConfig: Re
   return calculateSLA(app, stepConfig, slaConfig);
 };
 
-const UserManagementView = ({ users, onEdit, onDelete, onCreate, onResetPassword, theme }: { users: UserProfile[]; onEdit: (u: UserProfile) => void; onDelete: (id: string) => void; onCreate: () => void; onResetPassword: (u: UserProfile) => void; theme: 'light' | 'dark' }) => (
-  <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-    <header className="flex justify-between items-end text-left">
-      <div>
-         <h2 className={cn("text-3xl font-black italic font-serif tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Quản trị người dùng</h2>
-         <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em] mt-1">Phân quyền & Điều phối dự án</p>
-      </div>
-      <button 
-        onClick={onCreate}
-        className="flex items-center gap-2 px-6 py-3 bg-festive-gold text-slate-900 rounded-2xl text-[10px] font-black uppercase shadow-lg shadow-festive-gold/20 hover:scale-105 active:scale-95 transition-all outline-none"
-      >
-        <Plus size={16} /> Thêm tài khoản
-      </button>
-    </header>
-
-    <div className={cn(
-      "backdrop-blur-xl border rounded-[2.5rem] overflow-hidden shadow-2xl transition-all",
-      theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800"
-    )}>
-      <div className="overflow-x-auto overflow-y-auto max-h-[600px] custom-scrollbar">
-        <table className="w-full text-left">
-          <thead>
-            <tr className={cn(
-              "border-b transition-all",
-              theme === 'light' ? "bg-slate-50 border-slate-100" : "bg-slate-950/50 border-slate-800"
-            )}>
-              <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Nhân sự</th>
-              <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic">Phòng ban</th>
-              <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic text-center">Quyền hạn</th>
-              <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic text-center">Dự án quản lý</th>
-              <th className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic text-center">Trạng thái</th>
-              <th className="px-8 py-6 text-right"></th>
-            </tr>
-          </thead>
-          <tbody className={cn(
-            "divide-y transition-all",
-            theme === 'light' ? "divide-slate-50" : "divide-slate-800/50"
-          )}>
-            {users.map(user => (
-              <tr key={user.id} className={cn(
-                "group transition-all",
-                theme === 'light' ? "hover:bg-slate-50" : "hover:bg-slate-800/20"
-              )}>
-                <td className="px-8 py-5 text-left">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 border border-slate-600 flex items-center justify-center text-sm font-black text-white italic shadow-inner">
-                      {(user.name || 'User').split(' ').pop()?.charAt(0)}
-                    </div>
-                    <div>
-                      <p className={cn("text-sm font-bold", theme === 'light' ? "text-slate-800" : "text-slate-100")}>{user.name || 'Unknown'}</p>
-                      <p className="text-[10px] text-slate-500 font-mono italic">@{user.username}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-8 py-5">
-                  <span className={cn(
-                    "px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border transition-all",
-                    user.dept === 'ADMIN' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
-                    user.dept === 'DIRECTOR' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
-                    user.dept === 'MANAGER' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
-                    user.dept === 'PTT' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                    user.dept === 'KT' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                    user.dept === 'PTDA' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' : 'bg-slate-700 text-slate-400 border-slate-600'
-                  )}>
-                    {user.dept}
-                  </span>
-                </td>
-                <td className="px-8 py-5 text-center">
-                  <span className={cn(
-                    "px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border",
-                    user.permission === 'FULL' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
-                    user.permission === 'EDIT' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                    'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                  )}>
-                    {user.permission === 'FULL' ? 'Toàn quyền' : user.permission === 'EDIT' ? 'Được sửa' : 'Chỉ xem'}
-                  </span>
-                </td>
-                <td className="px-8 py-5 text-center">
-                  <span className="text-xs font-black text-slate-500 italic">{(user.assignedProjectIds || []).length} Dự án</span>
-                </td>
-                <td className="px-8 py-5 text-center">
-                   <div className="flex items-center justify-center gap-2">
-                     <span className={cn("inline-block w-1.5 h-1.5 rounded-full shadow-sm", user.status === 'Active' ? 'bg-emerald-400 shadow-emerald-400/50' : 'bg-slate-600')} />
-                     <span className="text-[10px] font-black uppercase text-slate-400">{user.status}</span>
-                   </div>
-                </td>
-                <td className="px-8 py-5 text-right">
-                  <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                     <button 
-                      onClick={() => onResetPassword(user)}
-                      className="p-2 rounded-lg bg-orange-500/10 text-orange-500 hover:bg-orange-500 hover:text-white transition-all shadow-lg border border-orange-500/20"
-                      title="Reset mật khẩu"
-                     >
-                       <Key size={14} />
-                     </button>
-                     <button 
-                      onClick={() => onEdit(user)}
-                      className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-all shadow-lg"
-                     >
-                       <Settings size={14} />
-                     </button>
-                     <button 
-                      onClick={() => onDelete(user.id)}
-                      className="p-2 rounded-lg bg-slate-800 text-rose-500/70 hover:bg-rose-500 hover:text-white transition-all shadow-lg"
-                     >
-                       <Trash2 size={14} />
-                     </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-);
 
 const PrintStyles = () => (
   <style>{`
@@ -1219,119 +642,8 @@ const PrintStyles = () => (
   `}</style>
 );
 
-const HandoverRecord = ({ apps, user, template }: { apps: Application[], user: UserProfile | null, template: any }) => {
-  const today = new Date();
-  return (
-    <div id="print-section" className="p-10 text-black bg-white min-h-screen">
-      <div className="flex justify-between items-start mb-8 border-b-2 border-black pb-4">
-        <div>
-          <h1 className="text-xl font-bold uppercase">{template.companyName}</h1>
-          <p className="text-xs italic">{template.subTitle}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs font-bold">{template.docCode}</p>
-          <p className="text-xs">Số: ....................</p>
-        </div>
-      </div>
 
-      <div className="text-center mb-10">
-        <h2 className="text-2xl font-bold uppercase mt-4">{template.title}</h2>
-        <h3 className="text-xl font-bold uppercase">{template.subTitle2}</h3>
-        <p className="italic mt-2">Ngày {formatDate(today)}</p>
-      </div>
-
-      <div className="mb-6 space-y-2">
-        <p><strong>Người giao:</strong> {user?.name || '................................'}</p>
-        <p><strong>Bộ phận:</strong> {user?.dept || '................................'}</p>
-        <p><strong>Địa chỉ:</strong> {template.address}</p>
-      </div>
-
-      <div className="mb-8">
-        <table className="w-full border-collapse border border-black text-sm">
-          <thead>
-            <tr className="bg-gray-100 font-bold">
-              <th className="border border-black px-2 py-2 w-12 text-center">STT</th>
-              <th className="border border-black px-2 py-2 text-center">Mã lô/Căn</th>
-              <th className="border border-black px-2 py-2 text-center">Chủ tài sản</th>
-              <th className="border border-black px-2 py-2 text-center">Đối tượng</th>
-              <th className="border border-black px-2 py-2 text-center">Dự án</th>
-              <th className="border border-black px-2 py-2 text-center">Tình trạng</th>
-              <th className="border border-black px-2 py-2 text-center">Ghi chú</th>
-            </tr>
-          </thead>
-          <tbody>
-            {apps.map((app, idx) => (
-              <React.Fragment key={`${app.id}-${idx}`}>
-                <tr className="border-b border-black">
-                  <td className="border border-black px-2 py-2 text-center">{idx + 1}</td>
-                  <td className="border border-black px-2 py-2 font-bold">{app.unitCode}</td>
-                  <td className="border border-black px-2 py-2">{app.customerName}</td>
-                  <td className="border border-black px-2 py-2 text-center text-xs">{app.contractSignerType || 'Cá nhân'}</td>
-                  <td className="border border-black px-2 py-2 text-xs">{app.projectName}</td>
-                  <td className="border border-black px-2 py-2 text-center text-xs">Đã có GCN</td>
-                  <td className="border border-black px-2 py-2 whitespace-nowrap">
-                    {app.scannedFiles && app.scannedFiles.length > 0 && (
-                      <div className="flex flex-col gap-0.5 text-[8px] italic">
-                        {app.scannedFiles.map(f => (
-                          <span key={f.id} className="truncate max-w-[100px]">• {f.name}</span>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-                </tr>
-                {app.scannedFiles && app.scannedFiles.length > 0 && (
-                  <tr className="no-print bg-slate-50 border-x border-black">
-                    <td colSpan={7} className="px-10 py-1 text-[9px] text-blue-600">
-                      <span className="font-bold text-gray-500 mr-2 italic">Liên kết tài liệu Số:</span>
-                      {app.scannedFiles.map((f, fIdx) => (
-                        <a 
-                          key={f.id} 
-                          href={f.url} 
-                          target="_blank" 
-                          rel="noreferrer" 
-                          className="hover:underline mr-4 inline-flex items-center gap-1"
-                        >
-                          [{fIdx + 1}] {f.name}
-                        </a>
-                      ))}
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
-            ))}
-            {apps.length === 0 && Array.from({length: 5}).map((_, i) => (
-              <tr key={`skeleton-${i}`}>
-                <td className="border border-black px-2 py-2 h-8"></td>
-                <td className="border border-black px-2 py-2"></td>
-                <td className="border border-black px-2 py-2"></td>
-                <td className="border border-black px-2 py-2"></td>
-                <td className="border border-black px-2 py-2"></td>
-                <td className="border border-black px-2 py-2"></td>
-                <td className="border border-black px-2 py-2"></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="grid grid-cols-2 mt-16 text-center">
-        <div>
-          <p className="font-bold uppercase mb-20 text-sm">Người giao</p>
-          <p className="font-bold italic">{user?.name}</p>
-        </div>
-        <div>
-          <p className="font-bold uppercase mb-20 text-sm">Người nhận</p>
-          <p className="italic">(Ký và ghi rõ họ tên)</p>
-        </div>
-      </div>
-
-      <div className="mt-20 pt-10 text-[10px] italic border-t border-gray-200">
-        <p>{template.footerNote1}</p>
-        <p>{template.footerNote2}</p>
-      </div>
-    </div>
-  );
-};
+// HandoverRecord template moved to components/
 
 export default function App() {
   
@@ -1936,7 +1248,7 @@ export default function App() {
   }, [projects]);
 
 
-  const deleteAllNotificationsForRecord = async (recordId: string) => {
+  const deleteAllNotificationsForRecord = async (recordId: string | number) => {
     try {
       const { error } = await supabase
         .from('notifications')
@@ -2261,7 +1573,7 @@ export default function App() {
     setIsSavingApp,
   });
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [selectedRows, setSelectedRows] = useState<Set<string | number>>(new Set());
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const [projectSearch, setProjectSearch] = useState('');
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
@@ -3043,7 +2355,6 @@ export default function App() {
             const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
             
             const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
-               id: generateUUID(),
                unitCode: unitCode,
                projectName: row[0] || (projects.length > 0 ? projects[0].name : ''),
                customerName: row[2] || '---',
@@ -3058,7 +2369,7 @@ export default function App() {
                checklist: {},
                scannedFiles: [],
                auditTrail: []
-            } as Application;
+            } as any; // Temporary to allow missing id
 
             if (!app.projectName && projects.length > 0) app.projectName = projects[0].name;
             const parentProj = projects.find(p => p.name === app.projectName);
@@ -3093,7 +2404,7 @@ export default function App() {
 
             if (existingIndex > -1) {
               newApplications[existingIndex] = app;
-              if (app.id.toString().includes('-imp-') || !applications.some(a => a.id === app.id)) {
+              if (!app.id || (app.id && app.id.toString().includes('-imp-')) || !applications.some(a => a.id === app.id)) {
                 const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
                 if (cIdx > -1) appsToCreate[cIdx] = app;
                 else appsToCreate.push(app);
@@ -3115,7 +2426,6 @@ export default function App() {
           } else if (userRole === 'PTT') {
             const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
             const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
-               id: generateUUID(),
                unitCode: unitCode,
                customerName: row[2] || '---',
                status: 'Processing',
@@ -3129,7 +2439,7 @@ export default function App() {
                checklist: {},
                scannedFiles: [],
                auditTrail: []
-            } as Application;
+            } as any;
 
             app.projectName = row[0] || app.projectName || (projects.length > 0 ? projects[0].name : '');
             const pProj = projects.find(p => p.name === app.projectName);
@@ -3156,7 +2466,7 @@ export default function App() {
 
             if (existingIndex > -1) {
               newApplications[existingIndex] = app;
-              if (app.id.toString().includes('-imp-') || !applications.some(a => a.id === app.id)) {
+              if (!app.id || (app.id && app.id.toString().includes('-imp-')) || !applications.some(a => a.id === app.id)) {
                 const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
                 if (cIdx > -1) appsToCreate[cIdx] = app;
                 else appsToCreate.push(app);
@@ -3191,7 +2501,7 @@ export default function App() {
                 app.issueType = 'Khác';
               }
               newApplications[idx] = app;
-              if (app.id.toString().includes('-imp-') || !applications.some(a => a.id === app.id)) {
+              if (!app.id || (app.id && app.id.toString().includes('-imp-')) || !applications.some(a => a.id === app.id)) {
                 const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
                 if (cIdx > -1) appsToCreate[cIdx] = app;
                 else appsToCreate.push(app);
@@ -3216,7 +2526,7 @@ export default function App() {
                 app.issueType = 'Khác';
               }
               newApplications[idx] = app;
-              if (app.id.toString().includes('-imp-') || !applications.some(a => a.id === app.id)) {
+              if (!app.id || (app.id && app.id.toString().includes('-imp-')) || !applications.some(a => a.id === app.id)) {
                 const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
                 if (cIdx > -1) appsToCreate[cIdx] = app;
                 else appsToCreate.push(app);
@@ -3308,7 +2618,7 @@ export default function App() {
     }
   };
 
-  const cleanupFilesForRecords = async (ids: string[]) => {
+  const cleanupFilesForRecords = async (ids: (string | number)[]) => {
     const appsToDelete = applications.filter(app => ids.includes(app.id));
     const allFilePaths: string[] = [];
     appsToDelete.forEach(app => {
@@ -3580,7 +2890,7 @@ export default function App() {
     }
   };
 
-  const handleBulkStepTransition = (nextStep: StepName, overrideIds?: string[]) => {
+  const handleBulkStepTransition = (nextStep: StepName, overrideIds?: (string | number)[]) => {
     const idsToProcess = overrideIds || selectedAppIds;
     if (idsToProcess.length === 0) return;
     

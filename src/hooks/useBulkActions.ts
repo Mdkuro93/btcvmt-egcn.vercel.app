@@ -18,7 +18,7 @@ export function useBulkActions({
   showToast,
   setIsSavingApp,
 }: UseBulkActionsProps) {
-  const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
+  const [selectedAppIds, setSelectedAppIds] = useState<(string | number)[]>([]);
   
   // Bulk note modal states
   const [isBulkNoteOpen, setIsBulkNoteOpen] = useState(false);

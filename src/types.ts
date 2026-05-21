@@ -102,7 +102,7 @@ export type ScannedFile = {
 };
 
 export type Application = {
-  id: string;
+  id: number | undefined;
   unitCode: string; // Mã lô/căn
   projectName: string;
   workflowType?: WorkflowType; // Thêm loại quy trình
@@ -180,7 +180,7 @@ export type AppNotification = {
   time: string; // created_at in DB
   type: 'Urgent' | 'Info' | 'Success' | 'Warning';
   isRead: boolean;
-  appId?: string; // record_id in DB
+  appId?: number | string; // record_id in DB
 };
 
 export type KPI = {
