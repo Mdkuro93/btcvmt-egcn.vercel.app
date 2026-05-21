@@ -4593,10 +4593,26 @@ export default function App() {
     }
   }, [theme]);
 
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    const saved = localStorage.getItem('procedural_current_user');
-    return saved ? safeParse(saved, null) : null;
-  });
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+
+  // Initialize session on app load
+  useEffect(() => {
+    const initSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data?.session?.user) {
+        const { data: profile } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', data.session.user.id)
+          .maybeSingle();
+
+        if (profile) {
+          setCurrentUser(mapUserFromSnakeCase(profile));
+        }
+      }
+    };
+    initSession();
+  }, []);
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [totalCount, setTotalCount] = useState(0);
@@ -4626,24 +4642,31 @@ export default function App() {
   }, []);
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session) {
-        // Sync profile if different or not set
-        if (!currentUser || currentUser.id !== session.user.id) {
-          const { data: profile } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .maybeSingle();
+      const user = session?.user || null;
+      
+      if (user) {
+        const { data: profile } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
 
-          if (profile) {
-            setCurrentUser(mapUserFromSnakeCase(profile));
-          }
+        if (profile) {
+          const mapped = mapUserFromSnakeCase(profile);
+          setCurrentUser(mapped);
+          
+          // RESET dependent state on auth change
+          setApplications([]);
+          setDashboardApps([]);
+          setSelectedAppIds([]);
+          setCurrentPage(0);
+          setSearch('');
         }
-      } else if (event === 'SIGNED_OUT') {
+      } else {
         setCurrentUser(null);
-        // RESET ALL STATE
         setApplications([]);
         setDashboardApps([]);
+        setSelectedAppIds([]);
         setCurrentPage(0);
         setSearch('');
       }
@@ -4749,11 +4772,6 @@ export default function App() {
     selectedFlags
   );
 
-  useEffect(() => {
-    if (filteredApps.length !== totalCount) {
-      setTotalCount(filteredApps.length);
-    }
-  }, [filteredApps.length]);
   
   const handleUpdatePassword = async () => {
     if (!currentUser?.username) {
@@ -5074,19 +5092,6 @@ export default function App() {
         
       if (error) throw error;
       
-      // Auto-reset filters if 0 records found and filters are active
-      if ((count === 0 || !data || data.length === 0) && (filterStatus !== 'ALL' || dashboardFilter !== 'ALL' || filterIssue !== 'ALL')) {
-        console.warn('0 records found with current filters. Attempting auto-clear...');
-        // For a smoother UX, we only reset if it's not a direct search
-        if (!search) {
-          setFilterStatus('ALL');
-          setDashboardFilter('ALL');
-          setFilterIssue('ALL');
-          // The useEffect will trigger another fetch after state change
-          return;
-        }
-      }
-      
       setApplications((data || []).map(mapFromSnakeCase));
       setTotalCount(count || 0);
     } catch (error) {
@@ -5178,13 +5183,6 @@ export default function App() {
     if (projects.length > 0) localStorage.setItem('procedural_projects', JSON.stringify(projects));
   }, [projects]);
 
-  useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('procedural_current_user', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('procedural_current_user');
-    }
-  }, [currentUser]);
 
   const deleteAllNotificationsForRecord = async (recordId: string) => {
     try {
@@ -5374,13 +5372,6 @@ export default function App() {
     return () => clearInterval(pollInterval);
   }, [currentUser?.id]);
 
-  // Load current user on boot
-  useEffect(() => {
-    const saved = localStorage.getItem('procedural_current_user');
-    if (saved) {
-      setCurrentUser(safeParse(saved, null));
-    }
-  }, []);
   // Automated Task Reminders
   useEffect(() => {
     if (!currentUser) return;
@@ -8431,7 +8422,6 @@ export default function App() {
   if (!currentUser) {
     return <LoginScreen theme={theme} onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} onLogin={(user) => {
       setCurrentUser(user);
-      setTimeout(() => window.location.reload(), 100);
     }} />;
   }
 
