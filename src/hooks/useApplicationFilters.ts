@@ -2,7 +2,17 @@ import { useMemo } from 'react';
 import { isOverdue, getSLAStatus } from '../utils/statusEngine';
 import { Application } from '../types';
 
-const getVal = (obj: any, camel: string, snake: string) => obj?.[camel] ?? obj?.[snake] ?? null;
+const getVal = <K extends keyof Application>(
+  obj: Application,
+  camel: K,
+  snake: string
+): any => {
+  // Sử dụng 'as unknown as Record<string, any>' vì một số thuộc tính của đối tượng Application 
+  // có thể tồn tại ở định dạng snake_case khi được tải về từ Supabase, trong khi kiểu dữ liệu 
+  // của Application trong TypeScript định nghĩa theo định dạng camelCase.
+  const appMap = obj as unknown as Record<string, any>;
+  return appMap[camel as string] ?? appMap[snake] ?? null;
+};
 
 const getStepType = (step: string) => {
   const s = (step || '').toUpperCase();
@@ -31,7 +41,7 @@ function diffDays(date: string) {
 }
 
 export function useApplicationFilters(
-  applications: any[],
+  applications: Application[],
   dashboardFilter: string | null,
   search?: string,
   filterStatus?: string,
