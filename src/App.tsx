@@ -1,7 +1,12 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useDashboardStats } from './modules/dashboard/useDashboardStats';
-import { useApplications } from './modules/applications/useApplications';
+import { useToast } from './hooks/useToast';
+import { useBulkActions } from './hooks/useBulkActions';
+import { useApplicationFilters } from './hooks/useApplicationFilters';
 import { calculateSLA } from './utils/statusEngine';
+import { diffDays } from './utils/dateUtils';
+import { buildFlags } from './utils/flagUtils';
+import { mapFromSnakeCase, mapToSnakeCase, mapUserFromSnakeCase, mapUserToSnakeCase, safeParse } from './utils/mappers';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Cell,
   PieChart, Pie, LabelList, Label, Legend, AreaChart, Area
@@ -81,6 +86,11 @@ import {
 } from 'lucide-react';
 import DashboardAlerts from './components/DashboardAlerts';
 import ErrorReportView from './components/ErrorReportView';
+import BulkNoteModal from './components/modals/BulkNoteModal';
+import ChangePasswordModal from './components/modals/ChangePasswordModal';
+import FilePreviewModal from './components/modals/FilePreviewModal';
+import BulkTransitionModal from './components/modals/BulkTransitionModal';
+import BulkIssueModal from './components/modals/BulkIssueModal';
 import { Routes, Route, Link } from 'react-router-dom';
 import ReportScreen from './pages/ReportScreen';
 import { cn } from './lib/utils';
@@ -122,181 +132,6 @@ const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY || 'sb_publishable_gKFEW2
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 
-const safeParse = (val: any, fallback: any) => {
-  try {
-    return typeof val === 'string' ? JSON.parse(val) : val ?? fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-function diffDays(date: any) {
-  if (!date) return 0;
-  const now = new Date();
-  const d = new Date(date);
-  
-  const utcNow = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  const utcTarget = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
-  
-  return Math.floor((utcNow - utcTarget) / (1000 * 60 * 60 * 24));
-}
-
-const buildFlags = (app: any): string[] => {
-  const flags: string[] = [];
-  const status = app.status || '';
-  const loan = app.loanStatus || '';
-
-  // 1. Khớp cờ Vay/Không vay
-  if (loan === 'Co_Vay') flags.push('CO_VAY');
-  if (loan === 'Khong_Vay') flags.push('KHONG_VAY');
-
-  // 2. Khớp cờ Lỗi/Sai sót
-  if ((app.issueType && app.issueType !== 'None') || status === 'Error' || !!app.isRejected) {
-    flags.push('CO_SAI_SOT', 'CO_LOI');
-  }
-
-  // 3. 🔥 SỬA TẠI ĐÂY: Phân rã chi tiết trạng thái để biểu đồ không bị dồn cục
-  if (status === 'Processing') {
-    flags.push('ĐANG CHUẨN BỊ', 'PROCESSING');
-  } else if (status === 'WaitingVPDK') {
-    flags.push('CHỜ NỘP VPĐK', 'WAITING_VPDK');
-  } else if (status === 'Submitted') {
-    flags.push('ĐÃ NỘP VPĐK', 'SUBMITTED');
-  } else if (status === 'TaxPending') {
-    flags.push('CHỜ NỘP THUẾ', 'TAX_PENDING');
-  } else if (status === 'TaxPaid' || status === 'TaxCompleted') {
-    flags.push('ĐÃ NỘP THUẾ', 'TAX_PAID');
-  } else if (status === 'GCN_Issued') {
-    flags.push('ĐÃ CÓ GCN', 'GCN_ISSUED');
-  } else if (status === 'WaitingHandover') {
-    flags.push('CHỜ BÀN GIAO', 'WAITING_HANDOVER');
-  } else if (status === 'Completed') {
-    flags.push('HOÀN TẤT', 'COMPLETED');
-  }
-
-  return flags;
-};
-
-const mapFromSnakeCase = (item: any): Application => {
-  if (!item) return {} as Application;
-
-  // Setup helper to handle both snake_case and camelCase keys safely
-  const val = (snakeKey: string, camelKey: string) => {
-    return item[snakeKey] !== undefined ? item[snakeKey] : item[camelKey];
-  };
-
-  // Normalization helpers for key fields to prevent UI / Filtering mismatches
-  const normalizeStatus = (statusVal: any): UnitStatus => {
-    if (typeof statusVal !== 'string') return 'Processing';
-    const s = statusVal.trim().toLowerCase().replace(/_/g, '').replace(/-/g, '');
-    if (s === 'completed' || s === 'hoantat' || s === 'hoântất' || s === 'hoàn tất' || s === 'hoàn tất quy trình') return 'Completed';
-    if (s === 'processing' || s === 'dangxuly' || s === 'đang xử lý' || s === 'chuanbi') return 'Processing';
-    if (s === 'waitingvpdk' || s === 'chờ nộp vpđk' || s === 'chonopvpdk') return 'WaitingVPDK';
-    if (s === 'submitted' || s === 'đã nộp vpđk' || s === 'danopvpdk') return 'Submitted';
-    if (s === 'taxpending' || s === 'chờ thông báo thuế' || s === 'chờ nộp thuế' || s === 'chothongbaothue') return 'TaxPending';
-    if (s === 'taxcompleted' || s === 'đã hoàn thành nvtc' || s === 'hoàn thành nvtc' || s === 'dahoanthanhnvtc') return 'TaxCompleted';
-    if (s === 'taxpaid' || s === 'đã nộp thuế' || s === 'danopthue') return 'TaxPaid';
-    if (s === 'waitinghandover' || s === 'chờ bàn giao' || s === 'chobangiao') return 'WaitingHandover';
-    if (s === 'gcnissued' || s === 'gcn_issued' || s === 'đã có gcn' || s === 'dacogcn') return 'GCN_Issued';
-    if (s === 'error' || s === 'saisot' || s === 'sai sót' || s === 'sai sót/vướng mắc') return 'Error';
-    if (s === 'draft' || s === 'nháp') return 'Draft';
-    return 'Processing';
-  };
-
-  const normalizeLoanStatus = (loanVal: any): 'Co_Vay' | 'Khong_Vay' => {
-    if (typeof loanVal !== 'string') {
-      return loanVal === true ? 'Co_Vay' : 'Khong_Vay';
-    }
-    const l = loanVal.trim().toLowerCase().replace(/_/g, '').replace(/-/g, '');
-    if (l === 'covay' || l === 'có vay' || l === 'có' || l === 'co' || l === 'yes' || l === 'true') {
-      return 'Co_Vay';
-    }
-    return 'Khong_Vay';
-  };
-
-  const normalizeTaxPaymentStatus = (taxVal: any): 'Unpaid' | 'Paid' => {
-    if (typeof taxVal !== 'string') {
-      return taxVal === true ? 'Paid' : 'Unpaid';
-    }
-    const t = taxVal.trim().toLowerCase();
-    if (t === 'paid' || t === 'đã nộp' || t === 'da nop' || t === 'yes' || t === 'true') {
-      return 'Paid';
-    }
-    return 'Unpaid';
-  };
-
-  const str = (value: any) => typeof value === 'string' ? value.trim() : (value ?? '');
-  const num = (value: any) => typeof value === 'number' ? value : (value ? Number(value) : undefined);
-  const bool = (value: any) => typeof value === 'boolean' ? value : (value === 'true' || value === 1 || value === '1' || value === 'YES' || value === 'Yes' || value === 'yes');
-
-  const customerHandoverDate = str(val('customer_handover_date', 'customerHandoverDate'));
-  const currentStepRaw = str(val('current_step', 'currentStep')) || str(val('status', 'status'));
-  const currentStep: StepName = customerHandoverDate ? 'Hoan_Tat' : (currentStepRaw || 'S1_ChuanBi') as StepName;
-
-  const statusRaw = val('status_id', 'statusId') || val('status', 'status');
-  const stepConfigStatus = (INITIAL_STEP_CONFIG[currentStep as string])?.status;
-  const status = (() => {
-  if (customerHandoverDate) return 'Completed';
-
-  const rawStatus = val('status', 'status');
-
-  if (rawStatus) return rawStatus;
-
-  return 'Processing';
-})();
-``
-
-
-  const mappedApp: Application = {
-    id: str(val('id', 'id')),
-    unitCode: str(val('unit_code', 'unitCode')),
-    projectName: str(val('project_name', 'projectName')),
-    workflowType: (currentStep?.startsWith('GD') || (typeof statusRaw === 'string' && statusRaw.startsWith('GD')) ? 'Quy_trinh_1' : 'Quy_trinh_2'),
-    customerName: str(val('customer_name', 'customerName')),
-    contractSignerType: str(val('contract_signer_type', 'contractSignerType')),
-    phoneNumber: str(val('phone_number', 'phoneNumber')),
-    propertyType: val('property_type', 'propertyType'),
-    loanStatus: normalizeLoanStatus(val('loan_status', 'loanStatus')),
-    bankCommitmentDeadline: str(val('bank_commitment_deadline', 'bankCommitmentDeadline')),
-    reportUpdateDate: str(val('report_update_date', 'reportUpdateDate')),
-    contractSigningDate: str(val('contract_signing_date', 'contractSigningDate')),
-    assignorGcnNumber: str(val('assignor_gcn_number', 'assignorGcnNumber')),
-    assignorGcnDate: str(val('assignor_gcn_date', 'assignorGcnDate')),
-    isSelfService: bool(val('is_self_service', 'isSelfService')),
-    submissionLocation: val('submission_location', 'submissionLocation'),
-    vpdkCode: str(val('vpdk_code', 'vpdkCode')),
-    currentStep,
-    status,
-    receivedDate: str(val('received_date', 'receivedDate')),
-    taxNotificationDate: str(val('tax_notification_date', 'taxNotificationDate')),
-    taxNotificationReceivedDate: str(val('tax_notification_received_date', 'taxNotificationReceivedDate')),
-    taxReceiptDate: str(val('tax_receipt_date', 'taxReceiptDate')),
-    accountingHandoverDate: str(val('accounting_handover_date', 'accountingHandoverDate')),
-    submissionDate: str(val('submission_date', 'submissionDate')),
-    gcnReceivedDate: str(val('gcn_received_date', 'gcnReceivedDate')),
-    ptdaHandoverDate: str(val('ptda_handover_date', 'ptdaHandoverDate')),
-    customerHandoverDate,
-    isHandedOver: bool(val('is_handed_over', 'isHandedOver')),
-    handoverDate: str(val('handover_date', 'handoverDate')),
-    taxNoticeProvisionDate: str(val('tax_notice_provision_date', 'taxNoticeProvisionDate')),
-    gcnSignedDate: str(val('gcn_signed_date', 'gcnSignedDate')),
-    issueType: val('issue_type', 'issueType'),
-    issueSeverity: val('issue_severity', 'issueSeverity'),
-    issueNotes: str(val('issue_notes', 'issueNotes')),
-    estimatedCompletionDate: str(val('estimated_completion_date', 'estimatedCompletionDate')),
-    rejectionCount: num(val('rejection_count', 'rejectionCount')) ?? 0,
-    isRejected: bool(val('is_rejected', 'isRejected')),
-    rejectionReason: str(val('rejection_reason', 'rejectionReason')),
-    commitmentDate: str(val('commitment_date', 'commitmentDate')),
-    taxPaymentStatus: normalizeTaxPaymentStatus(val('tax_payment_status', 'taxPaymentStatus')),
-    history: safeParse(val('history', 'history'), []),
-    checklist: safeParse(val('checklist', 'checklist'), {}),
-    scannedFiles: safeParse(val('scanned_files', 'scannedFiles'), []),
-    auditTrail: safeParse(val('audit_trail', 'auditTrail'), [])
-  };
-  mappedApp.flags = buildFlags(mappedApp);
-  return mappedApp;
-};
 
 /**
  * Self-healing logic for inconsistent record states
@@ -334,8 +169,8 @@ const useSelfHealingData = (applications: Application[], setApplications: (apps:
           setApplications(updatedApps);
         } catch (error) {
           console.error('[Self-Healing] Error fixing records:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
-     }
+      alert('Có lỗi xảy ra, vui lòng thử lại');
+      }
       };
 
       fixApps();
@@ -343,123 +178,6 @@ const useSelfHealingData = (applications: Application[], setApplications: (apps:
   }, [applications]); // Only run when total count changes to avoid loops
 };
 
-const STATUS_TO_ID_MAP: Record<UnitStatus, number> = {
-  Processing: 1,
-  WaitingVPDK: 2,
-  Submitted: 3,
-  TaxPending: 4,
-  TaxCompleted: 5,
-  TaxPaid: 6,
-  WaitingHandover: 7,
-  GCN_Issued: 8,
-  Completed: 9,
-  Error: 10,
-  Draft: 11,
-};
-
-const mapToSnakeCase = (app: Application) => {
-  const data: any = {
-    unit_code: app.unitCode,
-    project_name: app.projectName,
-    customer_name: app.customerName,
-    contract_signer_type: app.contractSignerType,
-    phone_number: app.phoneNumber,
-    property_type: app.propertyType,
-    loan_status: app.loanStatus,
-    bank_commitment_deadline: app.bankCommitmentDeadline,
-    report_update_date: app.reportUpdateDate,
-    contract_signing_date: app.contractSigningDate,
-    assignor_gcn_number: app.assignorGcnNumber,
-    assignor_gcn_date: app.assignorGcnDate,
-    is_self_service: app.isSelfService,
-    submission_location: app.submissionLocation,
-    vpdk_code: app.vpdkCode,
-    current_step: app.currentStep,
-    status: app.status,
-    status_id: STATUS_TO_ID_MAP[app.status] || 1,
-    received_date: app.receivedDate,
-    tax_notification_date: app.taxNotificationDate,
-    tax_notification_received_date: app.taxNotificationReceivedDate,
-    tax_receipt_date: app.taxReceiptDate,
-    accounting_handover_date: app.accountingHandoverDate,
-    submission_date: app.submissionDate,
-    gcn_received_date: app.gcnReceivedDate,
-    ptda_handover_date: app.ptdaHandoverDate,
-    customer_handover_date: app.customerHandoverDate,
-    is_handed_over: app.isHandedOver,
-    handover_date: app.handoverDate,
-    tax_notice_provision_date: app.taxNoticeProvisionDate,
-    gcn_signed_date: app.gcnSignedDate,
-    issue_type: app.issueType,
-    issue_severity: app.issueSeverity,
-    issue_notes: app.issueNotes,
-    estimated_completion_date: app.estimatedCompletionDate,
-    rejection_count: app.rejectionCount,
-    is_rejected: app.isRejected,
-    rejection_reason: app.rejectionReason,
-    commitment_date: app.commitmentDate,
-    tax_payment_status: app.taxPaymentStatus,
-    history: app.history || [],
-    checklist: app.checklist || {},
-    scanned_files: app.scannedFiles || [],
-    audit_trail: app.auditTrail || [],
-    updated_at: new Date().toISOString()
-  };
-
-  // Preserve issue fields on application object if present
-  if ((app as any).issue_status !== undefined) data.issue_status = (app as any).issue_status;
-  if ((app as any).issue_created_at !== undefined) data.issue_created_at = (app as any).issue_created_at;
-  if ((app as any).issue_resolved_at !== undefined) data.issue_resolved_at = (app as any).issue_resolved_at;
-
-  // Sanitize all date/timestamp/deadline columns: if blank/empty string, map to null
-  Object.keys(data).forEach(key => {
-    const isDateField = key.endsWith('_date') || 
-                        key.endsWith('_deadline') || 
-                        key.endsWith('_at') || 
-                        key.includes('date') || 
-                        key.includes('deadline');
-    if (isDateField && (data[key] === '' || data[key] === 'null')) {
-      data[key] = null;
-    }
-  });
-
-  // Only include ID if it's not a temporary string ID
-  if (app.id && !(typeof app.id === 'string' && app.id.includes('-imp-'))) {
-    data.id = app.id;
-  }
-
-  return data;
-};
-
-const mapUserFromSnakeCase = (item: any): UserProfile => {
-  return {
-    id: item.id,
-    username: item.username,
-    password: item.password,
-    name: item.name,
-    dept: item.dept,
-    permission: item.permission,
-    assignedProjectIds: item.assigned_project_ids || [],
-    email: item.email,
-    phoneNumber: item.phone_number,
-    status: item.status
-  };
-};
-
-const mapUserToSnakeCase = (user: UserProfile) => {
-  return {
-    id: user.id,
-    username: user.username,
-    password: user.password,
-    name: user.name,
-    dept: user.dept,
-    permission: user.permission,
-    assigned_project_ids: user.assignedProjectIds,
-    email: user.email,
-    phone_number: user.phoneNumber,
-    status: user.status
-  };
-};
 
 const mapProjectFromSnakeCase = (item: any): Project => {
   return {
@@ -3515,356 +3233,7 @@ const HandoverTicketModal = ({
   );
 };
 
-const BulkTransitionModal = ({ 
-  isOpen, 
-  onClose, 
-  onConfirm, 
-  selectedCount,
-  unitCodes,
-  targetStepLabel,
-  updateField,
-  value,
-  onChangeValue,
-  location,
-  onChangeLocation,
-  refCode,
-  onChangeRefCode,
-  theme,
-  showToast
-}: { 
-  isOpen: boolean; 
-  onClose: () => void; 
-  onConfirm: () => void; 
-  selectedCount: number;
-  unitCodes: string[];
-  targetStepLabel: string;
-  updateField: {key: string, label: string, isRequired?: boolean} | null;
-  value: string;
-  onChangeValue: (v: string) => void;
-  location?: 'PHUONG' | 'TP_DANANG';
-  onChangeLocation?: (v: 'PHUONG' | 'TP_DANANG') => void;
-  refCode?: string;
-  onChangeRefCode?: (v: string) => void;
-  theme: 'light' | 'dark';
-  showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void;
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <AnimatePresence>
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60]"
-      />
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className={cn(
-          "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg z-[70] rounded-[2.5rem] shadow-2xl border p-8 max-h-[90vh] overflow-y-auto custom-scrollbar",
-          theme === 'dark' ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900"
-        )}
-      >
-        <div className="flex justify-between items-start mb-6">
-          <div>
-            <h2 className="text-xl font-black uppercase tracking-tight mb-1">Xác nhận chuyển bước</h2>
-            <p className={cn("text-xs font-medium", theme === 'dark' ? "text-slate-400" : "text-slate-500")}>
-              Bạn đang thực hiện thao tác hàng loạt cho {selectedCount} hồ sơ.
-            </p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400">
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className={cn("mb-6 p-4 rounded-2xl text-xs font-mono max-h-32 overflow-y-auto", theme === 'dark' ? "bg-slate-950 border border-slate-800" : "bg-slate-50 border border-slate-200")}>
-          <div className="font-bold mb-2 uppercase tracking-wider text-xs text-indigo-500">Danh sách mã căn:</div>
-          <div className="flex flex-wrap gap-2 text-slate-400">
-            {unitCodes.join(", ")}
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="p-5 rounded-3xl bg-indigo-500/5 border border-indigo-500/10">
-            <label className="block text-xs font-bold uppercase tracking-wider text-indigo-500 mb-2">Chuyển sang giai đoạn</label>
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-500 text-white rounded-lg">
-                <ChevronRight size={16} />
-              </div>
-              <span className="font-bold text-sm uppercase">{targetStepLabel}</span>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {updateField && (
-              <div className="space-y-3">
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">
-                  {updateField.label} {updateField.isRequired !== false ? '(Bắt buộc)' : '(Không bắt buộc)'}
-                </label>
-                <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                    <Calendar size={18} />
-                  </div>
-                  <input 
-                    type="date"
-                    value={value}
-                    onChange={(e) => onChangeValue(e.target.value)}
-                    className={cn(
-                      "w-full pl-12 pr-4 py-4 rounded-3xl text-sm font-bold border outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all",
-                      theme === 'dark' ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                    )}
-                  />
-                </div>
-              </div>
-            )}
-
-            {targetStepLabel?.toUpperCase().includes('2. TIẾP NHẬN') && (
-              <div className={cn("space-y-3 p-4 rounded-2xl border", theme === 'dark' ? "bg-amber-500/10 border-amber-500/20" : "bg-amber-50 border-amber-200")}>
-                <label className={cn("block text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2", theme === 'dark' ? "text-amber-500" : "text-amber-700")}>
-                  <BookOpen size={14} /> Danh mục hồ sơ gốc tham khảo
-                </label>
-                <div className={cn("space-y-3 text-xs font-medium", theme === 'dark' ? "text-slate-300" : "text-slate-700")}>
-                  <p className="italic text-xs opacity-70 mb-2 underline decoration-amber-500/30">Danh sách các hồ sơ cần chuẩn bị:</p>
-                  <ul className="list-disc pl-4 space-y-1">
-                    <li>HĐMB/HĐCN Gốc</li>
-                    <li>Văn bản chuyển nhượng</li>
-                    <li>Lệ phí trước bạ</li>
-                    <li>Sổ hộ khẩu/CCCD/ĐKKD</li>
-                    <li>Các biên bản liên quan (Bàn giao, Quyết toán...)</li>
-                  </ul>
-                </div>
-              </div>
-            )}
-
-            {(targetStepLabel?.toUpperCase().includes('3. NỘP VPĐK') || targetStepLabel?.toUpperCase().includes('3. NOP VPDK') || targetStepLabel?.toUpperCase().includes('GĐ2:') || targetStepLabel?.toUpperCase().includes('GD2:') || targetStepLabel?.toUpperCase().includes('GĐ3:') || targetStepLabel?.toUpperCase().includes('GD3:')) && (
-              <>
-                <div className="space-y-3">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">
-                    Nơi nộp hồ sơ (Bắt buộc)
-                  </label>
-                  <select 
-                    value={location}
-                    onChange={(e) => onChangeLocation?.(e.target.value as 'PHUONG' | 'TP_DANANG')}
-                    className={cn(
-                      "w-full px-4 py-4 rounded-3xl text-sm font-bold border outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all",
-                      theme === 'dark' ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                    )}
-                  >
-                    <option value="PHUONG">Phường/Xã</option>
-                    <option value="TP_DANANG">Tỉnh/Thành phố</option>
-                  </select>
-                </div>
-
-                <div className="space-y-3">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">
-                    Mã hồ sơ / Số phiếu hẹn (Bắt buộc)
-                  </label>
-                  <input 
-                    type="text"
-                    value={refCode}
-                    onChange={(e) => onChangeRefCode?.(e.target.value)}
-                    placeholder="Nhập mã hồ sơ / số phiếu hẹn..."
-                    className={cn(
-                      "w-full px-6 py-4 rounded-3xl text-sm font-bold border outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all",
-                      theme === 'dark' ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                    )}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-
-          <p className="text-[10px] text-slate-400 italic ml-1">
-            * Thông tin này sẽ được áp dụng cho toàn bộ {selectedCount} hồ sơ đã chọn.
-          </p>
-        </div>
-
-        <div className="flex gap-4 mt-10">
-          <button 
-            onClick={onClose}
-            className={cn(
-              "flex-1 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest border transition-all",
-              theme === 'dark' ? "border-slate-800 text-slate-500 hover:bg-slate-800" : "border-slate-200 text-slate-500 hover:bg-slate-100"
-            )}
-          >
-            Hủy bỏ
-          </button>
-          <button 
-            disabled={
-              (updateField?.isRequired !== false && updateField && !value) || false
-            }
-            onClick={() => {
-              onConfirm();
-            }}
-            className={cn(
-              "flex-1 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
-              ((updateField && !value))
-                ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700" 
-                : "bg-indigo-600 text-white hover:bg-indigo-500 shadow-xl shadow-indigo-900/40"
-            )}
-          >
-            Xác nhận & Chuyển <ArrowRight size={14} />
-          </button>
-        </div>
-      </motion.div>
-    </AnimatePresence>
-  );
-};
-
-const BulkIssueModal = ({
-  isOpen,
-  onClose,
-  onConfirm,
-  selectedCount,
-  unitCodes,
-  note,
-  onChangeNote,
-  issueType,
-  onChangeIssueType,
-  severity,
-  onChangeSeverity,
-  theme
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  selectedCount: number;
-  unitCodes: string[];
-  note: string;
-  onChangeNote: (v: string) => void;
-  issueType: IssueType;
-  onChangeIssueType: (v: IssueType) => void;
-  severity: IssueSeverity;
-  onChangeSeverity: (v: IssueSeverity) => void;
-  theme: 'light' | 'dark';
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <AnimatePresence>
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60]"
-      />
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className={cn(
-          "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-xl z-[70] rounded-[2.5rem] shadow-2xl border p-8 max-h-[90vh] overflow-y-auto custom-scrollbar",
-          theme === 'dark' ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900"
-        )}
-      >
-        <div className="flex justify-between items-start mb-6">
-          <div>
-            <h2 className="text-xl font-black uppercase tracking-tight mb-1 text-rose-500">Báo cáo sai sót hàng loạt</h2>
-            <p className={cn("text-xs font-medium", theme === 'dark' ? "text-slate-400" : "text-slate-500")}>
-              Ghi nhận vướng mắc cho {selectedCount} hồ sơ đã chọn.
-            </p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400">
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className={cn("mb-6 p-4 rounded-2xl text-xs font-mono max-h-24 overflow-y-auto", theme === 'dark' ? "bg-slate-950 border border-slate-800" : "bg-slate-50 border border-slate-200")}>
-          <div className="flex flex-wrap gap-2 text-slate-400">
-            {unitCodes.join(", ")}
-          </div>
-        </div>
-
-        <div className="space-y-5">
-          <div className="grid grid-cols-1 gap-4">
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Phân loại lỗi</label>
-              <select 
-                value={issueType}
-                onChange={(e) => onChangeIssueType(e.target.value as IssueType)}
-                className={cn(
-                  "w-full px-4 py-3 rounded-2xl text-sm font-bold border outline-none focus:ring-2 focus:ring-rose-500/20 transition-all",
-                  theme === 'dark' ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-                )}
-              >
-                <option value="None">None</option>
-                <option value="Sai sót nội bộ">Sai sót nội bộ</option>
-                <option value="Sai sót khách hàng">Sai sót khách hàng</option>
-                <option value="Sai sót cơ quan nhà nước">Sai sót cơ quan nhà nước</option>
-                <option value="Sai sót chủ đầu tư">Sai sót chủ đầu tư</option>
-                <option value="Sai sót Khác">Sai sót Khác</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Mức độ nghiêm trọng</label>
-            <div className="flex gap-2">
-              {(['Nghiêm trọng', 'Cao', 'Trung bình', 'Thấp'] as IssueSeverity[]).map((s, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => onChangeSeverity(s)}
-                  className={cn(
-                    "flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all",
-                    severity === s 
-                      ? (s === 'Nghiêm trọng' ? "bg-rose-600 border-rose-600 text-white shadow-lg shadow-rose-900/20" : 
-                         s === 'Cao' ? "bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-900/20" : 
-                         s === 'Trung bình' ? "bg-amber-400 border-amber-400 text-slate-900 shadow-lg shadow-amber-900/20" :
-                         "bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-900/20")
-                      : (theme === 'dark' ? "bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-600" : "bg-slate-50 border-slate-200 text-slate-400 hover:border-slate-300")
-                  )}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Nội dung vướng mắc (Bắt buộc)</label>
-            <textarea 
-              value={note}
-              onChange={(e) => onChangeNote(e.target.value)}
-              placeholder="Mô tả chi tiết vướng mắc, sai sót là gì..."
-              className={cn(
-                "w-full px-6 py-4 rounded-3xl text-sm font-bold border outline-none focus:ring-2 focus:ring-rose-500/20 transition-all min-h-[120px] resize-none",
-                theme === 'dark' ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
-              )}
-            />
-          </div>
-        </div>
-
-        <div className="flex gap-4 mt-8">
-          <button 
-            onClick={onClose}
-            className={cn(
-              "flex-1 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest border transition-all",
-              theme === 'dark' ? "border-slate-800 text-slate-500 hover:bg-slate-800" : "border-slate-200 text-slate-500 hover:bg-slate-100"
-            )}
-          >
-            Hủy bỏ
-          </button>
-          <button 
-            disabled={!note.trim()}
-            onClick={onConfirm}
-            className={cn(
-              "flex-1 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
-              !note.trim()
-                ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700" 
-                : "bg-rose-600 text-white hover:bg-rose-500 shadow-xl shadow-rose-900/40"
-            )}
-          >
-            Ghi nhận sai sót <AlertTriangle size={14} />
-          </button>
-        </div>
-      </motion.div>
-    </AnimatePresence>
-  );
-};
+// BulkTransitionModal and BulkIssueModal have been moved to components/modals/
 
 const ProjectModal = ({ 
   isOpen, 
@@ -4066,122 +3435,7 @@ const ProjectModal = ({
   );
 };
 
-const FilePreviewModal = ({ 
-  file, 
-  onClose,
-  theme
-}: { 
-  file: ScannedFile, 
-  onClose: () => void,
-  theme: 'light' | 'dark'
-}) => {
-  const isImage = file.type.startsWith('image/');
-  const isPdf = file.type === 'application/pdf';
-  
-  return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-0 sm:p-4 bg-slate-950/90 backdrop-blur-md">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-        className={cn(
-          "w-full h-full sm:h-[90vh] sm:max-w-5xl sm:rounded-[2.5rem] border overflow-hidden flex flex-col shadow-2xl relative",
-          theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900 border-slate-800"
-        )}
-      >
-        <div className="p-4 sm:p-6 border-b border-slate-800/10 flex items-center justify-between bg-slate-900/50 backdrop-blur-xl">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 flex items-center justify-center text-indigo-400">
-              {isImage ? <Camera size={24} /> : <FileText size={24} />}
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-sm sm:text-base font-black text-white truncate max-w-[150px] sm:max-w-md">{file.name}</h3>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  {file.uploadDate}
-                </span>
-                {file.isShared && (
-                  <span className="text-[10px] font-black text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-lg flex items-center gap-1">
-                    <GitMerge size={10} /> [🔗 Tài liệu chung]
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-             <a 
-              href={file.url} 
-              download={file.name}
-              target="_blank"
-              rel="noreferrer"
-              className="p-3 rounded-2xl bg-slate-800 text-slate-400 hover:text-white transition-all flex items-center gap-2"
-              title="Tải về"
-            >
-              <Download size={20} />
-              <span className="hidden sm:inline text-[10px] font-black uppercase tracking-widest">Tải về</span>
-            </a>
-            <button 
-              onClick={onClose}
-              className="p-3 rounded-2xl bg-slate-800 text-slate-400 hover:text-white transition-all"
-            >
-              <X size={20} />
-            </button>
-          </div>
-        </div>
-        
-        <div className="flex-1 overflow-auto bg-slate-950 flex items-center justify-center relative group">
-          {isImage ? (
-            <div className="w-full h-full flex items-center justify-center overflow-hidden">
-               <motion.img 
-                src={file.url} 
-                alt={file.name} 
-                className="max-w-full max-h-full object-contain cursor-zoom-in"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                drag
-                dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
-                dragElastic={0.1}
-                referrerPolicy="no-referrer"
-              />
-            </div>
-          ) : isPdf ? (
-            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-950 relative">
-              <iframe 
-                src={file.url} 
-                className="w-full h-full border-none z-10"
-                title={file.name}
-              />
-              <div className="absolute inset-0 flex flex-col items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-slate-950/80 z-20 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
-                <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Preview Mode enabled</p>
-                <a 
-                  href={file.url} 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="pointer-events-auto inline-flex items-center gap-2 px-8 py-3 bg-indigo-600 text-white rounded-full font-black uppercase tracking-widest text-[10px] shadow-2xl shadow-indigo-600/40"
-                >
-                  <Eye size={16} /> Mở trong tab mới
-                </a>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center p-12">
-               <div className="w-24 h-24 bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-700">
-                  <FileText size={48} />
-               </div>
-               <p className="text-slate-400 font-bold mb-6">Định dạng tập tin này không hỗ trợ xem trực tuyến.</p>
-               <a 
-                href={file.url} 
-                className="inline-flex items-center gap-3 px-8 py-4 bg-indigo-600 text-white rounded-[1.5rem] font-black uppercase tracking-widest text-[10px] hover:bg-indigo-500 shadow-xl shadow-indigo-600/20 transition-all"
-              >
-                <Download size={18} /> Tải xuống tập tin
-              </a>
-            </div>
-          )}
-        </div>
-      </motion.div>
-    </div>
-  );
-};
+// FilePreviewModal has been moved to components/modals/
 
 const BulkDocumentModal = ({
   onClose,
@@ -4759,7 +4013,7 @@ export default function App() {
   }, [dashboardApps]);
 
   const stats = useDashboardStats(enrichedDashboardApps);
-  const filteredApps = useApplications(
+  const filteredApps = useApplicationFilters(
     enrichedDashboardApps, 
     dashboardFilter,
     search,
@@ -5481,14 +4735,40 @@ export default function App() {
     setIsHandoverTicketOpen(true);
   };
   
-  const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
+  const { toast, showToast } = useToast();
+  const [isSavingApp, setIsSavingApp] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+
+  const {
+    selectedAppIds,
+    setSelectedAppIds,
+    isBulkNoteOpen,
+    setIsBulkNoteOpen,
+    bulkNoteText,
+    setBulkNoteText,
+    isBulkIssueOpen,
+    setIsBulkIssueOpen,
+    bulkIssueNote,
+    setBulkIssueNote,
+    bulkIssueType,
+    setBulkIssueType,
+    bulkIssueSeverity,
+    setBulkIssueSeverity,
+    handleBulkUpdateNote,
+    handleBulkReportIssue,
+  } = useBulkActions({
+    applications,
+    setApplications,
+    bulkSyncRecordsToSupabase,
+    updateAppIssue,
+    showToast,
+    setIsSavingApp,
+  });
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const [projectSearch, setProjectSearch] = useState('');
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
-  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'warning' } | null>(null);
-  const [isSavingApp, setIsSavingApp] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -5607,10 +4887,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedApp, isEditing, currentUser, activeTab, filteredApps, selectedIndex, selectedRows, lastSelectedIndex, currentPage, pageSize, isProjectModalOpen]);
 
-  const showToast = (message: string, type: 'success' | 'error' | 'warning' = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  };
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [expandedSidebarRegions, setExpandedSidebarRegions] = useState<Record<string, boolean>>({});
 
@@ -5700,14 +4976,6 @@ export default function App() {
   }, [handoverTemplate]);
 
 
-  const [isBulkNoteOpen, setIsBulkNoteOpen] = useState(false);
-  const [bulkNoteText, setBulkNoteText] = useState('');
-  
-  const [isBulkIssueOpen, setIsBulkIssueOpen] = useState(false);
-  const [bulkIssueNote, setBulkIssueNote] = useState('');
-  const [bulkIssueType, setBulkIssueType] = useState<IssueType>('Sai sót Khác');
-  const [bulkIssueSeverity, setBulkIssueSeverity] = useState<IssueSeverity>('Trung bình');
-  
   const [isReportIssueFormOpen, setIsReportIssueFormOpen] = useState(false);
   const [reportIssueType, setReportIssueType] = useState<IssueType>('Sai sót Khác');
   const [reportIssueSeverity, setReportIssueSeverity] = useState<IssueSeverity>('Trung bình');
@@ -6256,177 +5524,243 @@ export default function App() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setIsImporting(true);
+
     const reader = new FileReader();
-    reader.onload = (evt) => {
-      const data = evt.target?.result;
-      const workbook = XLSX.read(data, { type: 'array' });
-      const worksheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[worksheetName];
-      const excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+    reader.onload = async (evt) => {
+      try {
+        const data = evt.target?.result;
+        const workbook = XLSX.read(data, { type: 'array' });
+        const worksheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[worksheetName];
+        const excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
-      let updatedCount = 0;
-      let createdCount = 0;
+        let updatedCount = 0;
+        let createdCount = 0;
 
-      const newApplications = [...applications];
+        const newApplications = [...applications];
+        const appsToUpdate: Application[] = [];
+        const appsToCreate: Application[] = [];
 
-      excelData.slice(1).forEach((row) => {
-        if (!row || row.length < 2) return;
-        const unitCode = row[1];
-        if (!unitCode) return;
+        excelData.slice(1).forEach((row) => {
+          if (!row || row.length < 2) return;
+          const unitCode = row[1];
+          if (!unitCode) return;
 
-        if (userRole === 'ADMIN' || userRole === 'DIRECTOR') {
-          const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
-          
-          const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
-             id: `admin-imp-${Date.now()}-${Math.random()}`,
-             unitCode: unitCode,
-             projectName: row[0] || (projects.length > 0 ? projects[0].name : ''),
-             customerName: row[2] || '---',
-             status: 'Processing',
-             currentStep: 'GD1_ChuanBi',
-             taxPaymentStatus: 'Unpaid',
-             submissionLocation: 'PHUONG',
-             propertyType: 'Dat_Nen',
-             loanStatus: 'Khong_Vay',
-             isSelfService: false,
-             history: [{ id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, stepName: 'Quản trị viên Import', dept: 'ADMIN', receivedDate: new Date().toISOString().split('T')[0] }],
-             checklist: {},
-             scannedFiles: [],
-             auditTrail: []
-          } as Application;
+          if (userRole === 'ADMIN' || userRole === 'DIRECTOR') {
+            const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
+            
+            const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
+               id: `admin-imp-${Date.now()}-${Math.random()}`,
+               unitCode: unitCode,
+               projectName: row[0] || (projects.length > 0 ? projects[0].name : ''),
+               customerName: row[2] || '---',
+               status: 'Processing',
+               currentStep: 'GD1_ChuanBi',
+               taxPaymentStatus: 'Unpaid',
+               submissionLocation: 'PHUONG',
+               propertyType: 'Dat_Nen',
+               loanStatus: 'Khong_Vay',
+               isSelfService: false,
+               history: [{ id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, stepName: 'Quản trị viên Import', dept: 'ADMIN', receivedDate: new Date().toISOString().split('T')[0] }],
+               checklist: {},
+               scannedFiles: [],
+               auditTrail: []
+            } as Application;
 
-          if (!app.projectName && projects.length > 0) app.projectName = projects[0].name;
-          const parentProj = projects.find(p => p.name === app.projectName);
-          app.workflowType = parentProj?.workflowType || 'Quy_trinh_1';
-          if (existingIndex === -1) {
-            app.currentStep = app.workflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
-            app.status = (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.status || 'Processing';
-          }
-          app.phoneNumber = row[3] || app.phoneNumber || '';
-          app.loanStatus = row[4] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
-          app.propertyType = row[5] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
-          app.bankCommitmentDeadline = parseExcelDate(row[6]) || app.bankCommitmentDeadline;
-          app.receivedDate = parseExcelDate(row[7]) || app.receivedDate || new Date().toISOString().split('T')[0];
-          app.contractSigningDate = parseExcelDate(row[8]) || app.contractSigningDate;
-          app.isSelfService = row[9] === 'Có';
-          
-          if (row[10]) app.submissionLocation = (row[10] as string).includes('Phường') ? 'PHUONG' : 'TP_DANANG';
-          if (row[11]) app.vpdkCode = row[11];
-          if (row[12]) app.submissionDate = parseExcelDate(row[12]);
-          if (row[13]) app.taxNotificationDate = parseExcelDate(row[13]);
-          if (row[14]) app.taxNotificationReceivedDate = parseExcelDate(row[14]);
-          if (row[15]) app.taxReceiptDate = parseExcelDate(row[15]);
-          if (row[16]) app.gcnSignedDate = parseExcelDate(row[16]);
-          if (row[17]) app.gcnReceivedDate = parseExcelDate(row[17]);
-          if (row[18]) app.accountingHandoverDate = parseExcelDate(row[18]);
-          if (row[19]) app.customerHandoverDate = parseExcelDate(row[19]);
-
-          if (app.customerHandoverDate) {
-            app.currentStep = 'Hoan_Tat';
-            app.status = 'Completed';
-          }
-
-          if (existingIndex > -1) {
-            newApplications[existingIndex] = app;
-            updatedCount++;
-          } else {
-            app.status = 'Processing';
-            app.currentStep = 'S1_ChuanBi';
-            newApplications.push(app);
-            createdCount++;
-          }
-        } else if (userRole === 'PTT') {
-          const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
-          const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
-             id: `ptt-imp-${Date.now()}-${Math.random()}`,
-             unitCode: unitCode,
-             customerName: row[2] || '---',
-             status: 'Processing',
-             currentStep: 'S1_ChuanBi',
-             taxPaymentStatus: 'Unpaid',
-             submissionLocation: 'PHUONG',
-             propertyType: 'Dat_Nen',
-             loanStatus: 'Khong_Vay',
-             isSelfService: false,
-             history: [{ id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, stepName: 'PTT Import', dept: 'PTT', receivedDate: new Date().toISOString().split('T')[0] }],
-             checklist: {},
-             scannedFiles: [],
-             auditTrail: []
-          } as Application;
-
-          app.projectName = row[0] || app.projectName || (projects.length > 0 ? projects[0].name : '');
-          const pProj = projects.find(p => p.name === app.projectName);
-          app.workflowType = pProj?.workflowType || 'Quy_trinh_1';
-          if (existingIndex === -1) {
-            app.currentStep = app.workflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
-            app.status = (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.status || 'Processing';
-          }
-          app.customerName = row[2] || app.customerName || '---';
-          app.contractSignerType = row[3] || app.contractSignerType || '';
-          app.phoneNumber = row[4] || app.phoneNumber || '';
-          app.loanStatus = row[5] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
-          app.propertyType = row[6] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
-          app.receivedDate = parseExcelDate(row[7]) || app.receivedDate || new Date().toISOString().split('T')[0];
-          app.contractSigningDate = parseExcelDate(row[8]) || app.contractSigningDate;
-          app.bankCommitmentDeadline = parseExcelDate(row[9]) || app.bankCommitmentDeadline;
-          app.isSelfService = row[10] === 'Có';
-          if (row[11]) app.customerHandoverDate = parseExcelDate(row[11]);
-
-          if (app.customerHandoverDate) {
-            app.currentStep = 'Hoan_Tat';
-            app.status = 'Completed';
-          }
-
-          if (existingIndex > -1) {
-            newApplications[existingIndex] = app;
-            updatedCount++;
-          } else {
-            newApplications.push(app);
-            createdCount++;
-          }
-        } 
-        else if (userRole === 'KT') {
-          const idx = newApplications.findIndex(a => a.unitCode === unitCode);
-          if (idx > -1) {
-            const app = { ...newApplications[idx] };
-            app.projectName = row[0] || app.projectName;
-            if (row[3]) app.submissionLocation = (row[3] as string).includes('Phường') ? 'PHUONG' : 'TP_DANANG';
-            if (row[4]) app.vpdkCode = row[4];
-            if (row[5]) app.submissionDate = parseExcelDate(row[5]);
-            if (row[6]) app.taxNotificationReceivedDate = parseExcelDate(row[6]);
-            if (row[7]) app.taxReceiptDate = parseExcelDate(row[7]);
-            if (row[8]) app.gcnReceivedDate = parseExcelDate(row[8]);
-            if (row[9]) app.ptdaHandoverDate = parseExcelDate(row[9]);
-            if (row[10]) {
-              app.issueNotes = row[10];
-              app.issueType = 'Khác';
+            if (!app.projectName && projects.length > 0) app.projectName = projects[0].name;
+            const parentProj = projects.find(p => p.name === app.projectName);
+            app.workflowType = parentProj?.workflowType || 'Quy_trinh_1';
+            if (existingIndex === -1) {
+              app.currentStep = app.workflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
+              app.status = (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.status || 'Processing';
             }
-            newApplications[idx] = app;
-            updatedCount++;
-          }
-        }
-        else if (userRole === 'PTDA') {
-          const idx = newApplications.findIndex(a => a.unitCode === unitCode);
-          if (idx > -1) {
-            const app = { ...newApplications[idx] };
-            app.projectName = row[0] || app.projectName;
-            if (row[2]) app.taxNoticeProvisionDate = parseExcelDate(row[2]);
-            if (row[3]) app.gcnSignedDate = parseExcelDate(row[3]);
-            if (row[4]) app.gcnReceivedDate = parseExcelDate(row[4]);
-            if (row[5]) {
-              app.issueNotes = row[5];
-              app.issueType = 'Khác';
-            }
-            newApplications[idx] = app;
-            updatedCount++;
-          }
-        }
-      });
+            app.phoneNumber = row[3] || app.phoneNumber || '';
+            app.loanStatus = row[4] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
+            app.propertyType = row[5] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
+            app.bankCommitmentDeadline = parseExcelDate(row[6]) || app.bankCommitmentDeadline;
+            app.receivedDate = parseExcelDate(row[7]) || app.receivedDate || new Date().toISOString().split('T')[0];
+            app.contractSigningDate = parseExcelDate(row[8]) || app.contractSigningDate;
+            app.isSelfService = row[9] === 'Có';
+            
+            if (row[10]) app.submissionLocation = (row[10] as string).includes('Phường') ? 'PHUONG' : 'TP_DANANG';
+            if (row[11]) app.vpdkCode = row[11];
+            if (row[12]) app.submissionDate = parseExcelDate(row[12]);
+            if (row[13]) app.taxNotificationDate = parseExcelDate(row[13]);
+            if (row[14]) app.taxNotificationReceivedDate = parseExcelDate(row[14]);
+            if (row[15]) app.taxReceiptDate = parseExcelDate(row[15]);
+            if (row[16]) app.gcnSignedDate = parseExcelDate(row[16]);
+            if (row[17]) app.gcnReceivedDate = parseExcelDate(row[17]);
+            if (row[18]) app.accountingHandoverDate = parseExcelDate(row[18]);
+            if (row[19]) app.customerHandoverDate = parseExcelDate(row[19]);
 
-      setApplications(newApplications);
-      showToast(`Hoàn tất nhập liệu: Cập nhật ${updatedCount} hồ sơ, Tạo mới ${createdCount} hồ sơ.`);
-      setActiveTab('applications');
+            if (app.customerHandoverDate) {
+              app.currentStep = 'Hoan_Tat';
+              app.status = 'Completed';
+            }
+
+            if (existingIndex > -1) {
+              newApplications[existingIndex] = app;
+              if (app.id.toString().includes('-imp-')) {
+                const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
+                if (cIdx > -1) appsToCreate[cIdx] = app;
+                else appsToCreate.push(app);
+              } else {
+                const uIdx = appsToUpdate.findIndex(item => item.unitCode === app.unitCode);
+                if (uIdx > -1) appsToUpdate[uIdx] = app;
+                else appsToUpdate.push(app);
+                updatedCount++;
+              }
+            } else {
+              app.status = 'Processing';
+              app.currentStep = 'S1_ChuanBi';
+              newApplications.push(app);
+              createdCount++;
+              const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
+              if (cIdx > -1) appsToCreate[cIdx] = app;
+              else appsToCreate.push(app);
+            }
+          } else if (userRole === 'PTT') {
+            const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
+            const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
+               id: `ptt-imp-${Date.now()}-${Math.random()}`,
+               unitCode: unitCode,
+               customerName: row[2] || '---',
+               status: 'Processing',
+               currentStep: 'S1_ChuanBi',
+               taxPaymentStatus: 'Unpaid',
+               submissionLocation: 'PHUONG',
+               propertyType: 'Dat_Nen',
+               loanStatus: 'Khong_Vay',
+               isSelfService: false,
+               history: [{ id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, stepName: 'PTT Import', dept: 'PTT', receivedDate: new Date().toISOString().split('T')[0] }],
+               checklist: {},
+               scannedFiles: [],
+               auditTrail: []
+            } as Application;
+
+            app.projectName = row[0] || app.projectName || (projects.length > 0 ? projects[0].name : '');
+            const pProj = projects.find(p => p.name === app.projectName);
+            app.workflowType = pProj?.workflowType || 'Quy_trinh_1';
+            if (existingIndex === -1) {
+              app.currentStep = app.workflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
+              app.status = (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.status || 'Processing';
+            }
+            app.customerName = row[2] || app.customerName || '---';
+            app.contractSignerType = row[3] || app.contractSignerType || '';
+            app.phoneNumber = row[4] || app.phoneNumber || '';
+            app.loanStatus = row[5] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
+            app.propertyType = row[6] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
+            app.receivedDate = parseExcelDate(row[7]) || app.receivedDate || new Date().toISOString().split('T')[0];
+            app.contractSigningDate = parseExcelDate(row[8]) || app.contractSigningDate;
+            app.bankCommitmentDeadline = parseExcelDate(row[9]) || app.bankCommitmentDeadline;
+            app.isSelfService = row[10] === 'Có';
+            if (row[11]) app.customerHandoverDate = parseExcelDate(row[11]);
+
+            if (app.customerHandoverDate) {
+              app.currentStep = 'Hoan_Tat';
+              app.status = 'Completed';
+            }
+
+            if (existingIndex > -1) {
+              newApplications[existingIndex] = app;
+              if (app.id.toString().includes('-imp-')) {
+                const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
+                if (cIdx > -1) appsToCreate[cIdx] = app;
+                else appsToCreate.push(app);
+              } else {
+                const uIdx = appsToUpdate.findIndex(item => item.unitCode === app.unitCode);
+                if (uIdx > -1) appsToUpdate[uIdx] = app;
+                else appsToUpdate.push(app);
+                updatedCount++;
+              }
+            } else {
+              newApplications.push(app);
+              createdCount++;
+              const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
+              if (cIdx > -1) appsToCreate[cIdx] = app;
+              else appsToCreate.push(app);
+            }
+          } 
+          else if (userRole === 'KT') {
+            const idx = newApplications.findIndex(a => a.unitCode === unitCode);
+            if (idx > -1) {
+              const app = { ...newApplications[idx] };
+              app.projectName = row[0] || app.projectName;
+              if (row[3]) app.submissionLocation = (row[3] as string).includes('Phường') ? 'PHUONG' : 'TP_DANANG';
+              if (row[4]) app.vpdkCode = row[4];
+              if (row[5]) app.submissionDate = parseExcelDate(row[5]);
+              if (row[6]) app.taxNotificationReceivedDate = parseExcelDate(row[6]);
+              if (row[7]) app.taxReceiptDate = parseExcelDate(row[7]);
+              if (row[8]) app.gcnReceivedDate = parseExcelDate(row[8]);
+              if (row[9]) app.ptdaHandoverDate = parseExcelDate(row[9]);
+              if (row[10]) {
+                app.issueNotes = row[10];
+                app.issueType = 'Khác';
+              }
+              newApplications[idx] = app;
+              if (app.id.toString().includes('-imp-')) {
+                const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
+                if (cIdx > -1) appsToCreate[cIdx] = app;
+                else appsToCreate.push(app);
+              } else {
+                const uIdx = appsToUpdate.findIndex(item => item.unitCode === app.unitCode);
+                if (uIdx > -1) appsToUpdate[uIdx] = app;
+                else appsToUpdate.push(app);
+                updatedCount++;
+              }
+            }
+          }
+          else if (userRole === 'PTDA') {
+            const idx = newApplications.findIndex(a => a.unitCode === unitCode);
+            if (idx > -1) {
+              const app = { ...newApplications[idx] };
+              app.projectName = row[0] || app.projectName;
+              if (row[2]) app.taxNoticeProvisionDate = parseExcelDate(row[2]);
+              if (row[3]) app.gcnSignedDate = parseExcelDate(row[3]);
+              if (row[4]) app.gcnReceivedDate = parseExcelDate(row[4]);
+              if (row[5]) {
+                app.issueNotes = row[5];
+                app.issueType = 'Khác';
+              }
+              newApplications[idx] = app;
+              if (app.id.toString().includes('-imp-')) {
+                const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
+                if (cIdx > -1) appsToCreate[cIdx] = app;
+                else appsToCreate.push(app);
+              } else {
+                const uIdx = appsToUpdate.findIndex(item => item.unitCode === app.unitCode);
+                if (uIdx > -1) appsToUpdate[uIdx] = app;
+                else appsToUpdate.push(app);
+                updatedCount++;
+              }
+            }
+          }
+        });
+
+        const anyToSync = [...appsToUpdate, ...appsToCreate];
+        if (anyToSync.length > 0) {
+          const finalApps = await bulkSyncRecordsToSupabase(anyToSync, applications);
+          setApplications(finalApps);
+          showToast(`Hoàn tất nhập liệu: Cập nhật ${updatedCount} hồ sơ, Tạo mới ${createdCount} hồ sơ.`, 'success');
+          setActiveTab('applications');
+        } else {
+          showToast('Không có dữ liệu thay đổi để cập nhật', 'warning');
+        }
+      } catch (error: any) {
+        console.error('Import Excel Error:', error);
+        showToast(`Đồng bộ dữ liệu Supabase thất bại: ${error.message || 'Lỗi không xác định'}`, 'error');
+      } finally {
+        setIsImporting(false);
+      }
     };
+
+    reader.onerror = (err) => {
+      console.error('File reading error:', err);
+      showToast('Đọc file thất bại.', 'error');
+      setIsImporting(false);
+    };
+
     reader.readAsArrayBuffer(file);
     e.target.value = ''; 
   };
@@ -7045,29 +6379,7 @@ export default function App() {
     }
   };
 
-  const handleBulkReportIssue = async () => {
-    if (selectedAppIds.length === 0 || !bulkIssueNote.trim()) return;
 
-    try {
-      const appsToUpdate = applications.filter(app => selectedAppIds.includes(app.id));
-      const updatedApps = appsToUpdate.map(app => 
-        updateAppIssue(app, bulkIssueNote, bulkIssueType, bulkIssueSeverity)
-      );
-
-      // Sync to Supabase and update state with returned records (IDs)
-      const finalApps = await bulkSyncRecordsToSupabase(updatedApps, applications);
-      setApplications(finalApps);
-
-      showToast(`Đã ghi nhận vướng mắc cho ${selectedAppIds.length} hồ sơ.`, 'success');
-      setIsBulkIssueOpen(false);
-      setBulkIssueNote('');
-      setSelectedAppIds([]);
-    } catch (err) {
-      console.error('Error reporting bulk issue:', err);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
-     showToast('Có lỗi xảy ra khi ghi nhận vướng mắc hàng loạt.', 'error');
-    }
-  };
 
   const handleBulkDelete = async () => {
     if (selectedAppIds.length === 0) return;
@@ -7107,36 +6419,7 @@ export default function App() {
     }
   };
 
-  const handleBulkUpdateNote = async () => {
-    if (selectedAppIds.length === 0 || !bulkNoteText.trim()) return;
-    setIsSavingApp(true);
-    
-    try {
-      const updatedApps = applications.map(app => {
-        if (selectedAppIds.includes(app.id)) {
-          return { ...app, note: bulkNoteText };
-        }
-        return app;
-      });
 
-      const appsToSync = updatedApps.filter(app => selectedAppIds.includes(app.id));
-
-      // Perform bulk upsert to Supabase
-      const finalApps = await bulkSyncRecordsToSupabase(appsToSync, updatedApps);
-
-      setApplications(finalApps);
-      showToast(`Đã cập nhật ghi chú cho ${selectedAppIds.length} hồ sơ và đồng bộ Supabase thành công.`, 'success');
-      setIsBulkNoteOpen(false);
-      setBulkNoteText('');
-      setSelectedAppIds([]);
-    } catch (error) {
-      console.error('Supabase bulk note update error:', error);
-     alert('Có lỗi xảy ra, vui lòng thử lại');
-     showToast('Lỗi khi cập nhật ghi chú lên Supabase.', 'error');
-    } finally {
-      setIsSavingApp(false);
-    }
-  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -7336,12 +6619,12 @@ export default function App() {
     );
   };
 
-  const updateAppIssue = (
+  function updateAppIssue(
     app: Application, 
     note: string, 
     type: IssueType = 'Sai sót Khác', 
     severity: IssueSeverity = 'Trung bình'
-  ): Application => {
+  ): Application {
     const auditEntry = createAuditEntry('Ghi nhận vướng mắc', false, 1, app.unitCode, `Loại: ${type}. Ghi chú: ${note}`);
     
     return {
@@ -7358,7 +6641,7 @@ export default function App() {
       issue_notes: note,
       auditTrail: [auditEntry, ...(app.auditTrail || [])]
     };
-  };
+  }
 
   // Deprecated
   const handleReportErrorOld = async (note: string) => {
@@ -8906,16 +8189,23 @@ export default function App() {
                   className="hidden" 
                   accept=".xlsx, .xls" 
                   onChange={handleImportTemplate} 
+                  disabled={isImporting}
                 />
                 <button 
                   onClick={() => document.getElementById('excel-import')?.click()}
+                  disabled={isImporting}
                   className={cn(
                     "p-2.5 rounded-full border transition-all shadow-sm group relative",
-                    theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-200" : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-emerald-400 hover:border-emerald-500/30"
+                    theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-200" : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-emerald-400 hover:border-emerald-500/30",
+                    isImporting && "opacity-50 cursor-not-allowed"
                   )}
-                  title="Nhập từ Excel"
+                  title={isImporting ? "Đang xử lý..." : "Nhập từ Excel"}
                 >
-                  <Upload size={18} />
+                  {isImporting ? (
+                    <span className="w-[18px] h-[18px] border-2 border-emerald-500 border-t-transparent rounded-full animate-spin inline-block" />
+                  ) : (
+                    <Upload size={18} />
+                  )}
                 </button>
               </div>
 
@@ -12579,119 +11869,24 @@ export default function App() {
       )}
 
       {/* Bulk Note Modal */}
-      <AnimatePresence>
-        {isBulkNoteOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800"
-            >
-              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950/20">
-                <h3 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">Ghi chú hàng loạt ({selectedAppIds.length})</h3>
-                <button 
-                  onClick={() => setIsBulkNoteOpen(false)}
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-              <div className="p-6">
-                <p className="text-[10px] text-slate-500 font-bold uppercase mb-3 tracking-widest pl-1">Nội dung ghi chú mới</p>
-                <textarea 
-                  autoFocus
-                  className="w-full h-32 px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all resize-none dark:text-slate-200"
-                  placeholder="Nhập nội dung ghi chú cho tất cả hồ sơ đã chọn..."
-                  value={bulkNoteText}
-                  onChange={(e) => setBulkNoteText(e.target.value)}
-                />
-                <div className="mt-6 flex gap-3">
-                  <button 
-                    onClick={() => setIsBulkNoteOpen(false)}
-                    className="flex-1 py-3 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-slate-200 dark:border-slate-800"
-                  >
-                    Hủy bỏ
-                  </button>
-                  <button 
-                    onClick={handleBulkUpdateNote}
-                    disabled={!bulkNoteText.trim()}
-                    className="flex-[2] py-3 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20"
-                  >
-                    Cập nhật ngay
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <BulkNoteModal
+        isOpen={isBulkNoteOpen}
+        onClose={() => setIsBulkNoteOpen(false)}
+        onConfirm={handleBulkUpdateNote}
+        selectedCount={selectedAppIds.length}
+        bulkNoteText={bulkNoteText}
+        onChangeBulkNoteText={setBulkNoteText}
+      />
 
       {/* Change Password Modal */}
-      <AnimatePresence>
-        {isChangePasswordModalOpen && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="w-full max-w-md bg-slate-900 rounded-[2.5rem] p-8 border border-slate-700 shadow-2xl"
-            >
-              <div className="flex justify-between items-center mb-8">
-                 <div>
-                   <h3 className="text-2xl font-black text-white font-serif italic tracking-tight">Đổi mật khẩu</h3>
-                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Cập nhật mật khẩu bảo mật hệ thống</p>
-                 </div>
-                 <button onClick={() => setIsChangePasswordModalOpen(false)} className="p-2 text-slate-500 hover:text-white transition-colors">
-                   <X size={24} />
-                 </button>
-              </div>
-
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1">Mật khẩu mới</label>
-                  <input 
-                    type="password" 
-                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm text-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all placeholder:text-slate-700"
-                    placeholder="••••••••"
-                    value={passwordForm.newPassword}
-                    onChange={(e) => setPasswordForm({...passwordForm, newPassword: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1">Xác nhận mật khẩu mới</label>
-                  <input 
-                    type="password" 
-                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-sm text-white focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all placeholder:text-slate-700"
-                    placeholder="••••••••"
-                    value={passwordForm.confirmPassword}
-                    onChange={(e) => setPasswordForm({...passwordForm, confirmPassword: e.target.value})}
-                  />
-                </div>
-              </div>
-
-              <div className="mt-8 flex gap-4">
-                <button 
-                  onClick={() => setIsChangePasswordModalOpen(false)}
-                  className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold transition-all"
-                >
-                  Hủy bỏ
-                </button>
-                <button 
-                  onClick={handleUpdatePassword}
-                  disabled={isSavingApp}
-                  className="flex-[2] py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-bold shadow-xl shadow-indigo-600/20 transition-all font-serif italic flex items-center justify-center gap-2"
-                >
-                   {isSavingApp ? (
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : <Save size={18} />}
-                  Cập nhật mật khẩu
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <ChangePasswordModal
+        isOpen={isChangePasswordModalOpen}
+        onClose={() => setIsChangePasswordModalOpen(false)}
+        onConfirm={handleUpdatePassword}
+        passwordForm={passwordForm}
+        onChangePasswordForm={setPasswordForm}
+        isSaving={isSavingApp}
+      />
 
       <BulkTransitionModal 
         isOpen={isBulkTransitionModalOpen}
