@@ -2385,7 +2385,16 @@ export default function App() {
       if (app.gcnSignedDate)          return { currentStep: 'S6_Nhan_So_GCN', status: 'Processing' };
       if (app.taxReceiptDate)         return { currentStep: 'S5_1_PTDA_TiepNhan', status: 'Processing' };
       if (app.taxNotificationDate)    return { currentStep: 'S5_Tai_Chinh_Khach_Hang', status: 'Processing' };
-      if (app.submissionDate)         return { currentStep: 'S4_Cho_Thong_Bao_Thue', status: 'Processing' };
+      
+      if (app.submissionDate && !app.taxNotificationDate) {
+        const subDate = new Date(app.submissionDate);
+        const daysDiff = (new Date().getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
+        const sla = slaConfig?.['Nộp VPĐK'] ?? 5;
+        return daysDiff > sla
+          ? { currentStep: 'S4_Cho_Thong_Bao_Thue', status: 'TaxPending' }
+          : { currentStep: 'S4_Cho_Thong_Bao_Thue', status: 'Submitted' };
+      }
+      
       if (app.vpdkCode)               return { currentStep: 'S3_Nop_VPDK', status: 'Processing' };
       if (app.contractSigningDate)    return { currentStep: 'S2_KT_Tiep_Nhan', status: 'Processing' };
       return { currentStep: 'S1_ChuanBi', status: 'Processing' };
@@ -2395,7 +2404,16 @@ export default function App() {
       if (app.gcnSignedDate)          return { currentStep: 'GD5_Cho_GCN', status: 'Processing' };
       if (app.taxReceiptDate)         return { currentStep: 'GD4_Cho_KT_TiepNhan_LaySo', status: 'Processing' };
       if (app.taxNotificationDate)    return { currentStep: 'GD4_Cho_Nop_NVTC', status: 'Processing' };
-      if (app.submissionDate)         return { currentStep: 'GD3_Cho_TBThue', status: 'Processing' };
+
+      if (app.submissionDate && !app.taxNotificationDate) {
+        const subDate = new Date(app.submissionDate);
+        const daysDiff = (new Date().getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
+        const sla = slaConfig?.['Nộp VPĐK'] ?? 5;
+        return daysDiff > sla
+          ? { currentStep: 'GD3_Cho_TBThue', status: 'TaxPending' }
+          : { currentStep: 'GD3_Cho_TBThue', status: 'Submitted' };
+      }
+
       if (app.vpdkCode)               return { currentStep: 'GD2_Cho_Nop_VPDK', status: 'Processing' };
       if (app.contractSigningDate)    return { currentStep: 'GD1_Cho_KT_TiepNhan', status: 'Processing' };
       return { currentStep: 'GD1_ChuanBi', status: 'Processing' };
@@ -4444,6 +4462,11 @@ export default function App() {
 
   const chartData = useMemo(() => {
     const today = new Date();
+    const submissionSLA = 
+      slaConfig?.['Nộp VPĐK'] ?? 
+      slaConfig?.['S3_Nop_VPDK'] ?? 
+      slaConfig?.['GD3_Cho_TBThue'] ?? 5;
+
     const stages = {
       PREPARING: [] as Application[], 
       AWAITING_SUBMISSION: [] as Application[], 
@@ -4464,13 +4487,35 @@ export default function App() {
       else if (r.status === 'TaxPaid' || r.status === 'TaxCompleted') stages.TAX_PAID.push(r);
       else if (r.status === 'TaxPending') {
          // Chờ hoàn thành NVTC (S5 / GD4) vs Chờ TB Thuế
-         if (r.taxNotificationDate || r.currentStep === 'S5_Tai_Chinh_Khach_Hang' || r.currentStep === 'GD4_Cho_Nop_NVTC') {
+         if (r.taxNotificationDate) {
             stages.AWAITING_FINANCE.push(r);
+         } else if (r.currentStep === 'S5_Tai_Chinh_Khach_Hang' || r.currentStep === 'GD4_Cho_Nop_NVTC') {
+            stages.AWAITING_FINANCE.push(r);
+         } else if (r.submissionDate) {
+            const subDate = new Date(r.submissionDate);
+            const daysDiff = (today.getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
+            if (daysDiff > submissionSLA) {
+               stages.TAX_WARNING.push(r);
+            } else {
+               stages.SUBMITTED.push(r);
+            }
          } else {
             stages.TAX_WARNING.push(r);
          }
       }
-      else if (r.status === 'Submitted') stages.SUBMITTED.push(r);
+      else if (r.status === 'Submitted') {
+         if (r.submissionDate) {
+            const subDate = new Date(r.submissionDate);
+            const daysDiff = (today.getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
+            if (daysDiff > submissionSLA && !r.taxNotificationDate) {
+               stages.TAX_WARNING.push(r);
+            } else {
+               stages.SUBMITTED.push(r);
+            }
+         } else {
+            stages.SUBMITTED.push(r);
+         }
+      }
       else if (r.status === 'WaitingVPDK') stages.AWAITING_SUBMISSION.push(r);
       else if (r.status === 'Processing') stages.PREPARING.push(r);
       else {
@@ -4483,7 +4528,7 @@ export default function App() {
           else if (r.submissionDate || r.currentStep === 'S3_Nop_VPDK' || r.currentStep === 'GD3_Cho_TBThue') {
             const subDate = new Date(r.submissionDate || today);
             const daysDiff = (today.getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
-            if (daysDiff > 7) stages.TAX_WARNING.push(r);
+            if (daysDiff > submissionSLA) stages.TAX_WARNING.push(r);
             else stages.SUBMITTED.push(r);
           }
           else if (
