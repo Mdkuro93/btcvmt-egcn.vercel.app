@@ -116,6 +116,7 @@ import ChangePasswordModal from './components/modals/ChangePasswordModal';
 import FilePreviewModal from './components/modals/FilePreviewModal';
 import BulkTransitionModal from './components/modals/BulkTransitionModal';
 import BulkIssueModal from './components/modals/BulkIssueModal';
+import ImportPreviewModal from './components/modals/ImportPreviewModal';
 import { Routes, Route, Link } from 'react-router-dom';
 import ReportScreen from './pages/ReportScreen';
 import { cn } from './lib/utils';
@@ -1561,6 +1562,12 @@ export default function App() {
   const [isSavingApp, setIsSavingApp] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [healDone, setHealDone] = useState(false);
+  const [importPreviewData, setImportPreviewData] = useState<{
+    toCreate: Application[];
+    toUpdate: Application[];
+    warnings: string[];
+    errors: string[];
+  } | null>(null);
 
   const {
     selectedAppIds,
@@ -2508,24 +2515,69 @@ export default function App() {
         const worksheet = workbook.Sheets[worksheetName];
         const excelData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
-        let updatedCount = 0;
-        let createdCount = 0;
-
         const newApplications = [...applications];
         const appsToUpdate: Application[] = [];
         const appsToCreate: Application[] = [];
+        const warnings: string[] = [];
+        const errors: string[] = [];
 
-        excelData.slice(1).forEach((row) => {
-          if (!row || row.length < 2) return;
-          const unitCode = row[1];
+        // Map để phát hiện trùng trong file
+        const seenInFile = new Map<string, number>(); 
+        // key = "projectName_unitCode", value = số dòng
+      
+        excelData.slice(1).forEach((row, idx) => {
+          const projectName = (row[0] || '').toString().trim();
+          const unitCode = (row[1] || '').toString().trim();
           if (!unitCode) return;
+          
+          const key = `${projectName.toLowerCase()}_${unitCode}`;
+          if (seenInFile.has(key)) {
+            warnings.push(
+              `⚠️ File Excel có mã lô trùng: ${unitCode} ` +
+              `(${projectName}) xuất hiện ở dòng ` +
+              `${seenInFile.get(key)! + 2} và dòng ${idx + 2}. ` +
+              `Chỉ dòng đầu tiên được xử lý.`
+            );
+          } else {
+            seenInFile.set(key, idx);
+          }
+        });
+
+        // Lọc bỏ dòng trùng trong file trước khi parse
+        const uniqueRows = excelData.slice(1).filter((row, idx) => {
+          const key = `${(row[0]||'').toString().trim().toLowerCase()}_${(row[1]||'').toString().trim()}`;
+          return seenInFile.get(key) === idx; // Chỉ giữ lần xuất hiện đầu tiên
+        });
+
+        uniqueRows.forEach((row) => {
+          if (!row || row.length < 2) return;
+          const unitCode = (row[1] || '').toString().trim();
+          if (!unitCode) return;
+          const projectNameFromRow = (row[0] || '').toString().trim();
 
           if (userRole === 'ADMIN' || userRole === 'DIRECTOR' || userRole === 'MANAGER') {
-            const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
+            const existingIndex = newApplications.findIndex(a => 
+              a.unitCode === unitCode && 
+              (a.projectName || '').trim().toLowerCase() === projectNameFromRow.toLowerCase()
+            );
+
+            // RULE 2 - Khác dự án + cùng mã lô
+            const sameUnitOtherProjects = newApplications.filter(a => 
+              a.unitCode === unitCode && 
+              (a.projectName || '').trim().toLowerCase() !== projectNameFromRow.toLowerCase()
+            );
+
+            if (sameUnitOtherProjects.length > 0) {
+              const projectNames = [...new Set(sameUnitOtherProjects.map(a => a.projectName))].join(', ');
+              warnings.push(
+                `⚠️ Mã lô ${unitCode} đã tồn tại tại dự án khác: "${projectNames}". ` +
+                `Vui lòng xác nhận đây không phải nhầm dự án.`
+              );
+            }
             
             const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
                unitCode: unitCode,
-               projectName: row[0] || (projects.length > 0 ? projects[0].name : ''),
+               projectName: projectNameFromRow || (projects.length > 0 ? projects[0].name : ''),
                customerName: row[2] || '---',
                status: 'Processing',
                currentStep: 'GD1_ChuanBi',
@@ -2573,24 +2625,36 @@ export default function App() {
             if (existingIndex > -1) {
               newApplications[existingIndex] = app;
               if (!app.id || (app.id && app.id.toString().includes('-imp-')) || !applications.some(a => a.id === app.id)) {
-                const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
+                const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode && item.projectName === app.projectName);
                 if (cIdx > -1) appsToCreate[cIdx] = app;
                 else appsToCreate.push(app);
               } else {
-                const uIdx = appsToUpdate.findIndex(item => item.unitCode === app.unitCode);
+                const uIdx = appsToUpdate.findIndex(item => item.unitCode === app.unitCode && item.projectName === app.projectName);
                 if (uIdx > -1) appsToUpdate[uIdx] = app;
                 else appsToUpdate.push(app);
-                updatedCount++;
               }
             } else {
               newApplications.push(app);
-              createdCount++;
-              const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
+              const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode && item.projectName === app.projectName);
               if (cIdx > -1) appsToCreate[cIdx] = app;
               else appsToCreate.push(app);
             }
           } else if (userRole === 'PTT') {
-            const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
+            const existingIndex = newApplications.findIndex(a => 
+              a.unitCode === unitCode && 
+              (a.projectName || '').trim().toLowerCase() === projectNameFromRow.toLowerCase()
+            );
+
+            const sameUnitOtherProjects = newApplications.filter(a => 
+              a.unitCode === unitCode && 
+              (a.projectName || '').trim().toLowerCase() !== projectNameFromRow.toLowerCase()
+            );
+
+            if (sameUnitOtherProjects.length > 0) {
+              const projectNames = [...new Set(sameUnitOtherProjects.map(a => a.projectName))].join(', ');
+              warnings.push(`⚠️ Mã lô ${unitCode} đã tồn tại tại dự án khác: "${projectNames}". Vui lòng xác nhận đây không phải nhầm dự án.`);
+            }
+
             const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
                unitCode: unitCode,
                customerName: row[2] || '---',
@@ -2607,7 +2671,7 @@ export default function App() {
                auditTrail: []
             } as any;
 
-            app.projectName = row[0] || app.projectName || (projects.length > 0 ? projects[0].name : '');
+            app.projectName = projectNameFromRow || app.projectName || (projects.length > 0 ? projects[0].name : '');
             const pProj = projects.find(p => p.name === app.projectName);
             app.workflowType = pProj?.workflowType || 'Quy_trinh_1';
             if (existingIndex === -1) {
@@ -2632,28 +2696,29 @@ export default function App() {
             if (existingIndex > -1) {
               newApplications[existingIndex] = app;
               if (!app.id || (app.id && app.id.toString().includes('-imp-')) || !applications.some(a => a.id === app.id)) {
-                const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
+                const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode && item.projectName === app.projectName);
                 if (cIdx > -1) appsToCreate[cIdx] = app;
                 else appsToCreate.push(app);
               } else {
-                const uIdx = appsToUpdate.findIndex(item => item.unitCode === app.unitCode);
+                const uIdx = appsToUpdate.findIndex(item => item.unitCode === app.unitCode && item.projectName === app.projectName);
                 if (uIdx > -1) appsToUpdate[uIdx] = app;
                 else appsToUpdate.push(app);
-                updatedCount++;
               }
             } else {
               newApplications.push(app);
-              createdCount++;
-              const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
+              const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode && item.projectName === app.projectName);
               if (cIdx > -1) appsToCreate[cIdx] = app;
               else appsToCreate.push(app);
             }
           } 
           else if (userRole === 'KT') {
-            const idx = newApplications.findIndex(a => a.unitCode === unitCode);
+            const idx = newApplications.findIndex(a => 
+              a.unitCode === unitCode && 
+              (a.projectName || '').trim().toLowerCase() === projectNameFromRow.toLowerCase()
+            );
             if (idx > -1) {
               const app = { ...newApplications[idx] };
-              app.projectName = row[0] || app.projectName;
+              app.projectName = projectNameFromRow || app.projectName;
               if (row[3]) app.submissionLocation = (row[3] as string).includes('Phường') ? 'PHUONG' : 'TP_DANANG';
               if (row[4]) app.vpdkCode = row[4];
               if (row[5]) app.submissionDate = parseExcelDate(row[5]);
@@ -2671,22 +2736,26 @@ export default function App() {
 
               newApplications[idx] = app;
               if (!app.id || (app.id && app.id.toString().includes('-imp-')) || !applications.some(a => a.id === app.id)) {
-                const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
+                const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode && item.projectName === app.projectName);
                 if (cIdx > -1) appsToCreate[cIdx] = app;
                 else appsToCreate.push(app);
               } else {
-                const uIdx = appsToUpdate.findIndex(item => item.unitCode === app.unitCode);
+                const uIdx = appsToUpdate.findIndex(item => item.unitCode === app.unitCode && item.projectName === app.projectName);
                 if (uIdx > -1) appsToUpdate[uIdx] = app;
                 else appsToUpdate.push(app);
-                updatedCount++;
               }
+            } else {
+               warnings.push(`⚠️ Dòng chứa mã lô ${unitCode} dự án ${projectNameFromRow} bị bỏ qua do KT chỉ được phép cập nhật hồ sơ sẵn có.`);
             }
           }
           else if (userRole === 'PTDA') {
-            const idx = newApplications.findIndex(a => a.unitCode === unitCode);
+            const idx = newApplications.findIndex(a => 
+              a.unitCode === unitCode && 
+              (a.projectName || '').trim().toLowerCase() === projectNameFromRow.toLowerCase()
+            );
             if (idx > -1) {
               const app = { ...newApplications[idx] };
-              app.projectName = row[0] || app.projectName;
+              app.projectName = projectNameFromRow || app.projectName;
               if (row[2]) app.taxNoticeProvisionDate = parseExcelDate(row[2]);
               if (row[3]) app.gcnSignedDate = parseExcelDate(row[3]);
               if (row[4]) app.gcnReceivedDate = parseExcelDate(row[4]);
@@ -2701,32 +2770,36 @@ export default function App() {
 
               newApplications[idx] = app;
               if (!app.id || (app.id && app.id.toString().includes('-imp-')) || !applications.some(a => a.id === app.id)) {
-                const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
+                const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode && item.projectName === app.projectName);
                 if (cIdx > -1) appsToCreate[cIdx] = app;
                 else appsToCreate.push(app);
               } else {
-                const uIdx = appsToUpdate.findIndex(item => item.unitCode === app.unitCode);
+                const uIdx = appsToUpdate.findIndex(item => item.unitCode === app.unitCode && item.projectName === app.projectName);
                 if (uIdx > -1) appsToUpdate[uIdx] = app;
                 else appsToUpdate.push(app);
-                updatedCount++;
               }
+            } else {
+               warnings.push(`⚠️ Dòng chứa mã lô ${unitCode} dự án ${projectNameFromRow} bị bỏ qua do PTDA chỉ được phép cập nhật hồ sơ sẵn có.`);
             }
           }
         });
 
-        const anyToSync = [...appsToUpdate, ...appsToCreate];
-        if (anyToSync.length > 0) {
-          const finalApps = await bulkSyncRecordsToSupabase(anyToSync, applications);
-          setApplications(finalApps);
-          showToast(`Hoàn tất nhập liệu: Cập nhật ${updatedCount} hồ sơ, Tạo mới ${createdCount} hồ sơ.`, 'success');
-          setActiveTab('applications');
-        } else {
-          showToast('Không có dữ liệu thay đổi để cập nhật', 'warning');
+        if (appsToCreate.length === 0 && appsToUpdate.length === 0 && errors.length === 0 && warnings.length === 0) {
+           showToast('Không có dữ liệu hợp lệ để xử lý trong file', 'warning');
+           setIsImporting(false);
+           return;
         }
+
+        setImportPreviewData({
+          toCreate: appsToCreate,
+          toUpdate: appsToUpdate,
+          warnings,
+          errors
+        });
+
       } catch (error: any) {
         console.error('Import Excel Error:', error);
-        showToast(`Đồng bộ dữ liệu Supabase thất bại: ${error.message || 'Lỗi không xác định'}`, 'error');
-      } finally {
+        showToast(`Xử lý file thất bại: ${error.message || 'Lỗi không xác định'}`, 'error');
         setIsImporting(false);
       }
     };
@@ -2739,6 +2812,26 @@ export default function App() {
 
     reader.readAsArrayBuffer(file);
     e.target.value = ''; 
+  };
+
+  const confirmImport = async () => {
+    if (!importPreviewData) return;
+    setIsImporting(true);
+    try {
+      const anyToSync = [...importPreviewData.toUpdate, ...importPreviewData.toCreate];
+      if (anyToSync.length > 0) {
+         const finalApps = await bulkSyncRecordsToSupabase(anyToSync, applications);
+         setApplications(finalApps);
+         showToast(`Hoàn tất nhập liệu: Cập nhật ${importPreviewData.toUpdate.length} hồ sơ, Tạo mới ${importPreviewData.toCreate.length} hồ sơ.`, 'success');
+         setActiveTab('applications');
+      }
+    } catch (error: any) {
+      console.error('Import Sync Error:', error);
+      showToast(`Đồng bộ dữ liệu Supabase thất bại: ${error.message || 'Lỗi không xác định'}`, 'error');
+    } finally {
+      setIsImporting(false);
+      setImportPreviewData(null);
+    }
   };
 
   const handleBulkPrint = () => {
@@ -5728,7 +5821,7 @@ export default function App() {
                       </div>
                     </div>
 
-                      <div className="pt-4 border-t border-slate-800/10">
+                      <div className={cn("p-6 rounded-3xl border mt-4", theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800")}>
                          <h3 className={cn("font-bold mb-4 font-serif text-sm italic flex items-center gap-3", theme === 'light' ? "text-slate-900" : "text-white")}>
                            <Wallet size={14} className="text-emerald-500" />
                            Thống kê vay vốn
@@ -6744,7 +6837,7 @@ export default function App() {
                                 />
                               </td>
                               <td 
-                                className="px-2 py-0 text-[11px] font-bold font-mono tracking-tighter" 
+                                className="px-2 py-0 text-[11px] font-mono tracking-tighter" 
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
                                   setQuickEditId(app.id);
@@ -6790,13 +6883,13 @@ export default function App() {
                                       overdue.daysLate > 5 ? "text-red-500" :
                                       overdue.daysLate >= 3 ? "text-yellow-500" : "text-green-500"
                                     )}>
-                                      <AlertTriangle size={9} /> Trễ ({overdue.daysLate}d)
+                                      <AlertTriangle size={9} /> TRỄ {overdue.daysLate} NGÀY
                                     </span>
                                   )}
                                 </div>
                               </td>
                               <td className="px-2 py-0">
-                                <span className={cn("text-[10px] font-medium truncate block max-w-[100px]", theme === 'light' ? "text-slate-600" : "text-slate-200")} title={app.projectName}>
+                                <span className={cn("text-[10px] font-medium whitespace-normal break-words block max-w-[150px]", theme === 'light' ? "text-slate-600" : "text-slate-200")} title={app.projectName}>
                                   {app.projectName}
                                 </span>
                               </td>
@@ -8948,6 +9041,16 @@ export default function App() {
           onClose={() => setIsBulkDocumentOpen(false)}
           onUpload={handleBulkFileUpload}
           isUploading={isUploadingShared}
+          theme={theme}
+        />
+      )}
+
+      {importPreviewData && (
+        <ImportPreviewModal
+          isOpen={true}
+          onClose={() => setImportPreviewData(null)}
+          onConfirm={confirmImport}
+          data={importPreviewData}
           theme={theme}
         />
       )}
