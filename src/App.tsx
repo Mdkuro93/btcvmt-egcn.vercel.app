@@ -420,7 +420,7 @@ const StatusBadge = ({ status, app, variant = 'default' }: { status: UnitStatus 
     Processing: { label: 'Đang chuẩn bị', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
     WaitingVPDK: { label: 'Chờ nộp VPĐK', classes: 'bg-amber-500/10 text-amber-600 border border-amber-500/20' },
     Submitted: { label: 'Đã nộp VPĐK', classes: 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20' },
-    TaxPending: { label: 'Chờ thông báo thuế', classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20' },
+    TaxPending: { label: 'Chờ hoàn thành NVTC', classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20' },
     TaxPaymentPending_Dynamic: { label: 'Chờ nộp thuế', classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20' },
     TaxCompleted: { label: 'Đã hoàn thành NVTC', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
     TaxPaid: { label: 'ĐÃ NỘP THUẾ', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]' },
@@ -2255,6 +2255,53 @@ export default function App() {
     return phoneRegex.test(phone);
   };
 
+  const VALID_ISSUE_TYPES = [
+    'None', 'Sai sót nội bộ', 'Sai sót khách hàng',
+    'Sai sót cơ quan nhà nước', 'Sai sót chủ đầu tư', 
+    'Sai sót Khác'
+  ] as const;
+  
+  const VALID_SEVERITIES = [
+    'Minor', 'Moderate', 'Critical'
+  ] as const;
+
+  const addDropdownValidation = (
+    worksheet: XLSX.WorkSheet,
+    col: string,        // Ký tự cột: 'A', 'B', 'E'...
+    startRow: number,   // Bắt đầu từ dòng data (thường là 2)
+    endRow: number,     // Kết thúc (thường = data.length + 1)
+    options: string[]   // Danh sách giá trị hợp lệ
+  ) => {
+    if (!worksheet['!dataValidations']) {
+      worksheet['!dataValidations'] = [];
+    }
+    worksheet['!dataValidations'].push({
+      sqref: `${col}${startRow}:${col}${endRow}`,
+      type: 'list',
+      formula1: `"${options.join(',')}"`,
+      showDropDown: false,  // false = hiện dropdown arrow
+      showErrorMessage: true,
+      errorTitle: 'Giá trị không hợp lệ',
+      error: `Vui lòng chọn một trong: ${options.join(', ')}`,
+      errorStyle: 'stop'
+    });
+  };
+
+  const validateExcelValue = (
+    val: any,
+    allowedValues: readonly string[],
+    fieldName: string,
+    rowIdx: number,
+    warnings: string[]
+  ) => {
+    const strVal = (val || '').toString().trim();
+    if (!strVal || strVal === '---') return undefined;
+    if (allowedValues.includes(strVal as any)) return strVal;
+    
+    warnings.push(`⚠️ Dòng ${rowIdx + 2}: Giá trị "${strVal}" không hợp lệ cho cột ${fieldName} → bỏ qua`);
+    return undefined;
+  };
+
   const handleDownloadTemplate = () => {
     let headers: string[] = [];
     let data: any[][] = [];
@@ -2292,7 +2339,8 @@ export default function App() {
     } else if (userRole === 'PTT') {
       headers = [
         "Dự án", "Mã lô/căn", "Tên khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản", 
-        "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Hạn cam kết Ngân hàng", "Tự làm sổ (Có/Không)", "Ngày BG GCN Khách"
+        "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Hạn cam kết Ngân hàng", "Tự làm sổ (Có/Không)", "Ngày BG GCN Khách",
+        "Phân loại sai sót", "Mức độ sai sót", "Ghi chú sai sót"
       ];
       data = sourceApps.map(app => {
         return [
@@ -2307,13 +2355,17 @@ export default function App() {
           formatExcelDate(app.contractSigningDate),
           formatExcelDate(app.bankCommitmentDeadline),
           app.isSelfService ? 'Có' : 'Không',
-          formatExcelDate(app.customerHandoverDate)
+          formatExcelDate(app.customerHandoverDate),
+          app.issueType || '',
+          app.issueSeverity || '',
+          app.issueNotes || ''
         ];
       });
     } else if (userRole === 'KT') {
       headers = [
         "Dự án", "Mã lô/căn", "Khách hàng", "Nơi nộp (Phường/TP)", "Mã HS/Số phiếu hẹn VPĐK", "Ngày nộp VPĐK", 
-        "Ngày nhận TB Thuế", "Ngày đóng thuế", "Ngày nhận GCN", "Ngày BG P.TDA", "Ghi chú vướng mắc"
+        "Ngày nhận TB Thuế", "Ngày đóng thuế", "Ngày nhận GCN", "Ngày BG P.TDA", 
+        "Phân loại sai sót", "Mức độ sai sót", "Ghi chú sai sót"
       ];
       data = sourceApps.map(app => [
         app.projectName,
@@ -2326,19 +2378,31 @@ export default function App() {
         formatExcelDate(app.taxReceiptDate),
         formatExcelDate(app.gcnReceivedDate),
         formatExcelDate(app.ptdaHandoverDate),
-        app.issueNotes ? `[${app.issueType || 'Khác'}] ${app.issueNotes}` : ''
+        app.issueType || '',
+        app.issueSeverity || '',
+        app.issueNotes || ''
       ]);
     } else if (userRole === 'PTDA') {
       headers = [
-        "Dự án", "Mã lô/căn", "Ngày TB Thuế", "Ngày trình ký GCN", "Ngày nhận GCN thực tế", "Ghi chú vướng mắc"
+        "Dự án", "Mã lô/căn",
+        "Ngày TB Thuế",
+        "Ngày cấp TB Thuế", 
+        "Ngày trình ký GCN",
+        "Ngày nhận GCN thực tế",
+        "Phân loại sai sót",
+        "Mức độ sai sót",
+        "Ghi chú sai sót"
       ];
       data = sourceApps.map(app => [
         app.projectName,
         app.unitCode,
+        formatExcelDate(app.taxNotificationDate),
         formatExcelDate(app.taxNoticeProvisionDate),
         formatExcelDate(app.gcnSignedDate),
         formatExcelDate(app.gcnReceivedDate),
-        app.issueNotes ? `[${app.issueType || 'Khác'}] ${app.issueNotes}` : ''
+        app.issueType && app.issueType !== 'None' ? app.issueType : '',
+        app.issueSeverity || '',
+        app.issueNotes || ''
       ]);
     } else {
       // Default / Admin: Full Template for complete control
@@ -2373,6 +2437,52 @@ export default function App() {
     }
 
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data]);
+    const dataEndRow = data.length + 1;
+
+    // ADMIN/MANAGER/DIRECTOR
+    if (userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') {
+      addDropdownValidation(worksheet, 'E', 2, dataEndRow, 
+        ['Có', 'Không']);                    // Vay ngân hàng
+      addDropdownValidation(worksheet, 'F', 2, dataEndRow, 
+        ['Căn hộ', 'Đất nền']);             // Loại tài sản
+      addDropdownValidation(worksheet, 'J', 2, dataEndRow, 
+        ['Có', 'Không']);                    // Tự làm sổ
+      addDropdownValidation(worksheet, 'K', 2, dataEndRow, 
+        ['Phường/Xã', 'TP Đà Nẵng']);      // Nơi nộp
+    }
+
+    // PTT
+    if (userRole === 'PTT') {
+      addDropdownValidation(worksheet, 'F', 2, dataEndRow,
+        ['Có', 'Không']);                    // Vay ngân hàng
+      addDropdownValidation(worksheet, 'G', 2, dataEndRow,
+        ['Căn hộ', 'Đất nền']);             // Loại tài sản
+      addDropdownValidation(worksheet, 'K', 2, dataEndRow,
+        ['Có', 'Không']);                    // Tự làm sổ
+      addDropdownValidation(worksheet, 'N', 2, dataEndRow,
+        [...VALID_ISSUE_TYPES]);
+      addDropdownValidation(worksheet, 'O', 2, dataEndRow,
+        [...VALID_SEVERITIES]);
+    }
+
+    // KT
+    if (userRole === 'KT') {
+      addDropdownValidation(worksheet, 'D', 2, dataEndRow,
+        ['Phường/Xã', 'TP Đà Nẵng']);      // Nơi nộp
+      addDropdownValidation(worksheet, 'L', 2, dataEndRow,
+        [...VALID_ISSUE_TYPES]);
+      addDropdownValidation(worksheet, 'M', 2, dataEndRow,
+        [...VALID_SEVERITIES]);
+    }
+
+    // PTDA
+    if (userRole === 'PTDA') {
+      addDropdownValidation(worksheet, 'G', 2, dataEndRow,
+        [...VALID_ISSUE_TYPES]);
+      addDropdownValidation(worksheet, 'H', 2, dataEndRow,
+        [...VALID_SEVERITIES]);
+    }
+
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "HoSo");
     
@@ -2500,7 +2610,7 @@ export default function App() {
     }
   };
 
-  const handleImportTemplate = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleParseTemplate = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -2549,7 +2659,7 @@ export default function App() {
           return seenInFile.get(key) === idx; // Chỉ giữ lần xuất hiện đầu tiên
         });
 
-        uniqueRows.forEach((row) => {
+        uniqueRows.forEach((row, idx) => {
           if (!row || row.length < 2) return;
           const unitCode = (row[1] || '').toString().trim();
           if (!unitCode) return;
@@ -2688,6 +2798,9 @@ export default function App() {
             app.bankCommitmentDeadline = parseExcelDate(row[9]) || app.bankCommitmentDeadline;
             app.isSelfService = row[10] === 'Có';
             if (row[11]) app.customerHandoverDate = parseExcelDate(row[11]);
+            if (row[12]) app.issueType = validateExcelValue(row[12], VALID_ISSUE_TYPES, 'Phân loại sai sót', idx, warnings) as IssueType;
+            if (row[13]) app.issueSeverity = validateExcelValue(row[13], VALID_SEVERITIES, 'Mức độ sai sót', idx, warnings) as IssueSeverity;
+            if (row[14]) app.issueNotes = row[14];
 
             const inferred = inferStepFromDates(app);
             app.currentStep = inferred.currentStep;
@@ -2726,10 +2839,9 @@ export default function App() {
               if (row[7]) app.taxReceiptDate = parseExcelDate(row[7]);
               if (row[8]) app.gcnReceivedDate = parseExcelDate(row[8]);
               if (row[9]) app.ptdaHandoverDate = parseExcelDate(row[9]);
-              if (row[10]) {
-                app.issueNotes = row[10];
-                app.issueType = 'Khác';
-              }
+              if (row[10]) app.issueType = validateExcelValue(row[10], VALID_ISSUE_TYPES, 'Phân loại sai sót', idx, warnings) as IssueType;
+              if (row[11]) app.issueSeverity = validateExcelValue(row[11], VALID_SEVERITIES, 'Mức độ sai sót', idx, warnings) as IssueSeverity;
+              if (row[12]) app.issueNotes = row[12];
               const inferred = inferStepFromDates(app);
               app.currentStep = inferred.currentStep;
               app.status = inferred.status;
@@ -2756,13 +2868,13 @@ export default function App() {
             if (idx > -1) {
               const app = { ...newApplications[idx] };
               app.projectName = projectNameFromRow || app.projectName;
-              if (row[2]) app.taxNoticeProvisionDate = parseExcelDate(row[2]);
-              if (row[3]) app.gcnSignedDate = parseExcelDate(row[3]);
-              if (row[4]) app.gcnReceivedDate = parseExcelDate(row[4]);
-              if (row[5]) {
-                app.issueNotes = row[5];
-                app.issueType = 'Khác';
-              }
+              if (row[2]) app.taxNotificationDate = parseExcelDate(row[2]);
+              if (row[3]) app.taxNoticeProvisionDate = parseExcelDate(row[3]);
+              if (row[4]) app.gcnSignedDate = parseExcelDate(row[4]);
+              if (row[5]) app.gcnReceivedDate = parseExcelDate(row[5]);
+              if (row[6]) app.issueType = validateExcelValue(row[6], VALID_ISSUE_TYPES, 'Phân loại sai sót', idx, warnings) as IssueType;
+              if (row[7]) app.issueSeverity = validateExcelValue(row[7], VALID_SEVERITIES, 'Mức độ sai sót', idx, warnings) as IssueSeverity;
+              if (row[8]) app.issueNotes = row[8];
               
               const inferred = inferStepFromDates(app);
               app.currentStep = inferred.currentStep;
@@ -2814,7 +2926,7 @@ export default function App() {
     e.target.value = ''; 
   };
 
-  const confirmImport = async () => {
+  const handleConfirmImport = async () => {
     if (!importPreviewData) return;
     setIsImporting(true);
     try {
@@ -5262,7 +5374,7 @@ export default function App() {
                   id="excel-import" 
                   className="hidden" 
                   accept=".xlsx, .xls" 
-                  onChange={handleImportTemplate} 
+                  onChange={handleParseTemplate} 
                   disabled={isImporting}
                 />
                 <button 
@@ -5821,7 +5933,7 @@ export default function App() {
                       </div>
                     </div>
 
-                      <div className={cn("p-6 rounded-3xl border mt-4", theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800")}>
+                      <div className={cn("p-6 rounded-3xl border mt-4 overflow-hidden", theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800")}>
                          <h3 className={cn("font-bold mb-4 font-serif text-sm italic flex items-center gap-3", theme === 'light' ? "text-slate-900" : "text-white")}>
                            <Wallet size={14} className="text-emerald-500" />
                            Thống kê vay vốn
@@ -6268,7 +6380,7 @@ export default function App() {
                           const statusLabels: Record<string, string> = {
                             Processing: 'ĐANG CHUẨN BỊ',
                             WaitingVPDK: 'CHỜ NỘP VPĐK',
-                            TaxPending: 'CHỜ NỘP THUẾ',
+                            TaxPending: 'CHỜ HOÀN THÀNH NVTC',
                             WaitingHandover: 'CHỜ BÀN GIAO',
                             TaxPaid: 'ĐÃ NỘP THUẾ',
                             Submitted: 'ĐÃ NỘP VPĐK',
@@ -6460,7 +6572,7 @@ export default function App() {
                                       <option key="all-status" value="ALL">Tất cả trạng thái</option>
                                       <option value="Processing">ĐANG CHUẨN BỊ</option>
                                       <option value="WaitingVPDK">CHỜ NỘP VPĐK</option>
-                                      <option value="TaxPending">CHỜ NỘP THUẾ</option>
+                                      <option value="TaxPending">CHỜ HOÀN THÀNH NVTC</option>
                                       <option value="WaitingHandover">CHỜ BÀN GIAO</option>
                                       <option value="TaxPaid">ĐÃ NỘP THUẾ</option>
                                       <option value="Submitted">ĐÃ NỘP VPĐK</option>
@@ -7332,7 +7444,7 @@ export default function App() {
                       <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/20 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-[0.2em] text-white/80 mb-2">
                         <CheckCircle2 size={12} /> Resource Center
                       </div>
-                      <h2 className="text-5xl font-black text-white font-serif italic tracking-tight">Tra cứu & Biểu mẫu</h2>
+                      <h2 className="text-3xl font-black text-white font-serif italic tracking-tight">Tra cứu & Biểu mẫu</h2>
                       <p className="text-sm text-indigo-100 font-medium max-w-xl">Trung tâm tài nguyên tập trung dành cho Chuyên viên và Lãnh đạo. Tải xuống các biểu mẫu chuẩn hoặc cập nhật tài liệu mới nhất lên hệ thống.</p>
                    </div>
                 </div>
@@ -9047,11 +9159,12 @@ export default function App() {
 
       {importPreviewData && (
         <ImportPreviewModal
-          isOpen={true}
+          isOpen={importPreviewData !== null}
           onClose={() => setImportPreviewData(null)}
-          onConfirm={confirmImport}
+          onConfirm={handleConfirmImport}
           data={importPreviewData}
           theme={theme}
+          isLoading={isImporting}
         />
       )}
 

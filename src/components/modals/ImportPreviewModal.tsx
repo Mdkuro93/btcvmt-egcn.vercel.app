@@ -7,13 +7,14 @@ import { cn } from '../../lib/utils';
 interface ImportPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => Promise<void>;
+  isLoading?: boolean;
   data: {
     toCreate: Application[];
     toUpdate: Application[];
     warnings: string[];
     errors: string[];
-  };
+  } | null;
   theme: 'light' | 'dark';
 }
 
@@ -21,10 +22,11 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
   isOpen,
   onClose,
   onConfirm,
+  isLoading,
   data,
   theme
 }) => {
-  if (!isOpen) return null;
+  if (!isOpen || !data) return null;
 
   const { toCreate, toUpdate, warnings, errors } = data;
   
@@ -157,15 +159,17 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
           </button>
           <button
             onClick={onConfirm}
-            disabled={errors.length > 0 || (toCreate.length === 0 && toUpdate.length === 0)}
+            disabled={isLoading || errors.length > 0 || (toCreate.length === 0 && toUpdate.length === 0)}
             className={cn(
               "px-6 py-2.5 rounded-xl font-bold text-sm text-white transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed",
               errors.length > 0 ? "bg-slate-400" : "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20"
             )}
           >
-            {crossProjectWarnings.length > 0 
-              ? `Xác nhận dù có ${crossProjectWarnings.length} cảnh báo`
-              : `Xác nhận Import (${toCreate.length + toUpdate.length} hồ sơ)`
+            {isLoading 
+              ? 'Đang xử lý...'
+              : crossProjectWarnings.length > 0 
+                ? `Xác nhận dù có ${crossProjectWarnings.length} cảnh báo`
+                : `Xác nhận Import (${toCreate.length + toUpdate.length} hồ sơ)`
             }
           </button>
         </div>
