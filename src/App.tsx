@@ -2339,7 +2339,7 @@ export default function App() {
     } else if (userRole === 'PTT') {
       headers = [
         "Dự án", "Mã lô/căn", "Tên khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản", 
-        "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Hạn cam kết Ngân hàng", "Tự làm sổ (Có/Không)", "Ngày BG GCN Khách",
+        "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Hạn cam kết Ngân hàng", "Tự làm sổ (Có/Không)", "Ngày nhận GCN", "Ngày BG GCN Khách",
         "Phân loại sai sót", "Mức độ sai sót", "Ghi chú sai sót"
       ];
       data = sourceApps.map(app => {
@@ -2355,6 +2355,7 @@ export default function App() {
           formatExcelDate(app.contractSigningDate),
           formatExcelDate(app.bankCommitmentDeadline),
           app.isSelfService ? 'Có' : 'Không',
+          formatExcelDate(app.gcnReceivedDate),
           formatExcelDate(app.customerHandoverDate),
           app.issueType || '',
           app.issueSeverity || '',
@@ -2364,7 +2365,7 @@ export default function App() {
     } else if (userRole === 'KT') {
       headers = [
         "Dự án", "Mã lô/căn", "Khách hàng", "Nơi nộp (Phường/TP)", "Mã HS/Số phiếu hẹn VPĐK", "Ngày nộp VPĐK", 
-        "Ngày nhận TB Thuế", "Ngày đóng thuế", "Ngày nhận GCN", "Ngày BG P.TDA", 
+        "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", "Ngày nhận GCN", "Ngày BG P.TDA", 
         "Phân loại sai sót", "Mức độ sai sót", "Ghi chú sai sót"
       ];
       data = sourceApps.map(app => [
@@ -2374,6 +2375,7 @@ export default function App() {
         app.submissionLocation === 'PHUONG' ? 'Phường/Xã' : 'TP Đà Nẵng',
         app.vpdkCode || '',
         formatExcelDate(app.submissionDate),
+        formatExcelDate(app.taxNotificationDate),
         formatExcelDate(app.taxNotificationReceivedDate),
         formatExcelDate(app.taxReceiptDate),
         formatExcelDate(app.gcnReceivedDate),
@@ -2387,6 +2389,7 @@ export default function App() {
         "Dự án", "Mã lô/căn",
         "Ngày TB Thuế",
         "Ngày cấp TB Thuế", 
+        "Ngày đóng thuế",
         "Ngày trình ký GCN",
         "Ngày nhận GCN thực tế",
         "Phân loại sai sót",
@@ -2398,6 +2401,7 @@ export default function App() {
         app.unitCode,
         formatExcelDate(app.taxNotificationDate),
         formatExcelDate(app.taxNoticeProvisionDate),
+        formatExcelDate(app.taxReceiptDate),
         formatExcelDate(app.gcnSignedDate),
         formatExcelDate(app.gcnReceivedDate),
         app.issueType && app.issueType !== 'None' ? app.issueType : '',
@@ -2477,9 +2481,9 @@ export default function App() {
 
     // PTDA
     if (userRole === 'PTDA') {
-      addDropdownValidation(worksheet, 'G', 2, dataEndRow,
-        [...VALID_ISSUE_TYPES]);
       addDropdownValidation(worksheet, 'H', 2, dataEndRow,
+        [...VALID_ISSUE_TYPES]);
+      addDropdownValidation(worksheet, 'I', 2, dataEndRow,
         [...VALID_SEVERITIES]);
     }
 
@@ -2729,8 +2733,21 @@ export default function App() {
             if (row[19]) app.customerHandoverDate = parseExcelDate(row[19]);
 
             const inferred = inferStepFromDates(app);
-            app.currentStep = inferred.currentStep;
-            app.status = inferred.status;
+
+            const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+            const currentIdxInDB = workflowSteps.indexOf(app.currentStep);
+            const inferredIdx = workflowSteps.indexOf(inferred.currentStep);
+
+            if (existingIndex === -1) {
+              app.currentStep = inferred.currentStep;
+              app.status = inferred.status;
+            } else if (inferredIdx >= currentIdxInDB) {
+              app.currentStep = inferred.currentStep;
+              app.status = inferred.status;
+            } else {
+              console.log(`[Import] Giữ nguyên bước DB cho ${app.unitCode}: DB=${app.currentStep} > inferred=${inferred.currentStep}`);
+              warnings.push(`ℹ️ ${app.unitCode}: Giữ nguyên bước "${app.currentStep}" vì dữ liệu import gợi ý bước cũ hơn.`);
+            }
 
             if (existingIndex > -1) {
               newApplications[existingIndex] = app;
@@ -2797,14 +2814,28 @@ export default function App() {
             app.contractSigningDate = parseExcelDate(row[8]) || app.contractSigningDate;
             app.bankCommitmentDeadline = parseExcelDate(row[9]) || app.bankCommitmentDeadline;
             app.isSelfService = row[10] === 'Có';
-            if (row[11]) app.customerHandoverDate = parseExcelDate(row[11]);
-            if (row[12]) app.issueType = validateExcelValue(row[12], VALID_ISSUE_TYPES, 'Phân loại sai sót', idx, warnings) as IssueType;
-            if (row[13]) app.issueSeverity = validateExcelValue(row[13], VALID_SEVERITIES, 'Mức độ sai sót', idx, warnings) as IssueSeverity;
-            if (row[14]) app.issueNotes = row[14];
+            if (row[11]) app.gcnReceivedDate = parseExcelDate(row[11]);
+            if (row[12]) app.customerHandoverDate = parseExcelDate(row[12]);
+            if (row[13]) app.issueType = validateExcelValue(row[13], VALID_ISSUE_TYPES, 'Phân loại sai sót', idx, warnings) as IssueType;
+            if (row[14]) app.issueSeverity = validateExcelValue(row[14], VALID_SEVERITIES, 'Mức độ sai sót', idx, warnings) as IssueSeverity;
+            if (row[15]) app.issueNotes = row[15];
 
             const inferred = inferStepFromDates(app);
-            app.currentStep = inferred.currentStep;
-            app.status = inferred.status;
+
+            const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+            const currentIdxInDB = workflowSteps.indexOf(app.currentStep);
+            const inferredIdx = workflowSteps.indexOf(inferred.currentStep);
+
+            if (existingIndex === -1) {
+              app.currentStep = inferred.currentStep;
+              app.status = inferred.status;
+            } else if (inferredIdx >= currentIdxInDB) {
+              app.currentStep = inferred.currentStep;
+              app.status = inferred.status;
+            } else {
+              console.log(`[Import] Giữ nguyên bước DB cho ${app.unitCode}: DB=${app.currentStep} > inferred=${inferred.currentStep}`);
+              warnings.push(`ℹ️ ${app.unitCode}: Giữ nguyên bước "${app.currentStep}" vì dữ liệu import gợi ý bước cũ hơn.`);
+            }
 
             if (existingIndex > -1) {
               newApplications[existingIndex] = app;
@@ -2835,16 +2866,27 @@ export default function App() {
               if (row[3]) app.submissionLocation = (row[3] as string).includes('Phường') ? 'PHUONG' : 'TP_DANANG';
               if (row[4]) app.vpdkCode = row[4];
               if (row[5]) app.submissionDate = parseExcelDate(row[5]);
-              if (row[6]) app.taxNotificationReceivedDate = parseExcelDate(row[6]);
-              if (row[7]) app.taxReceiptDate = parseExcelDate(row[7]);
-              if (row[8]) app.gcnReceivedDate = parseExcelDate(row[8]);
-              if (row[9]) app.ptdaHandoverDate = parseExcelDate(row[9]);
-              if (row[10]) app.issueType = validateExcelValue(row[10], VALID_ISSUE_TYPES, 'Phân loại sai sót', idx, warnings) as IssueType;
-              if (row[11]) app.issueSeverity = validateExcelValue(row[11], VALID_SEVERITIES, 'Mức độ sai sót', idx, warnings) as IssueSeverity;
-              if (row[12]) app.issueNotes = row[12];
+              if (row[6]) app.taxNotificationDate = parseExcelDate(row[6]);
+              if (row[7]) app.taxNotificationReceivedDate = parseExcelDate(row[7]);
+              if (row[8]) app.taxReceiptDate = parseExcelDate(row[8]);
+              if (row[9]) app.gcnReceivedDate = parseExcelDate(row[9]);
+              if (row[10]) app.ptdaHandoverDate = parseExcelDate(row[10]);
+              if (row[11]) app.issueType = validateExcelValue(row[11], VALID_ISSUE_TYPES, 'Phân loại sai sót', idx, warnings) as IssueType;
+              if (row[12]) app.issueSeverity = validateExcelValue(row[12], VALID_SEVERITIES, 'Mức độ sai sót', idx, warnings) as IssueSeverity;
+              if (row[13]) app.issueNotes = row[13];
               const inferred = inferStepFromDates(app);
-              app.currentStep = inferred.currentStep;
-              app.status = inferred.status;
+
+              const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+              const currentIdxInDB = workflowSteps.indexOf(app.currentStep);
+              const inferredIdx = workflowSteps.indexOf(inferred.currentStep);
+
+              if (inferredIdx >= currentIdxInDB) {
+                app.currentStep = inferred.currentStep;
+                app.status = inferred.status;
+              } else {
+                console.log(`[Import] Giữ nguyên bước DB cho ${app.unitCode}: DB=${app.currentStep} > inferred=${inferred.currentStep}`);
+                warnings.push(`ℹ️ ${app.unitCode}: Giữ nguyên bước "${app.currentStep}" vì dữ liệu import gợi ý bước cũ hơn.`);
+              }
 
               newApplications[idx] = app;
               if (!app.id || (app.id && app.id.toString().includes('-imp-')) || !applications.some(a => a.id === app.id)) {
@@ -2870,15 +2912,26 @@ export default function App() {
               app.projectName = projectNameFromRow || app.projectName;
               if (row[2]) app.taxNotificationDate = parseExcelDate(row[2]);
               if (row[3]) app.taxNoticeProvisionDate = parseExcelDate(row[3]);
-              if (row[4]) app.gcnSignedDate = parseExcelDate(row[4]);
-              if (row[5]) app.gcnReceivedDate = parseExcelDate(row[5]);
-              if (row[6]) app.issueType = validateExcelValue(row[6], VALID_ISSUE_TYPES, 'Phân loại sai sót', idx, warnings) as IssueType;
-              if (row[7]) app.issueSeverity = validateExcelValue(row[7], VALID_SEVERITIES, 'Mức độ sai sót', idx, warnings) as IssueSeverity;
-              if (row[8]) app.issueNotes = row[8];
+              if (row[4]) app.taxReceiptDate = parseExcelDate(row[4]);
+              if (row[5]) app.gcnSignedDate = parseExcelDate(row[5]);
+              if (row[6]) app.gcnReceivedDate = parseExcelDate(row[6]);
+              if (row[7]) app.issueType = validateExcelValue(row[7], VALID_ISSUE_TYPES, 'Phân loại sai sót', idx, warnings) as IssueType;
+              if (row[8]) app.issueSeverity = validateExcelValue(row[8], VALID_SEVERITIES, 'Mức độ sai sót', idx, warnings) as IssueSeverity;
+              if (row[9]) app.issueNotes = row[9];
               
               const inferred = inferStepFromDates(app);
-              app.currentStep = inferred.currentStep;
-              app.status = inferred.status;
+
+              const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+              const currentIdxInDB = workflowSteps.indexOf(app.currentStep);
+              const inferredIdx = workflowSteps.indexOf(inferred.currentStep);
+
+              if (inferredIdx >= currentIdxInDB) {
+                app.currentStep = inferred.currentStep;
+                app.status = inferred.status;
+              } else {
+                console.log(`[Import] Giữ nguyên bước DB cho ${app.unitCode}: DB=${app.currentStep} > inferred=${inferred.currentStep}`);
+                warnings.push(`ℹ️ ${app.unitCode}: Giữ nguyên bước "${app.currentStep}" vì dữ liệu import gợi ý bước cũ hơn.`);
+              }
 
               newApplications[idx] = app;
               if (!app.id || (app.id && app.id.toString().includes('-imp-')) || !applications.some(a => a.id === app.id)) {
