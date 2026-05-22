@@ -102,7 +102,7 @@ export type ScannedFile = {
 };
 
 export type Application = {
-  id: number | undefined;
+  id?: string | number;
   unitCode: string; // Mã lô/căn
   projectName: string;
   workflowType?: WorkflowType; // Thêm loại quy trình

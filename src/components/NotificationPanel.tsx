@@ -18,7 +18,7 @@ interface NotificationPanelProps {
   onClose: () => void;
   onRead: (id: string) => void;
   onMarkAllRead: () => void;
-  onAction: (appId?: string, notiId?: string) => void;
+  onAction: (appId?: string | number, notiId?: string) => void;
   theme: 'light' | 'dark';
 }
 

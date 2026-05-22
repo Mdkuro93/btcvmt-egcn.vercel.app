@@ -2380,6 +2380,37 @@ export default function App() {
     saveAs(blob, `Template_GCN_${userRole}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  const inferStepFromDates = (app: Application): { currentStep: StepName, status: UnitStatus } => {
+    const isQT2 = app.workflowType === 'Quy_trinh_2';
+    
+    // Hoàn tất
+    if (app.customerHandoverDate) 
+      return { currentStep: 'Hoan_Tat', status: 'Completed' };
+    
+    if (isQT2) {
+      if (app.accountingHandoverDate) return { currentStep: 'S7_2_Ban_Giao_Khach', status: 'Processing' };
+      if (app.gcnReceivedDate)        return { currentStep: 'S7_1_PTT_Tiep_Nhan', status: 'Processing' };
+      if (app.ptdaHandoverDate)       return { currentStep: 'S7_PTDA_Ban_Giao', status: 'Processing' };
+      if (app.gcnSignedDate)          return { currentStep: 'S6_Nhan_So_GCN', status: 'Processing' };
+      if (app.taxReceiptDate)         return { currentStep: 'S5_1_PTDA_TiepNhan', status: 'Processing' };
+      if (app.taxNotificationDate)    return { currentStep: 'S5_Tai_Chinh_Khach_Hang', status: 'Processing' };
+      if (app.submissionDate)         return { currentStep: 'S4_Cho_Thong_Bao_Thue', status: 'Processing' };
+      if (app.vpdkCode)               return { currentStep: 'S3_Nop_VPDK', status: 'Processing' };
+      if (app.contractSigningDate)    return { currentStep: 'S2_KT_Tiep_Nhan', status: 'Processing' };
+      return { currentStep: 'S1_ChuanBi', status: 'Processing' };
+    } else {
+      if (app.accountingHandoverDate) return { currentStep: 'GD6_Cho_BG_Khach', status: 'Processing' };
+      if (app.gcnReceivedDate)        return { currentStep: 'GD5_Cho_PTT_TiepNhan_BG', status: 'Processing' };
+      if (app.gcnSignedDate)          return { currentStep: 'GD5_Cho_GCN', status: 'Processing' };
+      if (app.taxReceiptDate)         return { currentStep: 'GD4_Cho_KT_TiepNhan_LaySo', status: 'Processing' };
+      if (app.taxNotificationDate)    return { currentStep: 'GD4_Cho_Nop_NVTC', status: 'Processing' };
+      if (app.submissionDate)         return { currentStep: 'GD3_Cho_TBThue', status: 'Processing' };
+      if (app.vpdkCode)               return { currentStep: 'GD2_Cho_Nop_VPDK', status: 'Processing' };
+      if (app.contractSigningDate)    return { currentStep: 'GD1_Cho_KT_TiepNhan', status: 'Processing' };
+      return { currentStep: 'GD1_ChuanBi', status: 'Processing' };
+    }
+  };
+
   const handleImportTemplate = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -2407,7 +2438,7 @@ export default function App() {
           const unitCode = row[1];
           if (!unitCode) return;
 
-          if (isManagementEdit) {
+          if (userRole === 'ADMIN' || userRole === 'DIRECTOR' || userRole === 'MANAGER') {
             const existingIndex = newApplications.findIndex(a => a.unitCode === unitCode);
             
             const app = existingIndex > -1 ? { ...newApplications[existingIndex] } : {
@@ -2428,12 +2459,12 @@ export default function App() {
             } as any; // Temporary to allow missing id
 
             if (!app.projectName && projects.length > 0) app.projectName = projects[0].name;
-            const parentProj = projects.find(p => p.name === app.projectName);
-            app.workflowType = parentProj?.workflowType || 'Quy_trinh_1';
-            if (existingIndex === -1) {
-              app.currentStep = app.workflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
-              app.status = (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.status || 'Processing';
+            let parentProj = projects.find(p => p.name.trim().toLowerCase() === (app.projectName || '').trim().toLowerCase());
+            if (!parentProj) {
+              parentProj = projects.find(p => p.name.trim().toLowerCase().includes((app.projectName || '').trim().toLowerCase()));
             }
+            app.workflowType = parentProj?.workflowType || 'Quy_trinh_1';
+            
             app.phoneNumber = row[3] || app.phoneNumber || '';
             app.loanStatus = row[4] === 'Có' ? 'Co_Vay' : 'Khong_Vay';
             app.propertyType = row[5] === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen';
@@ -2453,10 +2484,16 @@ export default function App() {
             if (row[18]) app.accountingHandoverDate = parseExcelDate(row[18]);
             if (row[19]) app.customerHandoverDate = parseExcelDate(row[19]);
 
-            if (app.customerHandoverDate) {
-              app.currentStep = 'Hoan_Tat';
-              app.status = 'Completed';
-            }
+            const inferred = inferStepFromDates(app);
+            app.currentStep = inferred.currentStep;
+            app.status = inferred.status;
+
+            console.log(`[Import Debug] ${app.unitCode}:`, {
+              workflowType: app.workflowType,
+              contractSigningDate: app.contractSigningDate,
+              submissionDate: app.submissionDate,
+              inferredStep: inferred.currentStep
+            });
 
             if (existingIndex > -1) {
               newApplications[existingIndex] = app;
@@ -2471,8 +2508,6 @@ export default function App() {
                 updatedCount++;
               }
             } else {
-              app.status = 'Processing';
-              app.currentStep = 'S1_ChuanBi';
               newApplications.push(app);
               createdCount++;
               const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
@@ -2515,10 +2550,9 @@ export default function App() {
             app.isSelfService = row[10] === 'Có';
             if (row[11]) app.customerHandoverDate = parseExcelDate(row[11]);
 
-            if (app.customerHandoverDate) {
-              app.currentStep = 'Hoan_Tat';
-              app.status = 'Completed';
-            }
+            const inferred = inferStepFromDates(app);
+            app.currentStep = inferred.currentStep;
+            app.status = inferred.status;
 
             if (existingIndex > -1) {
               newApplications[existingIndex] = app;
@@ -2556,6 +2590,10 @@ export default function App() {
                 app.issueNotes = row[10];
                 app.issueType = 'Khác';
               }
+              const inferred = inferStepFromDates(app);
+              app.currentStep = inferred.currentStep;
+              app.status = inferred.status;
+
               newApplications[idx] = app;
               if (!app.id || (app.id && app.id.toString().includes('-imp-')) || !applications.some(a => a.id === app.id)) {
                 const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);
@@ -2581,6 +2619,11 @@ export default function App() {
                 app.issueNotes = row[5];
                 app.issueType = 'Khác';
               }
+              
+              const inferred = inferStepFromDates(app);
+              app.currentStep = inferred.currentStep;
+              app.status = inferred.status;
+
               newApplications[idx] = app;
               if (!app.id || (app.id && app.id.toString().includes('-imp-')) || !applications.some(a => a.id === app.id)) {
                 const cIdx = appsToCreate.findIndex(item => item.unitCode === app.unitCode);

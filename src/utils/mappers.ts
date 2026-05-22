@@ -213,7 +213,7 @@ export const mapToSnakeCase = (app: Application): Record<string, any> => {
     }
   });
 
-  if (app.id && !(typeof app.id === 'string' && app.id.includes('-imp-'))) {
+  if (app.id && !app.id.toString().includes('-imp-')) {
     data.id = app.id;
   }
 
