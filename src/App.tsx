@@ -94,7 +94,9 @@ import {
   Zap,
   ClipboardCheck,
   MessageSquare,
-  UserCheck
+  UserCheck,
+  RefreshCw,
+  CheckCircle
 } from 'lucide-react';
 import DashboardAlerts from './components/DashboardAlerts';
 import ErrorReportView from './components/ErrorReportView';
@@ -1558,6 +1560,7 @@ export default function App() {
   const { toast, showToast } = useToast();
   const [isSavingApp, setIsSavingApp] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [healDone, setHealDone] = useState(false);
 
   const {
     selectedAppIds,
@@ -2417,6 +2420,76 @@ export default function App() {
       if (app.vpdkCode)               return { currentStep: 'GD2_Cho_Nop_VPDK', status: 'Processing' };
       if (app.contractSigningDate)    return { currentStep: 'GD1_Cho_KT_TiepNhan', status: 'Processing' };
       return { currentStep: 'GD1_ChuanBi', status: 'Processing' };
+    }
+  };
+
+  const healExistingRecords = async () => {
+    if (!currentUser) return;
+    if (applications.length === 0) {
+      showToast('Chưa có dữ liệu để đồng bộ', 'warning');
+      return;
+    }
+
+    setIsImporting(true);
+    showToast('Đang kiểm tra và cập nhật trạng thái...', 'info');
+
+    try {
+      // Lọc hồ sơ bị sai trạng thái
+      const appsToFix = applications.filter(app => {
+        if (app.status === 'Completed') return false;
+        const inferred = inferStepFromDates(app);
+        return inferred.status !== app.status || 
+               inferred.currentStep !== app.currentStep;
+      });
+
+      if (appsToFix.length === 0) {
+        showToast('Tất cả hồ sơ đã đúng trạng thái!', 'success');
+        setHealDone(true);
+        return;
+      }
+
+      let fixedCount = 0;
+      let errorCount = 0;
+
+      // Cập nhật từng hồ sơ lên Supabase
+      for (const app of appsToFix) {
+        const inferred = inferStepFromDates(app);
+        const { error } = await supabase
+          .from('records')
+          .update({
+            status: inferred.status,
+            current_step: inferred.currentStep
+          })
+          .eq('id', app.id);
+
+        if (error) {
+          console.error(`Heal error for ${app.unitCode}:`, error);
+          errorCount++;
+        } else {
+          fixedCount++;
+        }
+      }
+
+      // Reload data sau khi fix
+      await fetchApplications();
+
+      if (errorCount === 0) {
+        showToast(
+          `Đã cập nhật ${fixedCount} hồ sơ thành công!`, 
+          'success'
+        );
+        setHealDone(true);
+      } else {
+        showToast(
+          `Cập nhật ${fixedCount} thành công, ${errorCount} lỗi`, 
+          'warning'
+        );
+      }
+    } catch (error) {
+      console.error('Heal records error:', error);
+      showToast('Có lỗi khi đồng bộ trạng thái', 'error');
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -5116,6 +5189,31 @@ export default function App() {
                   )}
                 </button>
               </div>
+
+              {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
+                <button
+                  onClick={healExistingRecords}
+                  disabled={isImporting || healDone}
+                  className={cn(
+                    "p-2.5 rounded-full border transition-all shadow-sm group relative",
+                    healDone 
+                      ? "opacity-40 cursor-not-allowed bg-slate-100 border-slate-200"
+                      : theme === 'light' 
+                        ? "bg-white border-slate-200 text-slate-400 hover:text-amber-600 hover:border-amber-200" 
+                        : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-amber-400 hover:border-amber-500/30",
+                    isImporting && "opacity-50 cursor-not-allowed"
+                  )}
+                  title={healDone ? "Đã đồng bộ xong" : "Đồng bộ lại trạng thái hồ sơ"}
+                >
+                  {isImporting ? (
+                    <span className="w-[18px] h-[18px] border-2 border-amber-500 border-t-transparent rounded-full animate-spin inline-block" />
+                  ) : healDone ? (
+                    <CheckCircle size={18} />
+                  ) : (
+                    <RefreshCw size={18} />
+                  )}
+                </button>
+              )}
 
               {(userRole === 'PTT' || isManagementEdit) && (
                     <button 
