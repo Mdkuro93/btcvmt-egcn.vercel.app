@@ -322,54 +322,45 @@ const formatExcelDate = (val: string | Date | undefined) => {
   return formatted === '---' ? '' : formatted;
 };
 
-const parseExcelDate = (val: any): string => {
-  if (!val) return '';
-  
-  // Excel serial dates
-  if (typeof val === 'number') {
-    const d = new Date(Math.round((val - 25569) * 86400 * 1000));
-    if (!isNaN(d.getTime())) {
-      return d.toISOString().split('T')[0];
+const parseExcelDate = (value: any): string | undefined => {
+  if (!value && value !== 0) return undefined;
+
+  // TH1: Excel Serial Number (XLSX tự convert ngày → số)
+  if (typeof value === 'number') {
+    const excelEpoch = new Date(1899, 11, 30);
+    const date = new Date(
+      excelEpoch.getTime() + value * 24 * 60 * 60 * 1000
+    );
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().split('T')[0];
+    }
+    return undefined;
+  }
+
+  // TH2: String DD/MM/YYYY (nếu ô được format là Text)
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    
+    // DD/MM/YYYY hoặc D/M/YYYY
+    if (trimmed.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
+      const [day, month, year] = trimmed.split('/');
+      const date = new Date(
+        parseInt(year), 
+        parseInt(month) - 1, 
+        parseInt(day)
+      );
+      if (!isNaN(date.getTime())) {
+        return date.toISOString().split('T')[0];
+      }
+    }
+
+    // YYYY-MM-DD (ISO)
+    if (trimmed.match(/^\d{4}-\d{2}-\d{2}/)) {
+      return trimmed.split('T')[0];
     }
   }
 
-  if (typeof val === 'string') {
-    const trimmed = val.trim();
-    if (!trimmed || trimmed === '---') return '';
-
-    // Standardize delimiters to /
-    const standardized = trimmed.replace(/[\.-]/g, '/');
-
-    // Match dd/mm/yyyy
-    const ddmm_yyyy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
-    const match = standardized.match(ddmm_yyyy);
-    if (match) {
-      const d = match[1].padStart(2, '0');
-      const m = match[2].padStart(2, '0');
-      const y = match[3];
-      return `${y}-${m}-${d}`;
-    }
-
-    // Match yyyy/mm/dd
-    const yyyymm_dd = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/;
-    const matchY = standardized.match(yyyymm_dd);
-    if (matchY) {
-      const y = matchY[1];
-      const m = matchY[2].padStart(2, '0');
-      const d = matchY[3].padStart(2, '0');
-      return `${y}-${m}-${d}`;
-    }
-
-    // Attempt native date parse if it looks like ISO
-    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
-  }
-
-  // Last resort
-  const d = new Date(val);
-  if (!isNaN(d.getTime())) {
-    return d.toISOString().split('T')[0];
-  }
-  return '';
+  return undefined;
 };
 
 
@@ -2487,13 +2478,6 @@ export default function App() {
             const inferred = inferStepFromDates(app);
             app.currentStep = inferred.currentStep;
             app.status = inferred.status;
-
-            console.log(`[Import Debug] ${app.unitCode}:`, {
-              workflowType: app.workflowType,
-              contractSigningDate: app.contractSigningDate,
-              submissionDate: app.submissionDate,
-              inferredStep: inferred.currentStep
-            });
 
             if (existingIndex > -1) {
               newApplications[existingIndex] = app;
