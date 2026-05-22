@@ -5734,7 +5734,7 @@ export default function App() {
                 </div>
 
                 {/* Charts Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-12">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                   <div className={cn(
                     "lg:col-span-3 p-8 rounded-[3rem] border transition-all duration-700 relative overflow-hidden group",
                     theme === 'light' ? "bg-white/70 border-slate-200/60 shadow-2xl shadow-indigo-100/50 backdrop-blur-xl" : "bg-slate-900/40 border-slate-800/50 shadow-2xl"
@@ -6001,7 +6001,7 @@ export default function App() {
                                     <div className="h-[150px] w-full relative">
                                        <ResponsiveContainer width="100%" height={150}>
                                          <PieChart>
-                                           <Pie data={roleKpis.loanRatioStats} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={2} dataKey="value" stroke="none">
+                                           <Pie data={roleKpis.loanRatioStats} cx="50%" cy="50%" innerRadius={40} outerRadius={50} paddingAngle={2} dataKey="value" stroke="none">
                                              {roleKpis.loanRatioStats.map((entry: any, index: number) => (
                                                <Cell key={`cell-ratio-${index}`} fill={entry.color} />
                                              ))}
@@ -6036,7 +6036,7 @@ export default function App() {
                                               cx="50%" 
                                               cy="50%" 
                                               innerRadius={40} 
-                                              outerRadius={60} 
+                                              outerRadius={50} 
                                               paddingAngle={2} 
                                               dataKey="value" 
                                               stroke="none"
@@ -7497,7 +7497,7 @@ export default function App() {
                       <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/20 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-[0.2em] text-white/80 mb-2">
                         <CheckCircle2 size={12} /> Resource Center
                       </div>
-                      <h2 className="text-3xl font-black text-white font-serif italic tracking-tight">Tra cứu & Biểu mẫu</h2>
+                      <h2 className="text-xl font-black text-white font-serif italic tracking-tight">Tra cứu & Biểu mẫu</h2>
                       <p className="text-sm text-indigo-100 font-medium max-w-xl">Trung tâm tài nguyên tập trung dành cho Chuyên viên và Lãnh đạo. Tải xuống các biểu mẫu chuẩn hoặc cập nhật tài liệu mới nhất lên hệ thống.</p>
                    </div>
                 </div>
