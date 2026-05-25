@@ -225,6 +225,10 @@ export function useApplicationFilters(
             if (a.loanStatus !== 'Co_Vay') return false;
             break;
 
+          case 'SELF_SERVICE':
+            if (!a.isSelfService) return false;
+            break;
+
           default:
             break;
         }

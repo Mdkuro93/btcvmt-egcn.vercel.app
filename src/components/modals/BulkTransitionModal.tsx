@@ -101,6 +101,7 @@ export default function BulkTransitionModal({
                   <input
                     type="date"
                     value={value}
+                    max={(updateField?.key === 'bankCommitmentDeadline' || updateField?.key === 'commitmentDate') ? undefined : new Date().toISOString().split('T')[0]}
                     onChange={(e) => onChangeValue(e.target.value)}
                     className={cn(
                       "w-full pl-12 pr-4 py-4 rounded-3xl text-sm font-bold border outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all",

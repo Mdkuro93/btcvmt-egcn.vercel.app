@@ -200,7 +200,6 @@ export const mapToSnakeCase = (app: Application): Record<string, any> => {
 
   if ((app as any).issue_status !== undefined) data.issue_status = (app as any).issue_status;
   if ((app as any).issue_created_at !== undefined) data.issue_created_at = (app as any).issue_created_at;
-  if ((app as any).issue_resolved_at !== undefined) data.issue_resolved_at = (app as any).issue_resolved_at;
 
   Object.keys(data).forEach(key => {
     const isDateField = key.endsWith('_date') || 

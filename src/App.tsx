@@ -448,6 +448,15 @@ const DetailCard = ({ label, value, field, valueColor = 'text-white', editable =
   const active = editable && isEditing;
   const darkValueColor = valueColor === 'text-white' ? 'text-white' : valueColor;
   const lightValueColor = valueColor === 'text-white' ? 'text-slate-900' : valueColor;
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const isDeadlineStr = label.toLowerCase().includes('cam kết') || label.toLowerCase().includes('commitment');
+
+  useEffect(() => {
+    if (active && type === 'date' && !value && !isDeadlineStr && onChange) {
+      onChange(todayStr);
+    }
+  }, [active, type, value, isDeadlineStr]);
   
   return (
     <div className={cn(
@@ -496,6 +505,7 @@ const DetailCard = ({ label, value, field, valueColor = 'text-white', editable =
           ) : (
             <input 
               type={type}
+              max={(type === 'date' && !isDeadlineStr) ? todayStr : undefined}
               className={cn(
                 "w-full border rounded-xl px-3 py-1.5 text-xs font-black text-emerald-400 outline-none focus:ring-2 focus:ring-emerald-500/30",
                 theme === 'dark' ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
@@ -649,6 +659,7 @@ export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'applications' | 'users' | 'resources' | 'reports' | 'settings'>('dashboard');
+  const [dashboardTab, setDashboardTab] = useState<'ALL' | 'SELF_SERVICE' | 'LOAN'>('ALL');
   const [reportType, setReportType] = useState<'PROJECT' | 'REGION' | 'LOAN' | 'SLA' | 'PERFORMANCE' | 'ERROR'>('LOAN');
 
   useEffect(() => {
@@ -748,6 +759,62 @@ export default function App() {
   const [applications, setApplications] = useState<Application[]>([]);
   useSelfHealingData(applications, setApplications);
   const [dashboardApps, setDashboardApps] = useState<Application[]>([]);
+
+  const [sortConfig, setSortConfig] = useState<{
+    field: 'status' | 'unitCode' | 'customerName' | 
+           'createdAt' | 'smart';
+    direction: 'asc' | 'desc';
+  }>({ field: 'smart', direction: 'desc' });
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [highlightedAppId, setHighlightedAppId] = useState<string | number | null>(null);
+
+  const STATUS_PRIORITY: Record<string, number> = {
+    'Error':          1,  // Vướng mắc lên đầu
+    'Processing':     2,  // Đang chuẩn bị
+    'WaitingVPDK':    3,  // Chờ nộp VPĐK
+    'Submitted':      4,  // Đã nộp
+    'TaxPending':     5,  // Chờ TB thuế / NVTC
+    'TaxCompleted':   6,  // Đã nộp thuế
+    'GCN_Issued':     7,  // Đã có GCN
+    'WaitingHandover':8,  // Chờ bàn giao
+    'Completed':      99  // Hoàn tất xuống cuối
+  };
+
+  const sortApplications = (apps: Application[]) => {
+    return [...apps].sort((a, b) => {
+      if (sortConfig.field === 'smart') {
+        // Ưu tiên: Error > Processing > ... > Completed
+        const pa = STATUS_PRIORITY[a.status] ?? 50;
+        const pb = STATUS_PRIORITY[b.status] ?? 50;
+        if (pa !== pb) return pa - pb;
+        // Cùng trạng thái → mới nhất lên đầu
+        return (b.id as number) - (a.id as number);
+      }
+      if (sortConfig.field === 'unitCode') {
+        const cmp = a.unitCode.localeCompare(
+          b.unitCode, 'vi', { numeric: true }
+        );
+        return sortConfig.direction === 'asc' ? cmp : -cmp;
+      }
+      if (sortConfig.field === 'customerName') {
+        const cmp = (a.customerName || '').localeCompare(
+          b.customerName || '', 'vi'
+        );
+        return sortConfig.direction === 'asc' ? cmp : -cmp;
+      }
+      if (sortConfig.field === 'status') {
+        const pa = STATUS_PRIORITY[a.status] ?? 50;
+        const pb = STATUS_PRIORITY[b.status] ?? 50;
+        return sortConfig.direction === 'asc' 
+          ? pa - pb : pb - pa;
+      }
+      // createdAt: mới nhất trước
+      return sortConfig.direction === 'asc'
+        ? (a.id as number) - (b.id as number)
+        : (b.id as number) - (a.id as number);
+    });
+  };
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [isLoadingApps, setIsLoadingApps] = useState(true);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
@@ -798,7 +865,16 @@ export default function App() {
     setFilterStatus('ALL');
     setFilterIssue('ALL');
     setFilterSLAStatus('ALL');
-    setFilterLoanStatus('ALL');
+    if (dashboardTab === 'SELF_SERVICE') {
+      setFilterSelfService('YES');
+      setFilterLoanStatus('ALL');
+    } else if (dashboardTab === 'LOAN') {
+      setFilterSelfService('ALL');
+      setFilterLoanStatus('Co_Vay');
+    } else {
+      setFilterSelfService('ALL');
+      setFilterLoanStatus('ALL');
+    }
     setSelectedFlags([]);
     setSearch('');
   };
@@ -837,6 +913,19 @@ export default function App() {
     filterSLAStatus,
     selectedFlags
   );
+
+  const displayedApps = useMemo(() => {
+    let result = sortApplications(filteredApps);
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      result = result.filter(a => 
+        a.unitCode?.toLowerCase().includes(q) ||
+        a.customerName?.toLowerCase().includes(q) ||
+        a.projectName?.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [filteredApps, sortConfig, searchQuery]);
 
   
   const handleUpdatePassword = async () => {
@@ -1096,53 +1185,145 @@ export default function App() {
 
       // Dashboard Filters Shorthand
       if (dashboardFilter && dashboardFilter !== 'ALL') {
-        let mappedStatus = dashboardFilter;
-        // Mapping from Dashboard Chart labels (Vietnamese) to Database Statuses
-        const dNorm = dashboardFilter.toUpperCase();
-        if (dNorm === 'ĐANG CHUẨN BỊ') mappedStatus = 'Processing';
-        else if (dNorm === 'CHỜ NỘP' || dNorm === 'CHỜ NỘP VPĐK') mappedStatus = 'WaitingVPDK';
-        else if (dNorm === 'ĐÃ NỘP VPĐK') mappedStatus = 'Submitted';
-        else if (dNorm === 'CHỜ TB THUẾ') mappedStatus = 'TaxPending';
-        else if (dNorm === 'CHỜ NVTC' || dNorm === 'CHỜ HOÀN THÀNH NVTC') mappedStatus = 'TaxPending';
-        else if (dNorm === 'ĐÃ NỘP THUẾ') mappedStatus = 'TaxPaid';
-        else if (dNorm === 'ĐÃ HOÀN THÀNH NVTC') mappedStatus = 'TaxCompleted';
-        else if (dNorm === 'ĐÃ CÓ GCN' || dNorm === 'ĐÃ RA GCN') mappedStatus = 'GCN_Issued';
-        else if (dNorm === 'CHỜ BÀN GIAO') mappedStatus = 'WaitingHandover';
-        else if (dNorm === 'HOÀN TẤT') mappedStatus = 'Completed';
+        const dNorm = dashboardFilter.toUpperCase().trim();
 
-        // Apply mapped status if it's one of the standard statuses
-        if (['Processing', 'WaitingVPDK', 'Submitted', 'TaxPending', 'TaxCompleted', 'TaxPaid', 'GCN_Issued', 'Completed', 'WaitingHandover'].includes(mappedStatus)) {
-          query = query.eq('status', mappedStatus);
+        if (dNorm === 'ĐANG CHUẨN BỊ') {
+          query = query.eq('status', 'Processing');
         }
-
-        if (dashboardFilter === 'ERROR') query = query.eq('status', 'Error');
-        if (dashboardFilter === 'COMPLETED') query = query.eq('status', 'Completed');
-        if (dashboardFilter === 'OVERDUE') {
-          // Overdue filter done client-side usually, but let's at least not break the server query
+        else if (dNorm === 'CHỜ NỘP VPĐK') {
+          query = query.or(
+            'status.eq.WaitingVPDK,' +
+            'current_step.eq.GD1_Cho_KT_TiepNhan,' +
+            'current_step.eq.S2_KT_Tiep_Nhan,' +
+            'current_step.eq.S2_KT_Ban_giao,' +
+            'current_step.eq.GD1_Nop_VPDK,' +
+            'current_step.eq.GD2_Cho_Nop_VPDK'
+          );
         }
-        if (dashboardFilter === 'PTT_PROCESSING') {
-          query = query.or('status.eq.ĐANG_CHUẨN_BỊ,current_step.eq.ĐANG_CHUẨN_BỊ,status.eq.Processing,step.eq.PREPARING');
+        else if (dNorm === 'ĐÃ NỘP VPĐK') {
+          query = query.eq('status', 'Submitted');
         }
-        if (dashboardFilter === 'PTT_HOLDING') {
+        else if (dNorm === 'CHỜ TB THUẾ') {
+          query = query
+            .not('submission_date', 'is', null)
+            .filter('tax_notification_date', 'is', null)
+            .in('current_step', [
+              'S4_Cho_Thong_Bao_Thue', 'GD3_Cho_TBThue'
+            ]);
+        }
+        else if (dNorm === 'CHỜ HOÀN THÀNH NVTC') {
+          query = query
+            .not('tax_notification_date', 'is', null)
+            .filter('tax_receipt_date', 'is', null)
+            .in('current_step', [
+              'S5_Tai_Chinh_Khach_Hang',
+              'GD4_Cho_Nop_NVTC',
+              'GD4_Cho_KT_TiepNhan_LaySo'
+            ]);
+        }
+        else if (dNorm === 'ĐÃ NỘP THUẾ') {
+          query = query.in('status', ['TaxCompleted', 'TaxPaid']);
+        }
+        else if (dNorm === 'ĐÃ CÓ GCN') {
+          query = query.eq('status', 'GCN_Issued');
+        }
+        else if (dNorm === 'CHỜ BÀN GIAO') {
+          query = query.or(
+            'status.eq.WaitingHandover,' +
+            'current_step.eq.S7_PTDA_Ban_Giao,' +
+            'current_step.eq.S7_1_PTT_Tiep_Nhan,' +
+            'current_step.eq.S7_2_Ban_Giao_Khach,' +
+            'current_step.eq.GD5_Cho_PTT_TiepNhan_BG,' +
+            'current_step.eq.GD6_Cho_BG_Khach'
+          );
+        }
+        else if (dNorm === 'HOÀN TẤT') {
+          query = query.eq('status', 'Completed');
+        }
+        else if (dashboardFilter === 'SELF_SERVICE') {
+          query = query.eq('is_self_service', true);
+        }
+        // Giữ nguyên các filter KPI card hiện có:
+        else if (dashboardFilter === 'ERROR') {
+          query = query.eq('status', 'Error');
+        }
+        else if (dashboardFilter === 'COMPLETED') {
+          query = query.eq('status', 'Completed');
+        }
+        else if (dashboardFilter === 'PTT_PROCESSING') {
+          query = query.eq('status', 'Processing');
+        }
+        else if (dashboardFilter === 'PTT_HOLDING') {
           const pttSteps = Object.keys(INITIAL_STEP_CONFIG).filter(k => INITIAL_STEP_CONFIG[k].dept === 'PTT');
           query = query.in('current_step', pttSteps);
         }
-        if (dashboardFilter === 'PTT_ISSUES') query = query.or('is_rejected.eq.true,status.eq.Error');
-        if (dashboardFilter === 'PTT_TAX_UNPAID') query = query.or('status.eq.AWAITING_FINANCE,current_step.eq.CHỜ HOÀN THÀNH NVTC,status.eq.CHỜ HOÀN THÀNH NVTC,status.eq.TaxPending');
-        if (dashboardFilter === 'PTT_WAITING_HANDOVER') query = query.or('status.eq.WAITING_HANDOVER,current_step.eq.CHỜ BÀN GIAO,status.eq.CHỜ BÀN GIAO,status.eq.WaitingHandover');
-
-        if (dashboardFilter === 'KT_NEED_RECEIVE') query = query.in('current_step', ['S2_KT_Tiep_Nhan', 'GD1_Cho_KT_TiepNhan', 'GD2_Cho_Nop_VPDK']);
-        if (dashboardFilter === 'KT_PROCESSING') query = query.in('current_step', ['S2_KT_Tiep_Nhan', 'GD1_Cho_KT_TiepNhan', 'GD2_Cho_Nop_VPDK', 'GD4_Cho_KT_TiepNhan_LaySo', 'GD5_Cho_GCN']);
-        if (dashboardFilter === 'KT_ISSUES') {
+        else if (dashboardFilter === 'PTT_ISSUES') {
+          query = query.or('is_rejected.eq.true,status.eq.Error');
+        }
+        else if (dashboardFilter === 'PTT_TAX_UNPAID') {
+          query = query.or(
+            'status.eq.TaxPending,' +
+            'current_step.eq.S5_Tai_Chinh_Khach_Hang,' +
+            'current_step.eq.GD4_Cho_Nop_NVTC,' +
+            'current_step.eq.GD4_Cho_KT_TiepNhan_LaySo'
+          );
+        }
+        else if (dashboardFilter === 'PTT_WAITING_HANDOVER') {
+          query = query.or(
+            'status.eq.WaitingHandover,' +
+            'current_step.eq.S7_2_Ban_Giao_Khach,' +
+            'current_step.eq.GD6_Cho_BG_Khach,' +
+            'current_step.eq.S7_1_PTT_Tiep_Nhan,' +
+            'current_step.eq.GD5_Cho_PTT_TiepNhan_BG'
+          );
+        }
+        else if (dashboardFilter === 'KT_NEED_RECEIVE') {
+          query = query.in('current_step', [
+            'S2_KT_Tiep_Nhan', 'GD1_Cho_KT_TiepNhan',
+            'GD2_Cho_Nop_VPDK'
+          ]);
+        }
+        else if (dashboardFilter === 'KT_PROCESSING') {
+          query = query.in('current_step', [
+            'S2_KT_Tiep_Nhan', 'GD1_Cho_KT_TiepNhan',
+            'GD2_Cho_Nop_VPDK', 'GD4_Cho_KT_TiepNhan_LaySo',
+            'GD5_Cho_GCN'
+          ]);
+        }
+        else if (dashboardFilter === 'KT_ISSUES') {
           const ktSteps = Object.keys(INITIAL_STEP_CONFIG).filter(k => INITIAL_STEP_CONFIG[k].dept === 'KT');
           query = query.in('current_step', ktSteps).or('is_rejected.eq.true,status.eq.Error');
         }
-        if (dashboardFilter === 'PTDA_RECEIVED') query = query.in('current_step', ['S2_KT_Ban_giao', 'S5_1_PTDA_TiepNhan', 'GD2_Cho_Nop_VPDK', 'S3_Nop_VPDK']);
-        if (dashboardFilter === 'PTDA_DA_NOP_VPDK') query = query.eq('current_step', 'S3_Nop_VPDK');
-        if (dashboardFilter === 'PTDA_NO_TAX') query = query.in('current_step', ['GD3_Cho_TBThue', 'S4_Cho_Thong_Bao_Thue']);
-        if (dashboardFilter === 'PTDA_TAX_PENDING') query = query.in('current_step', ['S5_Tai_Chinh_Khach_Hang', 'GD4_Cho_NVTC', 'GD4_Cho_Nop_NVTC']).filter('tax_receipt_date', 'is', null);
-        if (dashboardFilter === 'PTDA_GCN_WAITING') query = query.in('current_step', ['S6_Nhan_So_GCN', 'GD5_Cho_Ky_In_GCN']).filter('gcn_signed_date', 'is', null);
-        if (dashboardFilter === 'PTDA_ISSUES') {
+        else if (dashboardFilter === 'PTDA_RECEIVED') {
+          query = query.in('current_step', [
+            'S2_KT_Ban_giao', 'S5_1_PTDA_TiepNhan',
+            'GD2_Cho_Nop_VPDK', 'S3_Nop_VPDK'
+          ]);
+        }
+        else if (dashboardFilter === 'PTDA_DA_NOP_VPDK') {
+          query = query.eq('current_step', 'S3_Nop_VPDK');
+        }
+        else if (dashboardFilter === 'PTDA_NO_TAX') {
+          query = query.in('current_step', [
+            'GD3_Cho_TBThue', 'S4_Cho_Thong_Bao_Thue'
+          ]);
+        }
+        else if (dashboardFilter === 'PTDA_TAX_PENDING') {
+          query = query
+            .in('current_step', [
+              'S5_Tai_Chinh_Khach_Hang',
+              'GD4_Cho_NVTC', 'GD4_Cho_Nop_NVTC'
+            ])
+            .filter('tax_receipt_date', 'is', null);
+        }
+        else if (dashboardFilter === 'PTDA_GCN_WAITING') {
+          query = query
+            .in('current_step', [
+              'S6_Nhan_So_GCN', 'GD5_Cho_Ky_In_GCN'
+            ])
+            .filter('gcn_signed_date', 'is', null);
+        }
+        else if (dashboardFilter === 'PTDA_ISSUES') {
           const ptdaSteps = Object.keys(INITIAL_STEP_CONFIG).filter(k => INITIAL_STEP_CONFIG[k].dept === 'PTDA');
           query = query.in('current_step', ptdaSteps).or('is_rejected.eq.true,status.eq.Error');
         }
@@ -1154,7 +1335,9 @@ export default function App() {
         
       if (error) throw error;
       
-      setApplications((data || []).map(mapFromSnakeCase));
+      setApplications(sortApplications(
+        (data || []).map(mapFromSnakeCase)
+      ));
       setTotalCount(count || 0);
     } catch (error) {
       console.error('Error fetching paginated records:', error);
@@ -1360,7 +1543,10 @@ export default function App() {
     try {
       const snakeData = mapNotificationToSnakeCase(noti);
       const { error } = await supabase.from('notifications').insert(snakeData);
-      if (error) throw error;
+      if (error) {
+        if (error.code === '23503') return;
+        throw error;
+      }
     } catch (error) {
       console.error('Error creating notification:', error);
      showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
@@ -1372,19 +1558,24 @@ export default function App() {
     const targetDept = step.dept;
     
     // Find all users in the target department
-    const targetUsers = users.filter(u => u.dept === targetDept && u.id !== currentUser?.id);
+    const targetUsers = users.filter(u => 
+      u.dept === targetDept && 
+      u.id !== currentUser?.id &&
+      typeof u.id === 'string' &&
+      u.id.length === 36
+    );
     
     if (targetUsers.length > 0) {
-      const promises = targetUsers.map(u => 
-        createNotification({
+      // allSettled không throw dù có lỗi FK
+      await Promise.allSettled(
+        targetUsers.map(u => createNotification({
           recipientId: u.id,
           title: 'Bàn giao hồ sơ mới',
           message: `Hồ sơ ${app.unitCode} đã được chuyển đến bộ phận của bạn từ ${currentUser?.name}.`,
           type: 'Info',
           appId: app.id
-        })
+        }))
       );
-      await Promise.all(promises);
     }
   };
 
@@ -1641,7 +1832,7 @@ export default function App() {
 
       // Table keyboard navigation for 'applications' tab
       if (activeTab === 'applications' && !isInputFocused && !selectedApp) {
-        const visibleApps = filteredApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+        const visibleApps = displayedApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
         
         if (e.key === 'ArrowDown') {
           e.preventDefault();
@@ -1719,17 +1910,17 @@ export default function App() {
         // Ctrl + A: Select all filtered rows
         if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
           e.preventDefault();
-          const allIds = filteredApps.map(a => a.id);
+          const allIds = displayedApps.map(a => a.id);
           setSelectedRows(new Set(allIds));
           setSelectedAppIds(allIds);
-          showToast(`Đã chọn tất cả ${filteredApps.length} hồ sơ`, 'success');
+          showToast(`Đã chọn tất cả ${displayedApps.length} hồ sơ`, 'success');
         }
 
         // Ctrl + C: Copy selected rows to clipboard for Excel
         if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
           if (selectedRows.size > 0) {
             e.preventDefault();
-            const rowsToCopy = filteredApps.filter(app => selectedRows.has(app.id));
+            const rowsToCopy = displayedApps.filter(app => selectedRows.has(app.id));
             
             const header = ['Dự án', 'Mã căn', 'Tên khách hàng', 'Trạng thái', 'Tiến độ'].join('\t');
             const dataRows = rowsToCopy.map(r => [
@@ -1750,7 +1941,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedApp, isEditing, currentUser, activeTab, filteredApps, selectedIndex, selectedRows, lastSelectedIndex, currentPage, pageSize, isProjectModalOpen]);
+  }, [selectedApp, isEditing, currentUser, activeTab, displayedApps, selectedIndex, selectedRows, lastSelectedIndex, currentPage, pageSize, isProjectModalOpen]);
 
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [expandedSidebarRegions, setExpandedSidebarRegions] = useState<Record<string, boolean>>({});
@@ -1918,11 +2109,15 @@ export default function App() {
   const validateDateSequence = (app: Partial<Application>) => {
     const dates = [
       { key: 'receivedDate', label: 'Ngày nhận HS' },
+      { key: 'contractSigningDate', label: 'Ngày ký HĐCN' },
       { key: 'submissionDate', label: 'Ngày nộp VPĐK' },
       { key: 'taxNotificationDate', label: 'Ngày TB Thuế' },
-      { key: 'taxReceiptDate', label: 'Ngày nộp tiền/NVTC' },
+      { key: 'taxReceiptDate', label: 'Ngày nộp thuế/NVTC' },
+      { key: 'gcnSignedDate', label: 'Ngày ký GCN' },
       { key: 'gcnReceivedDate', label: 'Ngày nhận GCN' },
-      { key: 'customerHandoverDate', label: 'Ngày BG Khách' }
+      { key: 'customerHandoverDate', label: 'Ngày BG Khách' },
+      { key: 'accountingHandoverDate', label: 'Ngày KT tiếp nhận' },
+      { key: 'ptdaHandoverDate', label: 'Ngày PTDA bàn giao' }
     ];
 
     // Filter out fields that are present and have valid date strings
@@ -1930,6 +2125,7 @@ export default function App() {
       .map(d => ({ ...d, value: app[d.key as keyof Application] }))
       .filter(d => d.value && d.value !== '---' && typeof d.value === 'string');
 
+    // Check chronology: d2 must not be smaller than d1
     for (let i = 0; i < activeDates.length - 1; i++) {
       const d1 = activeDates[i];
       const d2 = activeDates[i+1];
@@ -1947,6 +2143,21 @@ export default function App() {
         }
       }
     }
+
+    // Check future date
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    for (const d of activeDates) {
+      if (d.key === 'bankCommitmentDeadline' || d.key === 'commitmentDate') {
+        continue;
+      }
+      const date = new Date(d.value as string);
+      date.setHours(0, 0, 0, 0);
+      if (!isNaN(date.getTime()) && date > today) {
+        return `⚠️ Lưu ý: ${d.label} (${formatDate(d.value as string)}) là ngày trong tương lai`;
+      }
+    }
+
     return null;
   };
 
@@ -1983,14 +2194,14 @@ export default function App() {
     const newChanges = { ...spreadsheetChanges };
     const newErrors = { ...spreadsheetErrors };
     
-    const startIdx = filteredApps.findIndex(a => a.id === startId);
+    const startIdx = displayedApps.findIndex(a => a.id === startId);
     if (startIdx === -1) return;
     
     const startFieldIdx = EDITABLE_DATE_FIELDS.findIndex(f => f.key === startField);
 
     rows.forEach((row, ri) => {
       const columns = row.split('\t');
-      let targetApp: Application | undefined = filteredApps[startIdx + ri];
+      let targetApp: Application | undefined = displayedApps[startIdx + ri];
       let rowData = columns;
       let fieldOffset = startFieldIdx;
 
@@ -2072,7 +2283,8 @@ export default function App() {
         success: 0,
         skipped: 0,
         error: 0,
-        errors: [] as string[]
+        errors: [] as string[],
+        warnings: [] as string[]
       };
 
       for (const [id, changes] of Object.entries(spreadsheetChanges)) {
@@ -2110,9 +2322,13 @@ export default function App() {
         const mergedApp = { ...original, ...processedChanges };
         const dateError = validateDateSequence(mergedApp);
         if (dateError) {
-          results.error++;
-          results.errors.push(`Căn ${original.unitCode || id}: ${dateError}`);
-          continue;
+          if (dateError.startsWith('⚠️')) {
+            results.warnings.push(`Căn ${original.unitCode || id}: ${dateError}`);
+          } else {
+            results.error++;
+            results.errors.push(`Căn ${original.unitCode || id}: ${dateError}`);
+            continue;
+          }
         }
 
         let updated = { ...mergedApp, updated_at: nowStr };
@@ -2169,6 +2385,10 @@ export default function App() {
         setApplications(finalUpdatedApps);
         let msg = `Cập nhật thành công: ${results.success} căn.`;
         if (results.skipped > 0) msg += ` (Bỏ qua ${results.skipped} căn không đổi).`;
+        if (results.warnings && results.warnings.length > 0) {
+          msg += ` (${results.warnings.length} lưu ý)`;
+          showToast(`Lưu ý ngày tương lai: ${results.warnings.slice(0, 3).join(', ')}${results.warnings.length > 3 ? '...' : ''}`, 'warning');
+        }
         showToast(msg, 'success');
         
         setIsSpreadsheetMode(false);
@@ -2503,12 +2723,11 @@ export default function App() {
       return { currentStep: 'Hoan_Tat', status: 'Completed' };
     
     if (isQT2) {
-      if (app.accountingHandoverDate) return { currentStep: 'S7_2_Ban_Giao_Khach', status: 'Processing' };
-      if (app.gcnReceivedDate)        return { currentStep: 'S7_1_PTT_Tiep_Nhan', status: 'Processing' };
-      if (app.ptdaHandoverDate)       return { currentStep: 'S7_PTDA_Ban_Giao', status: 'Processing' };
-      if (app.gcnSignedDate)          return { currentStep: 'S6_Nhan_So_GCN', status: 'Processing' };
-      if (app.taxReceiptDate)         return { currentStep: 'S5_1_PTDA_TiepNhan', status: 'Processing' };
-      if (app.taxNotificationDate)    return { currentStep: 'S5_Tai_Chinh_Khach_Hang', status: 'Processing' };
+      if (app.gcnReceivedDate)        return { currentStep: 'S7_1_PTT_Tiep_Nhan', status: 'WaitingHandover' };
+      if (app.ptdaHandoverDate)       return { currentStep: 'S7_PTDA_Ban_Giao', status: 'WaitingHandover' };
+      if (app.gcnSignedDate)          return { currentStep: 'S6_Nhan_So_GCN', status: 'GCN_Issued' };
+      if (app.taxReceiptDate)         return { currentStep: 'S5_1_PTDA_TiepNhan', status: 'TaxCompleted' };
+      if (app.taxNotificationDate)    return { currentStep: 'S5_Tai_Chinh_Khach_Hang', status: 'TaxPending' };
       
       if (app.submissionDate && !app.taxNotificationDate) {
         const subDate = new Date(app.submissionDate);
@@ -2516,18 +2735,22 @@ export default function App() {
         const sla = slaConfig?.['Nộp VPĐK'] ?? 5;
         return daysDiff > sla
           ? { currentStep: 'S4_Cho_Thong_Bao_Thue', status: 'TaxPending' }
-          : { currentStep: 'S4_Cho_Thong_Bao_Thue', status: 'Submitted' };
+          : { currentStep: 'S3_Nop_VPDK', status: 'Submitted' };
       }
       
-      if (app.vpdkCode)               return { currentStep: 'S3_Nop_VPDK', status: 'Processing' };
-      if (app.contractSigningDate)    return { currentStep: 'S2_KT_Tiep_Nhan', status: 'Processing' };
+      if (app.vpdkCode)               return { currentStep: 'S3_Nop_VPDK', status: 'Submitted' };
+      if (app.accountingHandoverDate && !app.submissionDate)
+        // KT đã tiếp nhận, chưa nộp VPĐK
+        return { currentStep: 'S2_KT_Tiep_Nhan', status: 'WaitingVPDK' };
+      if (app.contractSigningDate && !app.accountingHandoverDate)
+        // PTT đã ký HĐCN nhưng chưa bàn giao KT
+        return { currentStep: 'S2_KT_Tiep_Nhan', status: 'Processing' };
       return { currentStep: 'S1_ChuanBi', status: 'Processing' };
     } else {
-      if (app.accountingHandoverDate) return { currentStep: 'GD6_Cho_BG_Khach', status: 'Processing' };
-      if (app.gcnReceivedDate)        return { currentStep: 'GD5_Cho_PTT_TiepNhan_BG', status: 'Processing' };
-      if (app.gcnSignedDate)          return { currentStep: 'GD5_Cho_GCN', status: 'Processing' };
-      if (app.taxReceiptDate)         return { currentStep: 'GD4_Cho_KT_TiepNhan_LaySo', status: 'Processing' };
-      if (app.taxNotificationDate)    return { currentStep: 'GD4_Cho_Nop_NVTC', status: 'Processing' };
+      if (app.gcnReceivedDate)        return { currentStep: 'GD5_Cho_PTT_TiepNhan_BG', status: 'WaitingHandover' };
+      if (app.gcnSignedDate)          return { currentStep: 'GD5_Cho_GCN', status: 'GCN_Issued' };
+      if (app.taxReceiptDate)         return { currentStep: 'GD4_Cho_KT_TiepNhan_LaySo', status: 'TaxCompleted' };
+      if (app.taxNotificationDate)    return { currentStep: 'GD4_Cho_Nop_NVTC', status: 'TaxPending' };
 
       if (app.submissionDate && !app.taxNotificationDate) {
         const subDate = new Date(app.submissionDate);
@@ -2538,8 +2761,13 @@ export default function App() {
           : { currentStep: 'GD3_Cho_TBThue', status: 'Submitted' };
       }
 
-      if (app.vpdkCode)               return { currentStep: 'GD2_Cho_Nop_VPDK', status: 'Processing' };
-      if (app.contractSigningDate)    return { currentStep: 'GD1_Cho_KT_TiepNhan', status: 'Processing' };
+      if (app.vpdkCode)               return { currentStep: 'GD2_Cho_Nop_VPDK', status: 'WaitingVPDK' };
+      if (app.accountingHandoverDate && !app.submissionDate)
+        // KT đã tiếp nhận, chưa nộp VPĐK
+        return { currentStep: 'GD1_Cho_KT_TiepNhan', status: 'WaitingVPDK' };
+      if (app.contractSigningDate && !app.accountingHandoverDate)
+        // PTT đã ký HĐCN nhưng chưa bàn giao KT
+        return { currentStep: 'GD1_Cho_KT_TiepNhan', status: 'Processing' };
       return { currentStep: 'GD1_ChuanBi', status: 'Processing' };
     }
   };
@@ -3152,8 +3380,12 @@ export default function App() {
     // Date order validation for single transition
       const chronoError = validateDateSequence(app);
       if (chronoError) {
-        showToast(`Lỗi trình tự ngày: ${chronoError}`, 'warning');
-        return;
+        if (chronoError.startsWith('⚠️')) {
+          showToast(chronoError, 'warning');
+        } else {
+          showToast(`Lỗi trình tự ngày: ${chronoError}`, 'warning');
+          return;
+        }
       }
 
       // Workflow validations
@@ -3355,7 +3587,12 @@ export default function App() {
     else if (nextStep === 'Hoan_Tat') updateField = { key: 'customerHandoverDate', label: 'Ngày BG GCN cho khách', isRequired: true };
     
     // GD workflow
-    else if (nextStep === 'GD1_Cho_KT_TiepNhan') updateField = { key: 'contractSigningDate', label: 'Ngày ký HĐCN/HĐMB', isRequired: false };
+    else if (nextStep === 'GD1_Cho_KT_TiepNhan') 
+      updateField = { 
+        key: 'accountingHandoverDate', 
+        label: 'Ngày ký HĐCN/HĐMB',
+        isRequired: false
+      };
     else if (nextStep === 'GD3_Cho_TBThue') updateField = { key: 'submissionDate', label: 'Ngày nộp VPĐK', isRequired: true };
     else if (nextStep === 'GD4_Cho_Nop_NVTC') updateField = { key: 'taxNotificationDate', label: 'Ngày TB Thuế', isRequired: true };
     else if (nextStep === 'GD4_Cho_KT_TiepNhan_LaySo') updateField = { key: 'taxReceiptDate', label: 'Ngày nhận/cung cấp GNT / Nộp thuế', isRequired: true };
@@ -3415,6 +3652,7 @@ export default function App() {
     
     try {
       const chronoErrors: string[] = [];
+      const chronoWarnings: string[] = [];
       let actuallyUpdatedCount = 0;
 
       const updatedApps = applications.map(app => {
@@ -3459,7 +3697,11 @@ export default function App() {
         // Check chronology for all selected apps
         const chronoError = validateDateSequence(appWithDate);
         if (chronoError) {
-          chronoErrors.push(`Căn ${appWithDate.unitCode}: ${chronoError}`);
+          if (chronoError.startsWith('⚠️')) {
+            chronoWarnings.push(`Căn ${appWithDate.unitCode}: ${chronoError}`);
+          } else {
+            chronoErrors.push(`Căn ${appWithDate.unitCode}: ${chronoError}`);
+          }
         }
         
         let targetStep = recordNextStep;
@@ -3488,7 +3730,7 @@ export default function App() {
         ];
         
         const autoDates: Partial<Application> = {};
-        if (targetStep === 'S2_KT_Tiep_Nhan' && !appWithDate.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
+        if ((targetStep === 'S2_KT_Tiep_Nhan' || targetStep === 'GD1_Cho_KT_TiepNhan') && !appWithDate.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
         if (targetStep === 'S3_Nop_VPDK' && !appWithDate.submissionDate) autoDates.submissionDate = nowStr;
         
         if (targetStep === 'S5_Tai_Chinh_Khach_Hang') {
@@ -3510,6 +3752,25 @@ export default function App() {
         if (targetStep === 'S7_2_Ban_Giao_Khach' && !appWithDate.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
         if (targetStep === 'Hoan_Tat' && !appWithDate.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
 
+        // GD Workflow Missing Auto Dates
+        if (targetStep === 'GD3_Cho_TBThue' && !appWithDate.submissionDate) 
+          autoDates.submissionDate = nowStr;
+          
+        if (targetStep === 'GD4_Cho_Nop_NVTC' && !appWithDate.taxNotificationDate) 
+          autoDates.taxNotificationDate = nowStr;
+          
+        if (targetStep === 'GD4_Cho_KT_TiepNhan_LaySo' && !appWithDate.taxReceiptDate) 
+          autoDates.taxReceiptDate = nowStr;
+          
+        if ((targetStep === 'GD5_Cho_Ky_In_GCN' || targetStep === 'GD5_Cho_GCN') && !appWithDate.gcnSignedDate) 
+          autoDates.gcnSignedDate = nowStr;
+          
+        if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !appWithDate.gcnReceivedDate) 
+          autoDates.gcnReceivedDate = nowStr;
+          
+        if (targetStep === 'GD6_Cho_BG_Khach' && !appWithDate.ptdaHandoverDate) 
+          autoDates.ptdaHandoverDate = nowStr;
+
         // Auto handover logic
         autoDates.isHandedOver = true;
         autoDates.handoverDate = bulkTransitionField && dateValue ? dateValue : nowStr;
@@ -3517,7 +3778,8 @@ export default function App() {
         let targetStatus = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).status;
         
         // Business Logic updates
-        if (targetStep === 'S2_KT_Tiep_Nhan') targetStatus = 'WaitingVPDK'; // CHỜ NỘP VPĐK
+        if (targetStep === 'S2_KT_Tiep_Nhan' || targetStep === 'GD1_Cho_KT_TiepNhan') targetStatus = 'WaitingVPDK'; // CHỜ NỘP VPĐK
+        if (targetStep === 'GD4_Cho_Nop_NVTC') targetStatus = 'TaxPending'; // CHỜ TB THUẾ / CHỜ ĐÓNG THUẾ
         if (targetStep === 'S5_1_PTDA_TiepNhan') targetStatus = 'TaxPaid'; // ĐÃ NỘP THUẾ
         if (targetStep === 'S7_2_Ban_Giao_Khach' || targetStep === 'GD6_Cho_BG_Khach' || targetStep === 'GD5_Cho_PTT_TiepNhan_BG') {
            targetStatus = app.customerHandoverDate || autoDates.customerHandoverDate ? 'Completed' : 'WaitingHandover';
@@ -3603,6 +3865,9 @@ export default function App() {
       setIsBulkTransitionModalOpen(false);
       setBulkTransitionTarget(null);
       setBulkTransitionField(null);
+      if (chronoWarnings.length > 0) {
+        showToast(`Các lưu ý ngày tương lai: ${chronoWarnings.slice(0, 3).join(', ')}${chronoWarnings.length > 3 ? '...' : ''}`, 'warning');
+      }
       showToast(`Đã xử lý hàng loạt ${actuallyUpdatedCount} hồ sơ lên Supabase thành công.`, 'success');
     } catch (error) {
       console.error('Supabase bulk transition error:', error);
@@ -3649,6 +3914,31 @@ export default function App() {
     } finally {
       setIsSavingApp(false);
     }
+  };
+
+  const handleBulkResolveIssues = async () => {
+    const appsToResolve = applications.filter(a => 
+      selectedRows.includes(String(a.id)) && 
+      (a.isRejected || a.issue_status === 'OPEN')
+    );
+    if (appsToResolve.length === 0) return;
+    
+    setIsSavingApp(true);
+    let successCount = 0;
+    for (const app of appsToResolve) {
+      try {
+        await handleResolveIssue(app.id);
+        successCount++;
+      } catch (e) {
+        console.error(`Resolve error ${app.unitCode}:`, e);
+      }
+    }
+    showToast(
+      `Đã xác nhận khắc phục ${successCount}/` +
+      `${appsToResolve.length} hồ sơ`,
+      'success'
+    );
+    setIsSavingApp(false);
   };
 
 
@@ -3864,7 +4154,6 @@ export default function App() {
       issueSeverity: severity,
       issue_status: 'OPEN',
       issue_created_at: new Date().toISOString(),
-      issue_resolved_at: null,
       issue_type: type,
       issue_severity: severity,
       issue_notes: note,
@@ -3931,7 +4220,6 @@ export default function App() {
       issueType: 'None' as const,
       issueNotes: '',
       issue_status: 'RESOLVED' as const,
-      issue_resolved_at: new Date().toISOString(),
       issue_type: app.issue_type || app.issueType || 'Sai sót Khác',
       issue_severity: app.issue_severity || app.issueSeverity || 'Trung bình',
       issue_notes: app.issue_notes || app.issueNotes || app.issueNotes || '',
@@ -3982,7 +4270,6 @@ export default function App() {
         issueSeverity: 'Minor' as const,
         issueNotes: '',
         issue_status: 'RESOLVED' as const,
-        issue_resolved_at: new Date().toISOString(),
         issue_type: app.issue_type || app.issueType || 'Sai sót Khác',
         issue_severity: app.issue_severity || app.issueSeverity || 'Trung bình',
         issue_notes: app.issue_notes || app.issueNotes || app.issueNotes || '',
@@ -4400,7 +4687,7 @@ export default function App() {
     setIsSavingApp(true);
     try {
       // For update, we must have a valid UUID in editUser.id
-      const { error } = await supabase.from('users').upsert(mapUserToSnakeCase(editUser));
+      const { error } = await supabase.from('users').update(mapUserToSnakeCase(editUser)).eq('id', editUser.id);
       if (error) throw error;
       
       setUsers(prev => prev.map(u => u.id === editUser.id ? editUser : u));
@@ -4682,9 +4969,28 @@ export default function App() {
       { name: 'Chưa có', value: dashboardApps.filter(a => a.loanStatus !== 'Co_Vay' && a.loanStatus !== 'Khong_Vay').length, color: '#94a3b8' }
     ].filter(s => s.value > 0);
 
+    const selfServiceApps = dashboardApps.filter(a => a.isSelfService);
+    const selfServiceStatusStats = [
+      { name: 'Chuẩn bị', value: selfServiceApps.filter(a => a.status === 'Processing').length, color: '#94a3b8' },
+      { name: 'Chờ nộp VPĐK', value: selfServiceApps.filter(a => a.status === 'WaitingVPDK').length, color: '#f59e0b' },
+      { name: 'Đã nộp VPĐK', value: selfServiceApps.filter(a => a.status === 'Submitted').length, color: '#3b82f6' },
+      { name: 'Chờ TB Thuế', value: selfServiceApps.filter(a => a.status === 'TaxPending').length, color: '#f97316' },
+      { name: 'Đã nộp thuế', value: selfServiceApps.filter(a => a.status === 'TaxPaid' || a.status === 'TaxCompleted').length, color: '#10b981' },
+      { name: 'Đã có GCN', value: selfServiceApps.filter(a => a.status === 'GCN_Issued' || a.status === 'WaitingHandover').length, color: '#06b6d4' },
+      { name: 'Hoàn tất', value: selfServiceApps.filter(a => a.status === 'Completed').length, color: '#22c55e' },
+      { name: 'Vướng mắc', value: selfServiceApps.filter(a => a.status === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None')).length, color: '#f43f5e' }
+    ].filter(s => s.value > 0);
+
+    const selfServiceRatioStats = [
+      { name: 'Khách tự làm', value: selfServiceApps.length, color: '#f59e0b' },
+      { name: 'CĐT làm thay', value: (dashboardApps.length - selfServiceApps.length), color: '#3b82f6' }
+    ].filter(s => s.value > 0);
+
     return {
         loanStatusStats,
         loanRatioStats,
+        selfServiceStatusStats,
+        selfServiceRatioStats,
         ptt: { 
             total: pttTotal, 
             processing: pttProcessing, 
@@ -4755,10 +5061,10 @@ export default function App() {
         const target = e.target as HTMLElement;
         if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
           e.preventDefault();
-          if (selectedAppIds.length === filteredApps.length) {
+          if (selectedAppIds.length === displayedApps.length) {
             setSelectedAppIds([]);
           } else {
-            setSelectedAppIds(filteredApps.map(a => a.id));
+            setSelectedAppIds(displayedApps.map(a => a.id));
           }
         }
       }
@@ -4791,7 +5097,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [quickEditId, quickEditData, isEditing, editApp, isCreateModalOpen, selectedApp, applications]);
 
-  const chartData = useMemo(() => {
+  const computeChartData = (appsList: Application[]) => {
     const today = new Date();
     const submissionSLA = 
       slaConfig?.['Nộp VPĐK'] ?? 
@@ -4810,65 +5116,71 @@ export default function App() {
       COMPLETED: [] as Application[] 
     };
 
-    dashboardApps.forEach(r => {
-      // Logic dựa theo r.status như yêu cầu của người dùng
-      if (r.status === 'Completed') stages.COMPLETED.push(r);
-      else if (r.status === 'WaitingHandover') stages.WAITING_HANDOVER.push(r);
-      else if (r.status === 'GCN_Issued') stages.GCN_READY.push(r);
-      else if (r.status === 'TaxPaid' || r.status === 'TaxCompleted') stages.TAX_PAID.push(r);
-      else if (r.status === 'TaxPending') {
-         // Chờ hoàn thành NVTC (S5 / GD4) vs Chờ TB Thuế
-         if (r.taxNotificationDate) {
-            stages.AWAITING_FINANCE.push(r);
-         } else if (r.currentStep === 'S5_Tai_Chinh_Khach_Hang' || r.currentStep === 'GD4_Cho_Nop_NVTC') {
-            stages.AWAITING_FINANCE.push(r);
-         } else if (r.submissionDate) {
-            const subDate = new Date(r.submissionDate);
-            const daysDiff = (today.getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
-            if (daysDiff > submissionSLA) {
-               stages.TAX_WARNING.push(r);
-            } else {
-               stages.SUBMITTED.push(r);
-            }
-         } else {
+    appsList.forEach(r => {
+      // Ưu tiên 1: Completed luôn thắng
+      if (r.status === 'Completed' || r.currentStep === 'Hoan_Tat') {
+        stages.COMPLETED.push(r);
+      }
+      // Ưu tiên 2: WaitingHandover
+      else if (r.status === 'WaitingHandover' || [
+        'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 
+        'S7_2_Ban_Giao_Khach', 'GD5_Cho_PTT_TiepNhan_BG', 
+        'GD6_Cho_BG_Khach'
+      ].includes(r.currentStep)) {
+        stages.WAITING_HANDOVER.push(r);
+      }
+      // Ưu tiên 3: GCN_Issued
+      else if (r.status === 'GCN_Issued' || [
+        'S6_Nhan_So_GCN', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_GCN'
+      ].includes(r.currentStep)) {
+        stages.GCN_READY.push(r);
+      }
+      // Ưu tiên 4: TaxCompleted / TaxPaid
+      else if (r.status === 'TaxPaid' || r.status === 'TaxCompleted' ||
+               r.currentStep === 'S5_1_PTDA_TiepNhan') {
+        stages.TAX_PAID.push(r);
+      }
+      // Ưu tiên 5: AWAITING_FINANCE (CHỜ HOÀN THÀNH NVTC)
+      else if (r.status === 'TaxPending' && r.taxNotificationDate) {
+        stages.AWAITING_FINANCE.push(r);
+      }
+      else if ([
+        'S5_Tai_Chinh_Khach_Hang', 'GD4_Cho_Nop_NVTC', 
+        'GD4_Cho_KT_TiepNhan_LaySo'
+      ].includes(r.currentStep)) {
+        stages.AWAITING_FINANCE.push(r);
+      }
+      // Ưu tiên 6: SUBMITTED / TAX_WARNING (phân loại theo SLA)
+      else if (r.status === 'Submitted' || r.status === 'TaxPending' ||
+               r.submissionDate) {
+        if (r.submissionDate && !r.taxNotificationDate) {
+          const daysDiff = (today.getTime() - 
+            new Date(r.submissionDate).getTime()) / (1000*60*60*24);
+          if (daysDiff > submissionSLA)
             stages.TAX_WARNING.push(r);
-         }
-      }
-      else if (r.status === 'Submitted') {
-         if (r.submissionDate) {
-            const subDate = new Date(r.submissionDate);
-            const daysDiff = (today.getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
-            if (daysDiff > submissionSLA && !r.taxNotificationDate) {
-               stages.TAX_WARNING.push(r);
-            } else {
-               stages.SUBMITTED.push(r);
-            }
-         } else {
+          else
             stages.SUBMITTED.push(r);
-         }
+        } else if (r.taxNotificationDate) {
+          stages.AWAITING_FINANCE.push(r);
+        } else {
+          stages.SUBMITTED.push(r);
+        }
       }
-      else if (r.status === 'WaitingVPDK') stages.AWAITING_SUBMISSION.push(r);
-      else if (r.status === 'Processing') stages.PREPARING.push(r);
+      // Ưu tiên 7: AWAITING_SUBMISSION (CHỜ NỘP VPĐK)
+      else if (
+        r.status === 'WaitingVPDK' ||
+        (r.accountingHandoverDate && !r.submissionDate) ||
+        ['S2_KT_Ban_giao', 'GD1_Nop_VPDK', 'GD2_Cho_Nop_VPDK'].includes(r.currentStep) ||
+        // S2_KT_Tiep_Nhan và GD1_Cho_KT_TiepNhan chỉ khi 
+        // KT đã tiếp nhận (có accountingHandoverDate)
+        (['S2_KT_Tiep_Nhan', 'GD1_Cho_KT_TiepNhan']
+          .includes(r.currentStep) && r.accountingHandoverDate)
+      ) {
+        stages.AWAITING_SUBMISSION.push(r);
+      }
+      // Mặc định: PREPARING
       else {
-          // Fallback cho Error hoặc các trạng thái hỗn hợp chưa cập nhật
-          if (r.customerHandoverDate || r.currentStep === 'Hoan_Tat') stages.COMPLETED.push(r);
-          else if (r.currentStep === 'S7_2_Ban_Giao_Khach' || r.currentStep === 'GD6_Cho_BG_Khach' || r.currentStep === 'S7_PTDA_Ban_Giao' || r.currentStep === 'S7_1_PTT_Tiep_Nhan') stages.WAITING_HANDOVER.push(r);
-          else if (r.gcnSignedDate || r.currentStep === 'S6_Nhan_So_GCN' || r.currentStep === 'GD5_Cho_GCN' || r.currentStep === 'GD5_Cho_PTT_TiepNhan_BG' || r.currentStep === 'GD5_Cho_Ky_In_GCN') stages.GCN_READY.push(r);
-          else if (r.taxReceiptDate || r.currentStep === 'S5_1_PTDA_TiepNhan' || r.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') stages.TAX_PAID.push(r);
-          else if (r.taxNotificationDate || r.currentStep === 'S5_Tai_Chinh_Khach_Hang' || r.currentStep === 'GD4_Cho_Nop_NVTC') stages.AWAITING_FINANCE.push(r);
-          else if (r.submissionDate || r.currentStep === 'S3_Nop_VPDK' || r.currentStep === 'GD3_Cho_TBThue') {
-            const subDate = new Date(r.submissionDate || today);
-            const daysDiff = (today.getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
-            if (daysDiff > submissionSLA) stages.TAX_WARNING.push(r);
-            else stages.SUBMITTED.push(r);
-          }
-          else if (
-            r.currentStep === 'S2_KT_Tiep_Nhan' || 
-            r.currentStep === 'S2_KT_Ban_giao' || 
-            r.currentStep === 'GD2_Cho_Nop_VPDK' || 
-            (r.accountingHandoverDate && r.currentStep !== 'GD1_Cho_KT_TiepNhan' && r.currentStep !== 'GD1_ChuanBi' && r.currentStep !== 'S1_ChuanBi')
-          ) stages.AWAITING_SUBMISSION.push(r);
-          else stages.PREPARING.push(r);
+        stages.PREPARING.push(r);
       }
     });
 
@@ -4897,10 +5209,24 @@ export default function App() {
       createStageItem('CHỜ HOÀN THÀNH NVTC', stages.AWAITING_FINANCE, '#8b5cf6', 'TaxPending'),
       createStageItem('ĐÃ NỘP THUẾ', stages.TAX_PAID, '#10b981', 'TaxCompleted'),
       createStageItem('ĐÃ CÓ GCN', stages.GCN_READY, '#06b6d4', 'GCN_Issued'),
-      createStageItem('CHỜ BÀN GIAO', stages.WAITING_HANDOVER, '#6366f1', 'Completed'),
+      createStageItem('CHỜ BÀN GIAO', stages.WAITING_HANDOVER, '#6366f1', 'WaitingHandover'),
       createStageItem('HOÀN TẤT', stages.COMPLETED, '#22c55e', 'Completed')
     ];
-  }, [dashboardApps]);
+  };
+
+  const chartData = useMemo(() => {
+    return computeChartData(dashboardApps);
+  }, [dashboardApps, slaConfig]);
+
+  const progressChartData = useMemo(() => {
+    if (dashboardTab === 'SELF_SERVICE') {
+      return computeChartData(dashboardApps.filter(a => a.isSelfService));
+    }
+    if (dashboardTab === 'LOAN') {
+      return computeChartData(dashboardApps.filter(a => a.loanStatus === 'Co_Vay'));
+    }
+    return chartData;
+  }, [dashboardApps, chartData, dashboardTab, slaConfig]);
 
   const loanPieData = useMemo(() => {
     const loanRecords = dashboardApps ? dashboardApps.filter((a: Application) => a.loanStatus === 'Co_Vay') : [];
@@ -5060,7 +5386,8 @@ export default function App() {
           </AnimatePresence>
         </div>
 
-        <nav className="flex-1 px-4 space-y-1">
+        <nav className="flex-1 flex flex-col overflow-hidden px-4 space-y-1">
+          <div className="space-y-1 flex-shrink-0">
           <button 
             onClick={() => setActiveTab('dashboard')}
             className={cn(
@@ -5231,8 +5558,9 @@ export default function App() {
               </AnimatePresence>
             </button>
           </div>
+          </div>
 
-          <div className={cn("pt-4 border-t border-slate-800/10 mt-4 pb-2 transition-all", isSidebarCollapsed ? "px-4" : "px-6")}>
+          <div className={cn("pt-4 border-t border-slate-800/10 mt-4 pb-2 transition-all flex-shrink-0", isSidebarCollapsed ? "px-4" : "px-6")}>
             <AnimatePresence mode="popLayout">
               {!isSidebarCollapsed ? (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -5743,7 +6071,7 @@ export default function App() {
                         <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-indigo-50/50 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
                     )}
 
-                    <div className="flex items-center justify-between mb-10 relative z-10">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10 relative z-10">
                       <div>
                          <h3 className={cn("font-black flex items-center gap-3 text-2xl uppercase tracking-tighter", theme === 'light' ? "text-slate-800" : "text-white")}>
                            <div className="p-2 rounded-2xl bg-amber-500/10 border border-amber-500/20">
@@ -5751,35 +6079,101 @@ export default function App() {
                            </div>
                            Thống kê Tiến độ
                          </h3>
-                         <div className="flex items-center gap-4 mt-2">
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest opacity-70">Phân bổ theo giai đoạn thực tế</p>
-                            <div className="flex items-center gap-2">
-                               <div className="flex items-center gap-1.5">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)] animate-pulse" />
-                                  <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Phát hiện sai sót</span>
+                         <div className="flex flex-col gap-1 mt-2">
+                            <div className="flex items-center gap-4">
+                               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest opacity-70">
+                                 {dashboardTab === 'ALL' ? 'Phân bổ theo giai đoạn thực tế' :
+                                  dashboardTab === 'SELF_SERVICE' ? 'Tiến độ khách tự làm sổ' :
+                                  'Tiến độ hồ sơ có gói vay ngân hàng'}
+                               </p>
+                               <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1.5">
+                                     <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)] animate-pulse" />
+                                     <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Phát hiện sai sót</span>
+                                  </div>
                                </div>
                             </div>
+                            {dashboardTab === 'SELF_SERVICE' && (
+                              <p className="text-[9px] text-amber-500 font-bold mt-0.5">
+                                {dashboardApps.filter(a => a.isSelfService).length} hồ sơ · {dashboardApps.filter(a => a.isSelfService && a.status === 'Completed').length} đã hoàn tất · {dashboardApps.filter(a => a.isSelfService && a.status !== 'Completed').length} đang xử lý
+                              </p>
+                            )}
                          </div>
+                      </div>
+
+                      <div className={cn(
+                        "p-1.5 rounded-2xl flex items-center gap-1.5 border self-start md:self-auto",
+                        theme === 'light' ? "bg-slate-100 border-slate-200 shadow-sm" : "bg-slate-950/65 border-slate-800/80"
+                      )}>
+                        <button
+                          onClick={() => setDashboardTab('ALL')}
+                          className={cn(
+                            "px-4 py-1.5 rounded-xl text-xs font-black transition-all duration-300 uppercase tracking-wider flex items-center gap-2",
+                            dashboardTab === 'ALL'
+                              ? "bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/10 scale-105"
+                              : (theme === 'light' ? "text-slate-600 hover:bg-slate-200" : "text-slate-400 hover:bg-slate-900")
+                          )}
+                        >
+                          Tất cả
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded-full text-[9px] font-black",
+                            dashboardTab === 'ALL' ? "bg-slate-950/20 text-slate-950" : (theme === 'light' ? "bg-slate-200/50 text-slate-600" : "bg-slate-800 text-slate-400")
+                          )}>
+                            {dashboardApps.length}
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => setDashboardTab('SELF_SERVICE')}
+                          className={cn(
+                            "px-4 py-1.5 rounded-xl text-xs font-black transition-all duration-300 uppercase tracking-wider flex items-center gap-2",
+                            dashboardTab === 'SELF_SERVICE'
+                              ? "bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/10 scale-105"
+                              : (theme === 'light' ? "text-slate-600 hover:bg-slate-200" : "text-slate-400 hover:bg-slate-900")
+                          )}
+                        >
+                          Tự làm sổ
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded-full text-[9px] font-black",
+                            dashboardTab === 'SELF_SERVICE' ? "bg-slate-950/20 text-slate-950" : "bg-amber-500/20 text-amber-500"
+                          )}>
+                            {dashboardApps.filter(a => a.isSelfService).length}
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => setDashboardTab('LOAN')}
+                          className={cn(
+                            "px-4 py-1.5 rounded-xl text-xs font-black transition-all duration-300 uppercase tracking-wider flex items-center gap-2",
+                            dashboardTab === 'LOAN'
+                              ? "bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/10 scale-105"
+                              : (theme === 'light' ? "text-slate-600 hover:bg-slate-200" : "text-slate-400 hover:bg-slate-900")
+                          )}
+                        >
+                          Vay vốn
+                          <span className={cn(
+                            "px-1.5 py-0.5 rounded-full text-[9px] font-black",
+                            dashboardTab === 'LOAN' ? "bg-slate-950/20 text-slate-950" : "bg-blue-500/20 text-blue-500"
+                          )}>
+                            {dashboardApps.filter(a => a.loanStatus === 'Co_Vay').length}
+                          </span>
+                        </button>
                       </div>
                     </div>
                     <div className="h-[500px] w-full mt-4 relative z-10">
                         <ResponsiveContainer width="100%" height={500}>
-                          <BarChart 
-                            layout="vertical"
-                            data={chartData} 
-                            margin={{ top: 20, right: 60, left: 10, bottom: 5 }}
-                            barGap={0}
-                            onClick={(data: any) => {
-                              if (data && data.activePayload && data.activePayload.length > 0) {
-                                const stageStatus = data.activePayload[0].payload.statusId;
-                                const stageName = data.activePayload[0].payload.name;
-                                setActiveTab('applications');
-                                setFilterStatus(stageStatus);
-                                showToast(`Đang hiển thị hồ sơ: ${stageName}`);
-                              }
-                            }}
-                            style={{ cursor: 'pointer' }}
-                          >
+                           <BarChart 
+                             layout="vertical"
+                             data={progressChartData} 
+                             margin={{ top: 20, right: 60, left: 10, bottom: 5 }}
+                             barGap={0}
+                             onClick={(data: any) => {
+                               if (data?.activePayload?.length > 0) {
+                                 const stageName = data.activePayload[0].payload.name;
+                                 handleDashboardClick(stageName);
+                                 showToast(`Đang lọc: ${stageName}`, 'info');
+                               }
+                             }}
+                             style={{ cursor: 'pointer' }}
+                           >
 
                             <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke={theme === 'light' ? "#f1f5f9" : "#ffffff08"} />
                             <XAxis type="number" hide domain={[0, (dataMax: number) => Math.ceil(dataMax + (dataMax * 0.1) + 1)]} />
@@ -5835,7 +6229,7 @@ export default function App() {
                               minPointSize={5}
                               radius={[0, 0, 0, 0]} 
                             >
-                              {chartData.map((entry, index) => (
+                              {progressChartData.map((entry, index) => (
                                 <Cell key={`cell-normal-${index}`} fill={entry.color} />
                               ))}
                               <LabelList 
@@ -5844,7 +6238,7 @@ export default function App() {
                                 offset={15} 
                                 content={(props: any) => {
                                    const { x, y, width, height, index } = props;
-                                   const data = chartData[index];
+                                   const data = progressChartData[index];
                                    if (!data || data.error > 0) return null;
                                    return (
                                       <text 
@@ -5876,7 +6270,7 @@ export default function App() {
                                 offset={15} 
                                 content={(props: any) => {
                                    const { x, y, width, height, index } = props;
-                                   const data = chartData[index];
+                                   const data = progressChartData[index];
                                    if (!data || data.error === 0) return null;
                                    return (
                                       <text 
@@ -6090,6 +6484,9 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+
+
+
 
                 {(userRole === 'ADMIN' || userRole === 'DIRECTOR') && (
                   <div className={cn(
@@ -6414,7 +6811,7 @@ export default function App() {
                       </div>
                     </div>
                       <div className="text-[11px] text-slate-500 italic">
-                        Hiển thị {filteredApps.length} hồ sơ trên trang / Tổng {totalCount} hồ sơ {selectedProject ? `thuộc ${selectedProject.name}` : 'toàn vùng'} (có lọc)
+                        Hiển thị {displayedApps.length} hồ sơ trên trang / Tổng {totalCount} hồ sơ {selectedProject ? `thuộc ${selectedProject.name}` : 'toàn vùng'} (có lọc)
                       </div>
 
                       {/* Hiển thị dòng trạng thái filter */}
@@ -6554,185 +6951,7 @@ export default function App() {
                       })()}
                     </div>
 
-                    {/* Drawer Bộ lọc bên phải */}
-                    <AnimatePresence>
-                      {isShowFilters && (
-                        <>
-                          <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 0.5 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => setIsShowFilters(false)}
-                            className="fixed inset-0 bg-black z-[90] pointer-events-auto"
-                          />
-                          
-                          <motion.div
-                            initial={{ x: '100%' }}
-                            animate={{ x: 0 }}
-                            exit={{ x: '100%' }}
-                            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                            className={cn(
-                              "fixed right-0 top-0 h-full w-full max-w-md z-[100] shadow-2xl p-6 flex flex-col justify-between border-l transition-all pointer-events-auto",
-                              theme === 'light' ? "bg-white border-slate-200 text-slate-900" : "bg-slate-950 border-slate-800 text-white"
-                            )}
-                          >
-                            <div className="flex flex-col h-full justify-between">
-                              <div>
-                                <div className="flex items-center justify-between pb-4 border-b border-slate-800/10 mb-6">
-                                  <div className="flex items-center gap-2">
-                                    <Filter size={18} className="text-festive-gold" />
-                                    <h3 className="font-serif italic font-black text-lg">Bộ lọc hồ sơ</h3>
-                                  </div>
-                                  <button 
-                                    onClick={() => setIsShowFilters(false)}
-                                    className={cn(
-                                      "p-1.5 rounded-full hover:bg-slate-500/10 transition-colors",
-                                      theme === 'light' ? "text-slate-400" : "text-slate-500"
-                                    )}
-                                  >
-                                    <X size={18} />
-                                  </button>
-                                </div>
 
-                                <div className="space-y-5 max-h-[calc(100vh-180px)] overflow-y-auto pr-1">
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Lọc theo dự án</label>
-                                    <select 
-                                      className={cn(
-                                        "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all font-bold",
-                                        theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
-                                      )}
-                                      value={selectedProjectId || 'ALL'}
-                                      onChange={(e) => { setSelectedProjectId(e.target.value === 'ALL' ? null : e.target.value); setCurrentPage(0); }}
-                                    >
-                                      <option key="all-projects" value="ALL">Tất cả dự án</option>
-                                      {projects.map(p => (
-                                        <option key={p.id} value={p.id}>{p.name}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Trạng thái hồ sơ</label>
-                                    <select 
-                                      className={cn(
-                                        "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
-                                        theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
-                                      )}
-                                      value={filterStatus}
-                                      onChange={(e) => { setFilterStatus(e.target.value as any); setCurrentPage(0); }}
-                                    >
-                                      <option key="all-status" value="ALL">Tất cả trạng thái</option>
-                                      <option value="Processing">ĐANG CHUẨN BỊ</option>
-                                      <option value="WaitingVPDK">CHỜ NỘP VPĐK</option>
-                                      <option value="TaxPending">CHỜ HOÀN THÀNH NVTC</option>
-                                      <option value="WaitingHandover">CHỜ BÀN GIAO</option>
-                                      <option value="TaxPaid">ĐÃ NỘP THUẾ</option>
-                                      <option value="Submitted">ĐÃ NỘP VPĐK</option>
-                                      <option value="Completed">HOÀN TẤT</option>
-                                    </select>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Lọc theo lỗi</label>
-                                    <select 
-                                      className={cn(
-                                        "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
-                                        theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
-                                      )}
-                                      value={filterIssue}
-                                      onChange={(e) => { setFilterIssue(e.target.value as any); setCurrentPage(0); }}
-                                    >
-                                      <option value="ALL">Tất cả hồ sơ</option>
-                                      <option value="ERROR">Chỉ hồ sơ có lỗi/vướng</option>
-                                    </select>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Loại khách hàng</label>
-                                    <select 
-                                      className={cn(
-                                        "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
-                                        theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
-                                      )}
-                                      value={filterLoanStatus}
-                                      onChange={(e) => { setFilterLoanStatus(e.target.value as any); setCurrentPage(0); }}
-                                    >
-                                      <option value="ALL">Tất cả (Vay + Vốn tự có)</option>
-                                      <option value="Co_Vay">Khách hàng vay</option>
-                                      <option value="Khong_Vay">Khách sử dụng vốn tự có</option>
-                                    </select>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Tự làm sổ</label>
-                                    <select 
-                                      className={cn(
-                                        "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
-                                        theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
-                                      )}
-                                      value={filterSelfService}
-                                      onChange={(e) => { setFilterSelfService(e.target.value as any); setCurrentPage(0); }}
-                                    >
-                                      <option value="ALL">Tất cả</option>
-                                      <option value="YES">Khách tự làm</option>
-                                      <option value="NO">Công ty làm</option>
-                                    </select>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Tiến độ SLA</label>
-                                    <select 
-                                      className={cn(
-                                        "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
-                                        theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
-                                      )}
-                                      value={filterSLAStatus}
-                                      onChange={(e) => { setFilterSLAStatus(e.target.value as any); setCurrentPage(0); }}
-                                    >
-                                      <option value="ALL">Tất cả tiến độ</option>
-                                      <option value="OVERDUE">Quá hạn SLA</option>
-                                    </select>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="pt-4 border-t border-slate-800/10 grid grid-cols-2 gap-3 mt-auto">
-                                <button 
-                                  onClick={() => {
-                                    setSelectedProjectId(null);
-                                    setFilterStatus('ALL');
-                                    setFilterLoanStatus('ALL');
-                                    setFilterSelfService('ALL');
-                                    setFilterSLAStatus('ALL');
-                                    setFilterIssue('ALL');
-                                    setSelectedFlags([]);
-                                    setSearch('');
-                                    setDashboardFilter('ALL');
-                                    setCurrentPage(0);
-                                    setIsShowFilters(false);
-                                  }}
-                                  className={cn(
-                                    "py-3 rounded-xl text-xs font-bold uppercase tracking-widest border transition-all active:scale-[0.98]",
-                                    theme === 'light' 
-                                      ? "border-slate-200 text-slate-600 hover:bg-slate-50" 
-                                      : "border-slate-800 text-slate-400 hover:bg-slate-900/40"
-                                  )}
-                                >
-                                  Xóa lọc
-                                </button>
-                                <button 
-                                  onClick={() => setIsShowFilters(false)}
-                                  className="py-3 bg-indigo-600 hover:bg-indigo-550 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg shadow-indigo-600/15 transition-all active:scale-[0.98]"
-                                >
-                                  Áp dụng
-                                </button>
-                              </div>
-                            </div>
-                          </motion.div>
-                        </>
-                      )}
-                    </AnimatePresence>
                   
                   {/* Bulk Actions Bar (Floating) */}
                   <AnimatePresence>
@@ -6806,7 +7025,6 @@ export default function App() {
                             }
                             return null;
                           })()}
-                        </div>
                           
                           <button 
                             onClick={() => setIsBulkNoteOpen(true)}
@@ -6838,6 +7056,29 @@ export default function App() {
                             <AlertTriangle size={16} />
                           </button>
 
+                          {selectedAppIds.some(id => {
+                            const a = applications.find(x => String(x.id) === String(id));
+                            return a?.isRejected || a?.issue_status === 'OPEN' || 
+                                   (a?.issueType && a.issueType !== 'None');
+                          }) && (
+                            <button
+                              onClick={handleBulkResolveIssues}
+                              disabled={isSavingApp}
+                              className={cn(
+                                "w-10 h-10 rounded-full transition-all flex items-center justify-center border",
+                                theme === 'light' 
+                                  ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-600 hover:text-emerald-700 border-emerald-200" 
+                                  : "bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white border-emerald-500/20"
+                              )}
+                              title="Xác nhận đã khắc phục"
+                            >
+                              {isSavingApp 
+                                ? <span className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                                : <CheckCircle size={16} />
+                              }
+                            </button>
+                          )}
+
                           {(isManagementEdit || userRole === 'PTT') && (
                             <button 
                               onClick={handleBulkDelete}
@@ -6852,7 +7093,10 @@ export default function App() {
                           )}
 
                           <button 
-                            onClick={() => setSelectedAppIds([])}
+                            onClick={() => {
+                              setSelectedAppIds([]);
+                              setSelectedRows(new Set());
+                            }}
                             className={cn(
                               "w-10 h-10 rounded-full transition-all flex items-center justify-center border ml-2",
                               theme === 'light' ? "bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border-slate-200" : "bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border-slate-700/50"
@@ -6861,6 +7105,7 @@ export default function App() {
                           >
                             <X size={16} />
                           </button>
+                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -6876,10 +7121,10 @@ export default function App() {
                             <input 
                               type="checkbox" 
                               className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-900 accent-festive-gold"
-                              checked={selectedRows.size === applications.length && applications.length > 0}
+                              checked={selectedRows.size === filteredApps.length && filteredApps.length > 0}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  const allIds = applications.map(a => a.id);
+                                  const allIds = filteredApps.map(a => a.id);
                                   setSelectedAppIds(allIds);
                                   setSelectedRows(new Set(allIds));
                                 } else {
@@ -7145,20 +7390,20 @@ export default function App() {
                                             
                                             // ArrowUp/Down/Left/Right/Enter and Tab/ShiftTab
                                             e.preventDefault();
-                                            const currentIdx = filteredApps.findIndex(a => a.id === app.id);
+                                            const currentIdx = displayedApps.findIndex(a => a.id === app.id);
                                             const currentFldIdx = EDITABLE_DATE_FIELDS.findIndex(fd => fd.key === f.key);
                                             
                                             let nextId = app.id;
                                             let nextFld = f.key;
-                                            const isLastRow = currentIdx === filteredApps.length - 1;
+                                            const isLastRow = currentIdx === displayedApps.length - 1;
                                             const isFirstRow = currentIdx === 0;
                                             const isLastField = currentFldIdx === EDITABLE_DATE_FIELDS.length - 1;
                                             const isFirstField = currentFldIdx === 0;
 
                                             if (e.key === 'ArrowUp' && !isFirstRow) {
-                                              nextId = filteredApps[currentIdx - 1].id;
+                                              nextId = displayedApps[currentIdx - 1].id;
                                             } else if ((e.key === 'ArrowDown' || e.key === 'Enter') && !isLastRow) {
-                                              nextId = filteredApps[currentIdx + 1].id;
+                                              nextId = displayedApps[currentIdx + 1].id;
                                             } else if (e.key === 'ArrowLeft' && !isFirstField) {
                                               nextFld = EDITABLE_DATE_FIELDS[currentFldIdx - 1].key;
                                             } else if (e.key === 'ArrowRight' && !isLastField) {
@@ -7166,7 +7411,7 @@ export default function App() {
                                             } else if (isTab && !isShiftTab) {
                                               if (isLastField) {
                                                 if (!isLastRow) {
-                                                  nextId = filteredApps[currentIdx + 1].id;
+                                                  nextId = displayedApps[currentIdx + 1].id;
                                                   nextFld = EDITABLE_DATE_FIELDS[0].key;
                                                 }
                                               } else {
@@ -7175,7 +7420,7 @@ export default function App() {
                                             } else if (isShiftTab) {
                                               if (isFirstField) {
                                                 if (!isFirstRow) {
-                                                  nextId = filteredApps[currentIdx - 1].id;
+                                                  nextId = displayedApps[currentIdx - 1].id;
                                                   nextFld = EDITABLE_DATE_FIELDS[EDITABLE_DATE_FIELDS.length - 1].key;
                                                 }
                                               } else {
@@ -7221,6 +7466,19 @@ export default function App() {
                                           <span className="text-[9px] font-medium truncate max-w-[80px] text-slate-400 uppercase tracking-tighter">
                                               {app.issueNotes || 'Vướng'}
                                           </span>
+                                          {(userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleResolveIssue(app.id);
+                                              }}
+                                              className={cn("flex items-center gap-0.5 px-1 py-0.5 rounded text-[8px] font-bold uppercase", theme === 'light' ? "bg-emerald-100 hover:bg-emerald-200 text-emerald-700" : "bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-400")}
+                                              title="Xác nhận đã khắc phục"
+                                            >
+                                              <CheckCircle size={8} />
+                                              OK
+                                            </button>
+                                          )}
                                         </div>
                                       )}
                                     </div>
@@ -8410,9 +8668,9 @@ export default function App() {
 
                                    {(editApp || selectedApp).scannedFiles && (editApp || selectedApp).scannedFiles!.length > 0 ? (
                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-                                       {(editApp || selectedApp).scannedFiles?.map(file => (
+                                       {(editApp || selectedApp).scannedFiles?.map((file, index) => (
                                          <div 
-                                           key={file.id}
+                                           key={`${file.id}-${index}`}
                                            className={cn(
                                              "p-4 rounded-2xl border transition-all flex items-center justify-between group",
                                              theme === 'dark' ? "bg-slate-800/40 border-slate-700 hover:border-indigo-500/50" : "bg-slate-50 border-slate-200 hover:border-indigo-300"
@@ -8691,7 +8949,10 @@ export default function App() {
                 </div>
                 <button 
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="p-3 rounded-full hover:bg-slate-800 text-slate-500 transition-colors"
+                  className={cn(
+                    "p-3 rounded-full transition-colors",
+                    theme === 'light' ? "hover:bg-slate-200 text-slate-500 hover:text-slate-900" : "hover:bg-slate-800 text-slate-400 hover:text-white"
+                  )}
                 >
                   <X size={20} />
                 </button>
@@ -8702,7 +8963,7 @@ export default function App() {
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-1 h-4 bg-emerald-500 rounded-full"></div>
-                    <h4 className={cn("text-[10px] font-black uppercase tracking-[0.2em]", theme === 'light' ? "text-slate-500" : "text-slate-400")}>Thông tin định danh</h4>
+                    <h4 className={cn("text-[10px] font-black uppercase tracking-[0.2em]", theme === 'light' ? "text-slate-600" : "text-slate-400")}>Thông tin định danh</h4>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-6">
@@ -8732,7 +8993,7 @@ export default function App() {
                         <select 
                           className={cn(
                             "w-full pl-10 pr-10 py-3 border rounded-2xl text-sm focus:ring-2 transition-all outline-none appearance-none cursor-pointer",
-                            theme === 'light' ? "bg-white border-slate-200 text-slate-900" : "bg-slate-900 border-slate-800 text-slate-200"
+                            theme === 'light' ? "bg-white border-slate-200 text-slate-900 focus:ring-emerald-500/20" : "bg-slate-900 border-slate-800 text-slate-200 focus:ring-emerald-500/20"
                           )}
                           value={newApp.projectName}
                           onChange={(e) => setNewApp({...newApp, projectName: e.target.value})}
@@ -8756,7 +9017,7 @@ export default function App() {
                           placeholder="VD: Nguyễn Văn A"
                           className={cn(
                             "w-full pl-10 pr-4 py-3 border rounded-2xl text-sm focus:ring-2 transition-all outline-none",
-                            theme === 'light' ? "bg-white border-slate-200 text-slate-900" : "bg-slate-900 border-slate-800 text-slate-200",
+                            theme === 'light' ? "bg-white border-slate-200 text-slate-900 focus:bg-white" : "bg-slate-900 border-slate-800 text-slate-200",
                             formErrors.customerName ? "border-rose-500 ring-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.1)]" : "focus:ring-emerald-500/20"
                           )}
                           value={newApp.customerName}
@@ -8773,7 +9034,10 @@ export default function App() {
                         <input 
                           type="text" 
                           placeholder="VD: Công ty A / Cá nhân B"
-                          className="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-800 rounded-2xl text-slate-200 text-sm focus:ring-2 focus:ring-emerald-500/20 transition-all outline-none"
+                          className={cn(
+                            "w-full pl-10 pr-4 py-3 border rounded-2xl text-sm focus:ring-2 transition-all outline-none",
+                            theme === 'light' ? "bg-white border-slate-200 text-slate-900 focus:bg-white focus:ring-emerald-500/20" : "bg-slate-900 border-slate-800 text-slate-200 focus:ring-emerald-500/20"
+                          )}
                           value={newApp.contractSignerType}
                           onChange={(e) => setNewApp({...newApp, contractSignerType: e.target.value})}
                         />
@@ -8786,25 +9050,32 @@ export default function App() {
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-1 h-4 bg-amber-500 rounded-full"></div>
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Phân loại tài sản</h4>
+                    <h4 className={cn("text-[10px] font-black uppercase tracking-[0.2em]", theme === 'light' ? "text-slate-600" : "text-slate-400")}>Phân loại tài sản</h4>
                   </div>
 
                   <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-2">
                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Loại hình</label>
-                       <div className="flex bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
+                       <div className={cn(
+                         "flex p-1.5 rounded-2xl border",
+                         theme === 'light' ? "bg-slate-100 border-slate-200" : "bg-slate-950 border-slate-800"
+                       )}>
                          <button 
                            onClick={() => setNewApp({...newApp, propertyType: 'Dat_Nen'})}
                            className={cn(
                              "flex-1 py-2 text-[9px] font-black uppercase rounded-xl transition-all",
-                             newApp.propertyType === 'Dat_Nen' ? "bg-slate-800 text-white shadow-lg" : "text-slate-600 hover:text-slate-400"
+                             newApp.propertyType === 'Dat_Nen' 
+                               ? (theme === 'light' ? "bg-white text-slate-900 shadow-md" : "bg-slate-800 text-white shadow-lg") 
+                               : "text-slate-500 hover:text-slate-700"
                            )}
                          >Đất nền</button>
                          <button 
                            onClick={() => setNewApp({...newApp, propertyType: 'Can_Ho'})}
                            className={cn(
                              "flex-1 py-2 text-[9px] font-black uppercase rounded-xl transition-all",
-                             newApp.propertyType === 'Can_Ho' ? "bg-slate-800 text-white shadow-lg" : "text-slate-600 hover:text-slate-400"
+                             newApp.propertyType === 'Can_Ho' 
+                               ? (theme === 'light' ? "bg-white text-slate-900 shadow-md" : "bg-slate-800 text-white shadow-lg") 
+                               : "text-slate-500 hover:text-slate-700"
                            )}
                          >Căn hộ</button>
                        </div>
@@ -8812,19 +9083,22 @@ export default function App() {
 
                     <div className="space-y-2">
                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Sử dụng gói vay</label>
-                       <div className="flex bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
+                       <div className={cn(
+                         "flex p-1.5 rounded-2xl border",
+                         theme === 'light' ? "bg-slate-100 border-slate-200" : "bg-slate-950 border-slate-800"
+                       )}>
                          <button 
                            onClick={() => setNewApp({...newApp, loanStatus: 'Co_Vay'})}
                            className={cn(
                              "flex-1 py-2 text-[9px] font-black uppercase rounded-xl transition-all",
-                             newApp.loanStatus === 'Co_Vay' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-600 hover:text-slate-400"
+                             newApp.loanStatus === 'Co_Vay' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-500 hover:text-indigo-600"
                            )}
                          >Có vay</button>
                          <button 
                            onClick={() => setNewApp({...newApp, loanStatus: 'Khong_Vay'})}
                            className={cn(
                              "flex-1 py-2 text-[9px] font-black uppercase rounded-xl transition-all",
-                             newApp.loanStatus === 'Khong_Vay' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-600 hover:text-slate-400"
+                             newApp.loanStatus === 'Khong_Vay' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-500 hover:text-indigo-600"
                            )}
                          >Không vay</button>
                        </div>
@@ -8858,7 +9132,7 @@ export default function App() {
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 mb-4">
                     <div className="w-1 h-4 bg-indigo-500 rounded-full"></div>
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Cài đặt hình thức</h4>
+                    <h4 className={cn("text-[10px] font-black uppercase tracking-[0.2em]", theme === 'light' ? "text-slate-600" : "text-slate-400")}>Cài đặt hình thức</h4>
                   </div>
 
                   <div className="flex gap-6">
@@ -8869,12 +9143,14 @@ export default function App() {
                           "w-full py-4 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all flex items-center justify-center gap-3",
                           newApp.isSelfService 
                             ? "bg-amber-600 border-amber-500 text-white shadow-lg shadow-amber-600/20" 
-                            : "bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700 hover:text-slate-400"
+                            : (theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100" : "bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700 hover:text-slate-400")
                         )}
                       >
                         <div className={cn(
-                          "w-4 h-4 rounded border flex items-center justify-center",
-                          newApp.isSelfService ? "bg-white border-white" : "border-slate-800"
+                          "w-4 h-4 rounded border flex items-center justify-center transition-all",
+                          newApp.isSelfService 
+                            ? "bg-white border-white" 
+                            : (theme === 'light' ? "border-slate-300" : "border-slate-800")
                         )}>
                           {newApp.isSelfService && <Check size={12} className="text-amber-600" />}
                         </div>
@@ -8885,11 +9161,17 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="p-8 border-t border-slate-800 bg-slate-900/50 flex gap-4">
+              <div className={cn(
+                "p-8 border-t flex gap-4",
+                theme === 'light' ? "border-slate-100 bg-slate-50/50" : "border-slate-850 bg-slate-900/50"
+              )}>
                 <button 
                   disabled={isSavingApp}
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="flex-1 py-4 bg-slate-800 text-slate-400 hover:bg-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50"
+                  className={cn(
+                    "flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50",
+                    theme === 'light' ? "bg-slate-100 text-slate-500 hover:bg-slate-200" : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                  )}
                 >
                   Hủy bỏ
                 </button>
@@ -9249,6 +9531,186 @@ export default function App() {
             {toast.type === 'warning' && <AlertCircle size={18} />}
             <span className="text-sm font-black uppercase tracking-tight">{toast.message}</span>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Drawer Bộ lọc bên phải - Rendered here at the body root so it never gets cropped or limited by overflow-hidden containers */}
+      <AnimatePresence>
+        {isShowFilters && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsShowFilters(false)}
+              className="fixed inset-0 bg-black/50 z-[90] pointer-events-auto"
+            />
+            
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className={cn(
+                "fixed right-0 top-0 h-full w-full max-w-md z-[100] shadow-2xl p-6 flex flex-col justify-between border-l transition-all pointer-events-auto",
+                theme === 'light' ? "bg-white border-slate-200 text-slate-900" : "bg-slate-950 border-slate-800 text-white"
+              )}
+            >
+              <div className="flex flex-col h-full justify-between">
+                <div>
+                  <div className="flex items-center justify-between pb-4 border-b border-slate-800/10 mb-6">
+                    <div className="flex items-center gap-2">
+                      <Filter size={18} className="text-festive-gold" />
+                      <h3 className="font-serif italic font-black text-lg">Bộ lọc hồ sơ</h3>
+                    </div>
+                    <button 
+                      onClick={() => setIsShowFilters(false)}
+                      className={cn(
+                        "p-1.5 rounded-full hover:bg-slate-500/10 transition-colors",
+                        theme === 'light' ? "text-slate-400" : "text-slate-500"
+                      )}
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-5 max-h-[calc(100vh-180px)] overflow-y-auto pr-1">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Lọc theo dự án</label>
+                      <select 
+                        className={cn(
+                          "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all font-bold",
+                          theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
+                        )}
+                        value={selectedProjectId || 'ALL'}
+                        onChange={(e) => { setSelectedProjectId(e.target.value === 'ALL' ? null : e.target.value); setCurrentPage(0); }}
+                      >
+                        <option key="all-projects" value="ALL">Tất cả dự án</option>
+                        {projects.map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Trạng thái hồ sơ</label>
+                      <select 
+                        className={cn(
+                          "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
+                          theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
+                        )}
+                        value={filterStatus}
+                        onChange={(e) => { setFilterStatus(e.target.value as any); setCurrentPage(0); }}
+                      >
+                        <option key="all-status" value="ALL">Tất cả trạng thái</option>
+                        <option value="Processing">ĐANG CHUẨN BỊ</option>
+                        <option value="WaitingVPDK">CHỜ NỘP VPĐK</option>
+                        <option value="TaxPending">CHỜ HOÀN THÀNH NVTC</option>
+                        <option value="WaitingHandover">CHỜ BÀN GIAO</option>
+                        <option value="TaxPaid">ĐÃ NỘP THUẾ</option>
+                        <option value="Submitted">ĐÃ NỘP VPĐK</option>
+                        <option value="Completed">HOÀN TẤT</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Lọc theo lỗi</label>
+                      <select 
+                        className={cn(
+                          "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
+                          theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
+                        )}
+                        value={filterIssue}
+                        onChange={(e) => { setFilterIssue(e.target.value as any); setCurrentPage(0); }}
+                      >
+                        <option value="ALL">Tất cả hồ sơ</option>
+                        <option value="ERROR">Chỉ hồ sơ có lỗi/vướng</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Loại khách hàng</label>
+                      <select 
+                        className={cn(
+                          "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
+                          theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
+                        )}
+                        value={filterLoanStatus}
+                        onChange={(e) => { setFilterLoanStatus(e.target.value as any); setCurrentPage(0); }}
+                      >
+                        <option value="ALL">Tất cả (Vay + Vốn tự có)</option>
+                        <option value="Co_Vay">Khách hàng vay</option>
+                        <option value="Khong_Vay">Khách sử dụng vốn tự có</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Tự làm sổ</label>
+                      <select 
+                        className={cn(
+                          "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
+                          theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
+                        )}
+                        value={filterSelfService}
+                        onChange={(e) => { setFilterSelfService(e.target.value as any); setCurrentPage(0); }}
+                      >
+                        <option value="ALL">Tất cả</option>
+                        <option value="YES">Khách tự làm</option>
+                        <option value="NO">Công ty làm</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Tiến độ SLA</label>
+                      <select 
+                        className={cn(
+                          "w-full rounded-xl px-3 py-2.5 text-xs outline-none focus:ring-1 focus:ring-festive-gold/20 transition-all",
+                          theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-900" : "bg-slate-900 border border-slate-800 text-white"
+                        )}
+                        value={filterSLAStatus}
+                        onChange={(e) => { setFilterSLAStatus(e.target.value as any); setCurrentPage(0); }}
+                      >
+                        <option value="ALL">Tất cả tiến độ</option>
+                        <option value="OVERDUE">Quá hạn SLA</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-800/10 grid grid-cols-2 gap-3 mt-auto flex-shrink-0">
+                  <button 
+                    onClick={() => {
+                      setSelectedProjectId(null);
+                      setFilterStatus('ALL');
+                      setFilterLoanStatus('ALL');
+                      setFilterSelfService('ALL');
+                      setFilterSLAStatus('ALL');
+                      setFilterIssue('ALL');
+                      setSelectedFlags([]);
+                      setSearch('');
+                      setDashboardFilter('ALL');
+                      setCurrentPage(0);
+                      setIsShowFilters(false);
+                    }}
+                    className={cn(
+                      "py-3 rounded-xl text-xs font-bold uppercase tracking-widest border transition-all active:scale-[0.98]",
+                      theme === 'light' 
+                        ? "border-slate-200 text-slate-600 hover:bg-slate-50" 
+                        : "border-slate-800 text-slate-400 hover:bg-slate-900/40"
+                    )}
+                  >
+                    Xóa lọc
+                  </button>
+                  <button 
+                    onClick={() => setIsShowFilters(false)}
+                    className="py-3 bg-indigo-600 hover:bg-indigo-550 text-white rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg shadow-indigo-600/15 transition-all active:scale-[0.98]"
+                  >
+                    Áp dụng
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
         </div>

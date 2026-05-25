@@ -176,7 +176,10 @@ export default function SettingsView({
                           type="number" 
                           value={days}
                           onChange={(e) => setSlaConfig({...slaConfig, [step]: parseInt(e.target.value) || 0})}
-                          className="w-14 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-center text-xs font-black text-amber-500 focus:ring-2 focus:ring-amber-500/20 outline-none"
+                          className={cn(
+                            "w-14 border rounded-lg px-2 py-1 text-center text-xs font-black focus:ring-2 outline-none",
+                            theme === 'light' ? "bg-white border-slate-200 text-amber-600 focus:ring-amber-500/20" : "bg-slate-900 border-slate-700 text-amber-500 focus:ring-amber-500/20"
+                          )}
                         />
                         <span className="text-[9px] font-black text-slate-500 uppercase">Ngày</span>
                       </div>
@@ -217,7 +220,10 @@ export default function SettingsView({
                           type="number" 
                           value={days}
                           onChange={(e) => setSlaConfig({...slaConfig, [step]: parseInt(e.target.value) || 0})}
-                          className="w-14 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-center text-xs font-black text-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                          className={cn(
+                            "w-14 border rounded-lg px-2 py-1 text-center text-xs font-black focus:ring-2 outline-none",
+                            theme === 'light' ? "bg-white border-slate-200 text-emerald-600 focus:ring-emerald-500/20" : "bg-slate-900 border-slate-700 text-emerald-500 focus:ring-emerald-500/20"
+                          )}
                         />
                         <span className="text-[9px] font-black text-slate-500 uppercase">Ngày</span>
                       </div>
@@ -276,8 +282,14 @@ export default function SettingsView({
             </div>
             <div className="space-y-2 max-h-[355px] overflow-y-auto custom-scrollbar pr-2">
               {checklistTemplates.map((item, idx) => (
-                <div key={`${item}-${idx}`} className="flex items-center justify-between p-4 bg-slate-950 rounded-2xl border border-slate-800 group/list">
-                  <span className="text-xs text-slate-400 font-medium">{item}</span>
+                <div key={`${item}-${idx}`} className={cn(
+                  "flex items-center justify-between p-4 rounded-2xl border group/list",
+                  theme === 'light' ? "bg-slate-50 border-slate-150 text-slate-850" : "bg-slate-950 border-slate-800 text-slate-400"
+                )}>
+                  <span className={cn(
+                    "text-xs font-medium",
+                    theme === 'light' ? "text-slate-800" : "text-slate-400"
+                  )}>{item}</span>
                   <button 
                     onClick={() => setChecklistTemplates(checklistTemplates.filter((_, i) => i !== idx))}
                     className="opacity-0 group-hover/list:opacity-100 p-1.5 text-rose-500 hover:bg-rose-50/10 rounded-lg transition-all"
@@ -419,7 +431,7 @@ export default function SettingsView({
 
       {/* Storage Management Section */}
       <section className={cn(
-        "bg-slate-900/40 backdrop-blur-xl border rounded-[2.5rem] overflow-hidden group",
+        "backdrop-blur-xl border rounded-[2.5rem] overflow-hidden group",
         theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800"
       )}>
         <div className={cn(
@@ -506,7 +518,10 @@ export default function SettingsView({
               <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Mức độ sử dụng (Ước tính)</span>
               <span className="text-xs font-black text-orange-400">{storagePercentage.toFixed(1)}% / 1GB (Spark Plan)</span>
             </div>
-            <div className="h-4 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+            <div className={cn(
+              "h-4 w-full rounded-full overflow-hidden border",
+              theme === 'light' ? "bg-slate-100 border-slate-200" : "bg-slate-950 border-slate-800"
+            )}>
               <motion.div 
                 initial={{ width: 0 }}
                 animate={{ width: `${storagePercentage}%` }}
@@ -522,14 +537,20 @@ export default function SettingsView({
       </section>
 
       {/* Workflow Configuration */}
-      <section className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-[2.5rem] overflow-hidden group">
-        <div className="p-8 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+      <section className={cn(
+        "backdrop-blur-xl border rounded-[2.5rem] overflow-hidden group",
+        theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800"
+      )}>
+        <div className={cn(
+          "p-8 border-b flex items-center justify-between",
+          theme === 'light' ? "bg-slate-50/50 border-slate-100" : "bg-slate-900/50 border-slate-800"
+        )}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 font-serif">
               <GitMerge className="text-indigo-500" size={20} />
             </div>
             <div>
-               <h3 className="text-base font-black text-white uppercase tracking-tight">Cấu hình Quy trình Xử lý (Workflow)</h3>
+               <h3 className={cn("text-base font-black uppercase tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>Cấu hình Quy trình Xử lý (Workflow)</h3>
                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Quản lý các bước thực hiện & SLA</p>
             </div>
           </div>
@@ -547,12 +568,17 @@ export default function SettingsView({
         
         <div className="p-8">
            {/* Tabs */}
-           <div className="flex gap-2 p-1 bg-slate-950/50 border border-slate-800 rounded-2xl mb-8 w-fit">
+           <div className={cn(
+             "flex gap-2 p-1 border rounded-2xl mb-8 w-fit",
+             theme === 'light' ? "bg-slate-100 border-slate-200" : "bg-slate-950/50 border-slate-800"
+           )}>
               <button 
                 onClick={() => setWorkflowTab('GD')}
                 className={cn(
                   "px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                  workflowTab === 'GD' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-500 hover:text-slate-300"
+                  workflowTab === 'GD' 
+                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" 
+                    : (theme === 'light' ? "text-slate-500 hover:text-slate-900" : "text-slate-400 hover:text-slate-200")
                 )}
               >
                 Quy trình Hỗ trợ (GD_)
@@ -561,7 +587,9 @@ export default function SettingsView({
                 onClick={() => setWorkflowTab('S')}
                 className={cn(
                   "px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                  workflowTab === 'S' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-500 hover:text-slate-300"
+                  workflowTab === 'S' 
+                    ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" 
+                    : (theme === 'light' ? "text-slate-500 hover:text-slate-900" : "text-slate-400 hover:text-slate-200")
                 )}
               >
                 Quy trình Thông thường (S_)
@@ -721,12 +749,12 @@ export default function SettingsView({
 
       {/* Maintenance Section */}
       <section className={cn(
-        "bg-rose-500/5 backdrop-blur-xl border rounded-[2.5rem] overflow-hidden group border-rose-500/20",
-        theme === 'light' ? "bg-rose-50/30 shadow-sm" : ""
+        "backdrop-blur-xl border rounded-[2.5rem] overflow-hidden group",
+        theme === 'light' ? "bg-rose-50/40 border-rose-200 shadow-sm" : "bg-rose-500/5 border-rose-500/20"
       )}>
         <div className={cn(
-          "p-8 border-b flex items-center justify-between border-rose-500/10",
-          theme === 'light' ? "bg-rose-50/50" : "bg-rose-500/5"
+          "p-8 border-b flex items-center justify-between",
+          theme === 'light' ? "bg-rose-100/30 border-rose-150" : "border-rose-500/10 bg-rose-500/5"
         )}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center border border-rose-500/20">

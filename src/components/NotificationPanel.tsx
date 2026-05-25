@@ -144,9 +144,9 @@ export default function NotificationPanel({
 
         <div className="p-2">
           {displayedNotifications.length > 0 ? (
-            displayedNotifications.map(n => (
+            displayedNotifications.map((n, idx) => (
               <div 
-                key={n.id} 
+                key={`${n.id || 'notif'}-${idx}`} 
                 onClick={() => {
                    if (!n.isRead) onRead(n.id);
                    if (n.appId) onAction(n.appId, n.id);
