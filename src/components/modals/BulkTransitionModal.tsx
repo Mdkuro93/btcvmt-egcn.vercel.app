@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, ChevronRight, Calendar, BookOpen, ArrowRight } from 'lucide-react';
+import { X, ChevronRight, Calendar, BookOpen, ArrowRight, AlertCircle, AlertTriangle } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 export interface BulkTransitionModalProps {
@@ -19,6 +19,7 @@ export interface BulkTransitionModalProps {
   onChangeRefCode?: (v: string) => void;
   theme: 'light' | 'dark';
   showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void;
+  dateError?: string | null;
 }
 
 export default function BulkTransitionModal({
@@ -37,8 +38,11 @@ export default function BulkTransitionModal({
   onChangeRefCode,
   theme,
   showToast,
+  dateError,
 }: BulkTransitionModalProps) {
   if (!isOpen) return null;
+
+  const isDateWarning = dateError?.startsWith('⚠️');
 
   return (
     <AnimatePresence>
@@ -109,6 +113,18 @@ export default function BulkTransitionModal({
                     )}
                   />
                 </div>
+              </div>
+            )}
+
+            {dateError && (
+              <div className={cn(
+                "p-4 rounded-3xl border text-xs flex items-start gap-2.5 font-bold leading-relaxed",
+                isDateWarning 
+                  ? "bg-amber-500/10 border-amber-500/20 text-amber-500" 
+                  : "bg-rose-500/10 border-rose-500/20 text-rose-500"
+              )}>
+                {isDateWarning ? <AlertTriangle size={16} className="mt-0.5 shrink-0" /> : <AlertCircle size={16} className="mt-0.5 shrink-0" />}
+                <span className="flex-1">{dateError}</span>
               </div>
             )}
 
@@ -185,14 +201,15 @@ export default function BulkTransitionModal({
           </button>
           <button
             disabled={
-              (updateField?.isRequired !== false && updateField && !value) || false
+              (updateField?.isRequired !== false && updateField && !value) || 
+              (dateError && !isDateWarning) || false
             }
             onClick={() => {
               onConfirm();
             }}
             className={cn(
               "flex-1 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
-              ((updateField && !value))
+              ((updateField && !value) || (dateError && !isDateWarning))
                 ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
                 : "bg-indigo-600 text-white hover:bg-indigo-500 shadow-xl shadow-indigo-900/40"
             )}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useDashboardStats } from './modules/dashboard/useDashboardStats';
 import { useToast } from './hooks/useToast';
 import { useBulkActions } from './hooks/useBulkActions';
@@ -1115,7 +1115,7 @@ export default function App() {
           }
         }
         if (usersData) setUsers(usersData.map(mapUserFromSnakeCase));
-        else setUsers(MOCK_USERS);
+        else setUsers([]);
 
         // Fetch records is handled separately by currentUser effect
         // fetchApplications();
@@ -1124,22 +1124,166 @@ export default function App() {
         setIsInitialLoading(false);
       } catch (e) {
          console.error('Error initializing:', e);
-     showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
-     setIsLoadingConfig(false);
+         showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
+         setIsLoadingConfig(false);
          setIsInitialLoading(false);
-         setApplications(MOCK_APPLICATIONS);
-         setUsers(MOCK_USERS);
-         setProjects(PROJECTS);
+         setApplications([]);
+         setUsers([]);
       }
       setIsLoadingApps(false); 
     };
     fetchInitialData();
   }, []);
 
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Subscribe thay đổi bảng records
+    const recordsChannel = supabase
+      .channel('realtime-records')
+      .on(
+        'postgres_changes',
+        { 
+          event: '*',
+          schema: 'public', 
+          table: 'records' 
+        },
+        (payload) => {
+          const { eventType, new: newRow, old: oldRow } = payload;
+
+          if (eventType === 'INSERT') {
+            const newApp = mapFromSnakeCase(newRow);
+            setApplications(prev => {
+              const exists = prev.some(a => a.id === newApp.id);
+              if (exists) return prev;
+              showToast(
+                `📋 Hồ sơ mới: ${newApp.unitCode} vừa được tạo bởi người khác`,
+                'info'
+              );
+              return sortApplications([newApp, ...prev]);
+            });
+            setDashboardApps(prev => {
+              const exists = prev.some(a => a.id === newApp.id);
+              if (exists) return prev;
+              return [newApp, ...prev];
+            });
+            setTotalCount(prev => prev + 1);
+          }
+
+          else if (eventType === 'UPDATE') {
+            const updatedApp = mapFromSnakeCase(newRow);
+            
+            setApplications(prev => prev.map(a => 
+              a.id === updatedApp.id ? updatedApp : a
+            ));
+            setDashboardApps(prev => prev.map(a => 
+              a.id === updatedApp.id ? updatedApp : a
+            ));
+
+            const isSelfUpdated = selfUpdateRef.current.has(updatedApp.id as number);
+            if (isSelfUpdated) {
+              selfUpdateRef.current.delete(updatedApp.id as number);
+            } else {
+              showToast(
+                `📋 Hồ sơ ${updatedApp.unitCode} vừa được cập nhật bởi người khác`,
+                'info'
+              );
+            }
+
+            // Nếu user đang xem/sửa hồ sơ này
+            setSelectedApp(prev => {
+              if (!prev || prev.id !== updatedApp.id) return prev;
+              
+              if (isEditingRef.current) {
+                const serverTime = new Date(updatedApp.updatedAt || 0);
+                const localTime = new Date(editAppRef.current?.updatedAt || 0);
+                if (serverTime > localTime) {
+                  setConflictWarning(
+                    `Hồ sơ này vừa được cập nhật lúc ` +
+                    `${serverTime.toLocaleTimeString('vi-VN')}. ` +
+                    `Lưu thay đổi của bạn sẽ ghi đè dữ liệu mới.`
+                  );
+                }
+              }
+              return updatedApp;
+            });
+          }
+
+          else if (eventType === 'DELETE') {
+            const deletedId = oldRow.id;
+            setApplications(prev => 
+              prev.filter(a => a.id !== deletedId)
+            );
+            setDashboardApps(prev => 
+              prev.filter(a => a.id !== deletedId)
+            );
+            setTotalCount(prev => Math.max(0, prev - 1));
+            // Đóng panel nếu đang xem hồ sơ bị xóa
+            setSelectedApp(prev => 
+              prev?.id === deletedId ? null : prev
+            );
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Realtime connected');
+          setRealtimeStatus('connected');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn('⚠️ Realtime connection error');
+          setRealtimeStatus('error');
+        } else {
+          setRealtimeStatus('connecting');
+        }
+      });
+
+    // Subscribe thay đổi bảng notifications
+    const notiChannel = supabase
+      .channel('realtime-notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${currentUser.id}`
+        },
+        (payload) => {
+          const newNoti = mapNotificationFromSnakeCase(payload.new);
+          setNotifications(prev => {
+            const exists = prev.some(n => n.id === newNoti.id);
+            if (exists) return prev;
+            return [newNoti, ...prev];
+          });
+        }
+      )
+      .subscribe();
+
+    // Cleanup khi logout hoặc unmount
+    return () => {
+      supabase.removeChannel(recordsChannel);
+      supabase.removeChannel(notiChannel);
+    };
+  }, [currentUser?.id]);
+
   const fetchApplications = async () => {
     setIsLoadingApps(true);
     try {
-      let query = supabase.from('records').select('*', { count: 'exact' });
+      let query = supabase.from('records').select(`
+        id, unit_code, project_name, customer_name,
+        contract_signer_type, phone_number,
+        property_type, loan_status, is_self_service,
+        current_step, status, received_date,
+        contract_signing_date, submission_date,
+        tax_notification_date, tax_receipt_date,
+        gcn_signed_date, gcn_received_date,
+        customer_handover_date, accounting_handover_date,
+        ptda_handover_date, bank_commitment_deadline,
+        submission_location, vpdk_code,
+        issue_type, issue_severity, issue_notes,
+        is_rejected, workflow_type, created_at,
+        assigned_to, tax_payment_status
+      `, { count: 'exact' });
       
       if (search) {
         query = query.or(`unit_code.ilike.%${search}%,customer_name.ilike.%${search}%,project_name.ilike.%${search}%,phone_number.ilike.%${search}%`);
@@ -1373,8 +1517,16 @@ export default function App() {
   const fetchDashboardApps = async () => {
     setIsLoadingDashboard(true);
     try {
-      // Fetch ALL records for dashboard stats, ignoring pagination and filters
-      let query = supabase.from('records').select('*');
+      // Fetch ONLY necessary columns for dashboard stats, ignoring pagination and filters to optimize bandwidth
+      let query = supabase.from('records').select(`
+        id, status, current_step, project_name,
+        workflow_type, submission_date,
+        tax_notification_date, tax_receipt_date,
+        gcn_signed_date, customer_handover_date,
+        accounting_handover_date, is_self_service,
+        loan_status, issue_type, is_rejected,
+        created_at
+      `);
       
       const currentUserRole = currentUser?.dept || 'PTT';
       
@@ -1416,17 +1568,7 @@ export default function App() {
     }
   }, [selectedProjectId, currentUser, projects]);
 
-  useEffect(() => {
-    if (applications.length > 0) localStorage.setItem('procedural_apps', JSON.stringify(applications));
-  }, [applications]);
 
-  useEffect(() => {
-    if (users.length > 0) localStorage.setItem('procedural_users', JSON.stringify(users));
-  }, [users]);
-
-  useEffect(() => {
-    if (projects.length > 0) localStorage.setItem('procedural_projects', JSON.stringify(projects));
-  }, [projects]);
 
 
   const deleteAllNotificationsForRecord = async (recordId: string | number) => {
@@ -1706,6 +1848,9 @@ export default function App() {
     return ['ADMIN', 'MANAGER', 'DIRECTOR'].includes(userRole);
   }, [userRole]);
   const [isEditing, setIsEditing] = useState(false);
+  const [conflictWarning, setConflictWarning] = useState<string | null>(null);
+  const [realtimeStatus, setRealtimeStatus] = useState<'connected' | 'connecting' | 'error'>('connecting');
+  const selfUpdateRef = useRef<Set<number>>(new Set());
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editUser, setEditUser] = useState<UserProfile | null>(null);
   const [newUser, setNewUser] = useState({
@@ -1720,6 +1865,44 @@ export default function App() {
   });
   const [editApp, setEditApp] = useState<Application | null>(null);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+
+  const isEditingRef = useRef(isEditing);
+  const editAppRef = useRef(editApp);
+  const selectedAppRef = useRef(selectedApp);
+
+  useEffect(() => {
+    isEditingRef.current = isEditing;
+    editAppRef.current = editApp;
+    selectedAppRef.current = selectedApp;
+  }, [isEditing, editApp, selectedApp]);
+
+  const handleSelectApp = useCallback(async (app: Application | null) => {
+    setConflictWarning(null);
+    if (!app) {
+      setSelectedApp(null);
+      return;
+    }
+    setSelectedApp(app);
+    try {
+      const { data, error } = await supabase
+        .from('records')
+        .select('scanned_files, history, audit_trail')
+        .eq('id', app.id)
+        .single();
+      if (error) throw error;
+      if (data) {
+        setSelectedApp(prev => prev && prev.id === app.id ? {
+          ...prev,
+          scannedFiles: safeParse(data.scanned_files, []),
+          history: safeParse(data.history, []),
+          audit_trail: safeParse(data.audit_trail, []),
+          auditTrail: safeParse(data.audit_trail, [])
+        } : prev);
+      }
+    } catch (err) {
+      console.error('Error fetching detail background:', err);
+    }
+  }, [supabase]);
   
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
 
@@ -2032,7 +2215,7 @@ export default function App() {
 
   const [isReportIssueFormOpen, setIsReportIssueFormOpen] = useState(false);
   const [reportIssueType, setReportIssueType] = useState<IssueType>('Sai sót Khác');
-  const [reportIssueSeverity, setReportIssueSeverity] = useState<IssueSeverity>('Trung bình');
+  const [reportIssueSeverity, setReportIssueSeverity] = useState<IssueSeverity>('Moderate');
   const [reportIssueNote, setReportIssueNote] = useState('');
 
   const handleSingleOrBulkReportIssue = async (apps: Application[]) => {
@@ -2089,6 +2272,35 @@ export default function App() {
   const [bulkTransitionValue, setBulkTransitionValue] = useState(new Date().toISOString().split('T')[0]);
   const [bulkTransitionLocation, setBulkTransitionLocation] = useState<'PHUONG' | 'TP_DANANG'>('PHUONG');
   const [bulkTransitionRefCode, setBulkTransitionRefCode] = useState('');
+
+  const bulkTransitionChronoError = useMemo(() => {
+    if (!bulkTransitionField || !bulkTransitionValue || selectedAppIds.length === 0) return null;
+    
+    let firstError: string | null = null;
+    let firstWarning: string | null = null;
+    
+    for (const id of selectedAppIds) {
+      const app = applications.find(a => a.id === id);
+      if (!app) continue;
+      
+      const appWithDate = { ...app, [bulkTransitionField.key]: bulkTransitionValue };
+      if (['S4_Cho_Thong_Bao_Thue', 'S3_Nop_VPDK', 'GD3_Cho_TBThue', 'GD1_Nop_VPDK', 'GD2_Cho_Nop_VPDK'].includes(bulkTransitionTarget || '')) {
+        if (bulkTransitionLocation) appWithDate.submissionLocation = bulkTransitionLocation as any;
+        if (bulkTransitionRefCode) appWithDate.vpdkCode = bulkTransitionRefCode;
+      }
+      
+      const err = validateDateSequence(appWithDate);
+      if (err) {
+        if (err.startsWith('⚠️')) {
+          if (!firstWarning) firstWarning = err;
+        } else {
+          if (!firstError) firstError = `Căn ${app.unitCode}: ${err}`;
+        }
+      }
+    }
+    
+    return firstError || firstWarning;
+  }, [applications, selectedAppIds, bulkTransitionField, bulkTransitionValue, bulkTransitionTarget, bulkTransitionLocation, bulkTransitionRefCode]);
 
   // SPREADSHEET MODE STATES
   const [isSpreadsheetMode, setIsSpreadsheetMode] = useState(false);
@@ -2783,16 +2995,23 @@ export default function App() {
     showToast('Đang kiểm tra và cập nhật trạng thái...', 'info');
 
     try {
-      // Lọc hồ sơ bị sai trạng thái
+      // Lọc hồ sơ bị sai trạng thái hoặc có issue_severity tiếng Việt cần chuẩn hóa
+      const severityMap: Record<string, IssueSeverity> = {
+        'Nghiêm trọng': 'Critical',
+        'Trung bình': 'Moderate',
+        'Nhẹ': 'Minor'
+      };
+
       const appsToFix = applications.filter(app => {
-        if (app.status === 'Completed') return false;
         const inferred = inferStepFromDates(app);
-        return inferred.status !== app.status || 
-               inferred.currentStep !== app.currentStep;
+        const statusMismatch = app.status !== 'Completed' && (inferred.status !== app.status || inferred.currentStep !== app.currentStep);
+        const hasLegacySeverity = app.issueSeverity && severityMap[app.issueSeverity as string];
+        const hasLegacySeverityDb = app.issue_severity && severityMap[app.issue_severity as string];
+        return statusMismatch || hasLegacySeverity || hasLegacySeverityDb;
       });
 
       if (appsToFix.length === 0) {
-        showToast('Tất cả hồ sơ đã đúng trạng thái!', 'success');
+        showToast('Tất cả hồ sơ đã đúng trạng thái và chuẩn hóa!', 'success');
         setHealDone(true);
         return;
       }
@@ -2803,12 +3022,21 @@ export default function App() {
       // Cập nhật từng hồ sơ lên Supabase
       for (const app of appsToFix) {
         const inferred = inferStepFromDates(app);
+        const updatePayload: any = {};
+
+        if (app.status !== 'Completed' && (inferred.status !== app.status || inferred.currentStep !== app.currentStep)) {
+          updatePayload.status = inferred.status;
+          updatePayload.current_step = inferred.currentStep;
+        }
+
+        const sevVal = app.issueSeverity || app.issue_severity;
+        if (sevVal && severityMap[sevVal]) {
+          updatePayload.issue_severity = severityMap[sevVal];
+        }
+
         const { error } = await supabase
           .from('records')
-          .update({
-            status: inferred.status,
-            current_step: inferred.currentStep
-          })
+          .update(updatePayload)
           .eq('id', app.id);
 
         if (error) {
@@ -3215,6 +3443,25 @@ export default function App() {
       if (anyToSync.length > 0) {
          const finalApps = await bulkSyncRecordsToSupabase(anyToSync, applications);
          setApplications(finalApps);
+
+         // Highlight hồ sơ vừa tạo trong import
+         if (importPreviewData?.toCreate?.length > 0) {
+           const firstUnit = importPreviewData.toCreate[0]?.unitCode;
+           if (firstUnit) {
+             const newApp = finalApps.find(
+               a => a.unitCode === firstUnit
+             );
+             if (newApp?.id) {
+               setHighlightedAppId(newApp.id);
+               setTimeout(() => {
+                 document.getElementById(`app-row-${newApp.id}`)
+                   ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+               }, 300);
+               setTimeout(() => setHighlightedAppId(null), 4000);
+             }
+           }
+         }
+
          showToast(`Hoàn tất nhập liệu: Cập nhật ${importPreviewData.toUpdate.length} hồ sơ, Tạo mới ${importPreviewData.toCreate.length} hồ sơ.`, 'success');
          setActiveTab('applications');
       }
@@ -3254,6 +3501,13 @@ export default function App() {
     setIsSavingApp(true);
     
     try {
+      if (editApp.id) {
+        selfUpdateRef.current.add(editApp.id as number);
+        setTimeout(() => {
+          selfUpdateRef.current.delete(editApp.id as number);
+        }, 2000);
+      }
+
       const auditEntry = createAuditEntry('Cập nhật thông tin', false, 1, editApp.unitCode, 'Chỉnh sửa chi tiết hồ sơ');
 
       const updatedApp = {
@@ -4142,7 +4396,7 @@ export default function App() {
     app: Application, 
     note: string, 
     type: IssueType = 'Sai sót Khác', 
-    severity: IssueSeverity = 'Trung bình'
+    severity: IssueSeverity = 'Moderate'
   ): Application {
     const auditEntry = createAuditEntry('Ghi nhận vướng mắc', false, 1, app.unitCode, `Loại: ${type}. Ghi chú: ${note}`);
     
@@ -4221,7 +4475,7 @@ export default function App() {
       issueNotes: '',
       issue_status: 'RESOLVED' as const,
       issue_type: app.issue_type || app.issueType || 'Sai sót Khác',
-      issue_severity: app.issue_severity || app.issueSeverity || 'Trung bình',
+      issue_severity: app.issue_severity || app.issueSeverity || 'Moderate',
       issue_notes: app.issue_notes || app.issueNotes || app.issueNotes || '',
       isRejected: false,
       history: newHistory
@@ -4271,7 +4525,7 @@ export default function App() {
         issueNotes: '',
         issue_status: 'RESOLVED' as const,
         issue_type: app.issue_type || app.issueType || 'Sai sót Khác',
-        issue_severity: app.issue_severity || app.issueSeverity || 'Trung bình',
+        issue_severity: app.issue_severity || app.issueSeverity || 'Moderate',
         issue_notes: app.issue_notes || app.issueNotes || app.issueNotes || '',
         history: newHistory
       };
@@ -4450,7 +4704,7 @@ export default function App() {
         nextApp.status = 'Error';
         nextApp.issue_type = nextApp.issueType;
         nextApp.issue_notes = value;
-        nextApp.issue_severity = nextApp.issueSeverity || 'Trung bình';
+        nextApp.issue_severity = nextApp.issueSeverity || 'Moderate';
         nextApp.issue_status = 'OPEN';
         nextApp.issue_resolved_at = null;
         if (!nextApp.issue_created_at) {
@@ -4517,7 +4771,7 @@ export default function App() {
             nextApp.status = 'Error';
             nextApp.issue_type = nextApp.issueType;
             nextApp.issue_notes = value;
-            nextApp.issue_severity = nextApp.issueSeverity || 'Trung bình';
+            nextApp.issue_severity = nextApp.issueSeverity || 'Moderate';
             nextApp.issue_status = 'OPEN';
             nextApp.issue_resolved_at = null;
             if (!nextApp.issue_created_at) {
@@ -4630,6 +4884,18 @@ export default function App() {
       const appToAdd = mapFromSnakeCase(data[0]);
 
       setApplications(prev => [appToAdd, ...prev]);
+      setDashboardApps(prev => [appToAdd, ...prev]);
+
+      // Highlight hồ sơ vừa tạo
+      if (appToAdd?.id) {
+        setHighlightedAppId(appToAdd.id);
+        setActiveTab('applications');
+        setTimeout(() => {
+          document.getElementById(`app-row-${appToAdd.id}`)
+            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
+        setTimeout(() => setHighlightedAppId(null), 4000);
+      }
       setIsCreateModalOpen(false);
       setNewApp({ 
         unitCode: '', 
@@ -5847,7 +6113,7 @@ export default function App() {
                           if (notiId) deleteNotification(notiId);
                           if (appId) {
                             const app = applications.find(a => a.id === appId);
-                            if (app) setSelectedApp(app);
+                            if (app) handleSelectApp(app);
                             setActiveTab('applications');
                           }
                           setIsNotiOpen(false);
@@ -5856,6 +6122,33 @@ export default function App() {
                     </div>
                   )}
                 </AnimatePresence>
+              </div>
+
+              {/* Realtime Status Indicator */}
+              <div className="flex items-center">
+                <div className={cn(
+                  "flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider",
+                  "px-2.5 py-1.5 rounded-full border",
+                  realtimeStatus === 'connected'
+                    ? theme === 'dark'
+                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                      : "bg-emerald-50 text-emerald-600 border-emerald-200"
+                    : realtimeStatus === 'error'
+                      ? "bg-rose-500/10 text-rose-500 border-rose-500/30"
+                      : "bg-slate-500/10 text-slate-400 border-slate-500/20"
+                )}>
+                  <div className={cn(
+                    "w-1.5 h-1.5 rounded-full",
+                    realtimeStatus === 'connected' 
+                      ? "bg-emerald-500 animate-pulse"
+                      : realtimeStatus === 'error'
+                        ? "bg-rose-500"
+                        : "bg-slate-400 animate-pulse"
+                  )}/>
+                  {realtimeStatus === 'connected' ? 'Live' 
+                    : realtimeStatus === 'error' ? 'Offline' 
+                    : 'Kết nối...'}
+                </div>
               </div>
 
               {/* Theme Toggle */}
@@ -6242,8 +6535,9 @@ export default function App() {
                                    if (!data || data.error > 0) return null;
                                    return (
                                       <text 
-                                         x={(x || 0) + (width || 0) + 15} 
-                                         y={(y || 0) + (height || 0) / 2} 
+                                         x={isNaN(Number(x)) || isNaN(Number(width)) ? 0 : Number(x) + Number(width) + 15} 
+                                         y={isNaN(Number(y)) || isNaN(Number(height)) ? 0 : Number(y) + Number(height) / 2} 
+                                         opacity={isNaN(Number(x)) || isNaN(Number(y)) || isNaN(Number(width)) || isNaN(Number(height)) ? 0 : 1} 
                                          fill={theme === 'light' ? '#1e293b' : '#f8fafc'} 
                                          fontSize="12" 
                                          fontWeight="900"
@@ -6274,8 +6568,9 @@ export default function App() {
                                    if (!data || data.error === 0) return null;
                                    return (
                                       <text 
-                                         x={(x || 0) + (width || 0) + 15} 
-                                         y={(y || 0) + (height || 0) / 2} 
+                                         x={isNaN(Number(x)) || isNaN(Number(width)) ? 0 : Number(x) + Number(width) + 15} 
+                                         y={isNaN(Number(y)) || isNaN(Number(height)) ? 0 : Number(y) + Number(height) / 2} 
+                                         opacity={isNaN(Number(x)) || isNaN(Number(y)) || isNaN(Number(width)) || isNaN(Number(height)) ? 0 : 1} 
                                          fill={theme === 'light' ? '#1e293b' : '#f8fafc'} 
                                          fontSize="12" 
                                          fontWeight="900"
@@ -6682,7 +6977,52 @@ export default function App() {
                         <span className="text-slate-500 font-bold italic opacity-70">Tổng: {totalCount.toLocaleString()} hồ sơ</span>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* VIỆC 1: Sort buttons */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={cn(
+                            "text-[9px] font-black uppercase tracking-wider",
+                            theme === 'dark' ? "text-slate-500" : "text-slate-400"
+                          )}>
+                            Sắp xếp:
+                          </span>
+                          {([
+                            { field: 'smart', label: '🎯 Thông minh' },
+                            { field: 'status', label: '📊 Trạng thái' },
+                            { field: 'unitCode', label: '🏠 Mã lô' },
+                            { field: 'customerName', label: '👤 Tên KH' },
+                          ] as const).map(({ field, label }) => (
+                            <button
+                              key={field}
+                              onClick={() => setSortConfig(prev => ({
+                                field,
+                                direction: prev.field === field && 
+                                  prev.direction === 'asc' ? 'desc' : 'asc'
+                              }))}
+                              className={cn(
+                                "px-2 py-1 rounded-lg border text-[9px] font-black",
+                                "transition-all uppercase tracking-wider",
+                                sortConfig.field === field
+                                  ? theme === 'dark'
+                                    ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-400"
+                                    : "bg-indigo-50 border-indigo-200 text-indigo-600"
+                                  : theme === 'dark'
+                                    ? "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600"
+                                    : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                              )}
+                            >
+                              {label}
+                              {sortConfig.field === field && (
+                                <span className="ml-0.5">
+                                  {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+
+
+
                         <div className="relative group">
                           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
                           <input 
@@ -7175,7 +7515,7 @@ export default function App() {
                                </div>
                             </td>
                           </tr>
-                        ) : filteredApps.length === 0 ? (
+                        ) : displayedApps.length === 0 ? (
                           <tr>
                             <td colSpan={13} className="px-6 py-12 text-center text-slate-500 italic font-medium">
                                <div className="flex flex-col items-center gap-4 opacity-40">
@@ -7184,7 +7524,7 @@ export default function App() {
                                </div>
                             </td>
                           </tr>
-                        ) : filteredApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map((app, index) => {
+                        ) : displayedApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map((app, index) => {
                           const overdue = getOverdueInfo(app, stepConfig, slaConfig);
                           const isEven = index % 2 === 1;
                           const isFocused = selectedIndex === index;
@@ -7192,6 +7532,7 @@ export default function App() {
                           
                           return (
                             <tr 
+                              id={`app-row-${app.id}`}
                               key={`app-row-${app.id}-${currentPage}-${index}`} 
                               ref={el => tableRowRefs.current[index] = el}
                               className={cn(
@@ -7200,12 +7541,17 @@ export default function App() {
                                 !isFocused && isSelected && (theme === 'light' ? "bg-festive-gold/10" : "bg-festive-gold/15"),
                                 theme === 'light' 
                                   ? (!isFocused && !isSelected ? (isEven ? "bg-slate-50/50 hover:bg-indigo-50/20 border-slate-100" : "bg-white hover:bg-indigo-50/20 border-slate-100") : "")
-                                  : (!isFocused && !isSelected ? (isEven ? "bg-slate-900/20 hover:bg-indigo-950/20 border-slate-800/40" : "bg-transparent hover:bg-indigo-950/20 border-slate-800/40") : "")
+                                  : (!isFocused && !isSelected ? (isEven ? "bg-slate-900/20 hover:bg-indigo-950/20 border-slate-800/40" : "bg-transparent hover:bg-indigo-950/20 border-slate-800/40") : ""),
+                                highlightedAppId === app.id && [
+                                  theme === 'dark'
+                                    ? 'ring-2 ring-inset ring-emerald-500/60 bg-emerald-500/5'
+                                    : 'ring-2 ring-inset ring-emerald-400/60 bg-emerald-50/80'
+                                ]
                               )}
                               onClick={(e) => {
                                 setSelectedIndex(index);
                                 if (e.shiftKey && lastSelectedIndex !== null) {
-                                  const visibleApps = filteredApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+                                  const visibleApps = displayedApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
                                   const start = Math.min(lastSelectedIndex, index);
                                   const end = Math.max(lastSelectedIndex, index);
                                   const newSelection = new Set(selectedRows);
@@ -7227,7 +7573,7 @@ export default function App() {
                                   setLastSelectedIndex(index);
                                 }
                               }}
-                              onDoubleClick={() => setSelectedApp(app)}
+                              onDoubleClick={() => handleSelectApp(app)}
                             >
                               <td className="px-2 py-0 text-center" onClick={(e) => e.stopPropagation()}>
                                 <input 
@@ -7310,7 +7656,7 @@ export default function App() {
                                   setQuickEditId(app.id);
                                   setQuickEditData({ unitCode: app.unitCode, customerName: app.customerName });
                                 }}
-                                onClick={() => quickEditId !== app.id && setSelectedApp(app)}
+                                onClick={() => quickEditId !== app.id && handleSelectApp(app)}
                               >
                                 <div className="flex items-center gap-1.5">
                                   <div className={cn(
@@ -7527,7 +7873,7 @@ export default function App() {
                                 if (app.scannedFiles && app.scannedFiles.length > 0) {
                                   setPreviewFile(app.scannedFiles[0]);
                                 } else {
-                                  setSelectedApp(app);
+                                  handleSelectApp(app);
                                 }
                               }}>
                                 {app.scannedFiles && app.scannedFiles.length > 0 ? (
@@ -7544,7 +7890,7 @@ export default function App() {
                               <td className="px-2 py-0 text-center">
                                 <div className="flex items-center justify-center gap-0.5">
                                   <button 
-                                    onClick={() => setSelectedApp(app)}
+                                    onClick={() => handleSelectApp(app)}
                                     className="p-1 rounded transition-colors text-slate-500 hover:bg-indigo-500/10 hover:text-indigo-500"
                                     title="Xem"
                                   >
@@ -7957,22 +8303,64 @@ export default function App() {
                       </button>
                     )
                   ) : (
-                    <div className="flex items-center gap-2">
-                       <button 
-                        onClick={() => {
-                          setIsEditing(false);
-                          setEditApp(null);
-                        }}
-                        className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all border border-slate-700"
-                      >
-                        Hủy
-                      </button>
-                      <button 
-                        onClick={handleUpdateApp}
-                        className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-500/20"
-                      >
-                        Lưu thay đổi
-                      </button>
+                    <div className="w-full flex flex-col">
+                      {conflictWarning && (
+                        <div className={cn(
+                          "flex items-start gap-2 px-4 py-3 rounded-2xl mb-4 border text-left",
+                          theme === 'dark'
+                            ? "bg-amber-500/10 text-amber-400 border-amber-500/30 font-bold"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                        )}>
+                          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                          <div className="space-y-1">
+                            <p className="font-bold text-sm">Xung đột dữ liệu!</p>
+                            <p className="text-xs opacity-95 font-medium leading-relaxed">{conflictWarning}</p>
+                            <div className="flex gap-2.5 pt-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditApp(selectedApp);
+                                  setConflictWarning(null);
+                                }}
+                                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md"
+                              >
+                                Tải lại version mới
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConflictWarning(null)}
+                                className={cn(
+                                  "px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all",
+                                  theme === 'dark' 
+                                    ? "border-amber-400/20 text-amber-400 hover:bg-amber-400/10" 
+                                    : "border-amber-300 text-amber-800 hover:bg-amber-100"
+                                )}
+                              >
+                                Vẫn lưu của tôi
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                         <button 
+                          onClick={() => {
+                            setIsEditing(false);
+                            setEditApp(null);
+                            setConflictWarning(null);
+                          }}
+                          className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all border border-slate-700"
+                        >
+                          Hủy
+                        </button>
+                        <button 
+                          onClick={handleUpdateApp}
+                          className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-500/20"
+                        >
+                          Lưu thay đổi
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -8773,10 +9161,9 @@ export default function App() {
                                                             onChange={(e) => setReportIssueSeverity(e.target.value as IssueSeverity)}
                                                             className={cn("w-full p-3 rounded-xl border text-[10px] font-black uppercase", theme === 'dark' ? "bg-slate-900 border-slate-700 text-white" : "bg-white border-slate-200 text-slate-900")}
                                                         >
-                                                            <option value="Nghiêm trọng">Khẩn cấp</option>
-                                                            <option value="Cao">Cao</option>
-                                                            <option value="Trung bình">Vừa</option>
-                                                            <option value="Thấp">Thấp</option>
+                                                            <option value="Critical">Khẩn cấp</option>
+                                                            <option value="Moderate">Vừa</option>
+                                                            <option value="Minor">Nhẹ</option>
                                                         </select>
                                                     </div>
                                                     <textarea 
@@ -8883,22 +9270,63 @@ export default function App() {
                                 </div>
                             </>
                         ) : isEditing ? (
-                            <div className="flex gap-4 w-full">
-                                <button 
-                                    onClick={() => {
-                                        setIsEditing(false);
-                                        setEditApp(null);
-                                    }}
-                                    className="flex-1 py-4 bg-slate-800 text-slate-400 hover:bg-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
-                                >
-                                    Hủy bỏ
-                                </button>
-                                <button 
-                                    onClick={handleUpdateApp}
-                                    className="flex-[2] py-4 bg-emerald-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] hover:bg-emerald-500 shadow-xl shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
-                                >
-                                    <Save size={20} /> Lưu thay đổi hồ sơ
-                                </button>
+                            <div className="flex flex-col gap-4 w-full text-left">
+                                {conflictWarning && (
+                                    <div className={cn(
+                                      "flex items-start gap-2 px-4 py-3 rounded-2xl mb-2 border",
+                                      theme === 'dark'
+                                        ? "bg-amber-500/10 text-amber-400 border-amber-500/30 font-bold"
+                                        : "bg-amber-50 text-amber-700 border-amber-200"
+                                    )}>
+                                      <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                                      <div className="space-y-1">
+                                        <p className="font-bold text-sm">Xung đột dữ liệu!</p>
+                                        <p className="text-xs opacity-95 font-medium leading-relaxed">{conflictWarning}</p>
+                                        <div className="flex gap-2 pt-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setEditApp(selectedApp);
+                                              setConflictWarning(null);
+                                            }}
+                                            className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
+                                          >
+                                            Tải lại version mới
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => setConflictWarning(null)}
+                                            className={cn(
+                                              "px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all",
+                                              theme === 'dark' 
+                                                ? "border-amber-400/20 text-amber-400 hover:bg-amber-400/10" 
+                                                : "border-amber-300 text-amber-800 hover:bg-amber-100"
+                                            )}
+                                          >
+                                            Vẫn lưu của tôi
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                )}
+                                <div className="flex gap-4 w-full">
+                                    <button 
+                                        onClick={() => {
+                                            setIsEditing(false);
+                                            setEditApp(null);
+                                            setConflictWarning(null);
+                                        }}
+                                        className="flex-1 py-4 bg-slate-800 text-slate-400 hover:bg-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                    >
+                                        Hủy bỏ
+                                    </button>
+                                    <button 
+                                        onClick={handleUpdateApp}
+                                        className="flex-[2] py-4 bg-emerald-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] hover:bg-emerald-500 shadow-xl shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <Save size={20} /> Lưu thay đổi hồ sơ
+                                    </button>
+                                </div>
                             </div>
                         ) : null}
                     </div>
@@ -9466,6 +9894,7 @@ export default function App() {
         onChangeRefCode={setBulkTransitionRefCode}
         theme={theme}
         showToast={showToast}
+        dateError={bulkTransitionChronoError}
       />
 
       <BulkIssueModal

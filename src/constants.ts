@@ -99,7 +99,7 @@ export const MOCK_APPLICATIONS: Application[] = [
     currentStep: 'S2_KT_Tiep_Nhan',
     status: 'Error',
     issueType: 'Sai sót Khác',
-    issueSeverity: 'Nghiêm trọng',
+    issueSeverity: 'Critical',
     issueNotes: 'Thiếu CMND bản sao công chứng của chủ sở hữu, đã yêu cầu bổ sung 3 lần.',
     receivedDate: '2026-02-01',
     taxPaymentStatus: 'Paid',

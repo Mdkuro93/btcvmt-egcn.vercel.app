@@ -62,9 +62,10 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
     return filteredReportApps
       .map(app => {
         let severityEng = 'Low';
-        if (app.issue_severity === 'Nghiêm trọng' || app.issue_severity === 'Cao' || app.issueSeverity === 'Nghiêm trọng' || app.issueSeverity === 'Cao') {
+        const sev = app.issue_severity || app.issueSeverity || 'Minor';
+        if (sev === 'Critical' || sev === 'High' || sev === 'Nghiêm trọng' || sev === 'Cao') {
           severityEng = 'High';
-        } else if (app.issue_severity === 'Trung bình' || app.issueSeverity === 'Trung bình') {
+        } else if (sev === 'Moderate' || sev === 'Medium' || sev === 'Trung bình') {
           severityEng = 'Medium';
         } else {
           severityEng = 'Low';
@@ -76,7 +77,7 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
           current_step: app.currentStep || '',
         };
       });
-  }, [filteredReportApps]);
+  }, [normalizedApps, mode]);
 
   // Compute stats using reportUtils helpers
   const errorSummary = useMemo(() => buildErrorSummary(mappedAppsForIssues), [mappedAppsForIssues]);
@@ -86,9 +87,9 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
 
   // Total statistics
   const totalIssuesCount = mappedAppsForIssues.length;
-  const highSeverityCount = mappedAppsForIssues.filter(app => app.issueSeverity === 'Nghiêm trọng' || app.issueSeverity === 'Cao').length;
-  const mediumSeverityCount = mappedAppsForIssues.filter(app => app.issueSeverity === 'Trung bình').length;
-  const lowSeverityCount = mappedAppsForIssues.filter(app => app.issueSeverity === 'Thấp' || !app.issueSeverity).length;
+  const highSeverityCount = mappedAppsForIssues.filter(app => app.issue_severity === 'High').length;
+  const mediumSeverityCount = mappedAppsForIssues.filter(app => app.issue_severity === 'Medium').length;
+  const lowSeverityCount = mappedAppsForIssues.filter(app => app.issue_severity === 'Low').length;
 
   // Format data for Recharts
   const severityChartData = useMemo(() => {
@@ -509,15 +510,13 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
                     <td className="px-5 py-4 text-center">
                       <span className={cn(
                         "px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider",
-                        app.issueSeverity === 'Nghiêm trọng' || app.issue_severity === 'High'
+                        app.issue_severity === 'High'
                           ? "bg-rose-500/10 text-rose-500" 
-                          : app.issueSeverity === 'Cao' 
-                            ? "bg-rose-400/10 text-rose-500" 
-                            : app.issueSeverity === 'Trung bình' || app.issue_severity === 'Medium'
-                              ? "bg-amber-500/10 text-amber-500" 
-                              : "bg-emerald-500/10 text-emerald-500"
+                          : app.issue_severity === 'Medium'
+                            ? "bg-amber-500/10 text-amber-500" 
+                            : "bg-emerald-500/10 text-emerald-500"
                       )}>
-                        {app.issue_severity === 'High' ? 'Nghiêm trọng' : app.issue_severity === 'Medium' ? 'Trung bình' : 'Thấp'}
+                        {app.issue_severity === 'High' ? 'Nghiêm trọng' : app.issue_severity === 'Medium' ? 'Trung bình' : 'Nhẹ'}
                       </span>
                     </td>
                     <td className="px-5 py-4">

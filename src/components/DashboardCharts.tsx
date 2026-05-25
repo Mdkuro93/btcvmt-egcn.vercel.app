@@ -143,10 +143,17 @@ export default function DashboardCharts({
                     offset={15} 
                     content={(props: any) => {
                        const { x, y, width, height, value } = props;
+                       const posX = Number(x);
+                       const posY = Number(y);
+                       const barW = Number(width);
+                       const barH = Number(height);
+                       if (isNaN(posX) || isNaN(posY) || isNaN(barW) || isNaN(barH)) {
+                          return null;
+                       }
                        return (
                           <text 
-                             x={x + width + 10} 
-                             y={y + height / 2 + 5} 
+                             x={posX + barW + 10} 
+                             y={posY + barH / 2 + 5} 
                              fill={theme === 'dark' ? '#f8fafc' : '#1e293b'} 
                              fontSize="12" 
                              fontWeight="900"

@@ -689,8 +689,9 @@ export default function ReportsView({
                                       const { x, y, width, value } = props;
                                       return (
                                         <text 
-                                          x={(x || 0) + (width || 0) / 2} 
-                                          y={(y || 0) - 10} 
+                                          x={isNaN(Number(x)) || isNaN(Number(width)) ? 0 : Number(x) + Number(width) / 2} 
+                                          y={isNaN(Number(y)) ? 0 : Number(y) - 10} 
+                                          opacity={isNaN(Number(x)) || isNaN(Number(y)) || isNaN(Number(width)) ? 0 : 1} 
                                           fill={theme === 'light' ? '#334155' : '#cbd5e1'} 
                                           fontSize="11" 
                                           fontWeight="900"

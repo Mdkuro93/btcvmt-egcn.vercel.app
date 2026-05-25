@@ -61,6 +61,7 @@ export const mapFromSnakeCase = (item: Record<string, any>): Application => {
 
   const mappedApp: Application = {
     id: str(val('id', 'id')),
+    updatedAt: str(val('updated_at', 'updatedAt')),
     unitCode: str(val('unit_code', 'unitCode')),
     projectName: str(val('project_name', 'projectName')),
     workflowType: (currentStep?.startsWith('GD') || (typeof val('status_id', 'statusId') === 'string' && (val('status_id', 'statusId') as string).startsWith('GD')) ? 'Quy_trinh_1' : 'Quy_trinh_2'),

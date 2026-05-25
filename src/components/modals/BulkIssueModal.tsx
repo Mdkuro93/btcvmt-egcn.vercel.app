@@ -96,22 +96,25 @@ export default function BulkIssueModal({
           <div className="space-y-2">
             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Mức độ nghiêm trọng</label>
             <div className="flex gap-2">
-              {(['Nghiêm trọng', 'Cao', 'Trung bình', 'Thấp'] as IssueSeverity[]).map((s) => (
+              {([
+                { value: 'Critical', label: 'Nghiêm trọng' },
+                { value: 'Moderate', label: 'Trung bình' },
+                { value: 'Minor', label: 'Nhẹ' }
+              ] as const).map(({ value, label }) => (
                 <button
-                  key={`severity-${s}`}
+                  key={`severity-${value}`}
                   type="button"
-                  onClick={() => onChangeSeverity(s)}
+                  onClick={() => onChangeSeverity(value)}
                   className={cn(
                     "flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all",
-                    severity === s
-                      ? (s === 'Nghiêm trọng' ? "bg-rose-600 border-rose-600 text-white shadow-lg shadow-rose-900/20" :
-                         s === 'Cao' ? "bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-900/20" :
-                         s === 'Trung bình' ? "bg-amber-400 border-amber-400 text-slate-900 shadow-lg shadow-amber-900/20" :
+                    severity === value
+                      ? (value === 'Critical' ? "bg-rose-600 border-rose-600 text-white shadow-lg shadow-rose-900/20" :
+                         value === 'Moderate' ? "bg-amber-400 border-amber-400 text-slate-900 shadow-lg shadow-amber-900/20" :
                          "bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-900/20")
                       : (theme === 'dark' ? "bg-slate-800 border-slate-700 text-slate-500 hover:border-slate-600" : "bg-slate-50 border-slate-200 text-slate-400 hover:border-slate-300")
                   )}
                 >
-                  {s}
+                  {label}
                 </button>
               ))}
             </div>

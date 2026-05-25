@@ -28,7 +28,7 @@ export function useBulkActions({
   const [isBulkIssueOpen, setIsBulkIssueOpen] = useState(false);
   const [bulkIssueNote, setBulkIssueNote] = useState('');
   const [bulkIssueType, setBulkIssueType] = useState<IssueType>('Sai sót Khác');
-  const [bulkIssueSeverity, setBulkIssueSeverity] = useState<IssueSeverity>('Trung bình');
+  const [bulkIssueSeverity, setBulkIssueSeverity] = useState<IssueSeverity>('Moderate');
 
   const handleBulkUpdateNote = useCallback(async () => {
     if (selectedAppIds.length === 0 || !bulkNoteText.trim()) return;

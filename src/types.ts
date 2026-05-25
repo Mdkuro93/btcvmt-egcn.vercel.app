@@ -87,7 +87,7 @@ export type AuditTrailEntry = {
   changes?: string;
 };
 
-export type IssueSeverity = 'Nghiêm trọng' | 'Cao' | 'Trung bình' | 'Thấp';
+export type IssueSeverity = 'Minor' | 'Moderate' | 'Critical';
 
 export type IssueType = 'None' | 'Sai sót nội bộ' | 'Sai sót khách hàng' | 'Sai sót cơ quan nhà nước' | 'Sai sót chủ đầu tư' | 'Sai sót Khác';
 
@@ -103,6 +103,7 @@ export type ScannedFile = {
 
 export type Application = {
   id?: string | number;
+  updatedAt?: string;
   unitCode: string; // Mã lô/căn
   projectName: string;
   workflowType?: WorkflowType; // Thêm loại quy trình
