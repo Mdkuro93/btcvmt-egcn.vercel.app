@@ -27,10 +27,13 @@ import { REGION_ORDER } from '../constants';
 import ErrorReportView from './ErrorReportView';
 
 const calculateDaysDiff = (dateStr: string) => {
+  if (!dateStr) return 0;
   const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return 0;
   const today = new Date();
   const diffTime = Math.abs(today.getTime() - date.getTime());
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const res = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return isNaN(res) ? 0 : res;
 };
 
 const calculateDaysBetweenDates = (start: string, end: string) => {

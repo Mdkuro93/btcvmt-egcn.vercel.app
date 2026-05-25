@@ -579,10 +579,13 @@ const FestiveBranding = () => (
 // FilePreviewModal has been moved to components/modals/
 
 const calculateDaysDiff = (dateStr: string) => {
+  if (!dateStr) return 0;
   const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return 0;
   const today = new Date();
   const diffTime = Math.abs(today.getTime() - date.getTime());
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const res = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return isNaN(res) ? 0 : res;
 };
 
 const calculateDaysBetweenDates = (start: string, end: string) => {
@@ -1525,6 +1528,8 @@ export default function App() {
         gcn_signed_date, customer_handover_date,
         accounting_handover_date, is_self_service,
         loan_status, issue_type, is_rejected,
+        property_type, customer_name, unit_code,
+        received_date, contract_signer_type, phone_number,
         created_at
       `);
       
@@ -5120,14 +5125,15 @@ export default function App() {
           if (dept === 'PTDA' && isSupportSpecial) return false; // Force NOT PTDA for this step in support process
           return (stepConfig[a.currentStep] || INITIAL_STEP_CONFIG[a.currentStep])?.dept === dept;
         });
-        const avgDays = appsInDept.length > 0 
-            ? appsInDept.reduce((acc, curr) => acc + calculateDaysDiff(curr.receivedDate), 0) / appsInDept.length
+        const avgDaysRaw = appsInDept.length > 0 
+            ? appsInDept.reduce((acc, curr) => acc + (calculateDaysDiff(curr.receivedDate) || 0), 0) / appsInDept.length
             : 0;
+        const avgDays = isNaN(avgDaysRaw) ? 0 : avgDaysRaw;
             
         return {
             dept,
             label: dept === 'PTT' ? 'Thủ tục' : dept === 'KT' ? 'Kế toán' : 'PTDA',
-            avgDays: Math.round(avgDays),
+            avgDays: Math.round(avgDays) || 0,
             count: appsInDept.length,
             color: avgDays > 10 ? 'bg-rose-500' : (avgDays > 5 ? 'bg-amber-500' : 'bg-emerald-500')
         };
@@ -6815,19 +6821,21 @@ export default function App() {
                                  </div>
                               </div>
                               <div className="text-right">
-                                <span className={cn("text-2xl font-black italic font-serif", theme === 'light' ? "text-slate-900" : "text-white")}>{dept.avgDays}</span>
+                                <span className={cn("text-2xl font-black italic font-serif", theme === 'light' ? "text-slate-900" : "text-white")}>
+                                  {isNaN(Number(dept.avgDays)) ? 0 : (dept.avgDays || 0)}
+                                </span>
                                 <span className="text-[8px] font-bold text-slate-500 uppercase ml-1">Ngày</span>
                               </div>
                             </div>
                             
                             <div className="h-1.5 w-full bg-slate-800/10 rounded-full overflow-hidden mb-3">
-                               <div className={cn("h-full rounded-full transition-all duration-1000", dept.color)} style={{ width: `${Math.min(100, (dept.avgDays / 15) * 100)}%` }} />
+                               <div className={cn("h-full rounded-full transition-all duration-1000", dept.color)} style={{ width: `${Math.min(100, ((isNaN(Number(dept.avgDays)) ? 0 : (dept.avgDays || 0)) / 15) * 100)}%` }} />
                             </div>
                             
                             <div className="flex justify-between items-center text-[9px]">
                                <span className="text-slate-500 font-bold uppercase">Xử lý: {dept.count}</span>
-                               <span className={cn("font-black italic px-2 py-0.5 rounded-lg", dept.avgDays > 10 ? "text-rose-500 bg-rose-500/5" : "text-emerald-500 bg-emerald-500/5")}>
-                                 {dept.avgDays > 10 ? 'Chậm' : 'Tốt'}
+                               <span className={cn("font-black italic px-2 py-0.5 rounded-lg", (isNaN(Number(dept.avgDays)) ? 0 : (dept.avgDays || 0)) > 10 ? "text-rose-500 bg-rose-500/5" : "text-emerald-500 bg-emerald-500/5")}>
+                                 {(isNaN(Number(dept.avgDays)) ? 0 : (dept.avgDays || 0)) > 10 ? 'Chậm' : 'Tốt'}
                                </span>
                             </div>
                           </div>
@@ -7798,7 +7806,7 @@ export default function App() {
                                 <>
                                   <td className="px-2 py-0 text-[10px] leading-tight text-slate-500 dark:text-slate-400">
                                     <span className="font-medium">
-                                      {app.contractSignerType || '---'}
+                                      {app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền'}
                                     </span>
                                   </td>
                                   <td className="px-2 py-0">
