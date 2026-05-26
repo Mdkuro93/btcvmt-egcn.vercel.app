@@ -154,7 +154,7 @@ const DOC_CHECKLIST_ITEMS = [
 ];
 
 // Supabase Configuration
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://eewikwqwtgmrlvyrfgit.supabase.co';
+const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || 'https://eewikwqwtgmrlvyrfgit.supabase.co').replace(/\/$/, '');
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || SUPABASE_KEY;
 
@@ -162,7 +162,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // Client riêng cho Realtime dùng JWT key
 const supabaseRT = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  realtime: { params: { eventsPerSecond: 10 } },
+  realtime: { 
+    params: { eventsPerSecond: 10 },
+    heartbeatIntervalMs: 25000,
+    timeout: 30000
+  },
   auth: { persistSession: false }
 });
 
@@ -1181,18 +1185,33 @@ export default function App() {
 
     let active = true;
     let retryTimeout: any = null;
+    let retryCount = 0;
+    const MAX_RETRY = 5;
+    let recordsChannel: any = null;
+    let notiChannel: any = null;
 
     // Tính danh sách project name được gán để filter trong callback (RLS Realtime workaround)
     const assignedNames = projects
       .filter(p => currentUser.assignedProjectIds?.includes(p.id))
       .map(p => p.name);
 
-    setRealtimeStatus('connecting');
+    const initRealtime = async () => {
+      setRealtimeStatus('connecting');
 
-    // Subscribe thay đổi bảng records
-    const channelId = `rt-records-${currentUser.id}-${Date.now()}`;
-    const recordsChannel = supabaseRT
-      .channel(channelId)
+      // Đồng bộ JWT sang Realtime client để vượt qua RLS
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          supabaseRT.realtime.setAuth(session.access_token);
+        }
+      } catch (err) {
+        console.warn('[Realtime] Không thể lấy session cho Realtime:', err);
+      }
+
+      // Subscribe thay đổi bảng records
+      const channelId = `rt-records-${currentUser.id}-${Date.now()}`;
+      recordsChannel = supabaseRT
+        .channel(channelId)
       .on(
         'postgres_changes',
         { 
@@ -1295,13 +1314,23 @@ export default function App() {
         if (status === 'SUBSCRIBED') {
           console.log('✅ Realtime connected');
           setRealtimeStatus('connected');
+          retryCount = 0;
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           console.error('[Realtime Error]', err);
+          
+          retryCount++;
+          if (retryCount >= MAX_RETRY) {
+            console.warn(`[Realtime] Quá ${MAX_RETRY} lần thử thất bại. Dừng kết nối.`);
+            setRealtimeStatus('error');
+            return;
+          }
+
           setRealtimeStatus('error');
-          // Thử lại sau 30s
+          // Thử lại sau 30s với exponential backoff nhẹ
+          const delay = Math.min(30000, 10000 * retryCount);
           retryTimeout = setTimeout(() => {
             if (active) setRealtimeReconnectKey(p => p + 1);
-          }, 30000);
+          }, delay);
         } else {
           setRealtimeStatus('connecting');
         }
@@ -1309,7 +1338,7 @@ export default function App() {
 
     // Subscribe thay đổi bảng notifications
     const notiChannelId = `rt-noti-${currentUser.id}-${Date.now()}`;
-    const notiChannel = supabaseRT
+    notiChannel = supabaseRT
       .channel(notiChannelId)
       .on(
         'postgres_changes',
@@ -1337,13 +1366,16 @@ export default function App() {
           time: new Date().toLocaleTimeString('vi-VN')
         });
       });
+    };
+
+    initRealtime();
 
     // Cleanup khi logout hoặc unmount
     return () => {
       active = false;
       if (retryTimeout) clearTimeout(retryTimeout);
-      supabaseRT.removeChannel(recordsChannel);
-      supabaseRT.removeChannel(notiChannel);
+      if (recordsChannel) supabaseRT.removeChannel(recordsChannel);
+      if (notiChannel) supabaseRT.removeChannel(notiChannel);
     };
   }, [currentUser?.id, realtimeReconnectKey, projects, userRole]);
 
