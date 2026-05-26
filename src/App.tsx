@@ -155,8 +155,25 @@ const DOC_CHECKLIST_ITEMS = [
 
 // Supabase Configuration
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://eewikwqwtgmrlvyrfgit.supabase.co';
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY || 'sb_publishable_gKFEW2pn_2PAif9UkvMqGA_58E2Gj6z';
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY || '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || SUPABASE_KEY;
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Client riêng cho Realtime dùng JWT key
+const supabaseRT = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  realtime: { params: { eventsPerSecond: 10 } },
+  auth: { persistSession: false }
+});
+
+// Debug log tạm - xóa sau khi xác nhận
+console.log('[Key Check]', {
+  mainKey: SUPABASE_KEY.startsWith('eyJ') 
+    ? 'JWT ✅' : SUPABASE_KEY.startsWith('sb_') 
+    ? 'Publishable ⚠️' : 'Empty ❌',
+  realtimeKey: SUPABASE_ANON_KEY.startsWith('eyJ') 
+    ? 'JWT ✅' : 'Sai ⚠️'
+});
 
 
 
@@ -1152,8 +1169,8 @@ export default function App() {
     setRealtimeStatus('connecting');
 
     // Subscribe thay đổi bảng records
-    const channelId = `realtime-records-${currentUser.id}-${Date.now()}`;
-    const recordsChannel = supabase
+    const channelId = `rt-records-${currentUser.id}-${Date.now()}`;
+    const recordsChannel = supabaseRT
       .channel(channelId)
       .on(
         'postgres_changes',
@@ -1289,8 +1306,8 @@ export default function App() {
       });
 
     // Subscribe thay đổi bảng notifications
-    const notiChannelId = `realtime-noti-${currentUser.id}-${Date.now()}`;
-    const notiChannel = supabase
+    const notiChannelId = `rt-noti-${currentUser.id}-${Date.now()}`;
+    const notiChannel = supabaseRT
       .channel(notiChannelId)
       .on(
         'postgres_changes',
@@ -1323,8 +1340,8 @@ export default function App() {
     return () => {
       active = false;
       if (retryTimeout) clearTimeout(retryTimeout);
-      supabase.removeChannel(recordsChannel);
-      supabase.removeChannel(notiChannel);
+      supabaseRT.removeChannel(recordsChannel);
+      supabaseRT.removeChannel(notiChannel);
     };
   }, [currentUser?.id, realtimeReconnectKey]);
 
