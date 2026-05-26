@@ -1152,8 +1152,9 @@ export default function App() {
     setRealtimeStatus('connecting');
 
     // Subscribe thay đổi bảng records
+    const channelId = `realtime-records-${currentUser.id}-${Date.now()}`;
     const recordsChannel = supabase
-      .channel('realtime-records')
+      .channel(channelId)
       .on(
         'postgres_changes',
         { 
@@ -1241,13 +1242,33 @@ export default function App() {
       )
       .subscribe((status, err) => {
         if (!active) return;
-        console.log('Realtime status:', status, err || '');
+        
+        // Log đầy đủ để debug
+        console.log('[Realtime-Records]', {
+          status,
+          error: err,
+          time: new Date().toLocaleTimeString('vi-VN'),
+          user: currentUser?.username
+        });
+
         if (status === 'SUBSCRIBED') {
           console.log('✅ Realtime connected');
           setRealtimeStatus('connected');
           retryCount = 0; // Reset khi kết nối thành công
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.warn('⚠️ Realtime connection error:', status, err || '');
+          console.error('[Realtime-Records] Lỗi kết nối hoặc mất kết nối:', err);
+          
+          // Kiểm tra lỗi cụ thể liên quan đến Replication
+          if (err && (typeof err === 'object' || typeof err === 'string')) {
+            const errMsg = typeof err === 'string' ? err : (err as any).message || '';
+            if (errMsg.toLowerCase().includes('replication')) {
+              console.error(
+                '[Realtime-Records] Bảng records chưa bật Replication. ' +
+                'Vui lòng truy cập Supabase Dashboard → Database → Replication và BẬT bảng records!'
+              );
+            }
+          }
+          
           retryCount++;
           if (retryCount >= MAX_RETRY) {
             console.warn(
@@ -1268,8 +1289,9 @@ export default function App() {
       });
 
     // Subscribe thay đổi bảng notifications
+    const notiChannelId = `realtime-noti-${currentUser.id}-${Date.now()}`;
     const notiChannel = supabase
-      .channel('realtime-notifications')
+      .channel(notiChannelId)
       .on(
         'postgres_changes',
         {
@@ -1290,7 +1312,11 @@ export default function App() {
       )
       .subscribe((status, err) => {
         if (!active) return;
-        console.log('Notification Realtime status:', status, err || '');
+        console.log('[Realtime-Notification]', {
+          status,
+          error: err,
+          time: new Date().toLocaleTimeString('vi-VN')
+        });
       });
 
     // Cleanup khi logout hoặc unmount
