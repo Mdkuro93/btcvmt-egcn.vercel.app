@@ -776,6 +776,24 @@ export default function App() {
 
   const [stepConfig, setStepConfig] = useState<Record<string, { label: string, dept: Dept, status: UnitStatus, slaDays?: number, active: boolean }>>(INITIAL_STEP_CONFIG);
   const [projects, setProjects] = useState<Project[]>([]);
+  const userRole = useMemo(() => currentUser?.dept || 'PTT', [currentUser]);
+
+  const canEdit = (user: UserProfile | null): boolean => {
+    if (!user) return false;
+    if (user.dept === 'ADMIN') return true;
+    if (['KT', 'PTT', 'PTDA'].includes(user.dept)) return true;
+    return user.permission === 'EDIT' || user.permission === 'FULL';
+  };
+
+  const userCanEdit = useMemo(() => canEdit(currentUser), [currentUser]);
+  
+  const isManagementEdit = useMemo(() => {
+    return userRole === 'ADMIN' || (['MANAGER', 'DIRECTOR'].includes(userRole) && userCanEdit);
+  }, [userRole, userCanEdit]);
+
+  const isManagement = useMemo(() => {
+    return ['ADMIN', 'MANAGER', 'DIRECTOR'].includes(userRole);
+  }, [userRole]);
   const [applications, setApplications] = useState<Application[]>([]);
   useSelfHealingData(applications, setApplications);
   const [dashboardApps, setDashboardApps] = useState<Application[]>([]);
@@ -1163,8 +1181,11 @@ export default function App() {
 
     let active = true;
     let retryTimeout: any = null;
-    let retryCount = 0;
-    const MAX_RETRY = 3;
+
+    // Tính danh sách project name được gán để filter trong callback (RLS Realtime workaround)
+    const assignedNames = projects
+      .filter(p => currentUser.assignedProjectIds?.includes(p.id))
+      .map(p => p.name);
 
     setRealtimeStatus('connecting');
 
@@ -1182,6 +1203,16 @@ export default function App() {
         (payload) => {
           if (!active) return;
           const { eventType, new: newRow, old: oldRow } = payload;
+
+          // Filter theo project trong callback để tránh lỗi transport/RLS block subscription
+          if (eventType !== 'DELETE') {
+            const projectName = newRow?.project_name;
+            const isAllowed = userRole === 'ADMIN' || 
+              userRole === 'DIRECTOR' ||
+              !projectName ||
+              assignedNames.includes(projectName);
+            if (!isAllowed) return; // Bỏ qua nếu không có quyền xem project này
+          }
 
           if (eventType === 'INSERT') {
             const newApp = mapFromSnakeCase(newRow);
@@ -1258,48 +1289,19 @@ export default function App() {
         }
       )
       .subscribe((status, err) => {
+        console.log('[Realtime-Records]', status, err || '');
         if (!active) return;
-        
-        // Log đầy đủ để debug
-        console.log('[Realtime-Records]', {
-          status,
-          error: err,
-          time: new Date().toLocaleTimeString('vi-VN'),
-          user: currentUser?.username
-        });
 
         if (status === 'SUBSCRIBED') {
           console.log('✅ Realtime connected');
           setRealtimeStatus('connected');
-          retryCount = 0; // Reset khi kết nối thành công
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.error('[Realtime-Records] Lỗi kết nối hoặc mất kết nối:', err);
-          
-          // Kiểm tra lỗi cụ thể liên quan đến Replication
-          if (err && (typeof err === 'object' || typeof err === 'string')) {
-            const errMsg = typeof err === 'string' ? err : (err as any).message || '';
-            if (errMsg.toLowerCase().includes('replication')) {
-              console.error(
-                '[Realtime-Records] Bảng records chưa bật Replication. ' +
-                'Vui lòng truy cập Supabase Dashboard → Database → Replication và BẬT bảng records!'
-              );
-            }
-          }
-          
-          retryCount++;
-          if (retryCount >= MAX_RETRY) {
-            console.warn(
-              `Realtime không khả dụng sau ${MAX_RETRY} lần thử. ` +
-              `Chuyển sang polling mode.`
-            );
-            setRealtimeStatus('error');
-            // KHÔNG retry nữa -> fallback polling tự xử lý
-          } else {
-            const delay = Math.min(5000 * retryCount, 30000);
-            retryTimeout = setTimeout(() => {
-              if (active) setRealtimeReconnectKey(prev => prev + 1);
-            }, delay);
-          }
+          console.error('[Realtime Error]', err);
+          setRealtimeStatus('error');
+          // Thử lại sau 30s
+          retryTimeout = setTimeout(() => {
+            if (active) setRealtimeReconnectKey(p => p + 1);
+          }, 30000);
         } else {
           setRealtimeStatus('connecting');
         }
@@ -1343,7 +1345,7 @@ export default function App() {
       supabaseRT.removeChannel(recordsChannel);
       supabaseRT.removeChannel(notiChannel);
     };
-  }, [currentUser?.id, realtimeReconnectKey]);
+  }, [currentUser?.id, realtimeReconnectKey, projects, userRole]);
 
   // Bộ hẹn giờ dự phòng (Fallback Polling) khi kênh Real-time WebSocket bị chặn trong môi trường iFrame Sandbox
   useEffect(() => {
@@ -1931,24 +1933,6 @@ export default function App() {
       fetchStorageUsage();
     }
   }, [activeTab]);
-  const userRole = useMemo(() => currentUser?.dept || 'PTT', [currentUser]);
-
-  const canEdit = (user: UserProfile | null): boolean => {
-    if (!user) return false;
-    if (user.dept === 'ADMIN') return true;
-    if (['KT', 'PTT', 'PTDA'].includes(user.dept)) return true;
-    return user.permission === 'EDIT' || user.permission === 'FULL';
-  };
-
-  const userCanEdit = useMemo(() => canEdit(currentUser), [currentUser]);
-  
-  const isManagementEdit = useMemo(() => {
-    return userRole === 'ADMIN' || (['MANAGER', 'DIRECTOR'].includes(userRole) && userCanEdit);
-  }, [userRole, userCanEdit]);
-
-  const isManagement = useMemo(() => {
-    return ['ADMIN', 'MANAGER', 'DIRECTOR'].includes(userRole);
-  }, [userRole]);
   const [isEditing, setIsEditing] = useState(false);
   const [conflictWarning, setConflictWarning] = useState<string | null>(null);
   const selfUpdateRef = useRef<Set<number>>(new Set());
