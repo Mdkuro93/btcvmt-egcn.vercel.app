@@ -1146,6 +1146,8 @@ export default function App() {
 
     let active = true;
     let retryTimeout: any = null;
+    let retryCount = 0;
+    const MAX_RETRY = 3;
 
     setRealtimeStatus('connecting');
 
@@ -1243,17 +1245,23 @@ export default function App() {
         if (status === 'SUBSCRIBED') {
           console.log('✅ Realtime connected');
           setRealtimeStatus('connected');
+          retryCount = 0; // Reset khi kết nối thành công
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           console.warn('⚠️ Realtime connection error:', status, err || '');
-          retryTimeout = setTimeout(() => {
-            if (active) {
-              setRealtimeStatus('error');
-              // Retry sau 30s để giảm load
-              retryTimeout = setTimeout(() => {
-                if (active) setRealtimeReconnectKey(prev => prev + 1);
-              }, 30000);
-            }
-          }, 5000); // Chờ 5s trước khi báo error
+          retryCount++;
+          if (retryCount >= MAX_RETRY) {
+            console.warn(
+              `Realtime không khả dụng sau ${MAX_RETRY} lần thử. ` +
+              `Chuyển sang polling mode.`
+            );
+            setRealtimeStatus('error');
+            // KHÔNG retry nữa -> fallback polling tự xử lý
+          } else {
+            const delay = Math.min(5000 * retryCount, 30000);
+            retryTimeout = setTimeout(() => {
+              if (active) setRealtimeReconnectKey(prev => prev + 1);
+            }, delay);
+          }
         } else {
           setRealtimeStatus('connecting');
         }
@@ -1298,14 +1306,17 @@ export default function App() {
   useEffect(() => {
     if (!currentUser || realtimeStatus === 'connected') return;
 
-    // Tự động kéo dữ liệu (HTTP pull) định kỳ mỗi 45 giây để duy trì đồng bộ
+    // Tự động kéo dữ liệu (HTTP pull) định kỳ mỗi 60 giây để duy trì đồng bộ
     const fallbackPollInterval = setInterval(() => {
+      // Không poll khi tab bị ẩn (tiết kiệm tài nguyên)
+      if (document.hidden) return;
+
       console.log('🔄 Đang đồng bộ dữ liệu dự phòng qua HTTPS (WebSocket bị chặn hoặc mất kết nối)...');
       if (activeTab === 'applications') {
         fetchApplications();
       }
       fetchDashboardApps();
-    }, 45000);
+    }, 60000);
 
     return () => {
       clearInterval(fallbackPollInterval);
@@ -6182,10 +6193,10 @@ export default function App() {
                   }}
                   title={
                     realtimeStatus === 'connected' 
-                      ? "Kết nối Live Real-time đang hoạt động. Khi có thay đổi, hệ thống sẽ tự cập nhật ngay lập tức!"
+                      ? "Cập nhật tức thì khi có thay đổi"
                       : realtimeStatus === 'error'
-                        ? "Cơ sở dữ liệu và hệ thống API SQL tĩnh của ứng dụng vẫn kết nối & hoạt động hoàn hảo 100%! Chỉ có luồng cập nhật tự động (Real-time Live qua WebSocket) bị hạn chế bởi cơ chế sandbox iFrame của trình duyệt. Bạn vẫn thêm, sửa, xóa dữ liệu bình thường. Bấm để kết nối lại."
-                        : "Đang cố gắng thiết lập kênh truyền thời gian thực qua WebSocket..."
+                        ? "Tự động đồng bộ mỗi 60 giây (Bấm để thử kết nối lại)"
+                        : "Đang kết nối..."
                   }
                   className={cn(
                     "flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider",
@@ -6210,7 +6221,7 @@ export default function App() {
                         : "bg-slate-400 animate-pulse"
                   )}/>
                   {realtimeStatus === 'connected' ? 'Live' 
-                    : realtimeStatus === 'error' ? 'Mất Live (Thử lại)' 
+                    : realtimeStatus === 'error' ? 'Polling (60s)' 
                     : 'Kết nối...'}
                 </button>
               </div>
