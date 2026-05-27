@@ -232,7 +232,7 @@ const useSelfHealingData = (applications: Application[], setApplications: (apps:
         try {
           // Bulk update the inconsistent ones
           const updatedApps = await bulkSyncRecordsToSupabase(healedApps, applications, showToast);
-          handleSetApplications(updatedApps);
+          setApplications(updatedApps);
         } catch (error) {
           console.error('[Self-Healing] Error fixing records:', error);
           showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
@@ -1878,7 +1878,7 @@ export default function App() {
     handleBulkReportIssue,
   } = useBulkActions({
     applications,
-    setApplications,
+    setApplications: handleSetApplications,
     bulkSyncRecordsToSupabase,
     updateAppIssue,
     showToast,
@@ -2609,7 +2609,7 @@ export default function App() {
     slaConfig,
     showToast,
     fetchApplications,
-    setApplications,
+    setApplications: handleSetApplications,
     setHighlightedAppId,
     setActiveTab,
     visibleProjects,
