@@ -652,7 +652,7 @@ export const DashboardTab = ({
                     <div className="p-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {roleKpis.admin.deptStats.map((dept, idx) => (
-                          <div key={dept.dept} className={cn(
+                          <div key={`dept-${dept.dept}-${idx}`} className={cn(
                             "p-4 rounded-[2rem] border transition-all hover:bg-slate-800/10 duration-300",
                             theme === 'light' ? "bg-slate-50 border-slate-100 shadow-sm" : "bg-slate-800/40 border-slate-700/30 shadow-xl"
                           )}>
@@ -706,8 +706,8 @@ export const DashboardTab = ({
                           onChange={(e) => setProjectRegionFilter(e.target.value)}
                         >
                           <option value="ALL">Tất cả khu vực</option>
-                          {REGION_ORDER.map(r => (
-                            <option key={r} value={r}>{r}</option>
+                          {REGION_ORDER.map((r: string, index: number) => (
+                            <option key={`region-opt-${index}`} value={r}>{r}</option>
                           ))}
                         </select>
                       </div>
@@ -727,7 +727,7 @@ export const DashboardTab = ({
                       <tbody className={cn("divide-y", theme === 'light' ? "divide-slate-50" : "divide-slate-800/50")}>
                         {visibleProjects
                           .filter(p => projectRegionFilter === 'ALL' || p.region === projectRegionFilter)
-                          .map(p => {
+                          .map((p, index) => {
                             const projectApps = dashboardApps.filter(a => a.projectName === p.name);
                             const completed = projectApps.filter(a => a.currentStep === 'Hoan_Tat' || a.customerHandoverDate || a.status === 'Completed').length;
                             const processing = projectApps.filter(a => a.status === 'Processing' || a.status === 'Submitted' || a.status === 'TaxPending').length;
@@ -739,7 +739,7 @@ export const DashboardTab = ({
 
                             return (
                               <tr 
-                                key={p.id} 
+                                key={`project-row-${p.id || p.name}-${index}`} 
                                 onClick={() => setSelectedProjectId(p.id)}
                                 className={cn(
                                   "transition-colors cursor-pointer group border-b",

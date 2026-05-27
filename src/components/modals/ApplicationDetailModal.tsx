@@ -488,12 +488,12 @@ export const ApplicationDetailModal = ({
                                      <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Danh mục hồ sơ gốc</h4>
                                    </div>
                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
-                                     {['HĐMB/HĐCN Gốc', 'Văn bản chuyển nhượng', 'Lệ phí trước bạ', 'Sổ hộ khẩu/CCCD', 'Giấy xác nhận tình trạng hôn nhân'].map((item) => {
+                                     {['HĐMB/HĐCN Gốc', 'Văn bản chuyển nhượng', 'Lệ phí trước bạ', 'Sổ hộ khẩu/CCCD', 'Giấy xác nhận tình trạng hôn nhân'].map((item, idx) => {
                                        const checklist = (editApp || selectedApp).checklist || {};
                                        const isChecked = !!checklist[item];
                                        return (
                                          <div 
-                                           key={item}
+                                           key={`chk-${item}-${idx}`}
                                            onClick={() => {
                                              if (!isEditing || !isFieldEditable('checklist')) return;
                                              handleFieldChange('checklist', {

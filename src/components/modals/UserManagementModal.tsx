@@ -153,13 +153,13 @@ export const UserManagementModal = ({
                 <div className="space-y-2">
                   <label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest pl-1">Dự án được phân quyền</label>
                   <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 max-h-40 overflow-y-auto custom-scrollbar grid grid-cols-2 gap-2">
-                    {projects.map(project => {
+                    {projects.map((project, index) => {
                       const isAssigned = editUser 
                         ? (editUser.assignedProjectIds || []).includes(project.id)
                         : newUser.assignedProjectIds.includes(project.id);
                       
                       return (
-                        <label key={project.id} className="flex items-center gap-2 p-2 hover:bg-slate-800/50 rounded-lg cursor-pointer transition-colors">
+                        <label key={`project-assign-${project.id}-${index}`} className="flex items-center gap-2 p-2 hover:bg-slate-800/50 rounded-lg cursor-pointer transition-colors">
                           <input 
                             type="checkbox"
                             className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500/20"

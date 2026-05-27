@@ -61,8 +61,8 @@ const HandoverRecord = ({ apps, user, template }: HandoverRecordProps) => {
                   <td className="border border-black px-2 py-2 whitespace-nowrap">
                     {app.scannedFiles && app.scannedFiles.length > 0 && (
                       <div className="flex flex-col gap-0.5 text-[8px] italic">
-                        {app.scannedFiles.map(f => (
-                          <span key={f.id} className="truncate max-w-[100px]">• {f.name}</span>
+                        {app.scannedFiles.map((f, fIdx) => (
+                          <span key={`${f.id || 'file'}-${fIdx}`} className="truncate max-w-[100px]">• {f.name}</span>
                         ))}
                       </div>
                     )}
@@ -74,7 +74,7 @@ const HandoverRecord = ({ apps, user, template }: HandoverRecordProps) => {
                       <span className="font-bold text-gray-500 mr-2 italic">Liên kết tài liệu Số:</span>
                       {app.scannedFiles.map((f, fIdx) => (
                         <a 
-                          key={f.id} 
+                          key={`${f.id || 'file-link'}-${fIdx}`} 
                           href={f.url} 
                           target="_blank" 
                           rel="noreferrer" 

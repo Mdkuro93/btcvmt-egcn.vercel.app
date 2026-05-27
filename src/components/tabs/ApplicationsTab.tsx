@@ -182,9 +182,9 @@ export const ApplicationsTab = ({
                             { field: 'status', label: '📊 Trạng thái' },
                             { field: 'unitCode', label: '🏠 Mã lô' },
                             { field: 'customerName', label: '👤 Tên KH' },
-                          ] as const).map(({ field, label }) => (
+                          ] as const).map(({ field, label }, idx) => (
                             <button
-                              key={field}
+                              key={`sort-${field}-${idx}`}
                               onClick={() => setSortConfig(prev => ({
                                 field,
                                 direction: prev.field === field && 
@@ -284,11 +284,11 @@ export const ApplicationsTab = ({
                                     { key: 'TAX_PENDING', label: 'Chờ NVTC', queryLabel: '#TAX_PENDING' },
                                     { key: 'WAITING_HANDOVER', label: 'Chờ bàn giao', queryLabel: '#WAITING_HANDOVER' },
                                     { key: 'COMPLETED', label: 'Đã hoàn tất', queryLabel: '#COMPLETED' }
-                                  ].map((item) => {
+                                  ].map((item, idx) => {
                                     const isSelected = selectedFlags.includes(item.key);
                                     return (
                                       <button
-                                        key={item.key}
+                                        key={`flag-${item.key}-${idx}`}
                                         onClick={() => {
                                           if (isSelected) {
                                             setSelectedFlags(selectedFlags.filter(f => f !== item.key));
@@ -669,8 +669,8 @@ export const ApplicationsTab = ({
                           <th className="px-2 py-2 border-b border-slate-800/10">Dự án</th>
                           <th className="px-2 py-2 border-b border-slate-800/10">Khách hàng</th>
                           {isSpreadsheetMode ? (
-                            EDITABLE_DATE_FIELDS.map(f => (
-                              <th key={f.key} className="px-2 py-2 text-center whitespace-nowrap bg-indigo-500/5 border-b border-slate-800/10">{f.label}</th>
+                            EDITABLE_DATE_FIELDS.map((f, index) => (
+                              <th key={`head-${f.key}-${index}`} className="px-2 py-2 text-center whitespace-nowrap bg-indigo-500/5 border-b border-slate-800/10">{f.label}</th>
                             ))
                           ) : (
                             <>
@@ -887,7 +887,7 @@ export const ApplicationsTab = ({
                                 </div>
                               </td>
                               {isSpreadsheetMode ? (
-                                EDITABLE_DATE_FIELDS.map(f => {
+                                EDITABLE_DATE_FIELDS.map((f, fIdx) => {
                                   const val = spreadsheetChanges[app.id]?.[f.key as keyof Application] ?? (app[f.key as keyof Application] ? formatDate(app[f.key as keyof Application] as string) : '');
                                   const hasError = spreadsheetErrors[app.id]?.[f.key];
                                   const isChanged = spreadsheetChanges[app.id]?.hasOwnProperty(f.key);
@@ -895,7 +895,7 @@ export const ApplicationsTab = ({
 
                                   return (
                                     <td 
-                                      key={f.key} 
+                                      key={`cell-${app.id}-${f.key}-${fIdx}`} 
                                       className={cn(
                                         "px-3 py-1.5 text-xs leading-tight border-x transition-all relative group/cell",
                                         theme === 'light' ? "border-slate-50" : "border-slate-800/20",

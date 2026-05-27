@@ -85,9 +85,9 @@ export default function FieldModeView({
           >
             Tất cả dự án
           </button>
-          {projects.map(p => (
+          {projects.map((p, index) => (
             <button 
-              key={p.id}
+              key={`proj-tab-${p.id}-${index}`}
               onClick={() => setSelectedProject(p.id)}
               className={cn(
                 "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border",
@@ -112,9 +112,9 @@ export default function FieldModeView({
 
        <div className="space-y-4 pb-24 text-left">
           {filteredApps.length > 0 ? (
-            filteredApps.map(app => (
+            filteredApps.map((app, index) => (
               <div 
-                key={app.id} 
+                key={`field-app-${app.id}-${index}`} 
                 onClick={() => setSelectedApp(app)}
                 className={cn(
                   "bg-slate-900/40 p-5 rounded-[2rem] border transition-all relative overflow-hidden",
@@ -264,9 +264,9 @@ export default function FieldModeView({
                            { val: 'Processing', label: 'Đang xử lý' },
                            { val: 'Completed', label: 'Đã xong' },
                            { val: 'Error', label: 'Vướng mắc' }
-                         ].map(st => (
+                         ].map((st, index) => (
                             <button 
-                              key={st.val}
+                              key={`st-btn-${st.val}-${index}`}
                               onClick={() => {
                                  onUpdateApp({ ...selectedApp, status: st.val as any });
                                  setSelectedApp(null);

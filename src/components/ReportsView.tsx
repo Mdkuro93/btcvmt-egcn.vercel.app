@@ -487,7 +487,7 @@ export default function ReportsView({
             </div>
             <div className="grid grid-cols-3 gap-8 mt-6">
                {reportConfig[reportType].kpis.map((kpi, i) => (
-                 <div key={kpi} className="space-y-1">
+                 <div key={`kpi-${kpi}-${i}`} className="space-y-1">
                     <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">{kpi}</p>
                     <div className="h-1 w-full bg-slate-800 rounded-full mt-2 overflow-hidden">
                       <div className="h-full bg-indigo-500" style={{ width: `${80 - i * 15}%` }} />
@@ -546,11 +546,11 @@ export default function ReportsView({
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {projects.map(p => {
+                    {projects.map((p, pIdx) => {
                       const isSelected = selectedLoanProjectIds.includes(p.id);
                       return (
                         <button
-                          key={p.id}
+                          key={`loan-proj-${p.id}-${pIdx}`}
                           onClick={() => {
                             if (isSelected) {
                               setSelectedLoanProjectIds(selectedLoanProjectIds.filter(id => id !== p.id));

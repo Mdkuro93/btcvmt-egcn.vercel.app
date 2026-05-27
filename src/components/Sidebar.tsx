@@ -326,8 +326,8 @@ export const Sidebar = ({
               if (idxB === -1) return -1;
               return idxA - idxB;
             })
-            .map(([region, regionProjects]) => (
-              <div key={region} className="space-y-1">
+            .map(([region, regionProjects], regIndex) => (
+              <div key={`side-reg-${region}-${regIndex}`} className="space-y-1">
                 <button 
                   onClick={() => toggleSidebarRegion(region)}
                   title={region}
@@ -372,9 +372,9 @@ export const Sidebar = ({
                       exit={{ height: 0, opacity: 0 }}
                       className="overflow-hidden space-y-1 pl-4"
                     >
-                      {regionProjects.map(p => (
+                      {regionProjects.map((p, pIndex) => (
                         <button 
-                          key={p.id} 
+                          key={`sidebar-proj-${p.id}-${pIndex}`} 
                           title={p.name}
                           onClick={() => { 
                             setSelectedProjectId(p.id); 

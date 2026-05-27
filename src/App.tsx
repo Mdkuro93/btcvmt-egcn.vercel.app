@@ -232,7 +232,7 @@ const useSelfHealingData = (applications: Application[], setApplications: (apps:
         try {
           // Bulk update the inconsistent ones
           const updatedApps = await bulkSyncRecordsToSupabase(healedApps, applications, showToast);
-          setApplications(updatedApps);
+          handleSetApplications(updatedApps);
         } catch (error) {
           console.error('[Self-Healing] Error fixing records:', error);
           showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
@@ -491,6 +491,10 @@ export default function App() {
   }, []);
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'TOKEN_REFRESHED' && session?.access_token) {
+        supabase.realtime.setAuth(session.access_token);
+        console.log('[Realtime] Token auto-refreshed ✅');
+      }
       const user = session?.user || null;
       
       if (user) {
@@ -505,16 +509,16 @@ export default function App() {
           setCurrentUser(mapped);
           
           // RESET dependent state on auth change
-          setApplications([]);
-          setDashboardApps([]);
+          handleSetApplications([]);
+          handleSetDashboardApps([]);
           setSelectedAppIds([]);
           setCurrentPage(0);
           setSearch('');
         }
       } else {
         setCurrentUser(null);
-        setApplications([]);
-        setDashboardApps([]);
+        handleSetApplications([]);
+        handleSetDashboardApps([]);
         setSelectedAppIds([]);
         setCurrentPage(0);
         setSearch('');
@@ -559,7 +563,6 @@ export default function App() {
     await supabase.auth.signOut();
   };
   const [applications, setApplications] = useState<Application[]>([]);
-  useSelfHealingData(applications, setApplications);
   const [dashboardApps, setDashboardApps] = useState<Application[]>([]);
 
   const [sortConfig, setSortConfig] = useState<{
@@ -583,14 +586,12 @@ export default function App() {
     'Completed':      99  // Hoàn tất xuống cuối
   };
 
-  const sortApplications = (apps: Application[]) => {
+  const sortApplications = useCallback((apps: Application[]) => {
     return [...apps].sort((a, b) => {
       if (sortConfig.field === 'smart') {
-        // Ưu tiên: Error > Processing > ... > Completed
         const pa = STATUS_PRIORITY[a.status] ?? 50;
         const pb = STATUS_PRIORITY[b.status] ?? 50;
         if (pa !== pb) return pa - pb;
-        // Cùng trạng thái → mới nhất lên đầu
         return (b.id as number) - (a.id as number);
       }
       if (sortConfig.field === 'unitCode') {
@@ -611,12 +612,35 @@ export default function App() {
         return sortConfig.direction === 'asc' 
           ? pa - pb : pb - pa;
       }
-      // createdAt: mới nhất trước
       return sortConfig.direction === 'asc'
         ? (a.id as number) - (b.id as number)
         : (b.id as number) - (a.id as number);
     });
-  };
+  }, [sortConfig.field, sortConfig.direction]);
+
+  const handleSetApplications = useCallback((newDataOrUpdater: Application[] | ((prev: Application[]) => Application[])) => {
+    setApplications(prev => {
+      const incoming = typeof newDataOrUpdater === 'function' ? newDataOrUpdater(prev) : newDataOrUpdater;
+      const uniqueMap = new Map();
+      incoming.forEach(app => {
+        if (app && app.id) uniqueMap.set(app.id, app);
+      });
+      return sortApplications(Array.from(uniqueMap.values()));
+    });
+  }, [sortApplications]);
+
+  useSelfHealingData(applications, handleSetApplications);
+
+  const handleSetDashboardApps = useCallback((newDataOrUpdater: Application[] | ((prev: Application[]) => Application[])) => {
+    setDashboardApps(prev => {
+      const incoming = typeof newDataOrUpdater === 'function' ? newDataOrUpdater(prev) : newDataOrUpdater;
+      const uniqueMap = new Map();
+      incoming.forEach(app => {
+        if (app && app.id) uniqueMap.set(app.id, app);
+      });
+      return Array.from(uniqueMap.values());
+    });
+  }, []);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [isLoadingApps, setIsLoadingApps] = useState(true);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
@@ -929,7 +953,7 @@ export default function App() {
          showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
          setIsLoadingConfig(false);
          setIsInitialLoading(false);
-         setApplications([]);
+         handleSetApplications([]);
          setUsers([]);
       }
       setIsLoadingApps(false); 
@@ -966,13 +990,29 @@ export default function App() {
       if (!active) return;
       setRealtimeStatus('connecting');
 
-      // Sync session to Realtime client for RLS
       try {
-        const { data: { session }, error: sError } = await supabase.auth.getSession();
-        if (sError) throw sError;
+        // Dùng refreshSession thay vì getSession
+        // để đảm bảo token luôn còn hạn
+        const { data: { session } } = 
+          await supabase.auth.getSession();
+        
         if (session?.access_token) {
-          console.log('[Realtime] Syncing session token');
-          supabase.realtime.setAuth(session.access_token);
+          // Refresh token trước khi set
+          const { data: refreshed } = 
+            await supabase.auth.refreshSession();
+          const validToken = refreshed.session?.access_token 
+            || session.access_token;
+          
+          supabase.realtime.setAuth(validToken);
+          console.log('[Realtime] Auth token set:', 
+            validToken.substring(0, 20) + '...');
+        } else {
+          console.warn('[Realtime] No session found');
+          // Thử lại sau 3s nếu chưa có session
+          setTimeout(() => {
+            if (active) initRealtime();
+          }, 3000);
+          return;
         }
       } catch (err) {
         console.warn('[Realtime] Auth sync warning:', err);
@@ -1007,30 +1047,27 @@ export default function App() {
 
             if (eventType === 'INSERT') {
               const newApp = mapFromSnakeCase(newRow);
-              setApplications(prev => {
+              handleSetApplications(prev => {
                 const exists = prev.some(a => a.id === newApp.id);
-                if (exists) return prev;
-                showToast(
-                  `📋 Hồ sơ mới: ${newApp.unitCode} vừa được tạo bởi người khác`,
-                  'info'
-                );
-                return sortApplications([newApp, ...prev]);
-              });
-              setDashboardApps(prev => {
-                const exists = prev.some(a => a.id === newApp.id);
-                if (exists) return prev;
+                if (!exists) {
+                  showToast(
+                    `📋 Hồ sơ mới: ${newApp.unitCode} vừa được tạo bởi người khác`,
+                    'info'
+                  );
+                }
                 return [newApp, ...prev];
               });
+              handleSetDashboardApps(prev => [newApp, ...prev]);
               setTotalCount(prev => prev + 1);
             }
 
             else if (eventType === 'UPDATE') {
               const updatedApp = mapFromSnakeCase(newRow);
               
-              setApplications(prev => prev.map(a => 
+              handleSetApplications(prev => prev.map(a => 
                 a.id === updatedApp.id ? updatedApp : a
               ));
-              setDashboardApps(prev => prev.map(a => 
+              handleSetDashboardApps(prev => prev.map(a => 
                 a.id === updatedApp.id ? updatedApp : a
               ));
 
@@ -1065,10 +1102,10 @@ export default function App() {
 
             else if (eventType === 'DELETE') {
               const deletedId = oldRow.id;
-              setApplications(prev => 
+              handleSetApplications(prev => 
                 prev.filter(a => a.id !== deletedId)
               );
-              setDashboardApps(prev => 
+              handleSetDashboardApps(prev => 
                 prev.filter(a => a.id !== deletedId)
               );
               setTotalCount(prev => Math.max(0, prev - 1));
@@ -1383,14 +1420,13 @@ export default function App() {
         
       if (error) throw error;
       
-      setApplications(sortApplications(
-        (data || []).map(mapFromSnakeCase)
-      ));
+      const fetchedApps = (data || []).map(mapFromSnakeCase);
+      handleSetApplications(fetchedApps);
       setTotalCount(count || 0);
     } catch (error) {
       console.error('Error fetching paginated records:', error);
      showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
-     setApplications([]);
+     handleSetApplications([]);
       setTotalCount(0);
       // Suppress UI error to keep dashboard smooth
     } finally {
@@ -1454,11 +1490,12 @@ export default function App() {
 
       const { data, error } = await query;
       if (error) throw error;
-      setDashboardApps((data || []).map(mapFromSnakeCase));
+      const fetched = (data || []).map(mapFromSnakeCase);
+      handleSetDashboardApps(fetched);
     } catch (error) {
       console.error('Error fetching dashboard records:', error);
      showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
-     setDashboardApps([]);
+     handleSetDashboardApps([]);
     } finally {
       setIsLoadingDashboard(false);
     }
@@ -2072,8 +2109,8 @@ export default function App() {
     try {
       const finalApp = await syncRecordToSupabase(updatedApp);
       
-      setApplications(prev => prev.map(a => a.id === id ? finalApp : a));
-      setDashboardApps(prev => prev.map(a => a.id === id ? finalApp : a));
+      handleSetApplications(prev => prev.map(a => a.id === id ? finalApp : a));
+      handleSetDashboardApps(prev => prev.map(a => a.id === id ? finalApp : a));
       if (selectedApp?.id === id) setSelectedApp(finalApp);
 
       showToast('Cập nhật nhanh và đồng bộ Supabase thành công!', 'success');
@@ -2123,12 +2160,12 @@ export default function App() {
 
         const syncedApps = await Promise.all(updatedApps.map(app => syncRecordToSupabase(app)));
         
-        setApplications(prev => prev.map(a => {
+        handleSetApplications(prev => prev.map(a => {
             const updated = syncedApps.find(sa => sa.id === a.id);
             return updated ? updated : a;
         }));
 
-        setDashboardApps(prev => prev.map(a => {
+        handleSetDashboardApps(prev => prev.map(a => {
             const updated = syncedApps.find(sa => sa.id === a.id);
             return updated ? updated : a;
         }));
@@ -2473,7 +2510,7 @@ export default function App() {
 
       if (updatePayloads.length > 0) {
         const finalUpdatedApps = await bulkSyncRecordsToSupabase(updatePayloads.map(p => mapFromSnakeCase(p)), updatedAppsLocal);
-        setApplications(finalUpdatedApps);
+        handleSetApplications(finalUpdatedApps);
         let msg = `Cập nhật thành công: ${results.success} căn.`;
         if (results.skipped > 0) msg += ` (Bỏ qua ${results.skipped} căn không đổi).`;
         if (results.warnings && results.warnings.length > 0) {
@@ -2876,8 +2913,8 @@ export default function App() {
       const finalApp = await syncRecordToSupabase(updatedApp);
       const oldId = updatedApp.id;
 
-      setApplications(prev => prev.map(app => app.id === oldId ? finalApp : app));
-      setDashboardApps(prev => prev.map(app => app.id === oldId ? finalApp : app));
+      handleSetApplications(prev => prev.map(app => app.id === oldId ? finalApp : app));
+      handleSetDashboardApps(prev => prev.map(app => app.id === oldId ? finalApp : app));
       setSelectedApp(finalApp);
       setEditApp(null);
       setIsEditing(false);
@@ -2937,8 +2974,8 @@ export default function App() {
 
         if (error) throw error;
 
-        setApplications(prev => prev.filter(app => app.id !== id));
-        setDashboardApps(prev => prev.filter(app => app.id !== id));
+        handleSetApplications(prev => prev.filter(app => app.id !== id));
+        handleSetDashboardApps(prev => prev.filter(app => app.id !== id));
         if (selectedApp?.id === id) {
           setSelectedApp(null);
           setIsEditing(false);
@@ -3155,8 +3192,8 @@ export default function App() {
         await deleteAllNotificationsForRecord(app.id);
       }
 
-      setApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
-      setDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
+      handleSetApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
+      handleSetDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
       setSelectedApp(finalApp);
       setEditApp(null);
       setIsEditing(false);
@@ -3443,8 +3480,8 @@ export default function App() {
       
       // Perform bulk upsert to Supabase
       const finalApps = await bulkSyncRecordsToSupabase(appsToSync, updatedApps);
-      setApplications(finalApps);
-      setDashboardApps(prev => {
+      handleSetApplications(finalApps);
+      handleSetDashboardApps(prev => {
         const next = [...prev];
         appsToSync.forEach(synced => {
           const idx = next.findIndex(a => a.id === synced.id);
@@ -3517,7 +3554,7 @@ export default function App() {
 
       if (error) throw error;
 
-      setApplications(prev => prev.filter(app => !selectedAppIds.includes(app.id)));
+      handleSetApplications(prev => prev.filter(app => !selectedAppIds.includes(app.id)));
       setSelectedAppIds([]);
       showToast(`Đã xóa hàng loạt ${count} hồ sơ và tài liệu đính kèm thành công.`, 'success');
     } catch (error) {
@@ -3600,8 +3637,8 @@ export default function App() {
       const finalApp = await syncRecordToSupabase(updatedApp);
 
       const updatedApps = applications.map(a => a.id === app.id ? finalApp : a);
-      setApplications(updatedApps);
-      setDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
+      handleSetApplications(updatedApps);
+      handleSetDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
       if (editApp && editApp.id === app.id) setEditApp(finalApp);
       if (selectedApp && selectedApp.id === app.id) setSelectedApp(finalApp);
       
@@ -3646,8 +3683,8 @@ export default function App() {
       const finalApp = await syncRecordToSupabase(updatedApp);
 
       const updatedApps = applications.map(a => a.id === app.id ? finalApp : a);
-      setApplications(updatedApps);
-      setDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
+      handleSetApplications(updatedApps);
+      handleSetDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
       if (editApp && editApp.id === app.id) setEditApp(finalApp);
       if (selectedApp && selectedApp.id === app.id) setSelectedApp(finalApp);
       showToast(fileToDelete?.isShared ? 'Đã gỡ bỏ bản sao tài liệu chung.' : 'Đã xóa tài liệu khỏi hệ thống thành công.', 'success');
@@ -3712,8 +3749,8 @@ export default function App() {
       // 4. Batch update to Supabase
       const updatedApplications = await bulkSyncRecordsToSupabase(appsToUpdate, applications);
       
-      setApplications(updatedApplications);
-      setDashboardApps(prev => prev.map(a => {
+      handleSetApplications(updatedApplications);
+      handleSetDashboardApps(prev => prev.map(a => {
         const found = appsToUpdate.find(upd => upd.id === a.id);
         return found ? found : a;
       }));
@@ -3795,7 +3832,7 @@ export default function App() {
     try {
       const finalApp = await syncRecordToSupabase(updatedApp);
 
-      setApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
+      handleSetApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
       setSelectedApp(finalApp);
       setEditApp(null);
       setIsEditing(false);
@@ -3843,7 +3880,7 @@ export default function App() {
     try {
       const finalApp = await syncRecordToSupabase(updatedApp);
 
-      setApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
+      handleSetApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
       setSelectedApp(finalApp);
       showToast('Đã phục hồi trạng thái và đồng bộ Supabase thành công.', 'success');
     } catch (error) {
@@ -3890,8 +3927,8 @@ export default function App() {
 
       const finalApp = await syncRecordToSupabase(updatedApp);
       
-      setApplications(prev => prev.map(a => a.id === appId ? finalApp : a));
-      setDashboardApps(prev => prev.map(a => a.id === appId ? finalApp : a));
+      handleSetApplications(prev => prev.map(a => a.id === appId ? finalApp : a));
+      handleSetDashboardApps(prev => prev.map(a => a.id === appId ? finalApp : a));
       setSelectedApp(finalApp);
       showToast('Đã xác nhận khắc phục xong vướng khoán.', 'success');
     } catch (error) {
@@ -3958,8 +3995,8 @@ export default function App() {
       const finalApp = await syncRecordToSupabase(updatedApp);
       const oldId = app.id;
 
-      setApplications(prev => prev.map(a => a.id === oldId ? finalApp : a));
-      setDashboardApps(prev => prev.map(a => a.id === oldId ? finalApp : a));
+      handleSetApplications(prev => prev.map(a => a.id === oldId ? finalApp : a));
+      handleSetDashboardApps(prev => prev.map(a => a.id === oldId ? finalApp : a));
       setSelectedApp(finalApp);
       setEditApp(null);
       setIsEditing(false);
@@ -4100,7 +4137,7 @@ export default function App() {
       
       setEditApp(nextApp);
     } else if (selectedApp) {
-      setApplications(prev => prev.map(app => {
+      handleSetApplications(prev => prev.map(app => {
         if (app.id === selectedApp.id) {
           const nextApp = { ...app, [field]: value };
           
@@ -4241,8 +4278,8 @@ export default function App() {
       
       const appToAdd = mapFromSnakeCase(data[0]);
 
-      setApplications(prev => [appToAdd, ...prev]);
-      setDashboardApps(prev => [appToAdd, ...prev]);
+      handleSetApplications(prev => [appToAdd, ...prev]);
+      handleSetDashboardApps(prev => [appToAdd, ...prev]);
 
       // Highlight hồ sơ vừa tạo
       if (appToAdd?.id) {
@@ -4940,7 +4977,7 @@ export default function App() {
         applications={applications} 
         projects={projects} 
         onUpdateApp={(updated) => {
-          setApplications(prev => prev.map(a => a.id === updated.id ? updated : a));
+          handleSetApplications(prev => prev.map(a => a.id === updated.id ? updated : a));
           setNotifications(prev => [
             { 
               id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, 
@@ -5806,8 +5843,8 @@ export default function App() {
                         onChange={(e) => { setSelectedProjectId(e.target.value === 'ALL' ? null : e.target.value); setCurrentPage(0); }}
                       >
                         <option key="all-projects" value="ALL">Tất cả dự án</option>
-                        {projects.map(p => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
+                        {projects.map((p, index) => (
+                          <option key={`project-filter-${p.id}-${index}`} value={p.id}>{p.name}</option>
                         ))}
                       </select>
                     </div>

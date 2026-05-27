@@ -97,10 +97,10 @@ export default function ProjectManagementView({
             if (idxB === -1) return -1;
             return idxA - idxB;
           })
-          .map(([region, regionProjects]) => (
+          .map(([region, regionProjects], idx) => (
           <div 
-            key={region} 
-            className={cn(
+             key={`${region}-${idx}`} 
+             className={cn(
               "rounded-[2.5rem] border overflow-hidden transition-all duration-500",
               theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/20 border-slate-800/50"
             )}
@@ -142,9 +142,9 @@ export default function ProjectManagementView({
                   className="overflow-hidden"
                 >
                   <div className="px-8 pb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-top-4">
-                    {regionProjects.map(project => (
+                    {regionProjects.map((project, pIdx) => (
                       <div 
-                        key={project.id}
+                        key={`${project.id}-${pIdx}`}
                         className={cn(
                           "p-6 rounded-[2rem] border transition-all group relative overflow-hidden",
                           theme === 'light' ? "bg-slate-50/50 border-slate-200" : "bg-slate-900/60 border-slate-700/50"

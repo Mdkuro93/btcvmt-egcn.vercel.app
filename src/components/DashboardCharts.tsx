@@ -227,7 +227,7 @@ export default function DashboardCharts({
              theme === 'dark' ? "bg-slate-950/20" : "bg-slate-100/30"
           )}>
             {pieData.map((entry, index) => (
-              <div key={entry.name} className="flex flex-col gap-0.5">
+              <div key={`pie-legend-${entry.name}-${index}`} className="flex flex-col gap-0.5">
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: entry.color }}></div>
                   <span className={cn("text-[9px] font-black uppercase tracking-tight truncate", theme === 'dark' ? "text-slate-400" : "text-slate-600")}>{entry.name}</span>

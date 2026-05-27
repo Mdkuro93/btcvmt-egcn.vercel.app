@@ -119,7 +119,7 @@ export const ResourcesTab = ({
                           { name: 'Tờ khai thuế thu nhập cá nhân', format: 'PDF', size: '115KB' },
                           { name: 'Mẫu giấy ủy quyền nộp HS', format: 'DOCX', size: '32KB' }
                         ].map((doc, idx) => (
-                          <button key={doc.name} className={cn(
+                          <button key={`resource-doc-${idx}`} className={cn(
                             "w-full flex items-center justify-between p-4 rounded-2xl border transition-all",
                             theme === 'light' ? "bg-slate-50 border-slate-100 hover:bg-slate-100" : "bg-slate-950/30 border-slate-800/30 hover:bg-slate-800/30"
                           )}>

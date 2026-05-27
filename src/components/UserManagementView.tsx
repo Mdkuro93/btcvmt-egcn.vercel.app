@@ -57,8 +57,8 @@ const UserManagementView = ({
             "divide-y transition-all",
             theme === 'light' ? "divide-slate-50" : "divide-slate-800/50"
           )}>
-            {users.map(user => (
-              <tr key={user.id} className={cn(
+            {users.map((user, idx) => (
+              <tr key={`${user.id}-${idx}`} className={cn(
                 "group transition-all",
                 theme === 'light' ? "hover:bg-slate-50" : "hover:bg-slate-800/20"
               )}>
