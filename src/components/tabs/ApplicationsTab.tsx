@@ -1,0 +1,1175 @@
+import React from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { cn } from '../../lib/utils';
+import { StatusBadge } from '../AppSubComponents';
+import { Application } from '../../types';
+import { formatDate } from '../../utils/dateUtils';
+import { getNextStep } from '../../constants';
+import { 
+  Building, Clock, FileText, CheckCircle, AlertTriangle, Play, FastForward, Inbox, ChevronDown, Check, Target, Activity, Zap,
+  Search, Printer, Filter, X, FileSpreadsheet, Trash2, MessageSquare, GitMerge, RotateCcw, User, ArrowUp, ArrowDown, RefreshCcw,
+  Files, ChevronRight, AlertCircle
+} from 'lucide-react';
+
+export const ApplicationsTab = ({
+  activeTab, 
+  userRole, 
+  theme, 
+  isTableDense, 
+  setIsTableDense, 
+  searchQuery, 
+  setSearchQuery, 
+  bulkTransitionTarget, 
+  setBulkTransitionTarget, 
+  bulkTransitionLocation, 
+  setBulkTransitionLocation, 
+  bulkTransitionField, 
+  setBulkTransitionField,
+  dashboardApps,
+  applications,
+  dashboardFilter,
+  selectedProject,
+  projects,
+  visibleApps,
+  displayedApps,
+  selectedRows,
+  setSelectedRows,
+  handleSelectApp,
+  handleQuickSave,
+  handleSpreadsheetChange,
+  handleSpreadsheetPaste,
+  handleDownloadTemplate,
+  handleParseTemplate,
+  handleBulkPrint,
+  handleBulkDelete,
+  handleBulkResolveIssues,
+  handleToggleChecklist,
+  setIsHandoverTicketOpen,
+  setIsBulkDocumentModalOpen,
+  setIsBulkNoteModalOpen,
+  checklistTemplates,
+  quickEditId,
+  quickEditData,
+  setQuickEditId,
+  setQuickEditData,
+  activeCell,
+  setActiveCell,
+  spreadsheetChanges,
+  spreadsheetErrors,
+  formErrors,
+  conflictWarning,
+  canCreate,
+  canEdit,
+  stepConfig,
+  getTaxStatus,
+  getOverdueInfo,
+  calculateDaysDiff,
+  selectedProjectId,
+  setSelectedProjectId,
+  filterStatus,
+  setFilterStatus,
+  filterLoanStatus,
+  setFilterLoanStatus,
+  filterSelfService,
+  setFilterSelfService,
+  filterIssue,
+  setFilterIssue,
+  filterSLAStatus,
+  setFilterSLAStatus,
+  selectedFlags,
+  setSelectedFlags,
+  sortConfig,
+  setSortConfig,
+  currentPage,
+  setCurrentPage,
+  pageSize,
+  setPageSize,
+  isFieldMode,
+  setIsFieldMode,
+  isAdvancedFiltersOpen,
+  setIsAdvancedFiltersOpen,
+  handleSort,
+  paginatedApps,
+  totalPages,
+  tableRowRefs,
+  highlightedAppId,
+  selectedIndex,
+  setSelectedIndex,
+  lastSelectedIndex,
+  setLastSelectedIndex,
+  currentUser,
+  userCanEdit,
+  isManagement,
+  hasSettingsAccess,
+  hasUserAccess,
+  setIsBulkNoteOpen,
+  setIsBulkDocumentOpen,
+  setIsBulkIssueOpen,
+  selectedAppIds,
+  setSelectedAppIds,
+  isSavingApp,
+  isManagementEdit,
+  filteredApps,
+  isSpreadsheetMode,
+  setIsSpreadsheetMode,
+  EDITABLE_DATE_FIELDS,
+  isLoadingApps,
+  slaConfig,
+  INITIAL_STEP_CONFIG,
+  handleResolveIssue,
+  setPreviewFile,
+  handleDeleteApp,
+  setSpreadsheetChanges,
+  setSpreadsheetErrors,
+  confirmSpreadsheetUpdates,
+  totalCount,
+  search,
+  setSearch,
+  setIsShowFilters,
+  isShowFilters,
+  quickFilterRef,
+  setIsQuickFilterOpen,
+  isQuickFilterOpen,
+  setDashboardFilter,
+  handleBulkStepTransition
+}: any) => {
+
+  return (
+<>
+            {activeTab === 'applications' && (
+              <motion.div 
+                key="applications"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="w-full"
+              >
+                <div className={cn(
+                  "backdrop-blur-md rounded-3xl shadow-2xl border transition-all overflow-hidden",
+                  theme === 'light' ? "bg-white border-slate-200 shadow-slate-900/5" : "bg-slate-900/40 border-slate-800/50"
+                )}>
+                  <div className={cn("p-3 border-b", theme === 'light' ? "border-slate-100 shadow-inner bg-slate-50/50" : "border-slate-800/50")}>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className={cn("flex items-center gap-4 text-[11px]", theme === 'light' ? "text-slate-800" : "text-slate-200")}>
+                        <select 
+                          value={pageSize}
+                          onChange={(e) => {setPageSize(Number(e.target.value)); setCurrentPage(0);}}
+                          className={cn("px-2 py-1 rounded-lg text-[10px] outline-none font-bold", theme === 'light' ? "bg-slate-200/50 text-slate-800 border border-slate-300/50" : "bg-slate-800 text-slate-200 border border-slate-700")}
+                        >
+                          <option value={20}>20 / trang</option>
+                          <option value={50}>50 / trang</option>
+                          <option value={100}>100 / trang</option>
+                        </select>
+                        <div className={cn("flex items-center gap-2 font-bold", theme === 'light' ? "text-slate-600" : "text-slate-400")}>
+                          <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className={cn("p-1 transition-colors disabled:opacity-30", theme === 'light' ? "hover:text-indigo-600" : "hover:text-festive-gold")}>Trước</button>
+                          <span className={cn("px-3 py-1 rounded-lg", theme === 'light' ? "bg-slate-200/50 text-slate-900" : "bg-slate-800 text-white")}>Trang {currentPage + 1}</span>
+                          <button onClick={() => setCurrentPage(p => ( (p+1)*pageSize < totalCount ? p + 1 : p))} disabled={(currentPage+1)*pageSize >= totalCount} className={cn("p-1 transition-colors disabled:opacity-30", theme === 'light' ? "hover:text-indigo-600" : "hover:text-festive-gold")}>Sau</button>
+                        </div>
+                        <span className="text-slate-500 font-bold italic opacity-70">Tổng: {totalCount.toLocaleString()} hồ sơ</span>
+                      </div>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* VIỆC 1: Sort buttons */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={cn(
+                            "text-[9px] font-black uppercase tracking-wider",
+                            theme === 'dark' ? "text-slate-500" : "text-slate-400"
+                          )}>
+                            Sắp xếp:
+                          </span>
+                          {([
+                            { field: 'smart', label: '🎯 Thông minh' },
+                            { field: 'status', label: '📊 Trạng thái' },
+                            { field: 'unitCode', label: '🏠 Mã lô' },
+                            { field: 'customerName', label: '👤 Tên KH' },
+                          ] as const).map(({ field, label }) => (
+                            <button
+                              key={field}
+                              onClick={() => setSortConfig(prev => ({
+                                field,
+                                direction: prev.field === field && 
+                                  prev.direction === 'asc' ? 'desc' : 'asc'
+                              }))}
+                              className={cn(
+                                "px-2 py-1 rounded-lg border text-[9px] font-black",
+                                "transition-all uppercase tracking-wider",
+                                sortConfig.field === field
+                                  ? theme === 'dark'
+                                    ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-400"
+                                    : "bg-indigo-50 border-indigo-200 text-indigo-600"
+                                  : theme === 'dark'
+                                    ? "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600"
+                                    : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                              )}
+                            >
+                              {label}
+                              {sortConfig.field === field && (
+                                <span className="ml-0.5">
+                                  {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+
+
+
+                        <div className="relative group">
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                          <input 
+                            type="text" 
+                            placeholder="Tìm kiếm nhanh..." 
+                            className={cn(
+                              "pl-8 pr-3 py-1.5 rounded-full text-[10px] font-bold transition-all w-40 outline-none border tracking-tight",
+                              theme === 'light' ? "bg-white border-slate-200 text-slate-800 focus:border-indigo-500/50 shadow-sm" : "bg-slate-950/40 border-slate-800 text-slate-200 focus:border-festive-gold/50"
+                            )}
+                            value={search}
+                            onChange={(e) => { setSearch(e.target.value); setCurrentPage(0); }}
+                          />
+                        </div>
+
+                        {selectedAppIds.length > 0 && (
+                          <button 
+                            onClick={handleBulkPrint}
+                            className="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 active:scale-95 transition-all"
+                          >
+                            <Printer size={12} />
+                            In ({selectedAppIds.length})
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => setIsShowFilters(!isShowFilters)}
+                          className={cn(
+                            "flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
+                            isShowFilters || (selectedProjectId || filterStatus !== 'ALL' || filterLoanStatus !== 'ALL' || filterSelfService !== 'ALL' || filterSLAStatus !== 'ALL' || filterIssue !== 'ALL')
+                              ? "bg-festive-gold text-slate-950 border-festive-gold shadow-lg shadow-festive-gold/15 font-black" 
+                              : (theme === 'light' ? "bg-white text-slate-600 border-slate-200 shadow-sm hover:bg-slate-50" : "bg-slate-950/40 text-slate-400 border-slate-800 hover:border-festive-gold/30")
+                          )}
+                        >
+                          <Filter size={12} />
+                          Bộ lọc
+                        </button>
+
+                        <div className="relative inline-block text-left" ref={quickFilterRef}>
+                          <button 
+                            onClick={() => setIsQuickFilterOpen(!isQuickFilterOpen)}
+                            className={cn(
+                              "flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
+                              isQuickFilterOpen || selectedFlags.length > 0
+                                ? "bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-600/20" 
+                                : (theme === 'light' ? "bg-white text-slate-600 border-slate-200 shadow-sm hover:bg-slate-50" : "bg-slate-950/40 text-slate-400 border-slate-800 hover:border-indigo-550/30")
+                            )}
+                          >
+                            <span>Lọc nhanh {selectedFlags.length > 0 ? `(${selectedFlags.length})` : ''} 🔽</span>
+                          </button>
+                          
+                          <AnimatePresence>
+                            {isQuickFilterOpen && (
+                              <motion.div 
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 10 }}
+                                className={cn(
+                                  "absolute right-0 mt-2 w-72 rounded-2xl shadow-xl border p-4 z-50 transition-all",
+                                  theme === 'light' ? "bg-white border-slate-200 shadow-slate-900/5 text-slate-900" : "bg-slate-950 border-slate-800 text-white"
+                                )}
+                              >
+                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Flags/Tags của hồ sơ</label>
+                                <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                                  {[
+                                    { key: 'CO_VAY', label: 'Có vay', queryLabel: '#CO_VAY' },
+                                    { key: 'KHONG_VAY', label: 'Vốn tự có', queryLabel: '#KHONG_VAY' },
+                                    { key: 'CO_LOI', label: 'Có vướng mắc', queryLabel: '#CO_LOI' },
+                                    { key: 'PROCESSING', label: 'Đang chuẩn bị hồ sơ', queryLabel: '#PROCESSING' },
+                                    { key: 'TAX_PENDING', label: 'Chờ NVTC', queryLabel: '#TAX_PENDING' },
+                                    { key: 'WAITING_HANDOVER', label: 'Chờ bàn giao', queryLabel: '#WAITING_HANDOVER' },
+                                    { key: 'COMPLETED', label: 'Đã hoàn tất', queryLabel: '#COMPLETED' }
+                                  ].map((item) => {
+                                    const isSelected = selectedFlags.includes(item.key);
+                                    return (
+                                      <button
+                                        key={item.key}
+                                        onClick={() => {
+                                          if (isSelected) {
+                                            setSelectedFlags(selectedFlags.filter(f => f !== item.key));
+                                          } else {
+                                            setSelectedFlags([...selectedFlags, item.key]);
+                                          }
+                                          setCurrentPage(0);
+                                        }}
+                                        className={cn(
+                                          "w-full text-left px-3 py-2 rounded-xl text-xs font-medium border flex items-center justify-between transition-all",
+                                          isSelected 
+                                            ? "border-festive-gold text-festive-gold bg-festive-gold/10 font-bold" 
+                                            : (theme === 'light' ? "border-slate-100 text-slate-700 bg-slate-50 hover:bg-slate-100" : "border-slate-800/50 text-slate-400 bg-slate-900/35 hover:bg-slate-900")
+                                        )}
+                                      >
+                                        <span>{item.label} ({item.queryLabel})</span>
+                                        {isSelected && <Check size={14} className="text-festive-gold" />}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                {selectedFlags.length > 0 && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedFlags([]);
+                                      setCurrentPage(0);
+                                    }}
+                                    className="w-full mt-3 py-1.5 text-center text-[10px] uppercase font-bold tracking-wider text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"
+                                  >
+                                    Xóa các tag
+                                  </button>
+                                )}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+
+                        <button 
+                          onClick={() => setIsSpreadsheetMode(!isSpreadsheetMode)}
+                          className={cn(
+                            "flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
+                            isSpreadsheetMode 
+                              ? "bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-600/20" 
+                              : (theme === 'light' ? "bg-white text-slate-600 border-slate-200 shadow-sm hover:bg-slate-50" : "bg-slate-950/40 text-slate-400 border-slate-800 hover:border-indigo-500/30")
+                          )}
+                          title="Chế độ nhập liệu Spreadsheet (Excel-like)"
+                        >
+                          <FileSpreadsheet size={12} />
+                          Spreadsheet
+                        </button>
+                      </div>
+                    </div>
+                      <div className="text-[11px] text-slate-500 italic">
+                        Hiển thị {displayedApps.length} hồ sơ trên trang / Tổng {totalCount} hồ sơ {selectedProject ? `thuộc ${selectedProject.name}` : 'toàn vùng'} (có lọc)
+                      </div>
+
+                      {/* Hiển thị dòng trạng thái filter */}
+                      {(() => {
+                        const activeFilters: Array<{ label: string, onClear: () => void }> = [];
+                        
+                        const projObj = projects.find(p => p.id === selectedProjectId);
+                        if (projObj) {
+                          activeFilters.push({
+                            label: `Dự án: ${projObj.name}`,
+                            onClear: () => { setSelectedProjectId(null); setCurrentPage(0); }
+                          });
+                        }
+                        
+                        if (filterStatus !== 'ALL') {
+                          const statusLabels: Record<string, string> = {
+                            Processing: 'ĐANG CHUẨN BỊ',
+                            WaitingVPDK: 'CHỜ NỘP VPĐK',
+                            TaxPending: 'CHỜ HOÀN THÀNH NVTC',
+                            WaitingHandover: 'CHỜ BÀN GIAO',
+                            TaxPaid: 'ĐÃ NỘP THUẾ',
+                            Submitted: 'ĐÃ NỘP VPĐK',
+                            Completed: 'HOÀN TẤT'
+                          };
+                          activeFilters.push({
+                            label: `Trạng thái: ${statusLabels[filterStatus] || filterStatus}`,
+                            onClear: () => { setFilterStatus('ALL'); setCurrentPage(0); }
+                          });
+                        }
+                        
+                        if (filterIssue !== 'ALL') {
+                          activeFilters.push({
+                            label: 'Chỉ hồ sơ lỗi/vướng',
+                            onClear: () => { setFilterIssue('ALL'); setCurrentPage(0); }
+                          });
+                        }
+                        
+                        if (filterLoanStatus !== 'ALL') {
+                          activeFilters.push({
+                            label: filterLoanStatus === 'Co_Vay' ? 'Khách vay' : 'Vốn tự có',
+                            onClear: () => { setFilterLoanStatus('ALL'); setCurrentPage(0); }
+                          });
+                        }
+                        
+                        if (filterSelfService !== 'ALL') {
+                          activeFilters.push({
+                            label: filterSelfService === 'YES' ? 'Khách tự làm' : 'Công ty làm',
+                            onClear: () => { setFilterSelfService('ALL'); setCurrentPage(0); }
+                          });
+                        }
+                        
+                        if (filterSLAStatus !== 'ALL') {
+                          activeFilters.push({
+                            label: 'Quá hạn SLA',
+                            onClear: () => { setFilterSLAStatus('ALL'); setCurrentPage(0); }
+                          });
+                        }
+                        
+                        if (dashboardFilter !== 'ALL') {
+                          activeFilters.push({
+                            label: `Dashboard: ${dashboardFilter}`,
+                            onClear: () => { setDashboardFilter('ALL'); setCurrentPage(0); }
+                          });
+                        }
+                        
+                        selectedFlags.forEach(flag => {
+                          const labels: Record<string, string> = {
+                            CO_VAY: 'Có vay',
+                            KHONG_VAY: 'Vốn tự có',
+                            CO_LOI: 'Có vướng mắc',
+                            PROCESSING: 'Đang chuẩn bị hồ sơ',
+                            TAX_PENDING: 'Chờ NVTC',
+                            WAITING_HANDOVER: 'Chờ bàn giao',
+                            COMPLETED: 'Đã hoàn tất'
+                          };
+                          activeFilters.push({
+                            label: labels[flag] || flag,
+                            onClear: () => { setSelectedFlags(selectedFlags.filter(f => f !== flag)); setCurrentPage(0); }
+                          });
+                        });
+                        
+                        if (search !== '') {
+                          activeFilters.push({
+                            label: `Từ khóa: "${search}"`,
+                            onClear: () => { setSearch(''); setCurrentPage(0); }
+                          });
+                        }
+                        
+                        if (activeFilters.length === 0) return null;
+                        
+                        return (
+                          <div className={cn(
+                            "flex flex-wrap items-center gap-2 py-3 px-4 rounded-2xl text-xs font-semibold border mt-3 transition-all",
+                            theme === 'light' ? "bg-slate-100 border-slate-200/60 text-slate-800" : "bg-slate-900/30 border-slate-800/40 text-slate-300"
+                          )}>
+                            <span className="font-bold whitespace-nowrap mr-1 opacity-70">Đang lọc:</span>
+                            <div className="flex flex-wrap gap-2 items-center flex-1">
+                              {activeFilters.map((act, idx) => (
+                                <span 
+                                  key={`filter-tag-${idx}-${act.label}`}
+                                  className={cn(
+                                    "inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-bold border transition-all shadow-sm",
+                                    theme === 'light' ? "bg-white border-slate-300/40 text-slate-800" : "bg-slate-900/60 border-slate-800 text-slate-200"
+                                  )}
+                                >
+                                  <span>{act.label}</span>
+                                  <button 
+                                    type="button" 
+                                    onClick={act.onClear}
+                                    className="hover:text-rose-500 rounded-full transition-all focus:outline-none p-0.5 ml-0.5"
+                                  >
+                                    <X size={10} />
+                                  </button>
+                                </span>
+                              ))}
+                              
+                              <button
+                                onClick={() => {
+                                  setSelectedProjectId(null);
+                                  setFilterStatus('ALL');
+                                  setFilterLoanStatus('ALL');
+                                  setFilterSelfService('ALL');
+                                  setFilterSLAStatus('ALL');
+                                  setFilterIssue('ALL');
+                                  setSelectedFlags([]);
+                                  setSearch('');
+                                  setDashboardFilter('ALL');
+                                  setCurrentPage(0);
+                                }}
+                                className="ml-auto hover:underline text-[11px] font-black uppercase tracking-wider text-rose-500 hover:text-rose-400 transition-all flex items-center gap-1"
+                              >
+                                <X size={12} /> Xóa lọc
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+
+                  
+                  {/* Bulk Actions Bar (Floating) */}
+                  <AnimatePresence>
+                    {selectedAppIds.length > 0 && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 100 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 100 }}
+                        className={cn(
+                          "fixed bottom-10 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-1 p-2 border rounded-3xl backdrop-blur-xl ring-1 shadow-2xl transition-all",
+                          theme === 'light' ? "bg-white/90 border-slate-200 ring-slate-900/5 shadow-slate-900/10 text-slate-800" : "bg-slate-950/90 border-slate-800 ring-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] text-slate-200"
+                        )}
+                      >
+                        <div className={cn(
+                          "flex items-center gap-3 px-4 mr-2 border-r",
+                          theme === 'light' ? "border-slate-200" : "border-slate-800"
+                        )}>
+                          <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center font-black text-xs",
+                            theme === 'light' ? "bg-indigo-500 text-white" : "bg-festive-gold text-slate-950"
+                          )}>
+                            {selectedAppIds.length}
+                          </div>
+                          <span className={cn(
+                            "text-[10px] font-black uppercase tracking-wider",
+                            theme === 'light' ? "text-slate-600" : "text-slate-500"
+                          )}>Đã chọn</span>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          {(() => {
+                            const selectedApps = applications.filter(a => selectedAppIds.includes(a.id));
+                            if (selectedApps.length === 0) return null;
+                            const firstApp = selectedApps[0];
+                            const allSameStepAndWorkflow = selectedApps.every(a => a.currentStep === firstApp.currentStep && a.workflowType === firstApp.workflowType);
+                            
+                            if (allSameStepAndWorkflow) {
+                              const workflowType = firstApp.workflowType || 'Quy_trinh_1';
+                              const nextStep = getNextStep(firstApp.currentStep, workflowType);
+                              const roleDept = (stepConfig[firstApp.currentStep] || INITIAL_STEP_CONFIG[firstApp.currentStep])?.dept;
+                              const isSupportSpecial = (firstApp.projectName?.includes('hỗ trợ')) && (firstApp.currentStep === 'GD2_Cho_Nop_VPDK' || firstApp.currentStep === 'S3_Nop_VPDK');
+                              const effectiveDept = isSupportSpecial ? 'KT' : roleDept;
+                              
+                              // Step 7.2 Quy_trinh_2 custom logic
+                              if (workflowType === 'Quy_trinh_2' && firstApp.currentStep === 'S7_2_Ban_Giao_Khach') {
+                                 if (userRole === 'PTT' || isManagementEdit) {
+                                    return (
+                                       <button 
+                                        onClick={() => handleBulkStepTransition('Hoan_Tat')}
+                                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
+                                      >
+                                        Xác nhận Giao Khách & Hoàn tất
+                                      </button>
+                                    )
+                                 }
+                                 return null;
+                              }
+                              
+                              if (nextStep && (isManagementEdit || effectiveDept === userRole || (firstApp.currentStep === 'S1_ChuanBi' && userRole === 'PTT') || (firstApp.currentStep === 'GD1_ChuanBi' && userRole === 'PTT'))) {
+                                return (
+                                  <button 
+                                    onClick={() => handleBulkStepTransition(nextStep)}
+                                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
+                                  >
+                                    Chuyển tiếp {(stepConfig[nextStep] || INITIAL_STEP_CONFIG[nextStep])?.label} &rarr;
+                                  </button>
+                                );
+                              }
+                            } else {
+                              return <span className="text-[10px] font-bold text-slate-500 italic pr-4">Chọn các hồ sơ cùng bước/luồng để thao tác</span>;
+                            }
+                            return null;
+                          })()}
+                          
+                          <button 
+                            onClick={() => setIsBulkNoteOpen(true)}
+                            className={cn(
+                              "w-10 h-10 rounded-full transition-all flex items-center justify-center border",
+                              theme === 'light' ? "bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border-slate-200" : "bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border-slate-700/50"
+                            )}
+                            title="Ghi chú hàng loạt"
+                          >
+                            <MessageSquare size={16} />
+                          </button>
+
+                          <button 
+                            onClick={() => setIsBulkDocumentOpen(true)}
+                            className="w-10 h-10 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full transition-all flex items-center justify-center shadow-lg shadow-indigo-600/20"
+                            title="Đính kèm tài liệu chung"
+                          >
+                            <GitMerge size={16} />
+                          </button>
+
+                          <button 
+                            onClick={() => setIsBulkIssueOpen(true)}
+                            className={cn(
+                              "w-10 h-10 rounded-full transition-all flex items-center justify-center border",
+                              theme === 'light' ? "bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border-rose-200" : "bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white border-rose-500/20"
+                            )}
+                            title="Báo lỗi / Sai sót hàng loạt"
+                          >
+                            <AlertTriangle size={16} />
+                          </button>
+
+                          {selectedAppIds.some(id => {
+                            const a = applications.find(x => String(x.id) === String(id));
+                            return a?.isRejected || a?.issue_status === 'OPEN' || 
+                                   (a?.issueType && a.issueType !== 'None');
+                          }) && (
+                            <button
+                              onClick={handleBulkResolveIssues}
+                              disabled={isSavingApp}
+                              className={cn(
+                                "w-10 h-10 rounded-full transition-all flex items-center justify-center border",
+                                theme === 'light' 
+                                  ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-600 hover:text-emerald-700 border-emerald-200" 
+                                  : "bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white border-emerald-500/20"
+                              )}
+                              title="Xác nhận đã khắc phục"
+                            >
+                              {isSavingApp 
+                                ? <span className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                                : <CheckCircle size={16} />
+                              }
+                            </button>
+                          )}
+
+                          {(isManagementEdit || userRole === 'PTT') && (
+                            <button 
+                              onClick={handleBulkDelete}
+                              className={cn(
+                                "w-10 h-10 rounded-full transition-all flex items-center justify-center border",
+                                theme === 'light' ? "bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border-rose-200" : "bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white border-rose-500/20"
+                              )}
+                              title="Xóa đã chọn"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+
+                          <button 
+                            onClick={() => {
+                              setSelectedAppIds([]);
+                              setSelectedRows(new Set());
+                            }}
+                            className={cn(
+                              "w-10 h-10 rounded-full transition-all flex items-center justify-center border ml-2",
+                              theme === 'light' ? "bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border-slate-200" : "bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border-slate-700/50"
+                            )}
+                            title="Hủy chọn"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <div className="overflow-auto max-h-[calc(100vh-180px)] relative border-t border-slate-800/10">
+                    <table className="w-full text-left border-separate border-spacing-0">
+                      <thead className="sticky top-0 z-20">
+                        <tr className={cn(
+                          "transition-all border-b font-black uppercase tracking-tighter text-[10px]",
+                          theme === 'light' ? "bg-slate-100 text-slate-500" : "bg-slate-950 text-slate-400"
+                        )}>
+                          <th className="px-2 py-2 w-10 border-b border-slate-800/10">
+                            <input 
+                              type="checkbox" 
+                              className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-900 accent-festive-gold"
+                              checked={selectedRows.size === filteredApps.length && filteredApps.length > 0}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  const allIds = filteredApps.map(a => a.id);
+                                  setSelectedAppIds(allIds);
+                                  setSelectedRows(new Set(allIds));
+                                } else {
+                                  setSelectedAppIds([]);
+                                  setSelectedRows(new Set());
+                                }
+                              }}
+                            />
+                          </th>
+                          <th className="px-2 py-2 border-b border-slate-800/10">Mã căn</th>
+                          <th className="px-2 py-2 border-b border-slate-800/10">Dự án</th>
+                          <th className="px-2 py-2 border-b border-slate-800/10">Khách hàng</th>
+                          {isSpreadsheetMode ? (
+                            EDITABLE_DATE_FIELDS.map(f => (
+                              <th key={f.key} className="px-2 py-2 text-center whitespace-nowrap bg-indigo-500/5 border-b border-slate-800/10">{f.label}</th>
+                            ))
+                          ) : (
+                            <>
+                              <th className="px-2 py-2 border-b border-slate-800/10">Loại lô</th>
+                              <th className="px-2 py-2 border-b border-slate-800/10">Trạng thái</th>
+                              <th className="px-2 py-2 text-center border-b border-slate-800/10">Cơ quan</th>
+                              {(userRole === 'PTT' || isManagement) && (
+                                <th className="px-2 py-2 text-center border-b border-slate-800/10">Nộp VPĐK</th>
+                              )}
+                              {(userRole === 'PTT' || userRole === 'KT' || isManagement) && (
+                                <th className="px-2 py-2 text-center border-b border-slate-800/10">Nộp thuế</th>
+                              )}
+                              {(userRole === 'PTDA' || isManagement) && (
+                                <th className="px-2 py-2 text-center border-b border-slate-800/10">Nhận sổ</th>
+                              )}
+                              <th className="px-2 py-2 text-center border-b border-slate-800/10">BG Khách</th>
+                            </>
+                          )}
+                          <th className="px-2 py-2 text-center text-indigo-500 border-b border-slate-800/10">Files</th>
+                          <th className="px-2 py-2 text-center border-b border-slate-800/10">Cmd</th>
+                        </tr>
+                      </thead>
+                      <tbody className={cn(
+                        "divide-y transition-all",
+                        theme === 'light' ? "text-slate-700 divide-slate-100" : "text-slate-300 divide-slate-800/40"
+                      )}>
+                        {isLoadingApps ? (
+                          <tr>
+                            <td colSpan={13} className="px-6 py-12 text-center text-slate-500 italic">
+                               <div className="flex flex-col items-center gap-4">
+                                  <RefreshCcw className="animate-spin text-indigo-500" size={24} />
+                                  <p className="text-xs font-black uppercase tracking-widest">Đang tải dữ liệu hồ sơ...</p>
+                               </div>
+                            </td>
+                          </tr>
+                        ) : displayedApps.length === 0 ? (
+                          <tr>
+                            <td colSpan={13} className="px-6 py-12 text-center text-slate-500 italic font-medium">
+                               <div className="flex flex-col items-center gap-4 opacity-40">
+                                  <Files size={40} />
+                                  <p className="text-sm">Không tìm thấy hồ sơ nào phù hợp với bộ lọc hiện tại.</p>
+                               </div>
+                            </td>
+                          </tr>
+                        ) : displayedApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map((app, index) => {
+                          const overdue = getOverdueInfo(app, stepConfig, slaConfig);
+                          const isEven = index % 2 === 1;
+                          const isFocused = selectedIndex === index;
+                          const isSelected = selectedRows.has(app.id) || selectedAppIds.includes(app.id);
+                          
+                          return (
+                            <tr 
+                              id={`app-row-${app.id}`}
+                              key={`app-row-${app.id}-${currentPage}-${index}`} 
+                              ref={el => tableRowRefs.current[index] = el}
+                              className={cn(
+                                "transition-all cursor-pointer group border-b relative h-[32px]",
+                                isFocused && (theme === 'light' ? "bg-indigo-50/80 ring-1 ring-inset ring-indigo-500/20 z-10" : "bg-indigo-900/20 ring-1 ring-inset ring-indigo-400/30 z-10"),
+                                !isFocused && isSelected && (theme === 'light' ? "bg-festive-gold/10" : "bg-festive-gold/15"),
+                                theme === 'light' 
+                                  ? (!isFocused && !isSelected ? (isEven ? "bg-slate-50/50 hover:bg-indigo-50/20 border-slate-100" : "bg-white hover:bg-indigo-50/20 border-slate-100") : "")
+                                  : (!isFocused && !isSelected ? (isEven ? "bg-slate-900/20 hover:bg-indigo-950/20 border-slate-800/40" : "bg-transparent hover:bg-indigo-950/20 border-slate-800/40") : ""),
+                                highlightedAppId === app.id && [
+                                  theme === 'dark'
+                                    ? 'ring-2 ring-inset ring-emerald-500/60 bg-emerald-500/5'
+                                    : 'ring-2 ring-inset ring-emerald-400/60 bg-emerald-50/80'
+                                ]
+                              )}
+                              onClick={(e) => {
+                                setSelectedIndex(index);
+                                if (e.shiftKey && lastSelectedIndex !== null) {
+                                  const visibleApps = displayedApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+                                  const start = Math.min(lastSelectedIndex, index);
+                                  const end = Math.max(lastSelectedIndex, index);
+                                  const newSelection = new Set(selectedRows);
+                                  for (let i = start; i <= end; i++) {
+                                    newSelection.add(visibleApps[i].id);
+                                  }
+                                  setSelectedRows(newSelection);
+                                  setSelectedAppIds(Array.from(newSelection));
+                                } else if (e.ctrlKey || e.metaKey) {
+                                  const newSelection = new Set(selectedRows);
+                                  if (newSelection.has(app.id)) newSelection.delete(app.id);
+                                  else newSelection.add(app.id);
+                                  setSelectedAppIds(Array.from(newSelection));
+                                  setLastSelectedIndex(index);
+                                } else {
+                                  const newSelection = new Set([app.id]);
+                                  setSelectedRows(newSelection);
+                                  setSelectedAppIds([app.id]);
+                                  setLastSelectedIndex(index);
+                                }
+                              }}
+                              onDoubleClick={() => handleSelectApp(app)}
+                            >
+                              <td className="px-2 py-0 text-center" onClick={(e) => e.stopPropagation()}>
+                                <input 
+                                  type="checkbox" 
+                                  className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-900 accent-festive-gold"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    const newSelection = new Set(selectedRows);
+                                    if (e.target.checked) {
+                                      newSelection.add(app.id);
+                                    } else {
+                                      newSelection.delete(app.id);
+                                    }
+                                    setSelectedRows(newSelection);
+                                    setSelectedAppIds(Array.from(newSelection));
+                                  }}
+                                />
+                              </td>
+                              <td 
+                                className="px-2 py-0 text-[11px] font-mono tracking-tighter" 
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  setQuickEditId(app.id);
+                                  setQuickEditData({ unitCode: app.unitCode, customerName: app.customerName });
+                                }}
+                              >
+                                <div className="flex flex-col text-slate-600 dark:text-slate-300">
+                                  {quickEditId === app.id ? (
+                                    <input 
+                                      autoFocus
+                                      className={cn(
+                                        "px-2 py-0 h-6 text-[11px] font-black font-mono rounded border outline-none focus:ring-1 focus:ring-festive-gold/50 w-full",
+                                        theme === 'light' ? "bg-white border-slate-300 text-slate-900" : "bg-slate-900 border-slate-700 text-festive-gold"
+                                      )}
+                                      value={quickEditData.unitCode ?? app.unitCode}
+                                      onChange={(e) => setQuickEditData(prev => ({ ...prev, unitCode: e.target.value }))}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onBlur={() => handleQuickSave(app.id)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleQuickSave(app.id);
+                                        if (e.key === 'Escape') {
+                                          setQuickEditId(null);
+                                          setQuickEditData({});
+                                        }
+                                      }}
+                                    />
+                                  ) : (
+                                    <div className="flex items-center gap-1">
+                                      <span className={cn("text-[12px] font-black tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>{app.unitCode}</span>
+                                      {app.isRejected && app.currentStep === 'S1_ChuanBi' && (
+                                        <span className="animate-pulse flex items-center gap-1 text-[9px] bg-rose-500 text-white px-1 py-0.5 rounded-full font-bold uppercase tracking-tight">
+                                          <RotateCcw size={8} /> Trả về
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                  <span className="text-[9px] text-slate-500 font-medium uppercase mt-0.5">
+                                    SLA: {(stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.slaDays || 0}d
+                                  </span>
+                                  {overdue.isOverdue && (
+                                    <span className={cn(
+                                      "text-[9px] font-semibold uppercase tracking-tight flex items-center gap-1 mt-0.5",
+                                      overdue.daysLate > 5 ? "text-red-500" :
+                                      overdue.daysLate >= 3 ? "text-yellow-500" : "text-green-500"
+                                    )}>
+                                      <AlertTriangle size={9} /> TRỄ {overdue.daysLate} NGÀY
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-2 py-0">
+                                <span className={cn("text-[10px] font-medium whitespace-normal break-words block max-w-[150px]", theme === 'light' ? "text-slate-600" : "text-slate-200")} title={app.projectName}>
+                                  {app.projectName}
+                                </span>
+                              </td>
+                              <td 
+                                className="px-2 py-0 text-[11px] leading-tight" 
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  setQuickEditId(app.id);
+                                  setQuickEditData({ unitCode: app.unitCode, customerName: app.customerName });
+                                }}
+                                onClick={() => quickEditId !== app.id && handleSelectApp(app)}
+                              >
+                                <div className="flex items-center gap-1.5">
+                                  <div className={cn(
+                                    "w-5 h-5 rounded-full flex items-center justify-center transition-all shrink-0",
+                                    theme === 'light' ? "bg-slate-100 text-slate-400" : "bg-slate-800 text-slate-500"
+                                  )}>
+                                    <User size={10} />
+                                  </div>
+                                  <div className="flex flex-col flex-1 min-w-0">
+                                    {quickEditId === app.id ? (
+                                      <input 
+                                        className={cn(
+                                          "px-2 py-0 h-6 text-[11px] font-medium rounded border outline-none focus:ring-1 focus:ring-indigo-500/50 w-full",
+                                          theme === 'light' ? "bg-white border-slate-300 text-slate-900" : "bg-slate-900 border-slate-700 text-white"
+                                        )}
+                                        value={quickEditData.customerName ?? app.customerName}
+                                        onChange={(e) => setQuickEditData(prev => ({ ...prev, customerName: e.target.value }))}
+                                        onBlur={() => handleQuickSave(app.id)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') handleQuickSave(app.id);
+                                          if (e.key === 'Escape') {
+                                            setQuickEditId(null);
+                                            setQuickEditData({});
+                                          }
+                                        }}
+                                      />
+                                    ) : (
+                                      <span className={cn("text-xs font-medium truncate", theme === 'light' ? "text-slate-600" : "text-slate-300")}>{app.customerName}</span>
+                                    )}
+                                    <div className="flex gap-2 mt-0.5 items-center">
+                                      <span className="text-[10px] text-slate-400 dark:text-slate-500 italic">{formatDate(app.receivedDate)}</span>
+                                      {app.loanStatus === 'Co_Vay' && <span className="text-[9px] bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 px-1.5 py-0.5 rounded font-medium uppercase">Có vay</span>}
+                                      {app.isSelfService && <span className="text-[9px] bg-amber-500/10 text-amber-500 dark:text-amber-400 px-1.5 py-0.5 rounded font-medium uppercase">Tự làm</span>}
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              {isSpreadsheetMode ? (
+                                EDITABLE_DATE_FIELDS.map(f => {
+                                  const val = spreadsheetChanges[app.id]?.[f.key as keyof Application] ?? (app[f.key as keyof Application] ? formatDate(app[f.key as keyof Application] as string) : '');
+                                  const hasError = spreadsheetErrors[app.id]?.[f.key];
+                                  const isChanged = spreadsheetChanges[app.id]?.hasOwnProperty(f.key);
+                                  const isActive = activeCell?.id === app.id && activeCell?.field === f.key;
+
+                                  return (
+                                    <td 
+                                      key={f.key} 
+                                      className={cn(
+                                        "px-3 py-1.5 text-xs leading-tight border-x transition-all relative group/cell",
+                                        theme === 'light' ? "border-slate-50" : "border-slate-800/20",
+                                        isActive 
+                                          ? (theme === 'light' 
+                                              ? "ring-2 ring-indigo-500 bg-indigo-50/30 z-10 shadow-[0_0_15px_rgba(99,102,241,0.2)]" 
+                                              : "ring-2 ring-indigo-400 bg-indigo-900/20 z-10 shadow-[0_0_15px_rgba(129,140,248,0.2)]") 
+                                          : "",
+                                        hasError ? "bg-rose-500/10" : (isChanged ? "bg-emerald-500/5" : "")
+                                      )}
+                                      onPaste={(e) => handleSpreadsheetPaste(e, app.id, f.key)}
+                                      onClick={() => setActiveCell({ id: app.id, field: f.key })}
+                                    >
+                                      <input 
+                                        type="text"
+                                        placeholder="dd/mm/yyyy"
+                                        className={cn(
+                                          "w-full bg-transparent border-none outline-none text-xs leading-tight font-mono text-center placeholder:opacity-30",
+                                          theme === 'light' ? "text-slate-600" : "text-slate-300",
+                                          isActive ? "font-bold" : "",
+                                          hasError ? "text-rose-500" : (isChanged ? "text-emerald-400 font-black" : "")
+                                        )}
+                                        value={val}
+                                        onChange={(e) => handleSpreadsheetChange(app.id, f.key, e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Tab'].includes(e.key)) {
+                                            const isTab = e.key === 'Tab';
+                                            const isShiftTab = isTab && e.shiftKey;
+                                            
+                                            // ArrowUp/Down/Left/Right/Enter and Tab/ShiftTab
+                                            e.preventDefault();
+                                            const currentIdx = displayedApps.findIndex(a => a.id === app.id);
+                                            const currentFldIdx = EDITABLE_DATE_FIELDS.findIndex(fd => fd.key === f.key);
+                                            
+                                            let nextId = app.id;
+                                            let nextFld = f.key;
+                                            const isLastRow = currentIdx === displayedApps.length - 1;
+                                            const isFirstRow = currentIdx === 0;
+                                            const isLastField = currentFldIdx === EDITABLE_DATE_FIELDS.length - 1;
+                                            const isFirstField = currentFldIdx === 0;
+
+                                            if (e.key === 'ArrowUp' && !isFirstRow) {
+                                              nextId = displayedApps[currentIdx - 1].id;
+                                            } else if ((e.key === 'ArrowDown' || e.key === 'Enter') && !isLastRow) {
+                                              nextId = displayedApps[currentIdx + 1].id;
+                                            } else if (e.key === 'ArrowLeft' && !isFirstField) {
+                                              nextFld = EDITABLE_DATE_FIELDS[currentFldIdx - 1].key;
+                                            } else if (e.key === 'ArrowRight' && !isLastField) {
+                                              nextFld = EDITABLE_DATE_FIELDS[currentFldIdx + 1].key;
+                                            } else if (isTab && !isShiftTab) {
+                                              if (isLastField) {
+                                                if (!isLastRow) {
+                                                  nextId = displayedApps[currentIdx + 1].id;
+                                                  nextFld = EDITABLE_DATE_FIELDS[0].key;
+                                                }
+                                              } else {
+                                                nextFld = EDITABLE_DATE_FIELDS[currentFldIdx + 1].key;
+                                              }
+                                            } else if (isShiftTab) {
+                                              if (isFirstField) {
+                                                if (!isFirstRow) {
+                                                  nextId = displayedApps[currentIdx - 1].id;
+                                                  nextFld = EDITABLE_DATE_FIELDS[EDITABLE_DATE_FIELDS.length - 1].key;
+                                                }
+                                              } else {
+                                                nextFld = EDITABLE_DATE_FIELDS[currentFldIdx - 1].key;
+                                              }
+                                            }
+
+                                            if (nextId !== app.id || nextFld !== f.key) {
+                                              setActiveCell({ id: nextId, field: nextFld });
+                                            }
+                                          }
+                                        }}
+                                        ref={(el) => {
+                                          if (isActive && el) el.focus();
+                                        }}
+                                      />
+                                      {hasError && (
+                                        <div className="absolute top-0 right-0 p-1">
+                                          <AlertCircle size={8} className="text-rose-500" />
+                                          <div className="hidden group-hover/cell:block absolute top-6 right-0 bg-rose-500 text-white text-[9px] px-2 py-1 rounded shadow-lg whitespace-nowrap z-50">
+                                            {hasError}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </td>
+                                  );
+                                })
+                              ) : (
+                                <>
+                                  <td className="px-2 py-0 text-[10px] leading-tight text-slate-500 dark:text-slate-400">
+                                    <span className="font-medium">
+                                      {app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền'}
+                                    </span>
+                                  </td>
+                                  <td className="px-2 py-0">
+                                    <div className="flex flex-col gap-0.5">
+                                      <StatusBadge status={app.status} app={app} variant="compact" />
+                                      {(app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None')) && (
+                                        <div className="flex items-center gap-1">
+                                          <AlertTriangle size={8} className={cn(
+                                            app.issueSeverity === 'Critical' ? "text-rose-600" : "text-amber-500"
+                                          )} />
+                                          <span className="text-[9px] font-medium truncate max-w-[80px] text-slate-400 uppercase tracking-tighter">
+                                              {app.issueNotes || 'Vướng'}
+                                          </span>
+                                          {(userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') && (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleResolveIssue(app.id);
+                                              }}
+                                              className={cn("flex items-center gap-0.5 px-1 py-0.5 rounded text-[8px] font-bold uppercase", theme === 'light' ? "bg-emerald-100 hover:bg-emerald-200 text-emerald-700" : "bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-400")}
+                                              title="Xác nhận đã khắc phục"
+                                            >
+                                              <CheckCircle size={8} />
+                                              OK
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-2 py-0 text-center">
+                                      {(() => {
+                                        const isSupportSpecial = (app?.projectName?.includes('hỗ trợ') || app?.workflowType === 'Quy_trinh_1') && (app?.currentStep === 'GD2_Cho_Nop_VPDK' || app?.currentStep === 'S3_Nop_VPDK');
+                                        const config = (stepConfig[app?.currentStep || ''] || INITIAL_STEP_CONFIG[app?.currentStep || '']);
+                                        const dept = isSupportSpecial ? 'KT' : (config?.dept || '---');
+                                        return (
+                                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+                                            {dept}
+                                          </span>
+                                        );
+                                      })()}
+                                  </td>
+                                  {(userRole === 'PTT' || isManagement) && (
+                                    <td className="px-2 py-0 text-center">
+                                      <span className={cn("text-[10px] leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.submissionDate)}</span>
+                                    </td>
+                                  )}
+                                  {(userRole === 'PTT' || userRole === 'KT' || isManagement) && (
+                                    <td className="px-2 py-0 text-center">
+                                      <div className="flex flex-col items-center">
+                                        <span className={cn("text-[10px] leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>
+                                          {app.taxReceiptDate ? formatDate(app.taxReceiptDate) : (app.taxNotificationReceivedDate ? 'Chờ nộp' : '---')}
+                                        </span>
+                                        <span className={cn("text-[8px] px-1 py-[1px] mt-[1px] rounded font-bold uppercase", getTaxStatus(app).color)}>
+                                          {getTaxStatus(app).label}
+                                        </span>
+                                      </div>
+                                    </td>
+                                  )}
+                                  {(userRole === 'PTDA' || isManagement) && (
+                                    <td className="px-2 py-0 text-center">
+                                      <span className={cn("text-[10px] leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.gcnReceivedDate)}</span>
+                                    </td>
+                                  )}
+                                  <td className="px-2 py-0 text-center">
+                                    <span className={cn("text-[10px] font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.customerHandoverDate)}</span>
+                                  </td>
+                                </>
+                              )}
+                              <td className="px-2 py-0 text-center" onClick={(e) => {
+                                e.stopPropagation();
+                                if (app.scannedFiles && app.scannedFiles.length > 0) {
+                                  setPreviewFile(app.scannedFiles[0]);
+                                } else {
+                                  handleSelectApp(app);
+                                }
+                              }}>
+                                {app.scannedFiles && app.scannedFiles.length > 0 ? (
+                                  <div className="flex flex-col items-center group/doc cursor-pointer">
+                                    <div className="w-5 h-5 rounded bg-indigo-500/10 flex items-center justify-center text-indigo-400 group-hover/doc:bg-indigo-500 group-hover/doc:text-white transition-all">
+                                      <FileText size={10} />
+                                    </div>
+                                    <span className="text-[8px] font-black">{app.scannedFiles.length} file</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-[9px] text-slate-700 font-bold opacity-20">---</span>
+                                )}
+                              </td>
+                              <td className="px-2 py-0 text-center">
+                                <div className="flex items-center justify-center gap-0.5">
+                                  <button 
+                                    onClick={() => handleSelectApp(app)}
+                                    className="p-1 rounded transition-colors text-slate-500 hover:bg-indigo-500/10 hover:text-indigo-500"
+                                    title="Xem"
+                                  >
+                                    <ChevronRight size={12} />
+                                  </button>
+                                  {userRole === 'ADMIN' && (
+                                    <button 
+                                      onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        handleDeleteApp(app.id, app.unitCode);
+                                      }}
+                                      className="p-1 rounded text-slate-500 hover:text-rose-500 transition-colors"
+                                      title="Xóa"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                          </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {isSpreadsheetMode && (
+                    <motion.div 
+                      initial={{ y: 100 }}
+                      animate={{ y: 0 }}
+                      className={cn(
+                        "sticky bottom-0 left-0 right-0 p-4 border-t backdrop-blur-md z-50 flex items-center justify-between shadow-[0_-10px_30px_rgba(0,0,0,0.1)]",
+                        theme === 'light' ? "bg-white/95 border-slate-200" : "bg-slate-900/95 border-slate-800"
+                      )}
+                    >
+                      <div className="flex items-center gap-6">
+                        <div className="flex flex-col text-left">
+                          <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest leading-none mb-1">Chế độ nhập liệu Spreadsheet</span>
+                          <span className="text-sm font-bold text-indigo-400">Review: {Object.keys(spreadsheetChanges).length} thay đổi</span>
+                        </div>
+
+                        <div className="h-8 w-[1px] bg-slate-700/50"></div>
+
+                        <div className="flex items-center gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-tight">
+                          <div className="flex items-center gap-1.5">
+                            <div className={cn("w-2 h-2 rounded-full", Object.keys(spreadsheetChanges).length > 0 ? "bg-emerald-400 animate-pulse" : "bg-slate-700")}></div>
+                            <span>Đã thay đổi</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className={cn("w-2 h-2 rounded-full", Object.keys(spreadsheetErrors).length > 0 ? "bg-rose-500" : "bg-slate-700")}></div>
+                            <span>Lỗi định dạng</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <button 
+                          onClick={() => {
+                            setSpreadsheetChanges({});
+                            setSpreadsheetErrors({});
+                            setIsSpreadsheetMode(false);
+                          }}
+                          className={cn(
+                            "px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all",
+                            theme === 'light' ? "text-slate-600 hover:bg-slate-100" : "text-slate-400 hover:bg-slate-800"
+                          )}
+                        >
+                          Hủy bỏ
+                        </button>
+                        <button 
+                          onClick={confirmSpreadsheetUpdates}
+                          disabled={Object.keys(spreadsheetErrors).length > 0 || Object.keys(spreadsheetChanges).length === 0}
+                          className={cn(
+                            "px-8 py-3 rounded-full text-xs font-black uppercase tracking-[0.2em] transition-all shadow-xl",
+                            Object.keys(spreadsheetErrors).length > 0 || Object.keys(spreadsheetChanges).length === 0
+                              ? "bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed"
+                              : "bg-festive-gold text-slate-950 shadow-festive-gold/20 hover:scale-[1.02] active:scale-95"
+                          )}
+                        >
+                          Xác nhận cập nhật ({Object.keys(spreadsheetChanges).length})
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+</>
+  );
+};
