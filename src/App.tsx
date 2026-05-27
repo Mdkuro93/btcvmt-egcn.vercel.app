@@ -166,16 +166,12 @@ if (!SUPABASE_KEY) {
   console.error('[Config] VITE_SUPABASE_KEY chưa được cấu hình!');
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-// supabaseRT dùng cùng key
-const supabaseRT = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  realtime: { 
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  realtime: {
     params: { eventsPerSecond: 10 },
     heartbeatIntervalMs: 25000,
     timeout: 30000
-  },
-  auth: { persistSession: false }
+  }
 });
 
 console.log('[Key Check]', 
@@ -1207,7 +1203,7 @@ export default function App() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.access_token) {
-          supabaseRT.realtime.setAuth(session.access_token);
+          supabase.realtime.setAuth(session.access_token);
         }
       } catch (err) {
         console.warn('[Realtime] Không thể lấy session cho Realtime:', err);
@@ -1215,7 +1211,7 @@ export default function App() {
 
       // Subscribe thay đổi bảng records
       const channelId = `rt-records-${currentUser.id}-${Date.now()}`;
-      recordsChannel = supabaseRT
+      recordsChannel = supabase
         .channel(channelId)
       .on(
         'postgres_changes',
@@ -1343,7 +1339,7 @@ export default function App() {
 
     // Subscribe thay đổi bảng notifications
     const notiChannelId = `rt-noti-${currentUser.id}-${Date.now()}`;
-    notiChannel = supabaseRT
+    notiChannel = supabase
       .channel(notiChannelId)
       .on(
         'postgres_changes',
@@ -1379,8 +1375,8 @@ export default function App() {
     return () => {
       active = false;
       if (retryTimeout) clearTimeout(retryTimeout);
-      if (recordsChannel) supabaseRT.removeChannel(recordsChannel);
-      if (notiChannel) supabaseRT.removeChannel(notiChannel);
+      if (recordsChannel) supabase.removeChannel(recordsChannel);
+      if (notiChannel) supabase.removeChannel(notiChannel);
     };
   }, [currentUser?.id, realtimeReconnectKey, projects, userRole]);
 
