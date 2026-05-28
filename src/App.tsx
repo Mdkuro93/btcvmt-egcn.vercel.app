@@ -177,7 +177,16 @@ if (!SUPABASE_KEY) {
   console.error('[Config] VITE_SUPABASE_KEY chưa được cấu hình!');
 }
 
+const ADMIN_SECRET = (
+  import.meta.env.VITE_ADMIN_SECRET || 'Kuropk@93'
+).trim();
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  global: {
+    headers: {
+      'x-admin-key': ADMIN_SECRET
+    }
+  },
   realtime: {
     params: { 
       eventsPerSecond: 10 
@@ -2974,6 +2983,20 @@ export default function App() {
 
         if (error) throw error;
 
+        // 3. Verify thực sự đã xóa (RLS có thể chặn silently)
+        const { data: checkData } = await supabase
+          .from('records')
+          .select('id')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (checkData) {
+          throw new Error(
+            'Xóa không thành công - có thể do quyền truy cập. ' +
+            'Vui lòng kiểm tra lại hoặc liên hệ Admin.'
+          );
+        }
+
         handleSetApplications(prev => prev.filter(app => app.id !== id));
         handleSetDashboardApps(prev => prev.filter(app => app.id !== id));
         if (selectedApp?.id === id) {
@@ -3553,6 +3576,19 @@ export default function App() {
         .in('id', selectedAppIds);
 
       if (error) throw error;
+
+      // 3. Verify thực sự đã xóa
+      const { data: remaining } = await supabase
+        .from('records')
+        .select('id')
+        .in('id', selectedAppIds);
+
+      if (remaining && remaining.length > 0) {
+        throw new Error(
+          `Chỉ xóa được ${count - remaining.length}/${count} hồ sơ. ` +
+          `${remaining.length} hồ sơ bị từ chối - có thể do quyền truy cập.`
+        );
+      }
 
       handleSetApplications(prev => prev.filter(app => !selectedAppIds.includes(app.id)));
       setSelectedAppIds([]);
