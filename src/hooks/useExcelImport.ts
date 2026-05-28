@@ -493,6 +493,7 @@ export function useExcelImport({
         ...importPreviewData.toCreate.map(t => t.app)
       ];
       if (anyToSync.length > 0) {
+         showToast('Đang lưu dữ liệu lên hệ thống...', 'info');
          const finalApps = await bulkSyncRecordsToSupabase(anyToSync, applications, showToast);
          setApplications(finalApps);
 

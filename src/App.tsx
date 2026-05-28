@@ -324,16 +324,35 @@ const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplicati
 
     let insertedData: any[] = [];
     if (recordsToInsert.length > 0) {
-      const { data: insertResult, error: insertError } = await supabase.from('records').insert(recordsToInsert).select();
+      const LIGHT_SELECT = [
+        'id','unit_code','project_name','customer_name',
+        'current_step','status','workflow_type',
+        'contract_signing_date','submission_date',
+        'tax_notification_date','tax_receipt_date',
+        'gcn_signed_date','gcn_received_date',
+        'customer_handover_date','accounting_handover_date',
+        'ptda_handover_date','vpdk_code','loan_status',
+        'is_self_service','property_type','contract_signer_type',
+        'phone_number','received_date','bank_commitment_deadline',
+        'submission_location','issue_type','issue_severity',
+        'issue_notes','is_rejected','created_at'
+      ].join(',');
+
+      const { data: insertResult, error: insertError } = await supabase
+        .from('records')
+        .insert(recordsToInsert)
+        .select(LIGHT_SELECT);
       if (insertError) throw insertError;
       insertedData = insertResult || [];
     }
 
     let updatedData: any[] = [];
     if (recordsToUpdate.length > 0) {
-      const { data: updateResult, error: updateError } = await supabase.from('records').upsert(recordsToUpdate, { onConflict: 'id' }).select();
+      const { error: updateError } = await supabase
+        .from('records')
+        .upsert(recordsToUpdate, { onConflict: 'id' });
       if (updateError) throw updateError;
-      updatedData = updateResult || [];
+      updatedData = recordsToUpdate;
     }
     
     const allReturnedData = [...insertedData, ...updatedData];
@@ -500,6 +519,13 @@ export default function App() {
   }, []);
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+        showToast(
+          'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.',
+          'warning'
+        );
+      }
       if (event === 'TOKEN_REFRESHED' && session?.access_token) {
         supabase.realtime.setAuth(session.access_token);
         console.log('[Realtime] Token auto-refreshed ✅');
@@ -877,6 +903,16 @@ export default function App() {
   // Fetch all data from Supabase
   useEffect(() => {
     const fetchInitialData = async () => {
+      const timeoutId = setTimeout(() => {
+        setIsInitialLoading(false);
+        setIsLoadingApps(false);
+        setIsLoadingConfig(false);
+        showToast(
+          '⚠️ Tải dữ liệu quá lâu. Kiểm tra kết nối.', 
+          'error'
+        );
+      }, 15000);
+
       setIsInitialLoading(true);
       setIsLoadingApps(true);
       setIsLoadingConfig(true);
@@ -964,8 +1000,10 @@ export default function App() {
          setIsInitialLoading(false);
          handleSetApplications([]);
          setUsers([]);
+      } finally {
+        clearTimeout(timeoutId);
+        setIsLoadingApps(false);
       }
-      setIsLoadingApps(false); 
     };
     fetchInitialData();
   }, []);
@@ -1442,6 +1480,22 @@ export default function App() {
       setIsLoadingApps(false);
     }
   };
+
+  useEffect(() => {
+    const onOffline = () => showToast(
+      '⚠️ Mất kết nối mạng', 'warning'
+    );
+    const onOnline = () => {
+      showToast('✅ Đã kết nối lại', 'success');
+      fetchApplications();
+    };
+    window.addEventListener('offline', onOffline);
+    window.addEventListener('online', onOnline);
+    return () => {
+      window.removeEventListener('offline', onOffline);
+      window.removeEventListener('online', onOnline);
+    };
+  }, []);
 
   useEffect(() => {
     setCurrentPage(0);
