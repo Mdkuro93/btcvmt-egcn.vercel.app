@@ -254,7 +254,7 @@ export default function ReportsView({
     else {
       // Tổng hợp cho PROJECT, REGION, LOAN, PERFORMANCE
       fileName = `BaoCao_TongHop_${today.replace(/\//g,'-')}`;
-      sheetName = 'Tổng Hợp';
+      sheetName = 'Báo cáo Tổng hợp';
       rows = [
         ['BÁO CÁO TỔNG HỢP HỒ SƠ GCN'],
         [`Dự án: ${projectName} | Xuất ngày: ${today}`],

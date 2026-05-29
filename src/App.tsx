@@ -5403,6 +5403,7 @@ export default function App() {
         <div className="flex-1 overflow-y-auto px-4 py-4 md:px-8 bg-transparent custom-scrollbar relative">
           <AnimatePresence mode="wait">
       <DashboardTab
+        key="dashboard-tab-view"
         activeTab={activeTab}
         userRole={userRole}
         dashboardApps={dashboardApps}
@@ -5441,6 +5442,7 @@ export default function App() {
         showToast={showToast}
       />
       <ApplicationsTab
+        key="applications-tab-view"
         activeTab={activeTab} 
         userRole={userRole} 
         theme={theme} 
@@ -5667,6 +5669,7 @@ export default function App() {
               </motion.div>
             )}
       <ResourcesTab
+        key="resources-tab-view"
         activeTab={activeTab}
         theme={theme}
         userRole={userRole}
