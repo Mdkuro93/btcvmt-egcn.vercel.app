@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Cell,
   PieChart, Pie, LabelList, Label, Legend, AreaChart, Area
@@ -102,6 +103,7 @@ interface ReportsViewProps {
   slaConfig: Record<string, number>;
   reportType: 'PROJECT' | 'REGION' | 'LOAN' | 'SLA' | 'PERFORMANCE' | 'ERROR';
   setReportType: (type: 'PROJECT' | 'REGION' | 'LOAN' | 'SLA' | 'PERFORMANCE' | 'ERROR') => void;
+  onExportExcel?: (type: string, month?: string, projectId?: string) => void;
 }
 
 export default function ReportsView({ 
@@ -115,11 +117,199 @@ export default function ReportsView({
   stepConfig,
   slaConfig,
   reportType,
-  setReportType
+  setReportType,
+  onExportExcel
 }: ReportsViewProps) {
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [selectedLoanProjectIds, setSelectedLoanProjectIds] = useState<string[]>(projects.map(p => p.id));
   const [isChartsReady, setIsChartsReady] = useState(false);
+  const [exportProjectId, setExportProjectId] = useState<string>('ALL');
+
+  const handleExportExcel = () => {
+    // Helper to format date as dd/mm/yyyy
+    const formatDate = (dateValue: any) => {
+      if (!dateValue) return '';
+      const d = new Date(dateValue);
+      if (isNaN(d.getTime())) return String(dateValue);
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    };
+
+    // If the external onExportExcel is provided, call it
+    if (onExportExcel) {
+      onExportExcel(reportType, undefined, exportProjectId);
+      return;
+    }
+
+    // Otherwise, use internal implementation
+    // Lọc theo dự án
+    const filteredApps = exportProjectId === 'ALL'
+      ? applications
+      : applications.filter(a => {
+          const proj = projects.find(
+            p => p.id === exportProjectId
+          );
+          return proj ? a.projectName === proj.name : true;
+        });
+
+    const projectName = exportProjectId === 'ALL'
+      ? 'Tất cả dự án'
+      : projects.find(p => p.id === exportProjectId)?.name 
+        || '';
+
+    const today = new Date().toLocaleDateString('vi-VN');
+
+    // Tạo data Excel theo từng loại báo cáo
+    let rows: any[][] = [];
+    let sheetName = 'BáoCáo';
+    let fileName = '';
+
+    if (reportType === 'PROJECT') {
+      fileName = `BaoCao_DuAn_${today.replace(/\//g,'-')}`;
+      sheetName = 'Theo Dự Án';
+      rows = [
+        [`BÁO CÁO TIẾN ĐỘ THEO DỰ ÁN`],
+        [`Dự án: ${projectName} | Xuất ngày: ${today}`],
+        [],
+        ['Dự án', 'Tổng hồ sơ', 'Hoàn tất', 
+         'Đang xử lý', 'Vướng mắc', 'Tỷ lệ HT (%)'],
+        ...(exportProjectId === 'ALL' ? projects : 
+           projects.filter(p => p.id === exportProjectId)
+        ).map(p => {
+          const pApps = filteredApps.filter(
+            a => a.projectName === p.name
+          );
+          const done = pApps.filter(
+            a => a.status === 'Completed'
+          ).length;
+          const err = pApps.filter(
+            a => a.status === 'Error' || a.isRejected
+          ).length;
+          const rate = pApps.length > 0
+            ? `${Math.round(done/pApps.length*100)}%` : '0%';
+          return [
+            p.name, pApps.length, done,
+            pApps.length - done - err, err, rate
+          ];
+        }),
+        [],
+        ['TỔNG CỘNG',
+          filteredApps.length,
+          filteredApps.filter(a => a.status==='Completed').length,
+          filteredApps.filter(a => 
+            a.status!=='Completed' && a.status!=='Error' && 
+            !a.isRejected
+          ).length,
+          filteredApps.filter(a => 
+            a.status==='Error' || a.isRejected
+          ).length,
+          filteredApps.length > 0
+            ? `${Math.round(
+                filteredApps.filter(
+                  a=>a.status==='Completed'
+                ).length/filteredApps.length*100
+              )}%` : '0%'
+        ]
+      ];
+    }
+
+    else if (reportType === 'SLA') {
+      fileName = `BaoCao_SLA_${today.replace(/\//g,'-')}`;
+      sheetName = 'Phân tích SLA';
+      rows = [
+        ['BÁO CÁO SLA & TIẾN ĐỘ XỬ LÝ'],
+        [`Dự án: ${projectName} | Xuất ngày: ${today}`],
+        [],
+        ['Mã lô', 'Dự án', 'Khách hàng', 'Trạng thái',
+         'Ngày ký HĐ', 'Ngày nộp VPĐK', 'Ngày hoàn tất',
+         'Số ngày XL', 'SLA (ngày)', 'Đúng hạn?'],
+        ...filteredApps.map(app => {
+          const start = app.contractSigningDate
+            ? new Date(app.contractSigningDate) : null;
+          const end = app.customerHandoverDate
+            ? new Date(app.customerHandoverDate) : null;
+          const days = start && end
+            ? Math.round(
+                (end.getTime()-start.getTime())
+                /(1000*60*60*24)
+              ) : '';
+          const sla = slaConfig?.totalSLA || 90;
+          const onTime = days !== ''
+            ? (Number(days) <= sla ? '✓ Đúng hạn' : '✗ Trễ hạn')
+            : 'Chưa HT';
+          return [
+            app.unitCode, app.projectName, app.customerName,
+            app.status, 
+            formatDate(app.contractSigningDate),
+            formatDate(app.submissionDate),
+            formatDate(app.customerHandoverDate),
+            days, sla, onTime
+          ];
+        })
+      ];
+    }
+
+    else {
+      // Tổng hợp cho PROJECT, REGION, LOAN, PERFORMANCE
+      fileName = `BaoCao_TongHop_${today.replace(/\//g,'-')}`;
+      sheetName = 'Tổng Hợp';
+      rows = [
+        ['BÁO CÁO TỔNG HỢP HỒ SƠ GCN'],
+        [`Dự án: ${projectName} | Xuất ngày: ${today}`],
+        [],
+        ['STT', 'Mã lô/căn', 'Dự án', 'Khách hàng',
+         'Loại tài sản', 'Vay vốn', 'Tự làm sổ',
+         'Giai đoạn', 'Trạng thái',
+         'Ngày ký HĐ', 'Ngày nộp VPĐK',
+         'Ngày TB Thuế', 'Ngày đóng thuế',
+         'Ngày nhận GCN', 'Ngày bàn giao KH'],
+        ...filteredApps.map((app, i) => [
+          i+1,
+          app.unitCode,
+          app.projectName,
+          app.customerName,
+          app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
+          app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
+          app.isSelfService ? 'Có' : 'Không',
+          app.currentStep,
+          app.status,
+          formatDate(app.contractSigningDate),
+          formatDate(app.submissionDate),
+          formatDate(app.taxNotificationDate),
+          formatDate(app.taxReceiptDate),
+          formatDate(app.gcnReceivedDate),
+          formatDate(app.customerHandoverDate)
+        ])
+      ];
+    }
+
+    // Tạo worksheet và auto-width
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const colWidths = (rows[3] || []).map((_: any, i: number) => ({
+      wch: Math.max(
+        12,
+        ...rows.slice(3).map((r: any) => 
+          String(r[i] ?? '').length + 2
+        )
+      )
+    }));
+    ws['!cols'] = colWidths;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([buf], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${fileName}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     setIsChartsReady(false);
@@ -364,9 +554,9 @@ export default function ReportsView({
 
         {/* Report Navigation */}
         <div className="flex flex-wrap gap-2">
-          {(Object.keys(reportConfig) as Array<keyof typeof reportConfig>).map(type => (
+          {(Object.keys(reportConfig) as Array<keyof typeof reportConfig>).map((type, idx) => (
             <button
-              key={type}
+              key={`nav-err-sw-${type}-${idx}`}
               onClick={() => { setReportType(type); setSelectedItem(null); }}
               className={cn(
                 "px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all tracking-[0.15em] border flex items-center gap-2 group",
@@ -380,7 +570,7 @@ export default function ReportsView({
             </button>
           ))}
           <button
-            key="ERROR"
+            key="nav-error-ERROR"
             onClick={() => { setReportType('ERROR'); setSelectedItem(null); }}
             className={cn(
               "px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all tracking-[0.15em] border flex items-center gap-2 group",
@@ -414,21 +604,24 @@ export default function ReportsView({
            <p className="text-xs text-slate-500 font-bold uppercase tracking-[0.2em]">Hệ thống phân tích báo cáo rủi ro đa chiều</p>
         </div>
         <div className="flex gap-3 w-full md:w-auto">
-          <button className={cn(
-            "flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95 border",
-            theme === 'light' ? "bg-white border-slate-200 text-slate-700" : "bg-slate-900 border-slate-800 text-slate-300"
-          )}>
+          <button 
+            onClick={handleExportExcel}
+            className={cn(
+              "flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-95 border",
+              theme === 'light' ? "bg-white border-slate-200 text-slate-700" : "bg-slate-900 border-slate-800 text-slate-300"
+            )}
+          >
             <Download size={14} className="text-indigo-500" /> Export Business Intelligence
           </button>
         </div>
       </header>
 
       {/* Report Navigation */}
-      <div className="flex flex-wrap gap-2">
-        {(Object.keys(reportConfig) as Array<keyof typeof reportConfig>).map(type => (
-          <button
-            key={type}
-            onClick={() => { setReportType(type); setSelectedItem(null); }}
+        <div className="flex flex-wrap gap-2">
+          {(Object.keys(reportConfig) as Array<keyof typeof reportConfig>).map((type, idx) => (
+            <button
+              key={`nav-main-sw-${type}-${idx}`}
+              onClick={() => { setReportType(type); setSelectedItem(null); }}
             className={cn(
               "px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all tracking-[0.15em] border flex items-center gap-2 group",
               (reportType as string) === type 
@@ -441,7 +634,7 @@ export default function ReportsView({
           </button>
         ))}
         <button
-          key="ERROR"
+          key="nav-main-ERROR"
           onClick={() => { setReportType('ERROR'); setSelectedItem(null); }}
           className={cn(
             "px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all tracking-[0.15em] border flex items-center gap-2 group",
@@ -452,6 +645,72 @@ export default function ReportsView({
         >
           <AlertCircle size={12} className={(reportType as string) === 'ERROR' ? "text-white" : "text-rose-500"} />
           Báo cáo sai sót
+        </button>
+      </div>
+
+      {/* Toolbar Export */}
+      <div className={cn(
+        "flex flex-wrap items-center gap-3 p-4 rounded-2xl border mb-6",
+        theme === 'light'
+          ? "bg-slate-50 border-slate-100"
+          : "bg-slate-800/50 border-slate-700/50"
+      )}>
+        <span className={cn(
+          "text-[10px] font-black uppercase tracking-wider",
+          theme === 'light' ? "text-slate-500" : "text-slate-400"
+        )}>
+          Xuất báo cáo:
+        </span>
+
+        {/* Chọn dự án */}
+        <select
+          value={exportProjectId}
+          onChange={e => setExportProjectId(e.target.value)}
+          className={cn(
+            "text-xs px-3 py-2 rounded-xl border outline-none",
+            "font-semibold transition-all",
+            theme === 'light'
+              ? "bg-white border-slate-200 text-slate-700"
+              : "bg-slate-700/50 border-slate-600 text-white"
+          )}
+        >
+          <option value="ALL">📊 Tất cả dự án</option>
+          {projects.map((p, pIdx) => (
+            <option key={`export-proj-opt-${p.id}-${pIdx}`} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+
+        {/* Số hồ sơ sẽ xuất */}
+        <span className={cn(
+          "text-[10px] font-bold",
+          theme === 'light' ? "text-slate-400" : "text-slate-500"
+        )}>
+          {exportProjectId === 'ALL'
+            ? `${applications.length} hồ sơ`
+            : `${applications.filter(a => {
+                const p = projects.find(
+                  x => x.id === exportProjectId
+                );
+                return p ? a.projectName === p.name : false;
+              }).length} hồ sơ`
+          }
+        </span>
+
+        {/* Nút Export */}
+        <button
+          onClick={handleExportExcel}
+          className={cn(
+            "ml-auto flex items-center gap-2",
+            "px-4 py-2 rounded-xl font-bold text-xs text-white",
+            "bg-emerald-600 hover:bg-emerald-500",
+            "transition-all shadow-md shadow-emerald-500/20",
+            "active:scale-95"
+          )}
+        >
+          <Download size={14} />
+          Xuất Excel
         </button>
       </div>
 
@@ -511,7 +770,7 @@ export default function ReportsView({
                   </div>
                   <div className="flex flex-wrap gap-4 items-center">
                     <button 
-                      onClick={() => alert('Đang xuất báo cáo chi tiết các căn có vay (Excel)...')}
+                      onClick={handleExportExcel}
                       className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-900/20"
                     >
                       <Download size={14} /> Xuất BC Có Vay
@@ -550,7 +809,7 @@ export default function ReportsView({
                       const isSelected = selectedLoanProjectIds.includes(p.id);
                       return (
                         <button
-                          key={`loan-proj-${p.id}-${pIdx}`}
+                          key={`loan-proj-filter-${p.id}-${pIdx}`}
                           onClick={() => {
                             if (isSelected) {
                               setSelectedLoanProjectIds(selectedLoanProjectIds.filter(id => id !== p.id));
@@ -627,7 +886,7 @@ export default function ReportsView({
                                  stroke="none"
                                >
                                  {loanPieData.map((entry: any, index: number) => (
-                                   <Cell key={`cell-pie-loan-${entry.name || index}-${index}`} fill={entry.color} />
+                                   <Cell key={`loan-pie-cell-${index}-${entry.name}`} fill={entry.color} />
                                  ))}
                                  <Label 
                                    value={loanApps.length} 
@@ -683,7 +942,7 @@ export default function ReportsView({
                                 />
                                <Bar dataKey="value" fill="#4f46e5" barSize={20} radius={[0, 4, 4, 0]}>
                                  {loanPieData.map((entry: any, index: number) => (
-                                   <Cell key={`cell-bar-loan-${entry.name || index}-${index}`} fill={entry.color} />
+                                   <Cell key={`loan-bar-cell-${index}-${entry.name}`} fill={entry.color} />
                                  ))}
                                  <LabelList 
                                    dataKey="value" 
@@ -850,7 +1109,7 @@ export default function ReportsView({
                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Thống kê chi tiết Nhân viên</p>
                       <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
                          {stats.length > 0 ? stats.slice().sort((a:any, b:any) => b.total - a.total).map((user: any, i: number) => (
-                           <div key={`user-stat-${user.id || 'unknown'}-${i}`} className={cn(
+                           <div key={`usr-perf-stat-${user.id || 'u'}-${i}`} className={cn(
                              "p-4 rounded-3xl border flex items-center justify-between transition-all group",
                              theme === 'light' ? "bg-white border-slate-200" : "bg-slate-950/40 border-slate-800 hover:border-indigo-500/30"
                            )}>
@@ -880,8 +1139,8 @@ export default function ReportsView({
                    </div>
 
                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    {stats.slice(0, 4).map((user: any) => (
-                      <div key={`top-card-${user.id}`} className={cn(
+                    {stats.slice(0, 4).map((user: any, index: number) => (
+                      <div key={`top-user-card-${user.id || 'n'}-${index}`} className={cn(
                         "p-5 rounded-[2rem] border relative overflow-hidden group",
                         theme === 'light' ? "bg-slate-50" : "bg-slate-950/20 border-slate-800"
                       )}>
@@ -922,7 +1181,7 @@ export default function ReportsView({
                           />
                           <Bar dataKey="avgDays" name="Số ngày tb" radius={[0, 6, 6, 0]} barSize={20}>
                             {slaStats.map((entry, index) => (
-                              <Cell key={`cell-${entry.stepKey}`} fill={entry.isCritical ? '#f43f5e' : entry.avgDays > 5 ? '#f59e0b' : '#6366f1'} />
+                              <Cell key={`sla-chart-cell-${index}`} fill={entry.isCritical ? '#f43f5e' : entry.avgDays > 5 ? '#f59e0b' : '#6366f1'} />
                             ))}
                           </Bar>
                         </BarChart>
@@ -1045,7 +1304,7 @@ export default function ReportsView({
              </h4>
              <div className="space-y-6">
                 {stats.slice(0, 4).sort((a,b) => b.completed - a.completed).map((p, i) => (
-                  <div key={`project-ranking-${p.id || p.name || 'empty'}-${i}`} className="flex items-center gap-4">
+                  <div key={`proj-ranking-list-${p.id || p.name || 'e'}-${i}`} className="flex items-center gap-4">
                     <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-500 italic">#{i+1}</div>
                     <div className="flex-1">
                        <p className={cn("text-xs font-black", theme === 'light' ? "text-slate-800" : "text-slate-200")}>{p.name}</p>

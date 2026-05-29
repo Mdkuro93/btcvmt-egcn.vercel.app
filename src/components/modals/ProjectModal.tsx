@@ -147,7 +147,7 @@ const ProjectModal = ({
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 block">Danh mục hồ sơ gốc (Tham khảo)</label>
                 <div className="space-y-2">
                   {(formData.originalDocumentChecklist || []).map((item, idx) => (
-                    <div key={`checklist-${idx}-${item.substring(0, 5)}`} className="flex gap-2">
+                    <div key={`project-checklist-${idx}`} className="flex gap-2">
                       <input 
                         type="text"
                         value={item}

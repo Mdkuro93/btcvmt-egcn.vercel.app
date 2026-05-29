@@ -100,8 +100,8 @@ export const CreateApplicationModal = ({
                           value={newApp.projectName}
                           onChange={(e) => setNewApp({...newApp, projectName: e.target.value})}
                         >
-                          {visibleProjects.map(p => (
-                            <option key={p.id} value={p.name}>{p.name}</option>
+                          {visibleProjects.map((p, pIdx) => (
+                            <option key={`create-proj-opt-${p.id || 'none'}-${pIdx}`} value={p.name}>{p.name}</option>
                           ))}
                         </select>
                         <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none" />

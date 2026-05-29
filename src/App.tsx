@@ -41,7 +41,7 @@ import {
   Map as MapIcon,
   User,
   MoreVertical,
-  History,
+  History as HistoryIcon,
   RotateCcw,
   FileText,
   BookOpen,
@@ -580,22 +580,22 @@ export default function App() {
   const canEdit = (user: UserProfile | null): boolean => {
     if (!user) return false;
     if (user.dept === 'ADMIN') return true;
-    if (['KT', 'PTT', 'PTDA'].includes(user.dept)) return true;
+    if (['KT', 'PTT', 'PTDA', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA', 'MANAGER_ALL'].includes(user.dept)) return true;
     return user.permission === 'EDIT' || user.permission === 'FULL';
   };
 
   const userCanEdit = useMemo(() => canEdit(currentUser), [currentUser]);
   
   const isManagementEdit = useMemo(() => {
-    return userRole === 'ADMIN' || (['MANAGER', 'DIRECTOR'].includes(userRole) && userCanEdit);
+    return userRole === 'ADMIN' || (['MANAGER', 'DIRECTOR', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA', 'MANAGER_ALL'].includes(userRole) && userCanEdit);
   }, [userRole, userCanEdit]);
 
   const isManagement = useMemo(() => {
-    return ['ADMIN', 'MANAGER', 'DIRECTOR'].includes(userRole);
+    return ['ADMIN', 'MANAGER', 'DIRECTOR', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA', 'MANAGER_ALL'].includes(userRole);
   }, [userRole]);
 
   const hasSettingsAccess = useMemo(() => {
-    return userRole === 'ADMIN' || userRole === 'MANAGER';
+    return userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'MANAGER_ALL';
   }, [userRole]);
 
   const hasUserAccess = useMemo(() => {
@@ -1915,11 +1915,11 @@ export default function App() {
 
   useEffect(() => {
     if (userRole) {
-      if (userRole === 'PTT') {
+      if (userRole === 'PTT' || userRole === 'MANAGER_PTT') {
         setExpandedSections(['PTT_SECTION', 'OTHER_SECTION']);
-      } else if (userRole === 'KT') {
+      } else if (userRole === 'KT' || userRole === 'MANAGER_KT') {
         setExpandedSections(['KT_SECTION', 'OTHER_SECTION']);
-      } else if (userRole === 'PTDA') {
+      } else if (userRole === 'PTDA' || userRole === 'MANAGER_PTDA') {
         setExpandedSections(['PTDA_SECTION', 'OTHER_SECTION']);
       } else {
         setExpandedSections(['PTT_SECTION', 'KT_SECTION', 'PTDA_SECTION', 'OTHER_SECTION']);
@@ -2226,7 +2226,15 @@ export default function App() {
             const logEntry: ApplicationStepHistory = {
                 id: Math.random().toString(36).substr(2, 9),
                 stepName: app.currentStep,
-                dept: (userRole === 'ADMIN' ? 'ADMIN' : (userRole === 'MANAGER' ? 'KT' : (userRole as Dept))),
+                dept: (
+                  userRole === 'ADMIN' ? 'ADMIN' : 
+                  userRole === 'MANAGER' ? 'KT' : 
+                  userRole === 'MANAGER_PTT' ? 'PTT' :
+                  userRole === 'MANAGER_KT' ? 'KT' :
+                  userRole === 'MANAGER_PTDA' ? 'PTDA' :
+                  userRole === 'MANAGER_ALL' ? 'ADMIN' :
+                  (userRole as Dept)
+                ),
                 receivedDate: new Date().toISOString(),
                 note: `[BÁO SAI SÓT - ${reportIssueSeverity}] ${reportIssueNote}`,
                 performedByName: 'Admin', 
@@ -2317,7 +2325,7 @@ export default function App() {
     { key: 'customerHandoverDate', label: 'Ngày BG Khách' }
   ];
 
-  const validateDateSequence = (app: Partial<Application>) => {
+  function validateDateSequence(app: Partial<Application>) {
     const dates = [
       { key: 'receivedDate', label: 'Ngày nhận HS' },
       { key: 'contractSigningDate', label: 'Ngày ký HĐCN' },
@@ -2370,7 +2378,7 @@ export default function App() {
     }
 
     return null;
-  };
+  }
 
   const handleSpreadsheetChange = (id: string, field: string, value: string) => {
     setSpreadsheetChanges(prev => ({
@@ -2793,7 +2801,7 @@ export default function App() {
         formatExcelDate(app.accountingHandoverDate),
         formatExcelDate(app.customerHandoverDate)
       ]);
-    } else if (userRole === 'PTT') {
+    } else if (userRole === 'PTT' || userRole === 'MANAGER_PTT') {
       headers = [
         "Dự án", "Mã lô/căn", "Tên khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản", 
         "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Hạn cam kết Ngân hàng", "Tự làm sổ (Có/Không)", "Ngày nhận GCN", "Ngày BG GCN Khách",
@@ -2819,7 +2827,7 @@ export default function App() {
           app.issueNotes || ''
         ];
       });
-    } else if (userRole === 'KT') {
+    } else if (userRole === 'KT' || userRole === 'MANAGER_KT') {
       headers = [
         "Dự án", "Mã lô/căn", "Khách hàng", "Nơi nộp (Phường/TP)", "Mã HS/Số phiếu hẹn VPĐK", "Ngày nộp VPĐK", 
         "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", "Ngày nhận GCN", "Ngày BG P.TDA", 
@@ -2841,7 +2849,7 @@ export default function App() {
         app.issueSeverity || '',
         app.issueNotes || ''
       ]);
-    } else if (userRole === 'PTDA') {
+    } else if (userRole === 'PTDA' || userRole === 'MANAGER_PTDA') {
       headers = [
         "Dự án", "Mã lô/căn",
         "Ngày TB Thuế",
@@ -2901,7 +2909,7 @@ export default function App() {
     const dataEndRow = data.length + 1;
 
     // ADMIN/MANAGER/DIRECTOR
-    if (userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'DIRECTOR') {
+    if (['ADMIN', 'MANAGER', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole)) {
       addDropdownValidation(worksheet, 'E', 2, dataEndRow, 
         ['Có', 'Không']);                    // Vay ngân hàng
       addDropdownValidation(worksheet, 'F', 2, dataEndRow, 
@@ -2913,7 +2921,7 @@ export default function App() {
     }
 
     // PTT
-    if (userRole === 'PTT') {
+    if (userRole === 'PTT' || userRole === 'MANAGER_PTT') {
       addDropdownValidation(worksheet, 'F', 2, dataEndRow,
         ['Có', 'Không']);                    // Vay ngân hàng
       addDropdownValidation(worksheet, 'G', 2, dataEndRow,
@@ -2927,7 +2935,7 @@ export default function App() {
     }
 
     // KT
-    if (userRole === 'KT') {
+    if (userRole === 'KT' || userRole === 'MANAGER_KT') {
       addDropdownValidation(worksheet, 'D', 2, dataEndRow,
         ['Phường/Xã', 'TP Đà Nẵng']);      // Nơi nộp
       addDropdownValidation(worksheet, 'L', 2, dataEndRow,
@@ -2937,7 +2945,7 @@ export default function App() {
     }
 
     // PTDA
-    if (userRole === 'PTDA') {
+    if (userRole === 'PTDA' || userRole === 'MANAGER_PTDA') {
       addDropdownValidation(worksheet, 'H', 2, dataEndRow,
         [...VALID_ISSUE_TYPES]);
       addDropdownValidation(worksheet, 'I', 2, dataEndRow,
@@ -4127,12 +4135,12 @@ export default function App() {
     if (userRole === 'ADMIN') return true;
     
     // Management/Leadership roles depend on the permission field from DB
-    if (userRole === 'MANAGER' || userRole === 'DIRECTOR') {
+    if (userRole === 'MANAGER' || userRole === 'DIRECTOR' || userRole === 'MANAGER_ALL') {
       return userCanEdit;
     }
 
     // Specialist roles logic remains as is (they are always allowed to edit their assigned fields)
-    if (userRole === 'PTDA' && fieldName === 'vpdkCode') return false;
+    if ((userRole === 'PTDA' || userRole === 'MANAGER_PTDA') && fieldName === 'vpdkCode') return false;
 
     const pttFields = [
       'customerName', 'contractSignerType', 'phoneNumber', 'loanStatus', 'bankCommitmentDeadline', 'propertyType', 
@@ -4153,9 +4161,9 @@ export default function App() {
       'issueType', 'issueNotes', 'issueSeverity'
     ];
 
-    if (userRole === 'PTT') return pttFields.includes(fieldName);
-    if (userRole === 'KT') return ktFields.includes(fieldName);
-    if (userRole === 'PTDA') return ptdaFields.includes(fieldName);
+    if (userRole === 'PTT' || userRole === 'MANAGER_PTT') return pttFields.includes(fieldName);
+    if (userRole === 'KT' || userRole === 'MANAGER_KT') return ktFields.includes(fieldName);
+    if (userRole === 'PTDA' || userRole === 'MANAGER_PTDA') return ptdaFields.includes(fieldName);
     
     return false;
   };
@@ -4165,7 +4173,7 @@ export default function App() {
 
     // PTDA and KT don't need to see doc checklist
     if (fieldName === 'checklist') {
-      return userRole === 'PTT';
+      return userRole === 'PTT' || userRole === 'MANAGER_PTT';
     }
 
     // Hide internal tax processing dates from outside KT if needed, 
@@ -4717,7 +4725,7 @@ export default function App() {
         adminWarnings.push({
             title: `Cảnh báo rủi ro Hệ thống: ${Math.round((overdueCount/apps.length)*100)}% trễ hạn`,
             desc: `Tỷ lệ trễ hạn vượt ngưỡng cho phép, yêu cầu báo cáo giải trình từ các trưởng bộ phận.`,
-            icon: History,
+            icon: HistoryIcon,
             color: 'indigo'
         });
     }

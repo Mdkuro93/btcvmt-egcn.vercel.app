@@ -132,7 +132,11 @@ export const UserManagementModal = ({
                       <option value="PTT">Chuyên viên PTT</option>
                       <option value="KT">Chuyên viên Kế toán</option>
                       <option value="PTDA">Chuyên viên PTDA</option>
-                      <option value="MANAGER">Trưởng bộ phận / Trưởng phòng</option>
+                      <option value="MANAGER_PTT">Quản lý bộ phận PTT (MANAGER_PTT)</option>
+                      <option value="MANAGER_KT">Quản lý bộ phận KT (MANAGER_KT)</option>
+                      <option value="MANAGER_PTDA">Quản lý bộ phận PTDA (MANAGER_PTDA)</option>
+                      <option value="MANAGER_ALL">Quản lý cả 3 bộ phận (MANAGER_ALL)</option>
+                      <option value="MANAGER">Trưởng phòng chung (MANAGER)</option>
                       <option value="DIRECTOR">Lãnh đạo Sunshine (Ban Lãnh đạo)</option>
                       <option value="ADMIN">Quản trị viên (Admin)</option>
                     </select>

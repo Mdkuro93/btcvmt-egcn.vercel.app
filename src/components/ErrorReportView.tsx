@@ -264,7 +264,7 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
                     stroke="none"
                   >
                     {severityChartData.map((entry, index) => (
-                      <Cell key={`cell-err-severity-${entry.name || index}-${index}`} fill={entry.color} />
+                      <Cell key={`err-severity-cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
                   <ReTooltip 
@@ -326,7 +326,7 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
                   />
                   <Bar dataKey="value" name="Số hồ sơ" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={16}>
                     {typeChartData.map((entry, index) => (
-                      <Cell key={`cell-err-type-${entry.name || index}-${index}`} fill={index === 0 ? '#ef4444' : index === 1 ? '#f59e0b' : '#6366f1'} />
+                      <Cell key={`err-type-cell-${index}`} fill={index === 0 ? '#ef4444' : index === 1 ? '#f59e0b' : '#6366f1'} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -369,7 +369,7 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
                   const low = matrix[type]?.['Low'] || 0;
 
                   return (
-                    <tr key={`${type}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
+                    <tr key={`error-matrix-row-${type}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
                       <td className="px-5 py-4">
                         <span className={cn("text-xs font-black", theme === 'light' ? "text-slate-800" : "text-slate-200")}>{type}</span>
                       </td>
@@ -432,7 +432,7 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
                 <ReTooltip cursor={{ fill: 'rgba(99,102,241,0.02)' }} />
                 <Bar dataKey="value" name="Sai sót chặng" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={28}>
                   {stepChartData.map((entry, index) => (
-                    <Cell key={`cell-err-step-${entry.name || index}-${index}`} fill={index % 2 === 0 ? '#8b5cf6' : '#6366f1'} />
+                    <Cell key={`err-step-cell-${index}`} fill={index % 2 === 0 ? '#8b5cf6' : '#6366f1'} />
                   ))}
                 </Bar>
               </BarChart>

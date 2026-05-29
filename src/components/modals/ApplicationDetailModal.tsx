@@ -5,7 +5,7 @@ import { cn } from '../../lib/utils';
 import { 
   X, CheckCircle, Clock, AlertCircle, RefreshCw, FileText, Download, User, Activity, Edit3, Save, 
   MapPin, Hash, Trash2, Printer, ChevronDown, ChevronUp, Upload, CheckSquare, Search, Eye,
-  RotateCcw, Edit2, CheckCircle2, ChevronRight, AlertTriangle, Users, Check, Plus, Camera
+  RotateCcw, Edit2, CheckCircle2, ChevronRight, AlertTriangle, Users, Check, Plus, Camera, History as HistoryIcon
 } from 'lucide-react';
 import { DetailCard, StatusBadge } from '../AppSubComponents';
 import { WORKFLOW_1_STEPS, WORKFLOW_2_STEPS, STEP_CONFIG as INITIAL_STEP_CONFIG, getNextStep } from '../../constants';
@@ -61,6 +61,23 @@ export const ApplicationDetailModal = ({
   slaConfig
 }: any) => {
 
+  const currentApp = editApp || selectedApp;
+  const isSupportSpecial = currentApp && (currentApp.projectName?.includes('hỗ trợ')) && (currentApp.currentStep === 'GD2_Cho_Nop_VPDK' || currentApp.currentStep === 'S3_Nop_VPDK');
+  const currentStepDept = currentApp && (stepConfig[currentApp.currentStep] || INITIAL_STEP_CONFIG[currentApp.currentStep])?.dept;
+  const effectiveDept = currentApp ? (isSupportSpecial ? 'KT' : currentStepDept) : '';
+
+  const isRoleDeptMatch = (() => {
+    if (!currentUser || !currentApp) return false;
+    const role = currentUser.dept;
+    if (role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER' || role === 'MANAGER_ALL') return true;
+    if (role === 'MANAGER_PTT') return effectiveDept === 'PTT';
+    if (role === 'MANAGER_KT') return effectiveDept === 'KT';
+    if (role === 'MANAGER_PTDA') return effectiveDept === 'PTDA';
+    return true; // Keep true or false for other roles or standard specialists (field level isFieldEditable handles fields)
+  })();
+
+  const effectiveUserCanEdit = userCanEdit && isRoleDeptMatch;
+
   return (
 <>
       <AnimatePresence>
@@ -106,7 +123,7 @@ export const ApplicationDetailModal = ({
                         {(editApp || selectedApp).rejectionCount > 0 && <span className="ml-2 text-[10px] font-mono bg-error/20 px-1.5 py-0.5 rounded">Trả về: {(editApp || selectedApp).rejectionCount} lần</span>}
                       </div>
                       
-                      {userCanEdit && (
+                      {effectiveUserCanEdit && (
                         <button 
                           onClick={() => handleResolveIssue((editApp || selectedApp).id)}
                           className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md flex items-center gap-2"
@@ -129,7 +146,7 @@ export const ApplicationDetailModal = ({
                     </button>
                   )}
                   {!isEditing ? (
-                    userCanEdit && (
+                    effectiveUserCanEdit && (
                       <button 
                         onClick={() => {
                           setIsEditing(true);
@@ -741,7 +758,7 @@ export const ApplicationDetailModal = ({
                                     onClick={() => setDetailTab('History')}
                                     className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2", detailTab === 'History' ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300")}
                                   >
-                                    <History size={14} /> Nhật ký & Lịch sử
+                                    <HistoryIcon size={14} /> Nhật ký & Lịch sử
                                   </button>
                                   <button 
                                     onClick={() => setDetailTab('Documents')}
@@ -816,6 +833,7 @@ export const ApplicationDetailModal = ({
                                              const app = editApp || selectedApp;
                                              if (!app) return null;
                                              const h = (app.history || []).map(entry => ({
+                                               type: 'history',
                                                id: entry.id,
                                                time: entry.receivedDate, 
                                                user: entry.performedByName || 'Hệ thống',
@@ -823,6 +841,7 @@ export const ApplicationDetailModal = ({
                                                content: entry.note || 'Cập nhật bước xử lý',
                                              }));
                                              const a = (app.auditTrail || []).map(entry => ({
+                                               type: 'audit',
                                                id: entry.id,
                                                time: entry.timestamp,
                                                user: entry.userName,
@@ -841,7 +860,7 @@ export const ApplicationDetailModal = ({
                                              );
 
                                              return merged.map((log, index) => (
-                                               <tr key={`${log.type || 'log'}-${log.id}-${index}`} className={cn("border-b transition-colors group", theme === 'dark' ? "border-slate-800/50 hover:bg-slate-800/20 text-slate-300" : "border-slate-100 hover:bg-slate-50 text-slate-700")}>
+                                               <tr key={`${log.type}-${log.id || 'noid'}-${log.time || 'notime'}-${index}`} className={cn("border-b transition-colors group", theme === 'dark' ? "border-slate-800/50 hover:bg-slate-800/20 text-slate-300" : "border-slate-100 hover:bg-slate-50 text-slate-700")}>
                                                  <td className="p-3 text-[11px] whitespace-nowrap align-top pt-4">
                                                    <div className="font-bold">{log.time}</div>
                                                  </td>
@@ -1048,7 +1067,7 @@ export const ApplicationDetailModal = ({
                                      )}
 
                                      {/* Edit Icon */}
-                                     {userCanEdit && (
+                                     {effectiveUserCanEdit && (
                                          <button 
                                             onClick={() => {
                                                 setEditApp(selectedApp);
@@ -1083,7 +1102,14 @@ export const ApplicationDetailModal = ({
                                        const currentStepDept = (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.dept;
                                        const effectiveDept = isSupportSpecial ? 'KT' : currentStepDept;
 
-                                       let canAction = role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER' || effectiveDept === role;
+                                       let canAction = role === 'ADMIN' || 
+                                          role === 'DIRECTOR' || 
+                                          role === 'MANAGER' || 
+                                          role === 'MANAGER_ALL' ||
+                                          (role === 'MANAGER_PTT' && effectiveDept === 'PTT') ||
+                                          (role === 'MANAGER_KT' && effectiveDept === 'KT') ||
+                                          (role === 'MANAGER_PTDA' && effectiveDept === 'PTDA') ||
+                                          effectiveDept === role;
                                        const nextStep = getNextStep(app.currentStep, app.workflowType || 'Quy_trinh_1');
                                        
                                        if (canAction && nextStep) {

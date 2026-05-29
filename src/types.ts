@@ -35,7 +35,7 @@ export type StepName =
   | 'GD5_Cho_GCN'
   | 'GD6_Cho_BG_Khach';
 
-export type Dept = 'PTT' | 'KT' | 'PTDA' | 'MANAGER' | 'DIRECTOR' | 'ADMIN';
+export type Dept = 'PTT' | 'KT' | 'PTDA' | 'MANAGER' | 'DIRECTOR' | 'ADMIN' | 'MANAGER_PTT' | 'MANAGER_KT' | 'MANAGER_PTDA' | 'MANAGER_ALL';
 
 export type UserPermission = 'VIEW' | 'EDIT' | 'FULL';
 

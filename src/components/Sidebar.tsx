@@ -84,12 +84,6 @@ export const Sidebar = ({
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               isSidebarCollapsed ? "justify-center px-0" : "px-4",
-              isSidebarCollapsed ? "justify-center px-0" : "px-4",
-              isSidebarCollapsed ? "justify-center px-0" : "px-4",
-              isSidebarCollapsed ? "justify-center px-0" : "px-4",
-              isSidebarCollapsed ? "justify-center px-0" : "px-4",
-              isSidebarCollapsed ? "justify-center px-0" : "px-4",
-              isSidebarCollapsed ? "justify-center px-0" : "px-4",
               activeTab === 'dashboard'                
                 ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
                 : "text-slate-300 hover:bg-slate-700 hover:text-white"
