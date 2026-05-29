@@ -56,8 +56,8 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
       
       // Workflow 1
       GD1_ChuanBi: 'contractSigningDate',
-      GD1_Cho_KT_TiepNhan: 'receivedDate',
-      GD2_Cho_Nop_VPDK: 'receivedDate',
+      GD1_Cho_KT_TiepNhan: 'accountingHandoverDate',
+      GD2_Cho_Nop_VPDK: 'accountingHandoverDate',
       GD3_Cho_TBThue: 'submissionDate',
       GD4_Cho_Nop_NVTC: 'taxNotificationDate',
       GD4_Cho_KT_TiepNhan_LaySo: 'taxReceiptDate',
