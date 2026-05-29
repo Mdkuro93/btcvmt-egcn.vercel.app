@@ -1709,7 +1709,8 @@ export default function App() {
 
   const createNotification = async (noti: Partial<AppNotification>) => {
     try {
-      const snakeData = mapNotificationToSnakeCase(noti);
+      const snakeData: any = mapNotificationToSnakeCase(noti);
+      delete snakeData.id; // explicitly remove id to let Supabase gen_random_uuid handle it
       const { error } = await supabase.from('notifications').insert(snakeData);
       if (error) {
         if (error.code === '23503') return;
@@ -2775,7 +2776,7 @@ export default function App() {
     if (isManagementEdit) {
       headers = [
         "Dự án", "Mã lô/căn", "Khách hàng", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)", 
-        "Hạn GCN cam kết", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Tự làm sổ (Có/Không)",
+        "Hạn GCN cam kết", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT",
         "Nơi nộp", "Mã VPĐK", "Ngày nộp hồ sơ", "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", 
         "Ngày GCN đã ký", "Ngày GCN đã nhận", "Ngày BG KT", "Ngày BG GCN Khách"
       ];
@@ -2790,6 +2791,7 @@ export default function App() {
         formatExcelDate(app.receivedDate),
         formatExcelDate(app.contractSigningDate),
         app.isSelfService ? 'Có' : 'Không',
+        formatExcelDate(app.accountingHandoverDate),
         app.submissionLocation || '',
         app.vpdkCode || '',
         formatExcelDate(app.submissionDate),
@@ -2804,7 +2806,7 @@ export default function App() {
     } else if (userRole === 'PTT' || userRole === 'MANAGER_PTT') {
       headers = [
         "Dự án", "Mã lô/căn", "Tên khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản", 
-        "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Hạn cam kết Ngân hàng", "Tự làm sổ (Có/Không)", "Ngày nhận GCN", "Ngày BG GCN Khách",
+        "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Hạn cam kết Ngân hàng", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT", "Ngày nhận GCN", "Ngày BG GCN Khách",
         "Phân loại sai sót", "Mức độ sai sót", "Ghi chú sai sót"
       ];
       data = sourceApps.map(app => {
@@ -2820,6 +2822,7 @@ export default function App() {
           formatExcelDate(app.contractSigningDate),
           formatExcelDate(app.bankCommitmentDeadline),
           app.isSelfService ? 'Có' : 'Không',
+          formatExcelDate(app.accountingHandoverDate),
           formatExcelDate(app.gcnReceivedDate),
           formatExcelDate(app.customerHandoverDate),
           app.issueType || '',
@@ -2877,7 +2880,7 @@ export default function App() {
       // Default / Admin: Full Template for complete control
       headers = [
         "Dự án", "Mã lô/căn", "Khách hàng", "Số điện thoại", "Vay ngân hàng", "Loại tài sản", 
-        "Hạn cam kết vay", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Tự làm sổ",
+        "Hạn cam kết vay", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Tự làm sổ", "Ngày bàn giao sang KT",
         "Nơi nộp", "Mã HS VPĐK", "Ngày nộp VPĐK", "Ngày TB Thuế", "Ngày nhận TB Thuế", 
         "Ngày nhận NVTC", "Ngày trình ký GCN", "Ngày nhận GCN thực tế", "Ngày BG Pkt", "Ngày BG Khách"
       ];
@@ -2892,6 +2895,7 @@ export default function App() {
         formatExcelDate(app.receivedDate),
         formatExcelDate(app.contractSigningDate),
         app.isSelfService ? 'Có' : 'Không',
+        formatExcelDate(app.accountingHandoverDate),
         app.submissionLocation === 'PHUONG' ? 'Phường/Xã' : app.submissionLocation === 'TINH' ? 'Tỉnh/Thành phố' : '',
         app.vpdkCode || '',
         formatExcelDate(app.submissionDate),
