@@ -1243,6 +1243,16 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, realtimeReconnectKey, userRole]); // assignedNames omitted to prevent infinite reconnect loops
 
+  // Listen for reconnect-realtime event from useExcelImport
+  useEffect(() => {
+    const handleReconnect = () => {
+      console.log("[Realtime] Reconnecting after import...");
+      setRealtimeReconnectKey(prev => prev + 1);
+    };
+    window.addEventListener("reconnect-realtime", handleReconnect);
+    return () => window.removeEventListener("reconnect-realtime", handleReconnect);
+  }, []);
+
   // Bộ hẹn giờ dự phòng (Fallback Polling) khi kênh Real-time WebSocket bị chặn trong môi trường iFrame Sandbox
   useEffect(() => {
     if (!currentUser || realtimeStatus === 'connected') return;

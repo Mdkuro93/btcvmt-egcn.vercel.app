@@ -194,7 +194,7 @@ export default function DashboardCharts({
                 >
                   {pieData.map((entry, index) => (
                     <Cell 
-                      key={`cell-${index}`} 
+                      key={`cell-pie-dashboard-${entry.name || index}-${index}`} 
                       fill={entry.color} 
                       className="hover:opacity-80 transition-opacity cursor-pointer outline-none"
                     />

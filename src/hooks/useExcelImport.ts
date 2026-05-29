@@ -473,6 +473,8 @@ export function useExcelImport({
           errors
         });
 
+        setIsImporting(false); // ← Parse xong → tắt loading, cho phép bấm nút
+
       } catch (error) {
         console.error('Import parse error:', error);
         showToast('Lỗi khi đọc file Excel. Vui lòng kiểm tra định dạng.', 'error');
@@ -494,6 +496,14 @@ export function useExcelImport({
       ];
       if (anyToSync.length > 0) {
          showToast('Đang lưu dữ liệu lên hệ thống...', 'info');
+
+         // Tạm ngắt Realtime để tránh 48 events dồn về cùng lúc
+         try {
+           await supabase.removeAllChannels();
+         } catch (e) {
+           console.warn('[Import] Could not pause realtime:', e);
+         }
+
          const finalApps = await bulkSyncRecordsToSupabase(anyToSync, applications, showToast);
          setApplications(finalApps);
 
@@ -523,6 +533,10 @@ export function useExcelImport({
     } finally {
       setIsImporting(false);
       setImportPreviewData(null);
+      // Kết nối lại Realtime sau khi import xong
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('reconnect-realtime'));
+      }, 1500);
     }
   };
 

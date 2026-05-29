@@ -375,7 +375,7 @@ export const DashboardTab = ({
                               radius={[0, 0, 0, 0]} 
                             >
                               {progressChartData.map((entry, index) => (
-                                <Cell key={`cell-normal-${index}`} fill={entry.color} />
+                                <Cell key={`cell-normal-dashboard-progress-${entry.color || index}-${index}`} fill={entry.color} />
                               ))}
                               <LabelList 
                                 dataKey="normal" 
@@ -488,7 +488,7 @@ export const DashboardTab = ({
                               >
                                 {overallPieData.map((entry, index) => (
                                   <Cell 
-                                    key={`cell-pie-${index}`} 
+                                    key={`cell-pie-dashboard-overall-${entry.name || index}-${index}`} 
                                     fill={entry.color} 
                                     className="hover:opacity-80 transition-opacity cursor-pointer outline-none" 
                                   />
@@ -544,7 +544,7 @@ export const DashboardTab = ({
                                          <PieChart>
                                            <Pie data={roleKpis.loanRatioStats} cx="50%" cy="50%" innerRadius={40} outerRadius={50} paddingAngle={2} dataKey="value" stroke="none">
                                              {roleKpis.loanRatioStats.map((entry: any, index: number) => (
-                                               <Cell key={`cell-ratio-${index}`} fill={entry.color} />
+                                               <Cell key={`cell-ratio-dashboard-loan-${entry.name || index}-${index}`} fill={entry.color} />
                                              ))}
                                            </Pie>
                                            <ReTooltip 
@@ -584,7 +584,7 @@ export const DashboardTab = ({
                                            >
                                              {loanPieData.map((entry, index) => (
                                                <Cell 
-                                                 key={`cell-loan-st-${index}`} 
+                                                 key={`cell-loan-status-dashboard-${entry.name || index}-${index}`} 
                                                  fill={entry.color} 
                                                  className="hover:opacity-80 transition-opacity cursor-pointer outline-none" 
                                                />
