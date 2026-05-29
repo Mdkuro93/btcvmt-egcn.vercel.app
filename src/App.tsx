@@ -214,43 +214,51 @@ console.log('[Key Check]', {
  */
 const useSelfHealingData = (applications: Application[], setApplications: (apps: Application[]) => void) => {
   const { showToast } = useToast();
+  const healingRef = useRef(false);
+
   useEffect(() => {
     if (applications.length === 0) return;
+    if (healingRef.current) return;
 
     const inconsistentApps = applications.filter(app => 
       app.customerHandoverDate && (app.currentStep !== 'Hoan_Tat' || app.status !== 'Completed')
     );
 
-    if (inconsistentApps.length > 0) {
-      console.log(`[Self-Healing] Detected ${inconsistentApps.length} inconsistent records. Syncing to Supabase...`);
-      
-      const fixApps = async () => {
-        const healedApps = inconsistentApps.map(app => ({
-          ...app,
-          currentStep: 'Hoan_Tat' as StepName,
-          status: 'Completed' as UnitStatus,
-          auditTrail: [{
-            id: Math.random().toString(36).substr(2, 9),
-            timestamp: new Date().toISOString(),
-            userId: 'system',
-            userName: 'Hệ thống (Self-Healing)',
-            action: 'Đồng bộ trạng thái Hoàn tất dựa trên ngày BG khách'
-          }, ...(app.auditTrail || [])]
-        }));
+    if (inconsistentApps.length === 0) return;
 
-        try {
-          // Bulk update the inconsistent ones
-          const updatedApps = await bulkSyncRecordsToSupabase(healedApps, applications, showToast);
-          handleSetApplications(updatedApps);
-        } catch (error) {
-          console.error('[Self-Healing] Error fixing records:', error);
-          showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
-        }
-      };
+    healingRef.current = true;
 
-      fixApps();
-    }
-  }, [applications]); // Only run when total count changes to avoid loops
+    const fixApps = async () => {
+      const healedApps = inconsistentApps.map(app => ({
+        ...app,
+        currentStep: 'Hoan_Tat' as StepName,
+        status: 'Completed' as UnitStatus,
+        auditTrail: [{
+          id: Math.random().toString(36).substr(2, 9),
+          timestamp: new Date().toISOString(),
+          userId: 'system',
+          userName: 'Hệ thống (Self-Healing)',
+          action: 'Đồng bộ trạng thái Hoàn tất dựa trên ngày BG khách'
+        }, ...(app.auditTrail || [])]
+      }));
+
+      try {
+        console.log(`[Self-Healing] Detected ${inconsistentApps.length} inconsistent records. Syncing to Supabase...`);
+        // Bulk update the inconsistent ones
+        const updatedApps = await bulkSyncRecordsToSupabase(healedApps, applications, showToast);
+        setApplications(updatedApps);
+      } catch (error) {
+        console.error('[Self-Healing] Error fixing records:', error);
+        showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
+      } finally {
+        setTimeout(() => {
+          healingRef.current = false;
+        }, 5000);
+      }
+    };
+
+    fixApps();
+  }, [applications]);
 };
 
 
@@ -1096,15 +1104,17 @@ export default function App() {
               const newApp = mapFromSnakeCase(newRow);
               handleSetApplications(prev => {
                 const exists = prev.some(a => a.id === newApp.id);
-                if (!exists) {
-                  showToast(
-                    `📋 Hồ sơ mới: ${newApp.unitCode} vừa được tạo bởi người khác`,
-                    'info'
-                  );
-                }
+                if (exists) return prev;
+                showToast(
+                  `📋 Hồ sơ mới: ${newApp.unitCode} vừa được tạo`,
+                  'info'
+                );
                 return [newApp, ...prev];
               });
-              handleSetDashboardApps(prev => [newApp, ...prev]);
+              handleSetDashboardApps(prev => {
+                if (prev.some(a => a.id === newApp.id)) return prev;
+                return [newApp, ...prev];
+              });
               setTotalCount(prev => prev + 1);
             }
 

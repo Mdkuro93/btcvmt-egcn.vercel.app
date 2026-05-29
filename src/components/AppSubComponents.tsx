@@ -163,7 +163,7 @@ export const FestiveBranding = () => (
     {/* Animated Fireworks */}
     {[1, 2, 3, 4, 5, 6].map((i) => (
       <motion.div
-        key={i}
+        key={`festive-fw-${i}`}
         initial={{ opacity: 0, scale: 0 }}
         animate={{ 
           opacity: [0, 0.4, 0, 0.3, 0], 

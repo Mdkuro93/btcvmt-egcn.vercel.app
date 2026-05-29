@@ -64,7 +64,7 @@ export default function ResourcesCenter({ theme }: ResourcesCenterProps) {
 
         <div className="divide-y divide-slate-800/30">
            {[1, 2, 3, 4, 5].map(i => (
-             <div key={i} className="p-6 flex items-center justify-between group hover:bg-slate-800/10 transition-all">
+             <div key={`resource-item-${i}`} className="p-6 flex items-center justify-between group hover:bg-slate-800/10 transition-all">
                 <div className="flex items-center gap-4">
                    <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-500">
                       <FileText size={20} />

@@ -627,7 +627,7 @@ export default function ReportsView({
                                  stroke="none"
                                >
                                  {loanPieData.map((entry: any, index: number) => (
-                                   <Cell key={`cell-${index}`} fill={entry.color} />
+                                   <Cell key={`cell-pie-loan-${entry.name || index}-${index}`} fill={entry.color} />
                                  ))}
                                  <Label 
                                    value={loanApps.length} 
@@ -683,7 +683,7 @@ export default function ReportsView({
                                 />
                                <Bar dataKey="value" fill="#4f46e5" barSize={20} radius={[0, 4, 4, 0]}>
                                  {loanPieData.map((entry: any, index: number) => (
-                                   <Cell key={`cell-${index}`} fill={entry.color} />
+                                   <Cell key={`cell-bar-loan-${entry.name || index}-${index}`} fill={entry.color} />
                                  ))}
                                  <LabelList 
                                    dataKey="value" 
@@ -850,7 +850,7 @@ export default function ReportsView({
                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Thống kê chi tiết Nhân viên</p>
                       <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
                          {stats.length > 0 ? stats.slice().sort((a:any, b:any) => b.total - a.total).map((user: any, i: number) => (
-                           <div key={user.id} className={cn(
+                           <div key={`user-stat-${user.id || 'unknown'}-${i}`} className={cn(
                              "p-4 rounded-3xl border flex items-center justify-between transition-all group",
                              theme === 'light' ? "bg-white border-slate-200" : "bg-slate-950/40 border-slate-800 hover:border-indigo-500/30"
                            )}>
@@ -1045,7 +1045,7 @@ export default function ReportsView({
              </h4>
              <div className="space-y-6">
                 {stats.slice(0, 4).sort((a,b) => b.completed - a.completed).map((p, i) => (
-                  <div key={p.id} className="flex items-center gap-4">
+                  <div key={`project-ranking-${p.id || p.name || 'empty'}-${i}`} className="flex items-center gap-4">
                     <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-500 italic">#{i+1}</div>
                     <div className="flex-1">
                        <p className={cn("text-xs font-black", theme === 'light' ? "text-slate-800" : "text-slate-200")}>{p.name}</p>

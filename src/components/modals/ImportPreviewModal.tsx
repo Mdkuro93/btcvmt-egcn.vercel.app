@@ -96,7 +96,7 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
               </p>
               <ul className="list-disc pl-5 space-y-1">
                 {errors.map((e, i) => (
-                  <li key={i} className="text-rose-600 text-sm font-medium">{e}</li>
+                  <li key={`err-${e.substring(0, 10).replace(/[^a-zA-Z0-9]/g, "")}-${i}`} className="text-rose-600 text-sm font-medium">{e}</li>
                 ))}
               </ul>
             </div>
@@ -109,7 +109,7 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
               </p>
               <ul className="space-y-1">
                 {duplicateFileWarnings.map((w, i) => (
-                  <li key={i} className="text-rose-600 text-sm font-medium">{w}</li>
+                  <li key={`dup-${w.substring(0, 10).replace(/[^a-zA-Z0-9]/g, "")}-${i}`} className="text-rose-600 text-sm font-medium">{w}</li>
                 ))}
               </ul>
             </div>
@@ -122,7 +122,7 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
               </p>
               <ul className="space-y-1 pl-2 border-l-2 border-amber-300">
                 {crossProjectWarnings.map((w, i) => (
-                  <li key={i} className="text-amber-700 text-sm font-medium leading-relaxed">{w}</li>
+                  <li key={`cross-${w.substring(0, 10).replace(/[^a-zA-Z0-9]/g, "")}-${i}`} className="text-amber-700 text-sm font-medium leading-relaxed">{w}</li>
                 ))}
               </ul>
             </div>
@@ -135,7 +135,7 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
               </p>
               <ul className="list-disc pl-5 space-y-1 border-amber-300">
                 {otherWarnings.map((w, i) => (
-                  <li key={i} className="text-amber-700 text-sm font-medium">{w}</li>
+                  <li key={`other-${w.substring(0, 10).replace(/[^a-zA-Z0-9]/g, "")}-${i}`} className="text-amber-700 text-sm font-medium">{w}</li>
                 ))}
               </ul>
             </div>
