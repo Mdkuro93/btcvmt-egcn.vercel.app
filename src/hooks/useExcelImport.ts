@@ -2,6 +2,7 @@
 import React, { useState, ChangeEvent } from 'react';
 import * as XLSX from 'xlsx';
 import { Application, StepName, UnitStatus, IssueSeverity } from '../types';
+import { formatDate } from '../utils/dateUtils';
 
 export function useExcelImport({
   applications,
@@ -31,14 +32,18 @@ export function useExcelImport({
   const inferStepFromDates = (app: Application): { currentStep: StepName, status: UnitStatus } => {
     const isQT2 = app.workflowType === 'Quy_trinh_2';
     
+    // Ưu tiên diện tự làm sổ
+    if (app.isSelfService) {
+      if (app.customerHandoverDate) {
+        return { currentStep: 'Hoan_Tat', status: 'Completed' };
+      }
+      return { currentStep: isQT2 ? 'S1_ChuanBi' : 'GD1_ChuanBi', status: 'Processing' };
+    }
+    
     if (app.customerHandoverDate) 
       return { currentStep: 'Hoan_Tat', status: 'Completed' };
     
     if (isQT2) {
-      if (app.isSelfService) {
-        return { currentStep: 'S1_ChuanBi', status: 'Processing' };
-      }
-      
       if (app.gcnReceivedDate)        return { currentStep: 'S7_1_PTT_Tiep_Nhan', status: 'WaitingHandover' };
       if (app.ptdaHandoverDate)       return { currentStep: 'S7_PTDA_Ban_Giao', status: 'WaitingHandover' };
       if (app.gcnSignedDate)          return { currentStep: 'S6_Nhan_So_GCN', status: 'GCN_Issued' };
@@ -55,16 +60,16 @@ export function useExcelImport({
       }
       
       if (app.vpdkCode)               return { currentStep: 'S3_Nop_VPDK', status: 'Submitted' };
-      if (app.accountingHandoverDate && !app.submissionDate)
-        return { currentStep: 'S2_KT_Tiep_Nhan', status: 'WaitingVPDK' };
-      if (app.contractSigningDate && !app.accountingHandoverDate)
+      
+      if (app.accountingHandoverDate && !app.submissionDate) {
         return { currentStep: 'S2_KT_Tiep_Nhan', status: 'Processing' };
+      }
+      if (!app.accountingHandoverDate) {
+        return { currentStep: 'S1_ChuanBi', status: 'Processing' };
+      }
+      
       return { currentStep: 'S1_ChuanBi', status: 'Processing' };
     } else {
-      if (app.isSelfService) {
-        return { currentStep: 'GD1_ChuanBi', status: 'Processing' };
-      }
-
       if (app.gcnReceivedDate)        return { currentStep: 'GD5_Cho_PTT_TiepNhan_BG', status: 'WaitingHandover' };
       if (app.gcnSignedDate)          return { currentStep: 'GD5_Cho_GCN', status: 'GCN_Issued' };
       if (app.taxReceiptDate)         return { currentStep: 'GD4_Cho_KT_TiepNhan_LaySo', status: 'TaxCompleted' };
@@ -81,12 +86,13 @@ export function useExcelImport({
 
       if (app.vpdkCode)               return { currentStep: 'GD2_Cho_Nop_VPDK', status: 'WaitingVPDK' };
       
-      // Workflow branching based on hand-over date
-      if (app.accountingHandoverDate) {
-        return { currentStep: 'GD1_Cho_KT_TiepNhan', status: 'WaitingVPDK' };
+      if (app.accountingHandoverDate && !app.submissionDate) {
+        return { currentStep: 'GD1_Cho_KT_TiepNhan', status: 'Processing' };
+      }
+      if (!app.accountingHandoverDate) {
+        return { currentStep: 'GD1_ChuanBi', status: 'Processing' };
       }
       
-      // If NOT handed over to KT (no accountingHandoverDate)
       return { currentStep: 'GD1_ChuanBi', status: 'Processing' };
     }
   };
@@ -181,7 +187,7 @@ export function useExcelImport({
 
     if (isManagementEdit) {
       headers = [
-        "Dự án", "Mã lô/căn", "Khách hàng", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)", 
+        "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)", 
         "Hạn GCN cam kết", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT",
         "Nơi nộp", "Mã VPĐK", "Ngày nộp hồ sơ", "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", 
         "Ngày GCN đã ký", "Ngày GCN đã nhận", "Ngày BG KT", "Ngày BG GCN Khách"
@@ -190,42 +196,44 @@ export function useExcelImport({
         app.projectName || '',
         app.unitCode || '',
         app.customerName || '',
+        app.contractSignerType || '',
         app.phoneNumber || '',
         app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
         app.propertyType === 'Can_Ho' ? 'Căn hộ' : (app.propertyType === 'Dat_Nen' ? 'Đất nền' : ''),
-        app.commitmentDate ? new Date(app.commitmentDate).toLocaleDateString() : '',
-        app.receivedDate ? new Date(app.receivedDate).toLocaleDateString() : '',
-        app.contractSigningDate ? new Date(app.contractSigningDate).toLocaleDateString() : '',
+        app.commitmentDate ? (formatDate(app.commitmentDate) === '---' ? '' : formatDate(app.commitmentDate)) : '',
+        app.receivedDate ? (formatDate(app.receivedDate) === '---' ? '' : formatDate(app.receivedDate)) : '',
+        app.contractSigningDate ? (formatDate(app.contractSigningDate) === '---' ? '' : formatDate(app.contractSigningDate)) : '',
         app.isSelfService ? 'Có' : 'Không',
-        app.accountingHandoverDate ? new Date(app.accountingHandoverDate).toLocaleDateString() : '',
+        app.accountingHandoverDate ? (formatDate(app.accountingHandoverDate) === '---' ? '' : formatDate(app.accountingHandoverDate)) : '',
         app.submissionLocation || '',
         app.vpdkCode || '',
-        app.submissionDate ? new Date(app.submissionDate).toLocaleDateString() : '',
-        app.taxNotificationDate ? new Date(app.taxNotificationDate).toLocaleDateString() : '',
-        app.taxNotificationReceivedDate ? new Date(app.taxNotificationReceivedDate).toLocaleDateString() : '',
-        app.taxReceiptDate ? new Date(app.taxReceiptDate).toLocaleDateString() : '',
-        app.gcnSignedDate ? new Date(app.gcnSignedDate).toLocaleDateString() : '',
-        app.gcnReceivedDate ? new Date(app.gcnReceivedDate).toLocaleDateString() : '',
-        app.accountingHandoverDate ? new Date(app.accountingHandoverDate).toLocaleDateString() : '',
-        app.customerHandoverDate ? new Date(app.customerHandoverDate).toLocaleDateString() : ''
+        app.submissionDate ? (formatDate(app.submissionDate) === '---' ? '' : formatDate(app.submissionDate)) : '',
+        app.taxNotificationDate ? (formatDate(app.taxNotificationDate) === '---' ? '' : formatDate(app.taxNotificationDate)) : '',
+        app.taxNotificationReceivedDate ? (formatDate(app.taxNotificationReceivedDate) === '---' ? '' : formatDate(app.taxNotificationReceivedDate)) : '',
+        app.taxReceiptDate ? (formatDate(app.taxReceiptDate) === '---' ? '' : formatDate(app.taxReceiptDate)) : '',
+        app.gcnSignedDate ? (formatDate(app.gcnSignedDate) === '---' ? '' : formatDate(app.gcnSignedDate)) : '',
+        app.gcnReceivedDate ? (formatDate(app.gcnReceivedDate) === '---' ? '' : formatDate(app.gcnReceivedDate)) : '',
+        app.accountingHandoverDate ? (formatDate(app.accountingHandoverDate) === '---' ? '' : formatDate(app.accountingHandoverDate)) : '',
+        app.customerHandoverDate ? (formatDate(app.customerHandoverDate) === '---' ? '' : formatDate(app.customerHandoverDate)) : ''
       ]);
     } else {
       headers = [
-        "Dự án", "Mã lô/căn", "Khách hàng", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)",
+        "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)",
         "Hạn GCN cam kết", "Tự làm sổ (Có/Không)", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao sang KT"
       ];
       data = sourceApps.map((app: Application) => [
         app.projectName || '',
         app.unitCode || '',
         app.customerName || '',
+        app.contractSignerType || '',
         app.phoneNumber || '',
         app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
         app.propertyType === 'Can_Ho' ? 'Căn hộ' : (app.propertyType === 'Dat_Nen' ? 'Đất nền' : ''),
-        app.commitmentDate ? new Date(app.commitmentDate).toLocaleDateString() : '',
+        app.commitmentDate ? (formatDate(app.commitmentDate) === '---' ? '' : formatDate(app.commitmentDate)) : '',
         app.isSelfService ? 'Có' : 'Không',
-        app.receivedDate ? new Date(app.receivedDate).toLocaleDateString() : '',
-        app.contractSigningDate ? new Date(app.contractSigningDate).toLocaleDateString() : '',
-        app.accountingHandoverDate ? new Date(app.accountingHandoverDate).toLocaleDateString() : '',
+        app.receivedDate ? (formatDate(app.receivedDate) === '---' ? '' : formatDate(app.receivedDate)) : '',
+        app.contractSigningDate ? (formatDate(app.contractSigningDate) === '---' ? '' : formatDate(app.contractSigningDate)) : '',
+        app.accountingHandoverDate ? (formatDate(app.accountingHandoverDate) === '---' ? '' : formatDate(app.accountingHandoverDate)) : '',
       ]);
     }
 
@@ -319,53 +327,57 @@ export function useExcelImport({
                 updatedApp.customerName = row[2].toString().trim();
                 changes.push(`Khách hàng: ${existingApp.customerName || 'Trống'} -> ${updatedApp.customerName}`);
              }
-             if (row[3] && row[3].toString().trim() !== existingApp.phoneNumber) {
-                updatedApp.phoneNumber = row[3].toString().trim();
+             if (row[3] && row[3].toString().trim() !== existingApp.contractSignerType) {
+                updatedApp.contractSignerType = row[3].toString().trim();
+                changes.push(`Đối tượng ký: ${existingApp.contractSignerType || 'Trống'} -> ${updatedApp.contractSignerType}`);
+             }
+             if (row[4] && row[4].toString().trim() !== existingApp.phoneNumber) {
+                updatedApp.phoneNumber = row[4].toString().trim();
                 changes.push(`Số ĐT: ${existingApp.phoneNumber || 'Trống'} -> ${updatedApp.phoneNumber}`);
              }
              
-             const isBankLoanStr = row[4] ? row[4].toString().trim().toLowerCase() : '';
-             const newIsBankLoan = isBankLoanStr === 'có' || isBankLoanStr === 'yes' || isBankLoanStr === '1' || isBankLoanStr === 'true';
+             const isBankLoanStr = row[5] ? row[5].toString().trim().toLowerCase() : '';
+             const newIsBankLoan = isBankLoanStr === 'có' || isBankLoanStr === 'co' || isBankLoanStr === 'yes' || isBankLoanStr === '1' || isBankLoanStr === 'true' || isBankLoanStr === 'x';
              const newLoanStatus = newIsBankLoan ? 'Co_Vay' : 'Khong_Vay';
-             if (row[4] && existingApp.loanStatus !== newLoanStatus) {
+             if (row[5] && existingApp.loanStatus !== newLoanStatus) {
                 updatedApp.loanStatus = newLoanStatus;
                 changes.push(`Vay NH: ${existingApp.loanStatus === 'Co_Vay' ? 'Có' : 'Không'} -> ${newLoanStatus === 'Co_Vay' ? 'Có' : 'Không'}`);
              }
 
-             const propTypeStr = row[5] ? row[5].toString().trim().toLowerCase() : '';
+             const propTypeStr = row[6] ? row[6].toString().trim().toLowerCase() : '';
              const newPropType = propTypeStr.includes('căn hộ') || propTypeStr.includes('can ho') || propTypeStr.includes('apartment') ? 'Can_Ho' : (propTypeStr.includes('đất nền') || propTypeStr.includes('dat nen') || propTypeStr.includes('land') ? 'Dat_Nen' : (existingApp.propertyType || 'Can_Ho'));
-             if (row[5] && existingApp.propertyType !== newPropType) {
+             if (row[6] && existingApp.propertyType !== newPropType) {
                 updatedApp.propertyType = newPropType;
                 changes.push(`Loại TS: ${existingApp.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền'} -> ${newPropType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền'}`);
              }
 
-             const commitmentDate = parseDateFromExcel(row[6]);
+             const commitmentDate = parseDateFromExcel(row[7]);
              if (commitmentDate && commitmentDate !== existingApp.commitmentDate) {
                 updatedApp.commitmentDate = commitmentDate;
                 changes.push(`Hạn GCN: ${existingApp.commitmentDate || 'Trống'} -> ${commitmentDate}`);
              }
 
-             const receivedDate = parseDateFromExcel(row[7]);
+             const receivedDate = parseDateFromExcel(row[8]);
              if (receivedDate && receivedDate !== existingApp.receivedDate) {
                 updatedApp.receivedDate = receivedDate;
                 changes.push(`Ngày nhận HS: ${existingApp.receivedDate || 'Trống'} -> ${receivedDate}`);
              }
              
-             const contractSigningDate = parseDateFromExcel(row[8]);
+             const contractSigningDate = parseDateFromExcel(row[9]);
              if (contractSigningDate && contractSigningDate !== existingApp.contractSigningDate) {
                 updatedApp.contractSigningDate = contractSigningDate;
                 changes.push(`Ngày ký HĐCN: ${existingApp.contractSigningDate || 'Trống'} -> ${contractSigningDate}`);
              }
 
-             const isSelfServiceStr = row[9] ? row[9].toString().trim().toLowerCase() : '';
-             const newIsSelfService = isSelfServiceStr === 'có' || isSelfServiceStr === 'yes' || isSelfServiceStr === '1' || isSelfServiceStr === 'true';
-             if (row[9] && existingApp.isSelfService !== newIsSelfService) {
+             const isSelfServiceStr = row[10] ? row[10].toString().trim().toLowerCase() : '';
+             const newIsSelfService = isSelfServiceStr === 'có' || isSelfServiceStr === 'co' || isSelfServiceStr === 'yes' || isSelfServiceStr === '1' || isSelfServiceStr === 'true' || isSelfServiceStr === 'x';
+             if (row[10] && existingApp.isSelfService !== newIsSelfService) {
                 updatedApp.isSelfService = newIsSelfService;
                 changes.push(`Tự làm SGCN: ${existingApp.isSelfService ? 'Có' : 'Không'} -> ${newIsSelfService ? 'Có' : 'Không'}`);
              }
 
-             if (row[10] !== undefined) {
-               const bgKtStr = row[10] ? row[10].toString().trim().toLowerCase() : '';
+             if (row[11] !== undefined) {
+               const bgKtStr = row[11] ? row[11].toString().trim().toLowerCase() : '';
                let parsedAccountingDate = existingApp.accountingHandoverDate;
 
                if (bgKtStr === 'có' || bgKtStr === 'đã giao' || bgKtStr === 'đã bàn giao' || bgKtStr === 'x') {
@@ -374,7 +386,7 @@ export function useExcelImport({
                  parsedAccountingDate = undefined;
                } else {
                  try {
-                   parsedAccountingDate = parseDateFromExcel(row[10]) || existingApp.accountingHandoverDate;
+                   parsedAccountingDate = parseDateFromExcel(row[11]) || existingApp.accountingHandoverDate;
                  } catch (e) {
                    console.error("Lỗi parse ngày tháng:", e);
                  }
@@ -387,47 +399,53 @@ export function useExcelImport({
              }
 
              if (isManagementEdit) {
-               if (row[11] && row[11].toString().trim() !== existingApp.submissionLocation) {
-                 updatedApp.submissionLocation = row[11].toString().trim();
+               if (row[12] && row[12].toString().trim() !== existingApp.submissionLocation) {
+                 updatedApp.submissionLocation = row[12].toString().trim();
                  changes.push(`Nơi nộp HS: ${existingApp.submissionLocation || 'Trống'} -> ${updatedApp.submissionLocation}`);
                }
-               if (row[12] && row[12].toString().trim() !== existingApp.vpdkCode) {
-                 updatedApp.vpdkCode = row[12].toString().trim();
+               if (row[13] && row[13].toString().trim() !== existingApp.vpdkCode) {
+                 updatedApp.vpdkCode = row[13].toString().trim();
                  changes.push(`Mã VPĐK: ${existingApp.vpdkCode || 'Trống'} -> ${updatedApp.vpdkCode}`);
                }
 
-               const submissionDate = parseDateFromExcel(row[13]);
+               const submissionDate = parseDateFromExcel(row[14]);
                if (submissionDate && submissionDate !== existingApp.submissionDate) {
                  updatedApp.submissionDate = submissionDate;
                  changes.push(`Ngày nộp VPĐK: ${existingApp.submissionDate || 'Trống'} -> ${submissionDate}`);
                }
-               const taxNotificationDate = parseDateFromExcel(row[14]);
+               const taxNotificationDate = parseDateFromExcel(row[15]);
                if (taxNotificationDate && taxNotificationDate !== existingApp.taxNotificationDate) {
                  updatedApp.taxNotificationDate = taxNotificationDate;
                  changes.push(`Ngày TB Thuế: ${existingApp.taxNotificationDate || 'Trống'} -> ${taxNotificationDate}`);
                }
-               const taxNotificationReceivedDate = parseDateFromExcel(row[15]);
+               const taxNotificationReceivedDate = parseDateFromExcel(row[16]);
                if (taxNotificationReceivedDate && taxNotificationReceivedDate !== existingApp.taxNotificationReceivedDate) {
                  updatedApp.taxNotificationReceivedDate = taxNotificationReceivedDate;
                  changes.push(`Ngày nhận TB Thuế: ${existingApp.taxNotificationReceivedDate || 'Trống'} -> ${taxNotificationReceivedDate}`);
                }
-               const taxPaymentDate = parseDateFromExcel(row[16]);
+               const taxPaymentDate = parseDateFromExcel(row[17]);
                if (taxPaymentDate && taxPaymentDate !== existingApp.taxPaymentDate) {
                  updatedApp.taxPaymentDate = taxPaymentDate;
                  changes.push(`Ngày đóng thuế: ${existingApp.taxPaymentDate || 'Trống'} -> ${taxPaymentDate}`);
                }
-               const gcnSignedDate = parseDateFromExcel(row[17]);
+               const gcnSignedDate = parseDateFromExcel(row[18]);
                if (gcnSignedDate && gcnSignedDate !== existingApp.gcnSignedDate) {
                  updatedApp.gcnSignedDate = gcnSignedDate;
                  changes.push(`Ngày GCN đã ký: ${existingApp.gcnSignedDate || 'Trống'} -> ${gcnSignedDate}`);
                }
-               const gcnReceivedDate = parseDateFromExcel(row[18]);
+               const gcnReceivedDate = parseDateFromExcel(row[19]);
                if (gcnReceivedDate && gcnReceivedDate !== existingApp.gcnReceivedDate) {
                  updatedApp.gcnReceivedDate = gcnReceivedDate;
                  changes.push(`Ngày GCN đã nhận: ${existingApp.gcnReceivedDate || 'Trống'} -> ${gcnReceivedDate}`);
                }
-               // Note: 'Ngày BG KT' at index 19 is functionally alias to index 10 'Ngày bàn giao sang KT', skipping parsing it again to avoid conflict.
-               const customerHandoverDate = parseDateFromExcel(row[20]);
+               // Note: 'Ngày BG KT' at index 20 is functionally alias to index 11 'Ngày bàn giao sang KT', skipping parsing it again to avoid conflict.
+               let customerHandoverDate = parseDateFromExcel(row[21]);
+               if (!customerHandoverDate && row[21] !== undefined) {
+                 const bgKhachStr = row[21] ? row[21].toString().trim().toLowerCase() : '';
+                 if (bgKhachStr === 'có' || bgKhachStr === 'đã giao' || bgKhachStr === 'đã bàn giao' || bgKhachStr === 'x') {
+                   customerHandoverDate = new Date().toISOString().split('T')[0];
+                 }
+               }
                if (customerHandoverDate && customerHandoverDate !== existingApp.customerHandoverDate) {
                  updatedApp.customerHandoverDate = customerHandoverDate;
                  changes.push(`Ngày BG Khách: ${existingApp.customerHandoverDate || 'Trống'} -> ${customerHandoverDate}`);
@@ -445,18 +463,18 @@ export function useExcelImport({
              }
 
           } else {
-             const isBankLoanStr = row[4] ? row[4].toString().trim().toLowerCase() : '';
-             const propTypeStr = row[5] ? row[5].toString().trim().toLowerCase() : '';
-             const isSelfServiceStr = row[9] ? row[9].toString().trim().toLowerCase() : '';
+             const isBankLoanStr = row[5] ? row[5].toString().trim().toLowerCase() : '';
+             const propTypeStr = row[6] ? row[6].toString().trim().toLowerCase() : '';
+             const isSelfServiceStr = row[10] ? row[10].toString().trim().toLowerCase() : '';
 
              let parsedNewAccountingDate;
-             if (row[10] !== undefined) {
-               const bgKtStr = row[10] ? row[10].toString().trim().toLowerCase() : '';
+             if (row[11] !== undefined) {
+               const bgKtStr = row[11] ? row[11].toString().trim().toLowerCase() : '';
                if (bgKtStr === 'có' || bgKtStr === 'đã giao' || bgKtStr === 'đã bàn giao' || bgKtStr === 'x') {
                  parsedNewAccountingDate = new Date().toISOString().split('T')[0];
                } else if (bgKtStr !== 'không' && bgKtStr !== '') {
                  try {
-                   parsedNewAccountingDate = parseDateFromExcel(row[10]) || undefined;
+                   parsedNewAccountingDate = parseDateFromExcel(row[11]) || undefined;
                  } catch (e) {
                    console.error("Lỗi parse ngày tháng:", e);
                  }
@@ -467,13 +485,14 @@ export function useExcelImport({
                projectName: parsedProjectName,
                unitCode: unitCode,
                customerName: row[2] ? row[2].toString().trim() : '',
-               phoneNumber: row[3] ? row[3].toString().trim() : '',
-               loanStatus: (isBankLoanStr === 'có' || isBankLoanStr === 'yes' || isBankLoanStr === '1' || isBankLoanStr === 'true') ? 'Co_Vay' : 'Khong_Vay',
+               contractSignerType: row[3] ? row[3].toString().trim() : '',
+               phoneNumber: row[4] ? row[4].toString().trim() : '',
+               loanStatus: (isBankLoanStr === 'có' || isBankLoanStr === 'co' || isBankLoanStr === 'yes' || isBankLoanStr === '1' || isBankLoanStr === 'true' || isBankLoanStr === 'x') ? 'Co_Vay' : 'Khong_Vay',
                propertyType: (propTypeStr.includes('đất nền') || propTypeStr.includes('land') || propTypeStr.includes('dat nen')) ? 'Dat_Nen' : 'Can_Ho',
-               commitmentDate: parseDateFromExcel(row[6]) || undefined,
-               receivedDate: parseDateFromExcel(row[7]) || undefined,
-               contractSigningDate: parseDateFromExcel(row[8]) || undefined,
-               isSelfService: isSelfServiceStr === 'có' || isSelfServiceStr === 'yes' || isSelfServiceStr === '1' || isSelfServiceStr === 'true',
+               commitmentDate: parseDateFromExcel(row[7]) || undefined,
+               receivedDate: parseDateFromExcel(row[8]) || undefined,
+               contractSigningDate: parseDateFromExcel(row[9]) || undefined,
+               isSelfService: isSelfServiceStr === 'có' || isSelfServiceStr === 'co' || isSelfServiceStr === 'yes' || isSelfServiceStr === '1' || isSelfServiceStr === 'true' || isSelfServiceStr === 'x',
                accountingHandoverDate: parsedNewAccountingDate,
                createdAt: new Date().toISOString(),
                updatedAt: new Date().toISOString(),
@@ -483,16 +502,23 @@ export function useExcelImport({
              };
 
              if (isManagementEdit) {
-               newApp.submissionLocation = row[11] ? row[11].toString().trim() as any : undefined;
-               newApp.vpdkCode = row[12] ? row[12].toString().trim() : undefined;
-               newApp.submissionDate = parseDateFromExcel(row[13]) || undefined;
-               newApp.taxNotificationDate = parseDateFromExcel(row[14]) || undefined;
-               newApp.taxNotificationReceivedDate = parseDateFromExcel(row[15]) || undefined;
-               newApp.taxReceiptDate = parseDateFromExcel(row[16]) || undefined;
-               newApp.gcnSignedDate = parseDateFromExcel(row[17]) || undefined;
-               newApp.gcnReceivedDate = parseDateFromExcel(row[18]) || undefined;
-               // Skip row[19] because accountingHandoverDate is parsed at row[10]
-               newApp.customerHandoverDate = parseDateFromExcel(row[20]) || undefined;
+               newApp.submissionLocation = row[12] ? row[12].toString().trim() as any : undefined;
+               newApp.vpdkCode = row[13] ? row[13].toString().trim() : undefined;
+               newApp.submissionDate = parseDateFromExcel(row[14]) || undefined;
+               newApp.taxNotificationDate = parseDateFromExcel(row[15]) || undefined;
+               newApp.taxNotificationReceivedDate = parseDateFromExcel(row[16]) || undefined;
+               newApp.taxReceiptDate = parseDateFromExcel(row[17]) || undefined;
+               newApp.gcnSignedDate = parseDateFromExcel(row[18]) || undefined;
+               newApp.gcnReceivedDate = parseDateFromExcel(row[19]) || undefined;
+               // Skip row[20] because accountingHandoverDate is parsed at row[11]
+               let parsedCustomerHandoverDate = parseDateFromExcel(row[21]) || undefined;
+               if (!parsedCustomerHandoverDate && row[21] !== undefined) {
+                 const bgKhachStr = row[21] ? row[21].toString().trim().toLowerCase() : '';
+                 if (bgKhachStr === 'có' || bgKhachStr === 'đã giao' || bgKhachStr === 'đã bàn giao' || bgKhachStr === 'x') {
+                   parsedCustomerHandoverDate = new Date().toISOString().split('T')[0];
+                 }
+               }
+               newApp.customerHandoverDate = parsedCustomerHandoverDate;
              }
 
              const inferred = inferStepFromDates(newApp as Application);

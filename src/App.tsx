@@ -2775,7 +2775,7 @@ export default function App() {
 
     if (isManagementEdit) {
       headers = [
-        "Dự án", "Mã lô/căn", "Khách hàng", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)", 
+        "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)", 
         "Hạn GCN cam kết", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT",
         "Nơi nộp", "Mã VPĐK", "Ngày nộp hồ sơ", "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", 
         "Ngày GCN đã ký", "Ngày GCN đã nhận", "Ngày BG KT", "Ngày BG GCN Khách"
@@ -2784,6 +2784,7 @@ export default function App() {
         app.projectName,
         app.unitCode,
         app.customerName,
+        app.contractSignerType || '',
         app.phoneNumber || '',
         app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
         app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
@@ -2879,7 +2880,7 @@ export default function App() {
     } else {
       // Default / Admin: Full Template for complete control
       headers = [
-        "Dự án", "Mã lô/căn", "Khách hàng", "Số điện thoại", "Vay ngân hàng", "Loại tài sản", 
+        "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng", "Loại tài sản", 
         "Hạn cam kết vay", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Tự làm sổ", "Ngày bàn giao sang KT",
         "Nơi nộp", "Mã HS VPĐK", "Ngày nộp VPĐK", "Ngày TB Thuế", "Ngày nhận TB Thuế", 
         "Ngày nhận NVTC", "Ngày trình ký GCN", "Ngày nhận GCN thực tế", "Ngày BG Pkt", "Ngày BG Khách"
@@ -2888,6 +2889,7 @@ export default function App() {
         app.projectName,
         app.unitCode,
         app.customerName,
+        app.contractSignerType || '',
         app.phoneNumber || '',
         app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
         app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
@@ -4901,6 +4903,26 @@ export default function App() {
     };
 
     appsList.forEach(r => {
+      // Ưu tiên cao nhất: Diện tự làm sổ (chỉ ở Chuẩn bị hoặc Hoàn tất)
+      if (r.isSelfService) {
+        // Hoàn tất
+        if (r.status === 'Completed' || r.currentStep === 'Hoan_Tat' || 
+            r.customerHandoverDate) {
+          stages.COMPLETED.push(r);
+        }
+        // Đang chờ bàn giao khách (đã có GCN)
+        else if (r.gcnReceivedDate || 
+                 r.currentStep === 'S7_2_Ban_Giao_Khach' ||
+                 r.currentStep === 'GD6_Cho_BG_Khach') {
+          stages.WAITING_HANDOVER.push(r);
+        }
+        // Đang chuẩn bị (PTT đang xử lý)
+        else {
+          stages.PREPARING.push(r);
+        }
+        return;
+      }
+
       // Ưu tiên 1: Completed luôn thắng
       if (r.status === 'Completed' || r.currentStep === 'Hoan_Tat') {
         stages.COMPLETED.push(r);
@@ -4953,12 +4975,15 @@ export default function App() {
       // Ưu tiên 7: AWAITING_SUBMISSION (CHỜ NỘP VPĐK)
       else if (
         r.status === 'WaitingVPDK' ||
-        (r.accountingHandoverDate && !r.submissionDate) ||
-        ['S2_KT_Ban_giao', 'GD1_Nop_VPDK', 'GD2_Cho_Nop_VPDK'].includes(r.currentStep) ||
-        // S2_KT_Tiep_Nhan và GD1_Cho_KT_TiepNhan chỉ khi 
-        // KT đã tiếp nhận (có accountingHandoverDate)
-        (['S2_KT_Tiep_Nhan', 'GD1_Cho_KT_TiepNhan']
-          .includes(r.currentStep) && r.accountingHandoverDate)
+        // GD2 trở đi mới là Chờ nộp VPĐK
+        (r.currentStep as string) === 'GD2_Cho_Nop_VPDK' ||
+        (r.currentStep as string) === 'S2_KT_Ban_giao' ||
+        // accountingHandoverDate chỉ là CHỜ NỘP VPĐK 
+        // khi đã ở GD2 (có vpdkCode hoặc submissionDate sắp nộp)
+        (r.accountingHandoverDate && !r.submissionDate && 
+         (r.currentStep as string) === 'GD2_Cho_Nop_VPDK') ||
+        (r.accountingHandoverDate && !r.submissionDate && 
+         (r.currentStep as string) === 'S2_KT_Ban_giao')
       ) {
         stages.AWAITING_SUBMISSION.push(r);
       }

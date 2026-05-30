@@ -1,0 +1,54 @@
+295:          const projectName = (row[0] || '').toString().trim();
+296:          const unitCode = (row[1] || '').toString().trim();
+322:             if (row[2] && row[2].toString().trim() !== existingApp.customerName) {
+323:                updatedApp.customerName = row[2].toString().trim();
+326:             if (row[3] && row[3].toString().trim() !== existingApp.phoneNumber) {
+327:                updatedApp.phoneNumber = row[3].toString().trim();
+331:             const isBankLoanStr = row[4] ? row[4].toString().trim().toLowerCase() : '';
+334:             if (row[4] && existingApp.loanStatus !== newLoanStatus) {
+339:             const propTypeStr = row[5] ? row[5].toString().trim().toLowerCase() : '';
+341:             if (row[5] && existingApp.propertyType !== newPropType) {
+346:             const commitmentDate = parseDateFromExcel(row[6]);
+352:             const receivedDate = parseDateFromExcel(row[7]);
+358:             const contractSigningDate = parseDateFromExcel(row[8]);
+364:             const isSelfServiceStr = row[9] ? row[9].toString().trim().toLowerCase() : '';
+366:             if (row[9] && existingApp.isSelfService !== newIsSelfService) {
+371:             if (row[10] !== undefined) {
+372:               const bgKtStr = row[10] ? row[10].toString().trim().toLowerCase() : '';
+381:                   parsedAccountingDate = parseDateFromExcel(row[10]) || existingApp.accountingHandoverDate;
+394:               if (row[11] && row[11].toString().trim() !== existingApp.submissionLocation) {
+395:                 updatedApp.submissionLocation = row[11].toString().trim();
+398:               if (row[12] && row[12].toString().trim() !== existingApp.vpdkCode) {
+399:                 updatedApp.vpdkCode = row[12].toString().trim();
+403:               const submissionDate = parseDateFromExcel(row[13]);
+408:               const taxNotificationDate = parseDateFromExcel(row[14]);
+413:               const taxNotificationReceivedDate = parseDateFromExcel(row[15]);
+418:               const taxPaymentDate = parseDateFromExcel(row[16]);
+423:               const gcnSignedDate = parseDateFromExcel(row[17]);
+428:               const gcnReceivedDate = parseDateFromExcel(row[18]);
+434:               let customerHandoverDate = parseDateFromExcel(row[20]);
+435:               if (!customerHandoverDate && row[20] !== undefined) {
+436:                 const bgKhachStr = row[20] ? row[20].toString().trim().toLowerCase() : '';
+458:             const isBankLoanStr = row[4] ? row[4].toString().trim().toLowerCase() : '';
+459:             const propTypeStr = row[5] ? row[5].toString().trim().toLowerCase() : '';
+460:             const isSelfServiceStr = row[9] ? row[9].toString().trim().toLowerCase() : '';
+463:             if (row[10] !== undefined) {
+464:               const bgKtStr = row[10] ? row[10].toString().trim().toLowerCase() : '';
+469:                   parsedNewAccountingDate = parseDateFromExcel(row[10]) || undefined;
+479:               customerName: row[2] ? row[2].toString().trim() : '',
+480:               phoneNumber: row[3] ? row[3].toString().trim() : '',
+483:               commitmentDate: parseDateFromExcel(row[6]) || undefined,
+484:               receivedDate: parseDateFromExcel(row[7]) || undefined,
+485:               contractSigningDate: parseDateFromExcel(row[8]) || undefined,
+496:               newApp.submissionLocation = row[11] ? row[11].toString().trim() as any : undefined;
+497:               newApp.vpdkCode = row[12] ? row[12].toString().trim() : undefined;
+498:               newApp.submissionDate = parseDateFromExcel(row[13]) || undefined;
+499:               newApp.taxNotificationDate = parseDateFromExcel(row[14]) || undefined;
+500:               newApp.taxNotificationReceivedDate = parseDateFromExcel(row[15]) || undefined;
+501:               newApp.taxReceiptDate = parseDateFromExcel(row[16]) || undefined;
+502:               newApp.gcnSignedDate = parseDateFromExcel(row[17]) || undefined;
+503:               newApp.gcnReceivedDate = parseDateFromExcel(row[18]) || undefined;
+504:               // Skip row[19] because accountingHandoverDate is parsed at row[10]
+505:               let parsedCustomerHandoverDate = parseDateFromExcel(row[20]) || undefined;
+506:               if (!parsedCustomerHandoverDate && row[20] !== undefined) {
+507:                 const bgKhachStr = row[20] ? row[20].toString().trim().toLowerCase() : '';

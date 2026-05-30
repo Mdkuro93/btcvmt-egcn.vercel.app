@@ -64,7 +64,17 @@ export const mapFromSnakeCase = (item: Record<string, any>): Application => {
     updatedAt: str(val('updated_at', 'updatedAt')),
     unitCode: str(val('unit_code', 'unitCode')),
     projectName: str(val('project_name', 'projectName')),
-    workflowType: (currentStep?.startsWith('GD') || (typeof val('status_id', 'statusId') === 'string' && (val('status_id', 'statusId') as string).startsWith('GD')) ? 'Quy_trinh_1' : 'Quy_trinh_2'),
+    workflowType: (() => {
+      // 1. Lấy từ DB nếu có
+      const dbWorkflow = val('workflow_type', 'workflowType');
+      if (dbWorkflow === 'Quy_trinh_1' || dbWorkflow === 'Quy_trinh_2') 
+        return dbWorkflow;
+      // 2. Suy ra từ currentStep
+      if (currentStep?.startsWith('GD')) return 'Quy_trinh_1';
+      if (currentStep?.startsWith('S')) return 'Quy_trinh_2';
+      // 3. Fallback theo project (không có info -> QT1)
+      return 'Quy_trinh_1';
+    })(),
     customerName: str(val('customer_name', 'customerName')),
     contractSignerType: str(val('contract_signer_type', 'contractSignerType')),
     phoneNumber: str(val('phone_number', 'phoneNumber')),

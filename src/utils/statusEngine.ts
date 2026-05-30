@@ -101,6 +101,11 @@ export function getSLAStatus(app: any, stepConfig?: any, slaConfig?: any): 'OVER
 
 export function getFinalStatus(app: any) {
   if (app.customerHandoverDate || app.customer_handover_date) return 'Completed';
+  
+  if (app.isSelfService) {
+    return 'Processing';
+  }
+
   if (app.gcnSignedDate) return 'GCN_Issued';
   if (app.taxReceiptDate) return 'TaxPaid';
   if (app.submissionDate) return 'Submitted';
