@@ -65,16 +65,14 @@ export const mapFromSnakeCase = (item: Record<string, any>): Application => {
     unitCode: str(val('unit_code', 'unitCode')),
     projectName: str(val('project_name', 'projectName')),
     workflowType: (() => {
-      // 1. Lấy từ DB nếu có
-      const dbWorkflow = val('workflow_type', 'workflowType');
-      if (dbWorkflow === 'Quy_trinh_1' || dbWorkflow === 'Quy_trinh_2') 
-        return dbWorkflow;
-      // 2. Suy ra từ currentStep
+      const dbVal = val('workflow_type', 'workflowType');
+      if (dbVal === 'Quy_trinh_1' || dbVal === 'Quy_trinh_2') 
+        return dbVal;
+      // Suy ra từ currentStep nếu DB không có
       if (currentStep?.startsWith('GD')) return 'Quy_trinh_1';
       if (currentStep?.startsWith('S')) return 'Quy_trinh_2';
-      // 3. Fallback theo project (không có info -> QT1)
-      return 'Quy_trinh_1';
-    })(),
+      return 'Quy_trinh_1'; // Fallback
+    })() as 'Quy_trinh_1' | 'Quy_trinh_2',
     customerName: str(val('customer_name', 'customerName')),
     contractSignerType: str(val('contract_signer_type', 'contractSignerType')),
     phoneNumber: str(val('phone_number', 'phoneNumber')),
@@ -137,7 +135,8 @@ export const mapUserFromSnakeCase = (item: Record<string, any>): UserProfile => 
     assignedProjectIds: item.assigned_project_ids || [],
     email: item.email,
     phoneNumber: item.phone_number,
-    status: item.status
+    status: item.status,
+    isFirstLogin: typeof item.is_first_login === 'boolean' ? item.is_first_login : (item.password === '123456')
   };
 };
 
@@ -245,6 +244,7 @@ export const mapUserToSnakeCase = (user: UserProfile): Record<string, any> => {
     assigned_project_ids: user.assignedProjectIds || [],
     email: user.email,
     phone_number: user.phoneNumber,
-    status: user.status
+    status: user.status,
+    is_first_login: user.isFirstLogin
   };
 };

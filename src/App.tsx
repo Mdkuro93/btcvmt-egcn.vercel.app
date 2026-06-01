@@ -813,13 +813,48 @@ export default function App() {
 
     setIsSavingApp(true);
     try {
-      // Gọi hàm RPC chuyên biệt đã tạo trên Database để băm bảo mật
-      const { data, error } = await supabase.rpc('secure_change_password', {
-        p_username: currentUser.username,
-        p_new_password: passwordForm.newPassword
-      });
+      let rpcSuccess = false;
+      try {
+        const { error: rpcError } = await supabase.rpc('secure_change_password', {
+          p_username: currentUser.username,
+          p_new_password: passwordForm.newPassword
+        });
+        if (!rpcError) {
+          rpcSuccess = true;
+        } else {
+          console.warn('RPC change password not available or failed, using table fallback:', rpcError);
+        }
+      } catch (rpcCallErr) {
+        console.warn('Supabase RPC call failed, trying direct table update:', rpcCallErr);
+      }
 
-      if (error) throw error;
+      if (!rpcSuccess) {
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ 
+            password: passwordForm.newPassword, 
+            is_first_login: false 
+          })
+          .eq('id', currentUser.id);
+        if (updateError) throw updateError;
+      }
+      
+      if (currentUser) {
+        setCurrentUser({
+          ...currentUser,
+          isFirstLogin: false,
+          password: passwordForm.newPassword
+        });
+      }
+
+      try {
+        await supabase
+          .from('users')
+          .update({ is_first_login: false })
+          .eq('id', currentUser.id);
+      } catch (dbErr) {
+        console.warn('Could not persist is_first_login updates: ', dbErr);
+      }
       
       showToast('Đổi mật khẩu bảo mật thành công!', 'success');
       setIsChangePasswordModalOpen(false);
@@ -1402,8 +1437,65 @@ export default function App() {
         else if (dashboardFilter === 'COMPLETED') {
           query = query.eq('status', 'Completed');
         }
+        else if (dashboardFilter === 'PTT_TAX_PENDING_COMPLETE') {
+          query = query
+            .not('tax_notification_date', 'is', null)
+            .filter('tax_receipt_date', 'is', null)
+            .in('current_step', [
+              'S5_Tai_Chinh_Khach_Hang',
+              'GD4_Cho_Nop_NVTC',
+              'GD4_Cho_KT_TiepNhan_LaySo'
+            ]);
+        }
+        else if (dashboardFilter === 'KT_TAX_PENDING_COMPLETE') {
+          query = query
+            .not('tax_notification_date', 'is', null)
+            .filter('tax_receipt_date', 'is', null);
+        }
+        else if (dashboardFilter === 'SUBMITTED_RECENT') {
+          query = query
+            .not('submission_date', 'is', null)
+            .filter('tax_notification_date', 'is', null)
+            .in('current_step', [
+              'S3_Nop_VPDK',
+              'S4_Cho_Thong_Bao_Thue',
+              'GD3_Cho_TBThue'
+            ]);
+        }
+        else if (dashboardFilter === 'WAIT_TAX_NOTICE_OVERDUE') {
+          query = query
+            .not('submission_date', 'is', null)
+            .filter('tax_notification_date', 'is', null)
+            .in('current_step', [
+              'S4_Cho_Thong_Bao_Thue',
+              'GD3_Cho_TBThue'
+            ]);
+        }
+        else if (dashboardFilter === 'PTDA_TAX_PENDING_COMPLETE') {
+          query = query
+            .filter('tax_receipt_date', 'is', null)
+            .in('current_step', [
+              'S5_Tai_Chinh_Khach_Hang',
+              'GD4_Cho_Nop_NVTC'
+            ]);
+        }
+        else if (dashboardFilter === 'PTDA_WAIT_GCN_SIGN') {
+          query = query
+            .filter('gcn_signed_date', 'is', null)
+            .in('current_step', [
+              'S6_Nhan_So_GCN',
+              'GD5_Cho_Ky_In_GCN'
+            ]);
+        }
+        else if (dashboardFilter === 'PROCESSING_TOTAL') {
+          query = query.neq('status', 'Completed');
+        }
         else if (dashboardFilter === 'PTT_PROCESSING') {
-          query = query.eq('status', 'Processing');
+          query = query.in('current_step', [
+            'S1_ChuanBi', 'GD1_ChuanBi',
+            'GD1_Cho_KT_TiepNhan',
+            'S2_KT_Tiep_Nhan'
+          ]);
         }
         else if (dashboardFilter === 'PTT_HOLDING') {
           const pttSteps = Object.keys(INITIAL_STEP_CONFIG).filter(k => INITIAL_STEP_CONFIG[k].dept === 'PTT');
@@ -1430,15 +1522,20 @@ export default function App() {
           );
         }
         else if (dashboardFilter === 'KT_NEED_RECEIVE') {
-          query = query.in('current_step', [
-            'S2_KT_Tiep_Nhan', 'GD1_Cho_KT_TiepNhan',
-            'GD2_Cho_Nop_VPDK'
-          ]);
+          query = query.or(
+            'current_step.eq.GD1_Cho_KT_TiepNhan,' +
+            'current_step.eq.S2_KT_Tiep_Nhan,' +
+            'current_step.eq.GD2_Cho_Nop_VPDK,' +
+            'current_step.eq.S3_Nop_VPDK'
+          );
         }
         else if (dashboardFilter === 'KT_PROCESSING') {
           query = query.in('current_step', [
-            'S2_KT_Tiep_Nhan', 'GD1_Cho_KT_TiepNhan',
-            'GD2_Cho_Nop_VPDK', 'GD4_Cho_KT_TiepNhan_LaySo',
+            'GD1_Cho_KT_TiepNhan',
+            'S2_KT_Tiep_Nhan',
+            'GD2_Cho_Nop_VPDK',
+            'S3_Nop_VPDK',
+            'GD4_Cho_KT_TiepNhan_LaySo',
             'GD5_Cho_GCN'
           ]);
         }
@@ -1446,7 +1543,7 @@ export default function App() {
           const ktSteps = Object.keys(INITIAL_STEP_CONFIG).filter(k => INITIAL_STEP_CONFIG[k].dept === 'KT');
           query = query.in('current_step', ktSteps).or('is_rejected.eq.true,status.eq.Error');
         }
-        else if (dashboardFilter === 'PTDA_RECEIVED') {
+        else if (dashboardFilter === 'PTDA_NEED_RECEIVE') {
           query = query.in('current_step', [
             'S2_KT_Ban_giao', 'S5_1_PTDA_TiepNhan',
             'GD2_Cho_Nop_VPDK', 'S3_Nop_VPDK'
@@ -2553,6 +2650,22 @@ export default function App() {
 
         let updated = { ...mergedApp, updated_at: nowStr };
 
+        if (processedChanges.gcnReceivedDate) {
+          const isEarly = ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => (updated.currentStep as string).startsWith(prefix));
+          if (isEarly) {
+            updated.issueType = 'Sai sót Khác';
+            updated.issueNotes = (updated.issueNotes ? updated.issueNotes + '\n' : '') + 'Cảnh báo: Lệch tiến độ thực tế (Có ngày nhận GCN nhưng chưa tới bước bàn giao)';
+            updated.issueSeverity = 'High';
+            updated.status = 'Error';
+            updated.issue_type = updated.issueType;
+            updated.issue_notes = updated.issueNotes;
+            updated.issue_severity = updated.issueSeverity;
+            updated.issue_status = 'OPEN';
+            updated.issue_resolved_at = null;
+            if (!updated.issue_created_at) updated.issue_created_at = new Date().toISOString();
+          }
+        }
+
         // Ensure full initialization for new imported records (temporary imp ID)
         if (typeof updated.id === 'string' && (updated.id.includes('-imp-') || !applications.some(a => a.id === updated.id))) {
           const parentProject = projects.find(p => p.name === updated.projectName);
@@ -2706,7 +2819,8 @@ export default function App() {
     setActiveTab,
     visibleProjects,
     bulkSyncRecordsToSupabase,
-    supabase
+    supabase,
+    userRole
   });
 
   // Ensure newApp.projectName is set to a valid project the user has access to
@@ -4150,7 +4264,8 @@ export default function App() {
 
     const pttFields = [
       'customerName', 'contractSignerType', 'phoneNumber', 'loanStatus', 'bankCommitmentDeadline', 'propertyType', 
-      'contractSigningDate', 'receivedDate', 'isSelfService', 'customerHandoverDate', 'taxNotificationReceivedDate', 'accountingHandoverDate', 'staffName'
+      'contractSigningDate', 'receivedDate', 'isSelfService', 'customerHandoverDate', 'taxNotificationReceivedDate', 'accountingHandoverDate', 'staffName',
+      'gcnReceivedDate'
     ];
 
     // Financial & Tax & Authority Submission: KT responsible for processing according to function (Tax/Accounting)
@@ -4167,7 +4282,27 @@ export default function App() {
       'issueType', 'issueNotes', 'issueSeverity'
     ];
 
-    if (userRole === 'PTT' || userRole === 'MANAGER_PTT') return pttFields.includes(fieldName);
+    if (userRole === 'PTT' || userRole === 'MANAGER_PTT') {
+      if (!pttFields.includes(fieldName)) return false;
+      const app = editApp || selectedApp;
+      if (!app) return true;
+
+      // Rule for customerHandoverDate (Ngày BG GCN Khách)
+      if (fieldName === 'customerHandoverDate') {
+        if (app.isSelfService) return true;
+        // Company service: only in Step 7 handover or Hoan_Tat
+        return app.currentStep === 'S7_2_Ban_Giao_Khach' || app.currentStep === 'GD6_Cho_BG_Khach' || app.currentStep === 'Hoan_Tat';
+      }
+
+      // Rule for gcnReceivedDate (Ngày nhận GCN)
+      if (fieldName === 'gcnReceivedDate') {
+        if (app.isSelfService) return true;
+        // Company service: only in Step 6 / Step 7 or Hoan_Tat
+        return ['S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Cho_BG_Khach', 'Hoan_Tat'].includes(app.currentStep);
+      }
+
+      return true;
+    }
     if (userRole === 'KT' || userRole === 'MANAGER_KT') return ktFields.includes(fieldName);
     if (userRole === 'PTDA' || userRole === 'MANAGER_PTDA') return ptdaFields.includes(fieldName);
     
@@ -4188,6 +4323,13 @@ export default function App() {
     return true;
   };
 
+  const determineStatusFromStep = (currentStep: StepName): UnitStatus => {
+    if (currentStep === 'Hoan_Tat') return 'Completed';
+    if (['S6_Nhan_So_GCN', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_GCN'].includes(currentStep)) return 'GCN_Issued';
+    if (['S7_1_PTT_Tiep_Nhan', 'S7_PTDA_Ban_Giao', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Cho_BG_Khach', 'S7_2_Ban_Giao_Khach'].includes(currentStep)) return 'WaitingHandover';
+    return INITIAL_STEP_CONFIG[currentStep]?.status || 'Processing';
+  };
+
   const handleFieldChange = (field: keyof Application, value: any) => {
     if (editApp) {
       const nextApp = { ...editApp, [field]: value };
@@ -4202,17 +4344,52 @@ export default function App() {
         nextApp.currentStep = 'S5_Tai_Chinh_Khach_Hang';
       }
 
-      // Auto-promote to Hoan_Tat if customerHandoverDate is added
-      if (field === 'customerHandoverDate' && value) {
-        nextApp.currentStep = 'Hoan_Tat';
-        nextApp.status = 'Completed';
-        const historyItem: ApplicationHistory = {
-          id: Math.random().toString(36).substr(2, 9),
-          timestamp: new Date().toLocaleString('vi-VN'),
-          user: userRole,
-          action: 'Tự động hoàn tất (Có ngày BG khách)',
-        };
-        nextApp.history = [historyItem, ...(nextApp.history || [])];
+      // Check Lệch Tiến Độ Thực Tế cho GCN
+      if (field === 'gcnReceivedDate' && value) {
+        const isEarly = ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => nextApp.currentStep.startsWith(prefix));
+        if (isEarly) {
+          nextApp.issueType = 'Sai sót Khác';
+          nextApp.issueNotes = (nextApp.issueNotes ? nextApp.issueNotes + '\n' : '') + 'Cảnh báo: Lệch tiến độ thực tế (Có ngày nhận GCN nhưng chưa tới bước bàn giao)';
+          nextApp.issueSeverity = 'High';
+          nextApp.status = 'Error';
+          nextApp.issue_type = nextApp.issueType;
+          nextApp.issue_notes = nextApp.issueNotes;
+          nextApp.issue_severity = nextApp.issueSeverity;
+          nextApp.issue_status = 'OPEN';
+          nextApp.issue_resolved_at = null;
+          if (!nextApp.issue_created_at) nextApp.issue_created_at = new Date().toISOString();
+        }
+      }
+
+      // Auto-promote for Self Service or Normal applications accordingly
+      if (nextApp.isSelfService) {
+        if (nextApp.customerHandoverDate || nextApp.status === 'Completed' || nextApp.currentStep === 'Hoan_Tat') {
+          nextApp.currentStep = 'Hoan_Tat';
+          nextApp.status = 'Completed';
+        } else if (nextApp.gcnReceivedDate) {
+          nextApp.currentStep = nextApp.workflowType === 'Quy_trinh_2' ? 'S7_2_Ban_Giao_Khach' : 'GD6_Cho_BG_Khach';
+          nextApp.status = 'WaitingHandover';
+        } else {
+          nextApp.currentStep = nextApp.workflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
+          nextApp.status = 'Processing';
+        }
+      } else {
+        // Auto-promote to Hoan_Tat if customerHandoverDate is added
+        if (field === 'customerHandoverDate' && value) {
+          nextApp.currentStep = 'Hoan_Tat';
+          nextApp.status = 'Completed';
+          const historyItem: ApplicationHistory = {
+            id: Math.random().toString(36).substr(2, 9),
+            timestamp: new Date().toLocaleString('vi-VN'),
+            user: userRole,
+            action: 'Tự động hoàn tất (Có ngày BG khách)',
+          };
+          nextApp.history = [historyItem, ...(nextApp.history || [])];
+        } else {
+          if (nextApp.status !== 'Error') {
+            nextApp.status = determineStatusFromStep(nextApp.currentStep);
+          }
+        }
       }
 
       // Auto-update issue type if notes are added
@@ -4270,17 +4447,52 @@ export default function App() {
             nextApp.status = 'TaxCompleted';
           }
 
-          // Auto-promote to Hoan_Tat if customerHandoverDate is added
-          if (field === 'customerHandoverDate' && value) {
-            nextApp.currentStep = 'Hoan_Tat';
-            nextApp.status = 'Completed';
-            const historyItem: ApplicationHistory = {
-              id: Math.random().toString(36).substr(2, 9),
-              timestamp: new Date().toLocaleString('vi-VN'),
-              user: userRole,
-              action: 'Tự động hoàn tất (Có ngày BG khách)',
-            };
-            nextApp.history = [historyItem, ...(app.history || [])];
+          // Check Lệch Tiến Độ Thực Tế cho GCN
+          if (field === 'gcnReceivedDate' && value) {
+            const isEarly = ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => nextApp.currentStep.startsWith(prefix));
+            if (isEarly) {
+              nextApp.issueType = 'Sai sót Khác';
+              nextApp.issueNotes = (nextApp.issueNotes ? nextApp.issueNotes + '\n' : '') + 'Cảnh báo: Lệch tiến độ thực tế (Có ngày nhận GCN nhưng chưa tới bước bàn giao)';
+              nextApp.issueSeverity = 'High';
+              nextApp.status = 'Error';
+              nextApp.issue_type = nextApp.issueType;
+              nextApp.issue_notes = nextApp.issueNotes;
+              nextApp.issue_severity = nextApp.issueSeverity;
+              nextApp.issue_status = 'OPEN';
+              nextApp.issue_resolved_at = null;
+              if (!nextApp.issue_created_at) nextApp.issue_created_at = new Date().toISOString();
+            }
+          }
+
+          // Auto-promote for Self Service or Normal applications accordingly
+          if (nextApp.isSelfService) {
+            if (nextApp.customerHandoverDate || nextApp.status === 'Completed' || nextApp.currentStep === 'Hoan_Tat') {
+              nextApp.currentStep = 'Hoan_Tat';
+              nextApp.status = 'Completed';
+            } else if (nextApp.gcnReceivedDate) {
+              nextApp.currentStep = nextApp.workflowType === 'Quy_trinh_2' ? 'S7_2_Ban_Giao_Khach' : 'GD6_Cho_BG_Khach';
+              nextApp.status = 'WaitingHandover';
+            } else {
+              nextApp.currentStep = nextApp.workflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
+              nextApp.status = 'Processing';
+            }
+          } else {
+            // Auto-promote to Hoan_Tat if customerHandoverDate is added
+            if (field === 'customerHandoverDate' && value) {
+              nextApp.currentStep = 'Hoan_Tat';
+              nextApp.status = 'Completed';
+              const historyItem: ApplicationHistory = {
+                id: Math.random().toString(36).substr(2, 9),
+                timestamp: new Date().toLocaleString('vi-VN'),
+                user: userRole,
+                action: 'Tự động hoàn tất (Có ngày BG khách)',
+              };
+              nextApp.history = [historyItem, ...(app.history || [])];
+            } else {
+              if (nextApp.status !== 'Error') {
+                nextApp.status = determineStatusFromStep(nextApp.currentStep);
+              }
+            }
           }
 
           if (field === 'issueNotes' && value) {
@@ -4560,7 +4772,12 @@ export default function App() {
     // PTT
     // Requirement: PTT total should show ALL records (including completed)
     const pttTotal = stats.total;
-    const pttProcessing = processingCount;
+    const pttProcessing = dashboardApps.filter(a => 
+      a.currentStep === 'S1_ChuanBi' || 
+      a.currentStep === 'GD1_ChuanBi' ||
+      a.currentStep === 'GD1_Cho_KT_TiepNhan' ||
+      a.currentStep === 'S2_KT_Tiep_Nhan'
+    ).length;
     const pttIssues = apps.filter(a => a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None')).length;
     // PTT Tax Pending: Matching "CHỜ HOÀN THÀNH NVTC" in chartData
     const pttTaxPending = pendingTaxCount;
@@ -4903,20 +5120,20 @@ export default function App() {
     };
 
     appsList.forEach(r => {
-      // Ưu tiên cao nhất: Diện tự làm sổ (chỉ ở Chuẩn bị hoặc Hoàn tất)
+      // Ưu tiên cao nhất: Diện tự làm sổ
       if (r.isSelfService) {
-        // Hoàn tất
-        if (r.status === 'Completed' || r.currentStep === 'Hoan_Tat' || 
-            r.customerHandoverDate) {
+        const hasHandover = r.customerHandoverDate && r.customerHandoverDate !== '---' && r.customerHandoverDate !== 'None' && String(r.customerHandoverDate).trim() !== '';
+        const hasGcn = r.gcnReceivedDate && r.gcnReceivedDate !== '---' && r.gcnReceivedDate !== 'None' && String(r.gcnReceivedDate).trim() !== '';
+
+        // Hoàn tất: có Ngày BG GCN Khách hoặc trạng thái hệ thống ghi nhận là Completed / Hoan_Tat
+        if (r.status === 'Completed' || (r.currentStep as string) === 'Hoan_Tat' || hasHandover) {
           stages.COMPLETED.push(r);
         }
-        // Đang chờ bàn giao khách (đã có GCN)
-        else if (r.gcnReceivedDate || 
-                 r.currentStep === 'S7_2_Ban_Giao_Khach' ||
-                 r.currentStep === 'GD6_Cho_BG_Khach') {
+        // Đang chờ bàn giao khách (đã có GCN thực tế)
+        else if (hasGcn) {
           stages.WAITING_HANDOVER.push(r);
         }
-        // Đang chuẩn bị (PTT đang xử lý)
+        // Đang chuẩn bị (trống cả ngày nhận GCN và ngày giao khách)
         else {
           stages.PREPARING.push(r);
         }
@@ -4972,18 +5189,14 @@ export default function App() {
           stages.SUBMITTED.push(r);
         }
       }
-      // Ưu tiên 7: AWAITING_SUBMISSION (CHỜ NỘP VPĐK)
+      // Ưu tiên 7: AWAITING_SUBMISSION (CHỜ NỘP VPĐK / CHỜ KT TIẾP NHẬN)
       else if (
         r.status === 'WaitingVPDK' ||
-        // GD2 trở đi mới là Chờ nộp VPĐK
         (r.currentStep as string) === 'GD2_Cho_Nop_VPDK' ||
         (r.currentStep as string) === 'S2_KT_Ban_giao' ||
-        // accountingHandoverDate chỉ là CHỜ NỘP VPĐK 
-        // khi đã ở GD2 (có vpdkCode hoặc submissionDate sắp nộp)
-        (r.accountingHandoverDate && !r.submissionDate && 
-         (r.currentStep as string) === 'GD2_Cho_Nop_VPDK') ||
-        (r.accountingHandoverDate && !r.submissionDate && 
-         (r.currentStep as string) === 'S2_KT_Ban_giao')
+        (r.currentStep as string) === 'S2_KT_Tiep_Nhan' ||
+        (r.currentStep as string) === 'GD1_Cho_KT_TiepNhan' ||
+        (r.accountingHandoverDate && !r.submissionDate)
       ) {
         stages.AWAITING_SUBMISSION.push(r);
       }
@@ -5205,6 +5418,34 @@ export default function App() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden z-10 relative bg-transparent">
+        {/* First Login Security Warning Banner */}
+        {currentUser?.isFirstLogin && (
+          <div className={cn(
+            "px-6 py-3 flex items-center justify-between text-xs font-semibold select-none z-30 shadow-md",
+            theme === 'light'
+              ? "bg-amber-50 border-b border-amber-200 text-amber-800"
+              : "bg-amber-950/40 border-b border-amber-500/20 text-amber-200"
+          )}>
+            <div className="flex items-center gap-2">
+              <span className="text-sm">⚠️</span>
+              <p>
+                <span className="font-bold">CẢNH BÁO BẢO MẬT:</span> Đây là lần đầu tiên bạn đăng nhập hệ thống. Để đảm bảo an toàn cho dữ liệu hồ sơ, vui lòng thay đổi mật khẩu mặc định ngay lập tức.
+              </p>
+            </div>
+            <button
+              onClick={() => setIsChangePasswordModalOpen(true)}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider shadow-sm transition-all whitespace-nowrap shrink-0",
+                theme === 'light'
+                  ? "bg-amber-600 hover:bg-amber-700 text-white hover:shadow-md"
+                  : "bg-amber-500 hover:bg-amber-400 text-slate-950 hover:shadow-md"
+              )}
+            >
+              Đổi mật khẩu ngay
+            </button>
+          </div>
+        )}
+
         {/* Header */}
         <header className={cn(
           "h-20 backdrop-blur-xl border-b flex items-center justify-between px-8 shrink-0 z-20 transition-all",

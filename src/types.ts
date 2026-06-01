@@ -50,6 +50,7 @@ export type UserProfile = {
   email?: string;
   phoneNumber?: string;
   status: 'Active' | 'Inactive';
+  isFirstLogin?: boolean;
 };
 
 export type UnitStatus = 

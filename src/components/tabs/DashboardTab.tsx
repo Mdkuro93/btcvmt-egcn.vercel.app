@@ -75,8 +75,8 @@ export const DashboardTab = ({
                       onClick={() => handleDashboardClick('ALL')}
                     />
                     <StatCard 
-                      title="HỒ SƠ ĐANG XỬ LÝ" 
-                      value={stats.processing} 
+                      title="HỒ SƠ CẦN XỬ LÝ" 
+                      value={dashboardApps.filter((a: any) => a.currentStep === 'S1_ChuanBi' || a.currentStep === 'GD1_ChuanBi').length} 
                       icon={Activity} 
                       colorClass="bg-info shadow-info/40" 
                       delay={0.2} 

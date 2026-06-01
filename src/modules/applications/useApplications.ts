@@ -144,11 +144,11 @@ export function useApplications(
 
             // ===== KTT =====
             case 'KT_NEED_RECEIVE':
-              if (!(accountingHandoverDate || stepType === 'KT')) return false;
+              if (!(['GD1_Cho_KT_TiepNhan', 'S2_KT_Tiep_Nhan', 'GD2_Cho_Nop_VPDK', 'S3_Nop_VPDK'].includes(a.currentStep))) return false;
               break;
 
             case 'KT_PROCESSING':
-              if (!(stepType === 'KT' && !submissionDate)) return false;
+              if (!(['GD1_Cho_KT_TiepNhan', 'S2_KT_Tiep_Nhan', 'GD2_Cho_Nop_VPDK', 'S3_Nop_VPDK', 'GD4_Cho_KT_TiepNhan_LaySo', 'GD5_Cho_GCN'].includes(a.currentStep))) return false;
               break;
 
             case 'KT_TAX_PENDING_COMPLETE':
@@ -157,7 +157,7 @@ export function useApplications(
 
             // ===== PTT =====
             case 'PTT_PROCESSING':
-              if (a.status !== 'Processing') return false;
+              if (!(['S1_ChuanBi', 'GD1_ChuanBi', 'GD1_Cho_KT_TiepNhan', 'S2_KT_Tiep_Nhan'].includes(a.currentStep))) return false;
               break;
 
             case 'PTT_TAX_PENDING_COMPLETE':
@@ -170,7 +170,7 @@ export function useApplications(
 
             // ===== PTDA =====
             case 'PTDA_NEED_RECEIVE':
-              if (!(stepType === 'VPDK' || stepType === 'TAX_NOTICE')) return false;
+              if (!(['S2_KT_Ban_giao', 'S5_1_PTDA_TiepNhan', 'GD2_Cho_Nop_VPDK', 'S3_Nop_VPDK'].includes(a.currentStep))) return false;
               break;
 
             case 'PTDA_WAIT_TAX_NOTICE':

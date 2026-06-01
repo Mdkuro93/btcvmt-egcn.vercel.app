@@ -892,6 +892,9 @@ export const ApplicationsTab = ({
                                   const hasError = spreadsheetErrors[app.id]?.[f.key];
                                   const isChanged = spreadsheetChanges[app.id]?.hasOwnProperty(f.key);
                                   const isActive = activeCell?.id === app.id && activeCell?.field === f.key;
+                                  
+                                  const isEarly = ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => (app.currentStep as string).startsWith(prefix));
+                                  const isGcnWarning = f.key === 'gcnReceivedDate' && val && val !== '---' && val !== 'None' && String(val).trim() !== '' && isEarly;
 
                                   return (
                                     <td 
@@ -904,76 +907,86 @@ export const ApplicationsTab = ({
                                               ? "ring-2 ring-indigo-500 bg-indigo-50/30 z-10 shadow-[0_0_15px_rgba(99,102,241,0.2)]" 
                                               : "ring-2 ring-indigo-400 bg-indigo-900/20 z-10 shadow-[0_0_15px_rgba(129,140,248,0.2)]") 
                                           : "",
-                                        hasError ? "bg-rose-500/10" : (isChanged ? "bg-emerald-500/5" : "")
+                                        hasError ? "bg-rose-500/10" : (isGcnWarning ? "bg-orange-100 dark:bg-orange-900/30" : (isChanged ? "bg-emerald-500/5" : ""))
                                       )}
                                       onPaste={(e) => handleSpreadsheetPaste(e, app.id, f.key)}
                                       onClick={() => setActiveCell({ id: app.id, field: f.key })}
                                     >
-                                      <input 
-                                        type="text"
-                                        placeholder="dd/mm/yyyy"
-                                        className={cn(
-                                          "w-full bg-transparent border-none outline-none text-xs leading-tight font-mono text-center placeholder:opacity-30",
-                                          theme === 'light' ? "text-slate-600" : "text-slate-300",
-                                          isActive ? "font-bold" : "",
-                                          hasError ? "text-rose-500" : (isChanged ? "text-emerald-400 font-black" : "")
-                                        )}
-                                        value={val}
-                                        onChange={(e) => handleSpreadsheetChange(app.id, f.key, e.target.value)}
-                                        onKeyDown={(e) => {
-                                          if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Tab'].includes(e.key)) {
-                                            const isTab = e.key === 'Tab';
-                                            const isShiftTab = isTab && e.shiftKey;
-                                            
-                                            // ArrowUp/Down/Left/Right/Enter and Tab/ShiftTab
-                                            e.preventDefault();
-                                            const currentIdx = displayedApps.findIndex(a => a.id === app.id);
-                                            const currentFldIdx = EDITABLE_DATE_FIELDS.findIndex(fd => fd.key === f.key);
-                                            
-                                            let nextId = app.id;
-                                            let nextFld = f.key;
-                                            const isLastRow = currentIdx === displayedApps.length - 1;
-                                            const isFirstRow = currentIdx === 0;
-                                            const isLastField = currentFldIdx === EDITABLE_DATE_FIELDS.length - 1;
-                                            const isFirstField = currentFldIdx === 0;
+                                      <div className="flex items-center justify-center gap-1 w-full relative group/warning">
+                                        <input 
+                                          type="text"
+                                          placeholder="dd/mm/yyyy"
+                                          className={cn(
+                                            "w-full bg-transparent border-none outline-none text-xs leading-tight font-mono text-center placeholder:opacity-30",
+                                            theme === 'light' ? "text-slate-600" : "text-slate-300",
+                                            isActive ? "font-bold" : "",
+                                            hasError ? "text-rose-500" : (isGcnWarning ? "text-orange-600 dark:text-orange-400 font-bold" : (isChanged ? "text-emerald-400 font-black" : ""))
+                                          )}
+                                          value={val}
+                                          onChange={(e) => handleSpreadsheetChange(app.id, f.key, e.target.value)}
+                                          onKeyDown={(e) => {
+                                            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Tab'].includes(e.key)) {
+                                              const isTab = e.key === 'Tab';
+                                              const isShiftTab = isTab && e.shiftKey;
+                                              
+                                              // ArrowUp/Down/Left/Right/Enter and Tab/ShiftTab
+                                              e.preventDefault();
+                                              const currentIdx = displayedApps.findIndex(a => a.id === app.id);
+                                              const currentFldIdx = EDITABLE_DATE_FIELDS.findIndex(fd => fd.key === f.key);
+                                              
+                                              let nextId = app.id;
+                                              let nextFld = f.key;
+                                              const isLastRow = currentIdx === displayedApps.length - 1;
+                                              const isFirstRow = currentIdx === 0;
+                                              const isLastField = currentFldIdx === EDITABLE_DATE_FIELDS.length - 1;
+                                              const isFirstField = currentFldIdx === 0;
 
-                                            if (e.key === 'ArrowUp' && !isFirstRow) {
-                                              nextId = displayedApps[currentIdx - 1].id;
-                                            } else if ((e.key === 'ArrowDown' || e.key === 'Enter') && !isLastRow) {
-                                              nextId = displayedApps[currentIdx + 1].id;
-                                            } else if (e.key === 'ArrowLeft' && !isFirstField) {
-                                              nextFld = EDITABLE_DATE_FIELDS[currentFldIdx - 1].key;
-                                            } else if (e.key === 'ArrowRight' && !isLastField) {
-                                              nextFld = EDITABLE_DATE_FIELDS[currentFldIdx + 1].key;
-                                            } else if (isTab && !isShiftTab) {
-                                              if (isLastField) {
-                                                if (!isLastRow) {
-                                                  nextId = displayedApps[currentIdx + 1].id;
-                                                  nextFld = EDITABLE_DATE_FIELDS[0].key;
-                                                }
-                                              } else {
-                                                nextFld = EDITABLE_DATE_FIELDS[currentFldIdx + 1].key;
-                                              }
-                                            } else if (isShiftTab) {
-                                              if (isFirstField) {
-                                                if (!isFirstRow) {
-                                                  nextId = displayedApps[currentIdx - 1].id;
-                                                  nextFld = EDITABLE_DATE_FIELDS[EDITABLE_DATE_FIELDS.length - 1].key;
-                                                }
-                                              } else {
+                                              if (e.key === 'ArrowUp' && !isFirstRow) {
+                                                nextId = displayedApps[currentIdx - 1].id;
+                                              } else if ((e.key === 'ArrowDown' || e.key === 'Enter') && !isLastRow) {
+                                                nextId = displayedApps[currentIdx + 1].id;
+                                              } else if (e.key === 'ArrowLeft' && !isFirstField) {
                                                 nextFld = EDITABLE_DATE_FIELDS[currentFldIdx - 1].key;
+                                              } else if (e.key === 'ArrowRight' && !isLastField) {
+                                                nextFld = EDITABLE_DATE_FIELDS[currentFldIdx + 1].key;
+                                              } else if (isTab && !isShiftTab) {
+                                                if (isLastField) {
+                                                  if (!isLastRow) {
+                                                    nextId = displayedApps[currentIdx + 1].id;
+                                                    nextFld = EDITABLE_DATE_FIELDS[0].key;
+                                                  }
+                                                } else {
+                                                  nextFld = EDITABLE_DATE_FIELDS[currentFldIdx + 1].key;
+                                                }
+                                              } else if (isShiftTab) {
+                                                if (isFirstField) {
+                                                  if (!isFirstRow) {
+                                                    nextId = displayedApps[currentIdx - 1].id;
+                                                    nextFld = EDITABLE_DATE_FIELDS[EDITABLE_DATE_FIELDS.length - 1].key;
+                                                  }
+                                                } else {
+                                                  nextFld = EDITABLE_DATE_FIELDS[currentFldIdx - 1].key;
+                                                }
+                                              }
+
+                                              if (nextId !== app.id || nextFld !== f.key) {
+                                                setActiveCell({ id: nextId, field: nextFld });
                                               }
                                             }
-
-                                            if (nextId !== app.id || nextFld !== f.key) {
-                                              setActiveCell({ id: nextId, field: nextFld });
-                                            }
-                                          }
-                                        }}
-                                        ref={(el) => {
-                                          if (isActive && el) el.focus();
-                                        }}
-                                      />
+                                          }}
+                                          ref={(el) => {
+                                            if (isActive && el) el.focus();
+                                          }}
+                                        />
+                                        {isGcnWarning && (
+                                          <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center z-10 cursor-help">
+                                            <AlertTriangle size={12} className="text-orange-500 dark:text-orange-400" />
+                                            <div className="pointer-events-none absolute bottom-full mb-1 right-0 hidden group-hover/warning:block w-48 bg-orange-500 text-white text-[9px] px-2 py-1.5 rounded shadow-[0_0_15px_rgba(249,115,22,0.4)] z-50 whitespace-normal text-left leading-tight">
+                                              Cảnh báo: Lô đất có ngày nhận sổ nhưng tiến độ thực tế chưa tới bước bàn giao. Vui lòng kiểm tra lại.
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
                                       {hasError && (
                                         <div className="absolute top-0 right-0 p-1">
                                           <AlertCircle size={8} className="text-rose-500" />
@@ -994,7 +1007,39 @@ export const ApplicationsTab = ({
                                   </td>
                                   <td className="px-2 py-0">
                                     <div className="flex flex-col gap-0.5">
-                                      <StatusBadge status={app.status} app={app} variant="compact" />
+                                      <div className="flex items-center gap-1.5 relative group/warn-status">
+                                        <StatusBadge status={app.status} app={app} variant="compact" />
+                                        {(() => {
+                                          if (app.isSelfService) return null;
+                                          const missingSteps: string[] = [];
+                                          if (app.gcnReceivedDate && !app.submissionDate) missingSteps.push('Ngày nộp VPĐK');
+                                          if (app.gcnReceivedDate && !app.taxNotificationDate) missingSteps.push('Ngày TB thuế');
+                                          if (app.gcnReceivedDate && !app.taxReceiptDate) missingSteps.push('Ngày đóng thuế');
+                                          if (app.gcnReceivedDate && !app.gcnSignedDate) missingSteps.push('Ngày ký GCN');
+
+                                          if (app.gcnSignedDate && !app.submissionDate) missingSteps.push('Ngày nộp VPĐK');
+                                          if (app.gcnSignedDate && !app.taxReceiptDate) missingSteps.push('Ngày đóng thuế');
+
+                                          if (app.taxReceiptDate && !app.taxNotificationDate) missingSteps.push('Ngày TB thuế');
+                                          if (app.taxReceiptDate && !app.submissionDate) missingSteps.push('Ngày nộp VPĐK');
+
+                                          const uniqueMissing = [...new Set(missingSteps)];
+                                          if (uniqueMissing.length > 0) {
+                                            return (
+                                              <div className="relative flex items-center z-35 cursor-help group/warn">
+                                                <span className="text-amber-500 animate-pulse font-bold text-xs select-none">⚠️</span>
+                                                <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/warn:block w-64 bg-slate-900 border border-amber-500/30 text-white font-medium text-[10px] px-3 py-2 rounded-lg shadow-[0_5px_22px_rgba(0,0,0,0.6)] z-50 whitespace-normal text-left leading-normal">
+                                                  <div className="font-bold text-amber-400 border-b border-slate-700/30 pb-1 mb-1 flex items-center gap-1">
+                                                    <span>⚠️ CẢNH BÁO TIẾN ĐỘ</span>
+                                                  </div>
+                                                  <span className="text-slate-200">Thiếu thông tin: {uniqueMissing.join(', ')}</span>
+                                                </div>
+                                              </div>
+                                            );
+                                          }
+                                          return null;
+                                        })()}
+                                      </div>
                                       {(app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None')) && (
                                         <div className="flex items-center gap-1">
                                           <AlertTriangle size={8} className={cn(
@@ -1051,7 +1096,33 @@ export const ApplicationsTab = ({
                                   )}
                                   {(userRole === 'PTDA' || isManagement) && (
                                     <td className="px-2 py-0 text-center">
-                                      <span className={cn("text-[10px] leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.gcnReceivedDate)}</span>
+                                      {(() => {
+                                        const isEarly = ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => (app.currentStep as string).startsWith(prefix));
+                                        const hasGCN = app.gcnReceivedDate && app.gcnReceivedDate !== '---' && app.gcnReceivedDate !== 'None' && String(app.gcnReceivedDate).trim() !== '';
+                                        const showWarning = hasGCN && isEarly;
+                                        
+                                        return (
+                                          <div className={cn(
+                                            "flex items-center justify-center gap-1 w-full relative group/warning",
+                                            showWarning ? "bg-orange-100 dark:bg-orange-900/30 px-1 py-0.5 rounded" : ""
+                                          )}>
+                                            <span className={cn(
+                                              "text-[10px] leading-tight font-mono", 
+                                              showWarning ? "text-orange-600 dark:text-orange-400 font-bold" : (theme === 'light' ? "text-slate-500" : "text-slate-400")
+                                            )}>
+                                              {formatDate(app.gcnReceivedDate)}
+                                            </span>
+                                            {showWarning && (
+                                              <div className="relative flex items-center justify-center">
+                                                <AlertTriangle size={10} className="text-orange-500 dark:text-orange-400" />
+                                                <div className="pointer-events-none absolute bottom-full mb-1 left-1/2 -translate-x-1/2 hidden group-hover/warning:block w-48 bg-orange-500 text-white text-[9px] px-2 py-1.5 rounded shadow-lg z-50 whitespace-normal text-left leading-tight">
+                                                  Cảnh báo: Lô đất có ngày nhận sổ nhưng tiến độ thực tế chưa tới bước bàn giao. Vui lòng kiểm tra lại xem có import nhầm dòng hoặc nhầm mã lô hay không!
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
                                     </td>
                                   )}
                                   <td className="px-2 py-0 text-center">

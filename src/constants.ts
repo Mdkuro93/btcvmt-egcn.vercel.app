@@ -183,7 +183,7 @@ export const STEP_CONFIG: Record<string, { label: string, description: string, d
   GD4_Cho_KT_TiepNhan_LaySo: { label: 'GĐ4: KT nhận chứng từ (KT)', description: 'Bộ phận Kế toán xác nhận chứng từ nộp thuế và lấy số', dept: 'KT', status: 'TaxCompleted', slaDays: 3, active: true },
   GD5_Cho_Ky_In_GCN: { label: 'GĐ5: Theo dõi trình ký (PTDA)', description: 'Bộ phận Phát triển Dự án làm thủ tục trình ký GCN tại VPĐK', dept: 'PTDA', status: 'GCN_Issued', slaDays: 5, active: true },
   GD5_Cho_GCN: { label: 'GĐ5: KT nhận kết quả (KT)', description: 'Bộ phận Kế toán nhận kết quả GCN', dept: 'KT', status: 'GCN_Issued', slaDays: 2, active: true },
-  GD5_Cho_PTT_TiepNhan_BG: { label: 'GĐ5: Chờ nhận GCN thực tế (KT)', description: 'Bộ phận Kế toán nhận GCN thực tế từ VPĐK', dept: 'KT', status: 'GCN_Issued', slaDays: 2, active: true },
+  GD5_Cho_PTT_TiepNhan_BG: { label: 'GĐ5: Chờ nhận GCN thực tế (KT)', description: 'Bộ phận Kế toán nhận GCN thực tế từ VPĐK', dept: 'KT', status: 'WaitingHandover', slaDays: 2, active: true },
   GD6_Cho_BG_Khach: { label: 'GĐ6: Bàn giao khách hàng (PTT)', description: 'Bộ phận Thủ tục thực hiện bàn giao cho khách', dept: 'PTT', status: 'WaitingHandover', slaDays: 2, active: true },
   Hoan_Tat: { label: 'ĐÃ HOÀN TẤT', description: 'Hồ sơ đã hoàn tất và bàn giao', dept: 'ADMIN', status: 'Completed', active: true },
 };

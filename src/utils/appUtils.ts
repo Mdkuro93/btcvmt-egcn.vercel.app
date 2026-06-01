@@ -54,3 +54,52 @@ export const getOverdueInfo = (app: any, stepConfig: Record<string, any>, slaCon
   }
   return calculateSLA(app, stepConfig, slaConfig);
 };
+
+export const determineStatusFromStep = (currentStep: StepName, initialStepConfig: Record<string, any>): import('../types').UnitStatus => {
+  if (currentStep === 'Hoan_Tat') return 'Completed';
+  if (['S6_Nhan_So_GCN', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_GCN'].includes(currentStep)) return 'GCN_Issued';
+  if (['S7_1_PTT_Tiep_Nhan', 'S7_PTDA_Ban_Giao', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Cho_BG_Khach', 'S7_2_Ban_Giao_Khach'].includes(currentStep)) return 'WaitingHandover';
+  return initialStepConfig[currentStep]?.status || 'Processing';
+};
+
+export const validateSkippedSteps = (
+  app: Application,
+  currentStep: StepName
+): string[] => {
+  const warnings: string[] = [];
+  if (app.isSelfService) return warnings; // Khách tự làm → bỏ qua
+  
+  // Kiểm tra các bước bị nhảy cóc
+  const missingSteps: string[] = [];
+
+  // gcnReceivedDate có nhưng thiếu bước trung gian
+  if (app.gcnReceivedDate && !app.submissionDate)
+    missingSteps.push('Ngày nộp VPĐK');
+  if (app.gcnReceivedDate && !app.taxNotificationDate)
+    missingSteps.push('Ngày TB thuế');
+  if (app.gcnReceivedDate && !app.taxReceiptDate)
+    missingSteps.push('Ngày đóng thuế');
+  if (app.gcnReceivedDate && !app.gcnSignedDate)
+    missingSteps.push('Ngày ký GCN');
+
+  // gcnSignedDate có nhưng thiếu bước trung gian
+  if (app.gcnSignedDate && !app.submissionDate)
+    missingSteps.push('Ngày nộp VPĐK');
+  if (app.gcnSignedDate && !app.taxReceiptDate)
+    missingSteps.push('Ngày đóng thuế');
+
+  // taxReceiptDate có nhưng thiếu taxNotificationDate
+  if (app.taxReceiptDate && !app.taxNotificationDate)
+    missingSteps.push('Ngày TB thuế');
+  if (app.taxReceiptDate && !app.submissionDate)
+    missingSteps.push('Ngày nộp VPĐK');
+
+  if (missingSteps.length > 0) {
+    const uniqueMissing = [...new Set(missingSteps)];
+    warnings.push(
+      `⚠️ ${app.unitCode}: Hệ thống ghi nhận bước "${currentStep}" nhưng thiếu thông tin: ${uniqueMissing.join(', ')}. KT/PTDA cần bổ sung dữ liệu còn thiếu.`
+    );
+  }
+  return warnings;
+};
+
