@@ -64,6 +64,95 @@ export function useApplicationFilters(
     const activeSLAStatus = filterSLAStatus && filterSLAStatus !== 'ALL' ? filterSLAStatus.trim() : null;
     const activeIssue = filterIssue && filterIssue !== 'ALL' ? filterIssue.trim() : null;
 
+    // Helper to get raw stage name matching computeChartData in App.tsx
+    const getComputedStageName = (r: any): string => {
+      const today = new Date();
+      const submissionSLA = 7;
+
+      const checkNotEmpty = (val: any) => {
+        return val && val !== '---' && val !== 'None' && String(val).trim() !== '';
+      };
+
+      if (r.isSelfService) {
+        const hasHandover = checkNotEmpty(r.customerHandoverDate);
+        const hasGcn = checkNotEmpty(r.gcnReceivedDate);
+
+        if (r.status === 'Completed' || r.currentStep === 'Hoan_Tat' || hasHandover) {
+          return 'HOÀN TẤT';
+        }
+        else if (hasGcn) {
+          return 'CHỜ BÀN GIAO';
+        }
+        else {
+          return 'ĐANG CHUẨN BỊ';
+        }
+      }
+
+      // Priority 1: Completed
+      if (r.status === 'Completed' || r.currentStep === 'Hoan_Tat') {
+        return 'HOÀN TẤT';
+      }
+      // Priority 2: WaitingHandover
+      else if (r.status === 'WaitingHandover' || [
+        'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 
+        'S7_2_Ban_Giao_Khach', 'GD5_Cho_PTT_TiepNhan_BG', 
+        'GD6_Cho_BG_Khach'
+      ].includes(r.currentStep)) {
+        return 'CHỜ BÀN GIAO';
+      }
+      // Priority 3: GCN_Issued
+      else if (r.status === 'GCN_Issued' || [
+        'S6_Nhan_So_GCN', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_GCN'
+      ].includes(r.currentStep)) {
+        return 'ĐÃ CÓ GCN';
+      }
+      // Priority 4: TaxCompleted / TaxPaid
+      else if (r.status === 'TaxPaid' || r.status === 'TaxCompleted' ||
+               r.currentStep === 'S5_1_PTDA_TiepNhan') {
+        return 'ĐÃ NỘP THUẾ';
+      }
+      // Priority 5: AWAITING_FINANCE (CHỜ HOÀN THÀNH NVTC)
+      else if (r.status === 'TaxPending' && r.taxNotificationDate) {
+        return 'CHỜ HOÀN THÀNH NVTC';
+      }
+      else if ([
+        'S5_Tai_Chinh_Khach_Hang', 'GD4_Cho_Nop_NVTC', 
+        'GD4_Cho_KT_TiepNhan_LaySo'
+      ].includes(r.currentStep)) {
+        return 'CHỜ HOÀN THÀNH NVTC';
+      }
+      // Priority 6: SUBMITTED / TAX_WARNING (phân loại theo SLA)
+      else if (r.status === 'Submitted' || r.status === 'TaxPending' || r.submissionDate) {
+        if (r.submissionDate && !r.taxNotificationDate) {
+          const daysDiff = (today.getTime() - new Date(r.submissionDate).getTime()) / (1000*60*60*24);
+          if (daysDiff > submissionSLA) {
+            return 'CHỜ TB THUẾ';
+          } else {
+            return 'ĐÃ NỘP VPĐK';
+          }
+        } else if (r.taxNotificationDate) {
+          return 'CHỜ HOÀN THÀNH NVTC';
+        } else {
+          return 'ĐÃ NỘP VPĐK';
+        }
+      }
+      // Priority 7: AWAITING_SUBMISSION (CHỜ NỘP VPĐK / CHỜ KT TIẾP NHẬN)
+      else if (
+        r.status === 'WaitingVPDK' ||
+        r.currentStep === 'GD2_Cho_Nop_VPDK' ||
+        r.currentStep === 'S2_KT_Ban_giao' ||
+        r.currentStep === 'S2_KT_Tiep_Nhan' ||
+        r.currentStep === 'GD1_Cho_KT_TiepNhan' ||
+        (r.accountingHandoverDate && !r.submissionDate)
+      ) {
+        return 'CHỜ NỘP VPĐK';
+      }
+      // Default: PREPARING
+      else {
+        return 'ĐANG CHUẨN BỊ';
+      }
+    };
+
     return applications.filter(a => {
       if (!a) return false;
 
@@ -102,7 +191,17 @@ export function useApplicationFilters(
       }
 
       // ================= 2. STATUS FILTER =================
-      if (activeStatus && a.status !== activeStatus) return false;
+      if (activeStatus) {
+        const computedStage = getComputedStageName(a);
+        if (activeStatus === 'Processing' && computedStage !== 'ĐANG CHUẨN BỊ') return false;
+        if (activeStatus === 'WaitingVPDK' && computedStage !== 'CHỜ NỘP VPĐK') return false;
+        if (activeStatus === 'TaxPending' && computedStage !== 'CHỜ HOÀN THÀNH NVTC' && computedStage !== 'CHỜ TB THUẾ') return false;
+        if (activeStatus === 'WaitingHandover' && computedStage !== 'CHỜ BÀN GIAO') return false;
+        if (activeStatus === 'TaxPaid' && computedStage !== 'ĐÃ NỘP THUẾ') return false;
+        if (activeStatus === 'Submitted' && computedStage !== 'ĐÃ NỘP VPĐK') return false;
+        if (activeStatus === 'Completed' && computedStage !== 'HOÀN TẤT') return false;
+        if (!['Processing', 'WaitingVPDK', 'TaxPending', 'WaitingHandover', 'TaxPaid', 'Submitted', 'Completed'].includes(activeStatus) && a.status !== activeStatus) return false;
+      }
 
       // ================= 3. LOAN =================
       if (activeLoanStatus && a.loanStatus !== activeLoanStatus) return false;
@@ -145,7 +244,22 @@ export function useApplicationFilters(
 
       // ================= 7. DASHBOARD FILTER (ROLE BASED) =================
       if (activeDashboardFilter) {
+        const computedStage = getComputedStageName(a);
+
         switch (activeDashboardFilter) {
+          // ===== DASHBOARD TIMELINE STAGES FILTER =====
+          case 'ĐANG CHUẨN BỊ':
+          case 'CHỜ NỘP VPĐK':
+          case 'ĐÃ NỘP VPĐK':
+          case 'CHỜ TB THUẾ':
+          case 'CHỜ HOÀN THÀNH NVTC':
+          case 'ĐÃ NỘP THUẾ':
+          case 'ĐÃ CÓ GCN':
+          case 'CHỜ BÀN GIAO':
+          case 'HOÀN TẤT':
+            if (computedStage !== activeDashboardFilter) return false;
+            break;
+
           // ===== KTT =====
           case 'KT_NEED_RECEIVE':
             if (!(['GD1_Cho_KT_TiepNhan', 'S2_KT_Tiep_Nhan', 'GD2_Cho_Nop_VPDK', 'S3_Nop_VPDK'].includes(a.currentStep))) return false;
@@ -194,7 +308,7 @@ export function useApplicationFilters(
             break;
 
           case 'PTDA_WAIT_GCN_SIGN':
-            if (!(taxReceiptDate && !a.gcnSignedDate)) return false;
+            if (a.status !== 'WaitingHandover' && a.currentStep !== 'GD5_Cho_PTT_TiepNhan_BG') return false;
             break;
 
           // ===== GLOBAL =====

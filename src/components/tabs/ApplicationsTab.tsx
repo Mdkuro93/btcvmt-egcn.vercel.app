@@ -109,6 +109,7 @@ export const ApplicationsTab = ({
   setSelectedAppIds,
   isSavingApp,
   isManagementEdit,
+  isFieldEditable,
   filteredApps,
   isSpreadsheetMode,
   setIsSpreadsheetMode,
@@ -526,9 +527,19 @@ export const ApplicationsTab = ({
                               const isSupportSpecial = (firstApp.projectName?.includes('hỗ trợ')) && (firstApp.currentStep === 'GD2_Cho_Nop_VPDK' || firstApp.currentStep === 'S3_Nop_VPDK');
                               const effectiveDept = isSupportSpecial ? 'KT' : roleDept;
                               
+                              const canHandleStep = 
+                                userRole === 'ADMIN' || 
+                                userRole === 'DIRECTOR' || 
+                                userRole === 'MANAGER' || 
+                                userRole === 'MANAGER_ALL' ||
+                                (userRole === 'MANAGER_PTT' && effectiveDept === 'PTT') ||
+                                (userRole === 'MANAGER_KT' && effectiveDept === 'KT') ||
+                                (userRole === 'MANAGER_PTDA' && effectiveDept === 'PTDA') ||
+                                effectiveDept === userRole;
+                              
                               // Step 7.2 Quy_trinh_2 custom logic
                               if (workflowType === 'Quy_trinh_2' && firstApp.currentStep === 'S7_2_Ban_Giao_Khach') {
-                                 if (userRole === 'PTT' || isManagementEdit) {
+                                 if (canHandleStep) {
                                     return (
                                        <button 
                                         onClick={() => handleBulkStepTransition('Hoan_Tat')}
@@ -541,7 +552,7 @@ export const ApplicationsTab = ({
                                  return null;
                               }
                               
-                              if (nextStep && (isManagementEdit || effectiveDept === userRole || (firstApp.currentStep === 'S1_ChuanBi' && userRole === 'PTT') || (firstApp.currentStep === 'GD1_ChuanBi' && userRole === 'PTT'))) {
+                              if (nextStep && (canHandleStep || (firstApp.currentStep === 'S1_ChuanBi' && userRole === 'PTT') || (firstApp.currentStep === 'GD1_ChuanBi' && userRole === 'PTT'))) {
                                 return (
                                   <button 
                                     onClick={() => handleBulkStepTransition(nextStep)}
@@ -610,7 +621,7 @@ export const ApplicationsTab = ({
                             </button>
                           )}
 
-                          {(isManagementEdit || userRole === 'PTT') && (
+                          {(isManagementEdit || ['PTT', 'MANAGER_PTT'].includes(userRole)) && (
                             <button 
                               onClick={handleBulkDelete}
                               className={cn(
@@ -896,31 +907,44 @@ export const ApplicationsTab = ({
                                   const isEarly = ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => (app.currentStep as string).startsWith(prefix));
                                   const isGcnWarning = f.key === 'gcnReceivedDate' && val && val !== '---' && val !== 'None' && String(val).trim() !== '' && isEarly;
 
+                                  const isCellEditable = isFieldEditable ? isFieldEditable(f.key, app) : true;
+
                                   return (
                                     <td 
                                       key={`cell-${app.id}-${f.key}-${fIdx}`} 
                                       className={cn(
                                         "px-3 py-1.5 text-xs leading-tight border-x transition-all relative group/cell",
                                         theme === 'light' ? "border-slate-50" : "border-slate-800/20",
-                                        isActive 
+                                        isActive && isCellEditable
                                           ? (theme === 'light' 
                                               ? "ring-2 ring-indigo-500 bg-indigo-50/30 z-10 shadow-[0_0_15px_rgba(99,102,241,0.2)]" 
                                               : "ring-2 ring-indigo-400 bg-indigo-900/20 z-10 shadow-[0_0_15px_rgba(129,140,248,0.2)]") 
                                           : "",
-                                        hasError ? "bg-rose-500/10" : (isGcnWarning ? "bg-orange-100 dark:bg-orange-900/30" : (isChanged ? "bg-emerald-500/5" : ""))
+                                        hasError ? "bg-rose-500/10" : (isGcnWarning ? "bg-orange-100 dark:bg-orange-900/30" : (isChanged ? "bg-emerald-500/5" : "")),
+                                        !isCellEditable ? "bg-slate-150 dark:bg-slate-900/25 opacity-60" : ""
                                       )}
-                                      onPaste={(e) => handleSpreadsheetPaste(e, app.id, f.key)}
-                                      onClick={() => setActiveCell({ id: app.id, field: f.key })}
+                                      onPaste={(e) => {
+                                        if (isCellEditable) {
+                                          handleSpreadsheetPaste(e, app.id, f.key);
+                                        }
+                                      }}
+                                      onClick={() => {
+                                        if (isCellEditable) {
+                                          setActiveCell({ id: app.id, field: f.key });
+                                        }
+                                      }}
                                     >
                                       <div className="flex items-center justify-center gap-1 w-full relative group/warning">
                                         <input 
                                           type="text"
-                                          placeholder="dd/mm/yyyy"
+                                          placeholder={isCellEditable ? "dd/mm/yyyy" : "Khóa"}
+                                          disabled={!isCellEditable}
                                           className={cn(
                                             "w-full bg-transparent border-none outline-none text-xs leading-tight font-mono text-center placeholder:opacity-30",
                                             theme === 'light' ? "text-slate-600" : "text-slate-300",
-                                            isActive ? "font-bold" : "",
-                                            hasError ? "text-rose-500" : (isGcnWarning ? "text-orange-600 dark:text-orange-400 font-bold" : (isChanged ? "text-emerald-400 font-black" : ""))
+                                            isActive && isCellEditable ? "font-bold" : "",
+                                            hasError ? "text-rose-500" : (isGcnWarning ? "text-orange-600 dark:text-orange-400 font-bold" : (isChanged ? "text-emerald-400 font-black" : "")),
+                                            !isCellEditable ? "opacity-45 cursor-not-allowed select-none" : ""
                                           )}
                                           value={val}
                                           onChange={(e) => handleSpreadsheetChange(app.id, f.key, e.target.value)}

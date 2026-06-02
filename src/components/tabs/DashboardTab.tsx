@@ -66,7 +66,7 @@ export const DashboardTab = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <StatCard 
                       title="TỔNG SỐ LƯỢNG HỒ SƠ" 
-                      value={dashboardApps?.length || applications.length || 8} 
+                      value={dashboardApps?.length ?? 0} 
                       icon={Files} 
                       colorClass="bg-blue-500 shadow-blue-500/40" 
                       delay={0.1} 
@@ -122,7 +122,7 @@ export const DashboardTab = ({
                     <StatCard title="Đã nộp VPĐK" value={roleKpis.ptda.daNopVPDK} icon={CheckCircle2} colorClass="bg-emerald-500 shadow-emerald-500/40" delay={0.08} theme={theme} isActive={dashboardFilter === 'SUBMITTED_RECENT'} onClick={() => handleDashboardClick('SUBMITTED_RECENT')} />
                     <StatCard title="Chờ TB Thuế" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-warning shadow-warning/40" delay={0.12} theme={theme} isActive={dashboardFilter === 'WAIT_TAX_NOTICE_OVERDUE'} onClick={() => handleDashboardClick('WAIT_TAX_NOTICE_OVERDUE')} />
                     <StatCard title="Chờ hoàn thành NVTC" value={roleKpis.ptda.noTaxPaid} icon={CheckCircle2} colorClass="bg-warning shadow-warning/40" delay={0.15} theme={theme} isActive={dashboardFilter === 'PTDA_TAX_PENDING_COMPLETE'} onClick={() => handleDashboardClick('PTDA_TAX_PENDING_COMPLETE')} />
-                    <StatCard title="Chờ in/ký GCN" value={roleKpis.ptda.gcnWaiting} icon={FileText} colorClass="bg-info shadow-info/40" delay={0.2} theme={theme} isActive={dashboardFilter === 'PTDA_WAIT_GCN_SIGN'} onClick={() => handleDashboardClick('PTDA_WAIT_GCN_SIGN')} />
+                    <StatCard title="CHỜ BÀN GIAO" value={roleKpis.ptda.gcnWaiting} icon={FileText} colorClass="bg-info shadow-info/40" delay={0.2} theme={theme} isActive={dashboardFilter === 'PTDA_WAIT_GCN_SIGN'} onClick={() => handleDashboardClick('PTDA_WAIT_GCN_SIGN')} />
                   </div>
                 )}
 

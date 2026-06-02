@@ -180,10 +180,10 @@ export const STEP_CONFIG: Record<string, { label: string, description: string, d
   GD2_Cho_Nop_VPDK: { label: 'GĐ2: Đang nộp VPĐK (KT)', description: 'Bộ phận Kế toán nộp hồ sơ tại VPĐKĐĐ', dept: 'KT', status: 'WaitingVPDK', slaDays: 2, active: true },
   GD3_Cho_TBThue: { label: 'GĐ3: Chờ TB Thuế (PTDA)', description: 'Chờ ban hành thông báo thuế (PTDA theo dõi)', dept: 'PTDA', status: 'TaxPending', slaDays: 10, active: true },
   GD4_Cho_Nop_NVTC: { label: 'GĐ4: Đôn đốc nộp thuế (PTT)', description: 'Bộ phận Thủ tục theo dõi NVTC của khách', dept: 'PTT', status: 'TaxPending', slaDays: 5, active: true },
-  GD4_Cho_KT_TiepNhan_LaySo: { label: 'GĐ4: KT nhận chứng từ (KT)', description: 'Bộ phận Kế toán xác nhận chứng từ nộp thuế và lấy số', dept: 'KT', status: 'TaxCompleted', slaDays: 3, active: true },
+  GD4_Cho_KT_TiepNhan_LaySo: { label: 'GĐ4: KT tiếp nhận chứng từ tài chính (KT)', description: 'Bộ phận Kế toán xác nhận chứng từ nộp thuế và lấy số', dept: 'KT', status: 'TaxCompleted', slaDays: 3, active: true },
   GD5_Cho_Ky_In_GCN: { label: 'GĐ5: Theo dõi trình ký (PTDA)', description: 'Bộ phận Phát triển Dự án làm thủ tục trình ký GCN tại VPĐK', dept: 'PTDA', status: 'GCN_Issued', slaDays: 5, active: true },
   GD5_Cho_GCN: { label: 'GĐ5: KT nhận kết quả (KT)', description: 'Bộ phận Kế toán nhận kết quả GCN', dept: 'KT', status: 'GCN_Issued', slaDays: 2, active: true },
-  GD5_Cho_PTT_TiepNhan_BG: { label: 'GĐ5: Chờ nhận GCN thực tế (KT)', description: 'Bộ phận Kế toán nhận GCN thực tế từ VPĐK', dept: 'KT', status: 'WaitingHandover', slaDays: 2, active: true },
+  GD5_Cho_PTT_TiepNhan_BG: { label: 'GĐ5: Chờ PTT tiếp nhận BG (PTT)', description: 'Bộ phận Thủ tục tiếp nhận GCN thực tế', dept: 'PTT', status: 'WaitingHandover', slaDays: 2, active: true },
   GD6_Cho_BG_Khach: { label: 'GĐ6: Bàn giao khách hàng (PTT)', description: 'Bộ phận Thủ tục thực hiện bàn giao cho khách', dept: 'PTT', status: 'WaitingHandover', slaDays: 2, active: true },
   Hoan_Tat: { label: 'ĐÃ HOÀN TẤT', description: 'Hồ sơ đã hoàn tất và bàn giao', dept: 'ADMIN', status: 'Completed', active: true },
 };

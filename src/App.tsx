@@ -587,7 +587,7 @@ export default function App() {
   const userCanEdit = useMemo(() => canEdit(currentUser), [currentUser]);
   
   const isManagementEdit = useMemo(() => {
-    return userRole === 'ADMIN' || (['MANAGER', 'DIRECTOR', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA', 'MANAGER_ALL'].includes(userRole) && userCanEdit);
+    return userRole === 'ADMIN' || (['MANAGER', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole) && userCanEdit);
   }, [userRole, userCanEdit]);
 
   const isManagement = useMemo(() => {
@@ -1358,7 +1358,49 @@ export default function App() {
         else if (normalized === 'hoàn tất' || normalized === 'completed') dbStatus = 'Completed';
         else if (normalized === 'sai sót/vướng' || normalized === 'error') dbStatus = 'Error';
         
-        query = query.eq('status', dbStatus);
+        if (dbStatus === 'Processing') {
+          query = query
+            .eq('status', 'Processing')
+            .not('current_step', 'in', '("GD2_Cho_Nop_VPDK","S2_KT_Ban_giao","S2_KT_Tiep_Nhan","GD1_Cho_KT_TiepNhan")')
+            .is('accounting_handover_date', null);
+        } else if (dbStatus === 'WaitingVPDK') {
+          query = query.or(
+            'status.eq.WaitingVPDK,' +
+            'current_step.eq.GD1_Cho_KT_TiepNhan,' +
+            'current_step.eq.S2_KT_Tiep_Nhan,' +
+            'current_step.eq.S2_KT_Ban_giao,' +
+            'current_step.eq.GD1_Nop_VPDK,' +
+            'current_step.eq.GD2_Cho_Nop_VPDK'
+          );
+        } else if (dbStatus === 'TaxPending') {
+          query = query.or(
+            'status.eq.TaxPending,' +
+            'current_step.eq.S5_Tai_Chinh_Khach_Hang,' +
+            'current_step.eq.GD4_Cho_Nop_NVTC,' +
+            'current_step.eq.GD4_Cho_KT_TiepNhan_LaySo'
+          );
+        } else if (dbStatus === 'WaitingHandover') {
+          query = query.or(
+            'status.eq.WaitingHandover,' +
+            'current_step.eq.S7_PTDA_Ban_Giao,' +
+            'current_step.eq.S7_1_PTT_Tiep_Nhan,' +
+            'current_step.eq.S7_2_Ban_Giao_Khach,' +
+            'current_step.eq.GD5_Cho_PTT_TiepNhan_BG,' +
+            'current_step.eq.GD6_Cho_BG_Khach'
+          );
+        } else if (dbStatus === 'TaxPaid') {
+          query = query.or(
+            'status.eq.TaxPaid,' +
+            'status.eq.TaxCompleted,' +
+            'current_step.eq.S5_1_PTDA_TiepNhan'
+          );
+        } else if (dbStatus === 'Submitted') {
+          query = query.eq('status', 'Submitted');
+        } else if (dbStatus === 'Completed') {
+          query = query.eq('status', 'Completed');
+        } else {
+          query = query.eq('status', dbStatus);
+        }
       }
       if (filterLoanStatus && filterLoanStatus !== 'ALL' && filterLoanStatus !== '') {
         query = query.eq('loan_status', filterLoanStatus);
@@ -1375,7 +1417,10 @@ export default function App() {
         const dNorm = dashboardFilter.toUpperCase().trim();
 
         if (dNorm === 'ĐANG CHUẨN BỊ') {
-          query = query.eq('status', 'Processing');
+          query = query
+            .eq('status', 'Processing')
+            .not('current_step', 'in', '("GD2_Cho_Nop_VPDK","S2_KT_Ban_giao","S2_KT_Tiep_Nhan","GD1_Cho_KT_TiepNhan")')
+            .is('accounting_handover_date', null);
         }
         else if (dNorm === 'CHỜ NỘP VPĐK') {
           query = query.or(
@@ -1480,12 +1525,7 @@ export default function App() {
             ]);
         }
         else if (dashboardFilter === 'PTDA_WAIT_GCN_SIGN') {
-          query = query
-            .filter('gcn_signed_date', 'is', null)
-            .in('current_step', [
-              'S6_Nhan_So_GCN',
-              'GD5_Cho_Ky_In_GCN'
-            ]);
+          query = query.or('status.eq.WaitingHandover,current_step.eq.GD5_Cho_PTT_TiepNhan_BG');
         }
         else if (dashboardFilter === 'PROCESSING_TOTAL') {
           query = query.neq('status', 'Completed');
@@ -3382,8 +3422,27 @@ export default function App() {
       ...prevHistory
     ];
 
-    // Auto-populate dates based on transition (Disabled to prevent auto-assigning current date unless chosen)
+    // Auto-populate dates based on transition to minimize input effort
     const autoDates: Partial<Application> = {};
+    if (isMovingForward) {
+      if ((targetStep === 'S2_KT_Tiep_Nhan' || targetStep === 'GD1_Cho_KT_TiepNhan') && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
+      if ((targetStep === 'S3_Nop_VPDK' || targetStep === 'GD3_Cho_TBThue') && !app.submissionDate) autoDates.submissionDate = nowStr;
+      
+      if (targetStep === 'S5_Tai_Chinh_Khach_Hang') {
+        if (!app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
+        autoDates.taxNoticeProvisionDate = nowStr; // Ngày cung cấp TB Thuế (xử lý hệ thống)
+      }
+
+      if (targetStep === 'S4_Cho_Thong_Bao_Thue' || targetStep === 'GD3_Cho_TBThue') {
+        if (!app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
+        if (!app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
+      }
+      if ((targetStep === 'S5_1_PTDA_TiepNhan' || targetStep === 'GD4_Cho_KT_TiepNhan_LaySo') && !app.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
+      if ((targetStep === 'S6_Nhan_So_GCN' || targetStep === 'GD5_Cho_Ky_In_GCN') && !app.gcnSignedDate) autoDates.gcnSignedDate = nowStr;
+      if ((targetStep === 'S7_PTDA_Ban_Giao' || targetStep === 'GD6_Cho_BG_Khach') && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
+      if (targetStep === 'S7_1_PTT_Tiep_Nhan' && !app.gcnReceivedDate) autoDates.gcnReceivedDate = nowStr;
+      if (targetStep === 'Hoan_Tat' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
+    }
 
     // Auto handover status
     autoDates.isHandedOver = true;
@@ -3622,8 +3681,48 @@ export default function App() {
           ...prevHistory
         ];
         
-        // Auto-populate dates based on transition (Disabled to prevent auto-assigning current date unless chosen)
+        // Auto-populate dates based on transition to minimize input effort
         const autoDates: Partial<Application> = {};
+        if ((targetStep === 'S2_KT_Tiep_Nhan' || targetStep === 'GD1_Cho_KT_TiepNhan') && !appWithDate.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
+        if (targetStep === 'S3_Nop_VPDK' && !appWithDate.submissionDate) autoDates.submissionDate = nowStr;
+        
+        if (targetStep === 'S5_Tai_Chinh_Khach_Hang') {
+          if (!appWithDate.taxNotificationDate) autoDates.taxNotificationDate = dateValue || nowStr;
+          autoDates.taxNoticeProvisionDate = nowStr; // Auto fill Ngày cung cấp TB Thuế
+        }
+        
+        if (targetStep === 'S4_Cho_Thong_Bao_Thue') {
+          if (!appWithDate.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
+          if (!appWithDate.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
+        }
+
+        if (targetStep === 'S5_1_PTDA_TiepNhan' && !appWithDate.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
+        if (targetStep === 'S6_Nhan_So_GCN') {
+          if (!appWithDate.gcnSignedDate) autoDates.gcnSignedDate = nowStr;
+        }
+        if (targetStep === 'S7_PTDA_Ban_Giao' && !appWithDate.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
+        if (targetStep === 'S7_1_PTT_Tiep_Nhan' && !appWithDate.gcnReceivedDate) autoDates.gcnReceivedDate = nowStr;
+        if (targetStep === 'S7_2_Ban_Giao_Khach' && !appWithDate.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
+        if (targetStep === 'Hoan_Tat' && !appWithDate.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
+
+        // GD Workflow Missing Auto Dates
+        if (targetStep === 'GD3_Cho_TBThue' && !appWithDate.submissionDate) 
+          autoDates.submissionDate = nowStr;
+          
+        if (targetStep === 'GD4_Cho_Nop_NVTC' && !appWithDate.taxNotificationDate) 
+          autoDates.taxNotificationDate = nowStr;
+          
+        if (targetStep === 'GD4_Cho_KT_TiepNhan_LaySo' && !appWithDate.taxReceiptDate) 
+          autoDates.taxReceiptDate = nowStr;
+          
+        if ((targetStep === 'GD5_Cho_Ky_In_GCN' || targetStep === 'GD5_Cho_GCN') && !appWithDate.gcnSignedDate) 
+          autoDates.gcnSignedDate = nowStr;
+          
+        if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !appWithDate.gcnReceivedDate) 
+          autoDates.gcnReceivedDate = nowStr;
+          
+        if (targetStep === 'GD6_Cho_BG_Khach' && !appWithDate.ptdaHandoverDate) 
+          autoDates.ptdaHandoverDate = nowStr;
 
         // Auto handover logic
         autoDates.isHandedOver = true;
@@ -4228,8 +4327,8 @@ export default function App() {
     }
   };
 
-  const isFieldEditable = (fieldName: string) => {
-    if (!isEditing) return false;
+  const isFieldEditable = (fieldName: string, appToCheck?: Application) => {
+    if (!isEditing && !isSpreadsheetMode) return false;
     
     // Admin always has edit rights
     if (userRole === 'ADMIN') return true;
@@ -4264,7 +4363,7 @@ export default function App() {
 
     if (userRole === 'PTT' || userRole === 'MANAGER_PTT') {
       if (!pttFields.includes(fieldName)) return false;
-      const app = editApp || selectedApp;
+      const app = appToCheck || editApp || selectedApp;
       if (!app) return true;
 
       // Rule for customerHandoverDate (Ngày BG GCN Khách)
@@ -4813,8 +4912,8 @@ export default function App() {
     const ptdaNoTax = choThue.length;
     // Chờ hoàn thành NVTC:
     const ptdaTaxPending = apps.filter(a => (a.currentStep === 'S5_Tai_Chinh_Khach_Hang' || a.currentStep === 'GD4_Cho_Nop_NVTC') && !a.taxReceiptDate).length;
-    // Chờ in/ký GCN: 
-    const ptdaGcnWaiting = apps.filter(a => (a.currentStep === 'S6_Nhan_So_GCN' || a.currentStep === 'GD5_Cho_Ky_In_GCN') && !a.gcnSignedDate).length;
+    // Chờ in/ký GCN -> CHỜ BÀN GIAO: 
+    const ptdaGcnWaiting = apps.filter(a => a.status === 'WaitingHandover' || a.currentStep === 'GD5_Cho_PTT_TiepNhan_BG').length;
     const ptdaIssues = apps.filter(a => (a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None')) && stepConfig[a.currentStep]?.dept === 'PTDA').length;
     
     const ptdaAppsWithTax = apps.filter(a => a.submissionDate && a.taxNotificationDate);
@@ -5020,7 +5119,7 @@ export default function App() {
       // Ctrl + N (New)
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
         e.preventDefault();
-        const canCreate = userRole === 'PTT' || isManagementEdit;
+        const canCreate = userRole === 'PTT' || userRole === 'MANAGER_PTT' || isManagementEdit;
         if (!isCreateModalOpen && canCreate) {
           const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
           setNewApp(prev => ({ ...prev, projectName: defaultProj }));
@@ -5502,7 +5601,7 @@ export default function App() {
                 </button>
               )}
 
-              {(userRole === 'PTT' || isManagementEdit) && (
+              {(userRole === 'PTT' || userRole === 'MANAGER_PTT' || isManagementEdit) && (
                     <button 
                   onClick={() => {
                     const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
@@ -5735,6 +5834,7 @@ export default function App() {
         setSelectedAppIds={setSelectedAppIds}
         isSavingApp={isSavingApp}
         isManagementEdit={isManagementEdit}
+        isFieldEditable={isFieldEditable}
         filteredApps={filteredApps}
         isSpreadsheetMode={isSpreadsheetMode}
         setIsSpreadsheetMode={setIsSpreadsheetMode}
