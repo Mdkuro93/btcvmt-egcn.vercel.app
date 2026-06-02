@@ -527,10 +527,10 @@ export default function ReportsView({
 
     return [
       createStageItem('ĐANG CHUẨN BỊ', stages.PREPARING, '#94a3b8'),
-      createStageItem('CHỜ NỘP', stages.AWAITING_SUBMISSION, '#f59e0b'),
+      createStageItem('CHỜ NỘP VPĐK', stages.AWAITING_SUBMISSION, '#f59e0b'),
       createStageItem('ĐÃ NỘP VPĐK', stages.SUBMITTED, '#3b82f6'),
       createStageItem('CHỜ TB THUẾ', stages.TAX_WARNING, '#f97316'),
-      createStageItem('CHỜ NVTC', stages.AWAITING_FINANCE, '#8b5cf6'),
+      createStageItem('CHỜ HOÀN THÀNH NVTC', stages.AWAITING_FINANCE, '#8b5cf6'),
       createStageItem('ĐÃ NỘP THUẾ', stages.TAX_PAID, '#10b981'),
       createStageItem('ĐÃ CÓ GCN', stages.GCN_READY, '#06b6d4'),
       createStageItem('CHỜ BÀN GIAO', stages.WAITING_HANDOVER, '#6366f1'),

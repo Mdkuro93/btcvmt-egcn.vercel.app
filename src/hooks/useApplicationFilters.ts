@@ -40,6 +40,96 @@ function diffDays(date: string) {
   return Math.floor((utcNow - utcTarget) / (1000 * 60 * 60 * 24));
 }
 
+// Helper to get raw stage name matching computeChartData in App.tsx
+// Declared at module level to prevent recreating function instances and optimize performance.
+export const getComputedStageName = (r: any): string => {
+  const today = new Date();
+  const submissionSLA = 7;
+
+  const checkNotEmpty = (val: any) => {
+    return val && val !== '---' && val !== 'None' && String(val).trim() !== '';
+  };
+
+  if (r.isSelfService) {
+    const hasHandover = checkNotEmpty(r.customerHandoverDate);
+    const hasGcn = checkNotEmpty(r.gcnReceivedDate);
+
+    if (r.status === 'Completed' || r.currentStep === 'Hoan_Tat' || hasHandover) {
+      return 'HOÀN TẤT';
+    }
+    else if (hasGcn) {
+      return 'CHỜ BÀN GIAO';
+    }
+    else {
+      return 'ĐANG CHUẨN BỊ';
+    }
+  }
+
+  // Priority 1: Completed
+  if (r.status === 'Completed' || r.currentStep === 'Hoan_Tat') {
+    return 'HOÀN TẤT';
+  }
+  // Priority 2: WaitingHandover
+  else if (r.status === 'WaitingHandover' || [
+    'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 
+    'S7_2_Ban_Giao_Khach', 'GD5_Cho_PTT_TiepNhan_BG', 
+    'GD6_Cho_BG_Khach'
+  ].includes(r.currentStep)) {
+    return 'CHỜ BÀN GIAO';
+  }
+  // Priority 3: GCN_Issued
+  else if (r.status === 'GCN_Issued' || [
+    'S6_Nhan_So_GCN', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_GCN'
+  ].includes(r.currentStep)) {
+    return 'ĐÃ CÓ GCN';
+  }
+  // Priority 4: TaxCompleted / TaxPaid
+  else if (r.status === 'TaxPaid' || r.status === 'TaxCompleted' ||
+           r.currentStep === 'S5_1_PTDA_TiepNhan') {
+    return 'ĐÃ NỘP THUẾ';
+  }
+  // Priority 5: AWAITING_FINANCE (CHỜ HOÀN THÀNH NVTC)
+  else if (r.status === 'TaxPending' && r.taxNotificationDate) {
+    return 'CHỜ HOÀN THÀNH NVTC';
+  }
+  else if ([
+    'S5_Tai_Chinh_Khach_Hang', 'GD4_Cho_Nop_NVTC', 
+    'GD4_Cho_KT_TiepNhan_LaySo'
+  ].includes(r.currentStep)) {
+    return 'CHỜ HOÀN THÀNH NVTC';
+  }
+  // Priority 6: SUBMITTED / TAX_WARNING (phân loại theo SLA)
+  else if (r.status === 'Submitted' || r.status === 'TaxPending' || r.submissionDate) {
+    if (r.submissionDate && !r.taxNotificationDate) {
+      const daysDiff = (today.getTime() - new Date(r.submissionDate).getTime()) / (1000*60*60*24);
+      if (daysDiff > submissionSLA) {
+        return 'CHỜ TB THUẾ';
+      } else {
+        return 'ĐÃ NỘP VPĐK';
+      }
+    } else if (r.taxNotificationDate) {
+      return 'CHỜ HOÀN THÀNH NVTC';
+    } else {
+      return 'ĐÃ NỘP VPĐK';
+    }
+  }
+  // Priority 7: AWAITING_SUBMISSION (CHỜ NỘP VPĐK / CHỜ KT TIẾP NHẬN)
+  else if (
+    r.status === 'WaitingVPDK' ||
+    r.currentStep === 'GD2_Cho_Nop_VPDK' ||
+    r.currentStep === 'S2_KT_Ban_giao' ||
+    r.currentStep === 'S2_KT_Tiep_Nhan' ||
+    r.currentStep === 'GD1_Cho_KT_TiepNhan' ||
+    (r.accountingHandoverDate && !r.submissionDate)
+  ) {
+    return 'CHỜ NỘP VPĐK';
+  }
+  // Default: PREPARING
+  else {
+    return 'ĐANG CHUẨN BỊ';
+  }
+};
+
 export function useApplicationFilters(
   applications: Application[],
   dashboardFilter: string | null,
@@ -63,95 +153,6 @@ export function useApplicationFilters(
     const activeLoanStatus = filterLoanStatus && filterLoanStatus !== 'ALL' ? filterLoanStatus.trim() : null;
     const activeSLAStatus = filterSLAStatus && filterSLAStatus !== 'ALL' ? filterSLAStatus.trim() : null;
     const activeIssue = filterIssue && filterIssue !== 'ALL' ? filterIssue.trim() : null;
-
-    // Helper to get raw stage name matching computeChartData in App.tsx
-    const getComputedStageName = (r: any): string => {
-      const today = new Date();
-      const submissionSLA = 7;
-
-      const checkNotEmpty = (val: any) => {
-        return val && val !== '---' && val !== 'None' && String(val).trim() !== '';
-      };
-
-      if (r.isSelfService) {
-        const hasHandover = checkNotEmpty(r.customerHandoverDate);
-        const hasGcn = checkNotEmpty(r.gcnReceivedDate);
-
-        if (r.status === 'Completed' || r.currentStep === 'Hoan_Tat' || hasHandover) {
-          return 'HOÀN TẤT';
-        }
-        else if (hasGcn) {
-          return 'CHỜ BÀN GIAO';
-        }
-        else {
-          return 'ĐANG CHUẨN BỊ';
-        }
-      }
-
-      // Priority 1: Completed
-      if (r.status === 'Completed' || r.currentStep === 'Hoan_Tat') {
-        return 'HOÀN TẤT';
-      }
-      // Priority 2: WaitingHandover
-      else if (r.status === 'WaitingHandover' || [
-        'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 
-        'S7_2_Ban_Giao_Khach', 'GD5_Cho_PTT_TiepNhan_BG', 
-        'GD6_Cho_BG_Khach'
-      ].includes(r.currentStep)) {
-        return 'CHỜ BÀN GIAO';
-      }
-      // Priority 3: GCN_Issued
-      else if (r.status === 'GCN_Issued' || [
-        'S6_Nhan_So_GCN', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_GCN'
-      ].includes(r.currentStep)) {
-        return 'ĐÃ CÓ GCN';
-      }
-      // Priority 4: TaxCompleted / TaxPaid
-      else if (r.status === 'TaxPaid' || r.status === 'TaxCompleted' ||
-               r.currentStep === 'S5_1_PTDA_TiepNhan') {
-        return 'ĐÃ NỘP THUẾ';
-      }
-      // Priority 5: AWAITING_FINANCE (CHỜ HOÀN THÀNH NVTC)
-      else if (r.status === 'TaxPending' && r.taxNotificationDate) {
-        return 'CHỜ HOÀN THÀNH NVTC';
-      }
-      else if ([
-        'S5_Tai_Chinh_Khach_Hang', 'GD4_Cho_Nop_NVTC', 
-        'GD4_Cho_KT_TiepNhan_LaySo'
-      ].includes(r.currentStep)) {
-        return 'CHỜ HOÀN THÀNH NVTC';
-      }
-      // Priority 6: SUBMITTED / TAX_WARNING (phân loại theo SLA)
-      else if (r.status === 'Submitted' || r.status === 'TaxPending' || r.submissionDate) {
-        if (r.submissionDate && !r.taxNotificationDate) {
-          const daysDiff = (today.getTime() - new Date(r.submissionDate).getTime()) / (1000*60*60*24);
-          if (daysDiff > submissionSLA) {
-            return 'CHỜ TB THUẾ';
-          } else {
-            return 'ĐÃ NỘP VPĐK';
-          }
-        } else if (r.taxNotificationDate) {
-          return 'CHỜ HOÀN THÀNH NVTC';
-        } else {
-          return 'ĐÃ NỘP VPĐK';
-        }
-      }
-      // Priority 7: AWAITING_SUBMISSION (CHỜ NỘP VPĐK / CHỜ KT TIẾP NHẬN)
-      else if (
-        r.status === 'WaitingVPDK' ||
-        r.currentStep === 'GD2_Cho_Nop_VPDK' ||
-        r.currentStep === 'S2_KT_Ban_giao' ||
-        r.currentStep === 'S2_KT_Tiep_Nhan' ||
-        r.currentStep === 'GD1_Cho_KT_TiepNhan' ||
-        (r.accountingHandoverDate && !r.submissionDate)
-      ) {
-        return 'CHỜ NỘP VPĐK';
-      }
-      // Default: PREPARING
-      else {
-        return 'ĐANG CHUẨN BỊ';
-      }
-    };
 
     return applications.filter(a => {
       if (!a) return false;
