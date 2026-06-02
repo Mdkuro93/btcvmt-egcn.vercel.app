@@ -2426,23 +2426,57 @@ export default function App() {
   function validateDateSequence(app: Partial<Application>) {
     const dates = [
       { key: 'receivedDate', label: 'Ngày nhận HS' },
+      { key: 'accountingHandoverDate', label: 'Ngày KT tiếp nhận' },
       { key: 'contractSigningDate', label: 'Ngày ký HĐCN' },
       { key: 'submissionDate', label: 'Ngày nộp VPĐK' },
       { key: 'taxNotificationDate', label: 'Ngày TB Thuế' },
       { key: 'taxReceiptDate', label: 'Ngày nộp thuế/NVTC' },
       { key: 'gcnSignedDate', label: 'Ngày ký GCN' },
       { key: 'gcnReceivedDate', label: 'Ngày nhận GCN' },
-      { key: 'customerHandoverDate', label: 'Ngày BG Khách' },
-      { key: 'accountingHandoverDate', label: 'Ngày KT tiếp nhận' },
-      { key: 'ptdaHandoverDate', label: 'Ngày PTDA bàn giao' }
+      { key: 'ptdaHandoverDate', label: 'Ngày PTDA bàn giao' },
+      { key: 'customerHandoverDate', label: 'Ngày BG Khách' }
     ];
 
-    // Filter out fields that are present and have valid date strings
-    const activeDates = dates
-      .map(d => ({ ...d, value: app[d.key as keyof Application] }))
-      .filter(d => d.value && d.value !== '---' && typeof d.value === 'string');
+    // Helper to check if a value is empty or invalid
+    const isDateEmptyOrInvalid = (val: any) => {
+      if (!val || val === '---' || typeof val !== 'string' || val.trim() === '') {
+        return true;
+      }
+      const d = new Date(val);
+      return isNaN(d.getTime());
+    };
 
-    // Check chronology: d2 must not be smaller than d1
+    // Find the latest non-empty date index in the expected chronology
+    let maxFilledIdx = -1;
+    for (let i = dates.length - 1; i >= 0; i--) {
+      const val = app[dates[i].key as keyof Application];
+      if (!isDateEmptyOrInvalid(val)) {
+        maxFilledIdx = i;
+        break;
+      }
+    }
+
+    // If no dates are filled or only one date is filled, no chronological checks needed
+    if (maxFilledIdx <= 0) {
+      return null;
+    }
+
+    // Check if any date before maxFilledIdx is empty/invalid
+    for (let i = 0; i < maxFilledIdx; i++) {
+      const val = app[dates[i].key as keyof Application];
+      if (isDateEmptyOrInvalid(val)) {
+        // BYPASS validation! There are missing preceding milestones, allowing input without blocking
+        return null;
+      }
+    }
+
+    // Perform chronological order checks: d2 >= d1
+    // Filter out fields that are present and have valid date strings up to maxFilledIdx
+    const activeDates = dates
+      .slice(0, maxFilledIdx + 1)
+      .map(d => ({ ...d, value: app[d.key as keyof Application] }))
+      .filter(d => !isDateEmptyOrInvalid(d.value));
+
     for (let i = 0; i < activeDates.length - 1; i++) {
       const d1 = activeDates[i];
       const d2 = activeDates[i+1];
@@ -2464,14 +2498,18 @@ export default function App() {
     // Check future date
     const today = new Date();
     today.setHours(23, 59, 59, 999);
-    for (const d of activeDates) {
+    for (const d of dates) {
+      const val = app[d.key as keyof Application];
+      if (isDateEmptyOrInvalid(val)) {
+        continue;
+      }
       if (d.key === 'bankCommitmentDeadline' || d.key === 'commitmentDate') {
         continue;
       }
-      const date = new Date(d.value as string);
+      const date = new Date(val as string);
       date.setHours(0, 0, 0, 0);
       if (!isNaN(date.getTime()) && date > today) {
-        return `⚠️ Lưu ý: ${d.label} (${formatDate(d.value as string)}) là ngày trong tương lai`;
+        return `⚠️ Lưu ý: ${d.label} (${formatDate(val as string)}) là ngày trong tương lai`;
       }
     }
 
@@ -3344,27 +3382,8 @@ export default function App() {
       ...prevHistory
     ];
 
-    // Auto-populate dates based on transition
+    // Auto-populate dates based on transition (Disabled to prevent auto-assigning current date unless chosen)
     const autoDates: Partial<Application> = {};
-    if (isMovingForward) {
-      if ((targetStep === 'S2_KT_Tiep_Nhan' || targetStep === 'GD1_Cho_KT_TiepNhan') && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
-      if ((targetStep === 'S3_Nop_VPDK' || targetStep === 'GD3_Cho_TBThue') && !app.submissionDate) autoDates.submissionDate = nowStr;
-      
-      if (targetStep === 'S5_Tai_Chinh_Khach_Hang') {
-        if (!app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
-        autoDates.taxNoticeProvisionDate = nowStr; // Ngày cung cấp TB Thuế (xử lý hệ thống)
-      }
-
-      if (targetStep === 'S4_Cho_Thong_Bao_Thue' || targetStep === 'GD3_Cho_TBThue') {
-        if (!app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
-        if (!app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
-      }
-      if ((targetStep === 'S5_1_PTDA_TiepNhan' || targetStep === 'GD4_Cho_KT_TiepNhan_LaySo') && !app.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
-      if ((targetStep === 'S6_Nhan_So_GCN' || targetStep === 'GD5_Cho_Ky_In_GCN') && !app.gcnSignedDate) autoDates.gcnSignedDate = nowStr;
-      if ((targetStep === 'S7_PTDA_Ban_Giao' || targetStep === 'GD6_Cho_BG_Khach') && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
-      if (targetStep === 'S7_1_PTT_Tiep_Nhan' && !app.gcnReceivedDate) autoDates.gcnReceivedDate = nowStr;
-      if (targetStep === 'Hoan_Tat' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
-    }
 
     // Auto handover status
     autoDates.isHandedOver = true;
@@ -3603,47 +3622,8 @@ export default function App() {
           ...prevHistory
         ];
         
+        // Auto-populate dates based on transition (Disabled to prevent auto-assigning current date unless chosen)
         const autoDates: Partial<Application> = {};
-        if ((targetStep === 'S2_KT_Tiep_Nhan' || targetStep === 'GD1_Cho_KT_TiepNhan') && !appWithDate.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
-        if (targetStep === 'S3_Nop_VPDK' && !appWithDate.submissionDate) autoDates.submissionDate = nowStr;
-        
-        if (targetStep === 'S5_Tai_Chinh_Khach_Hang') {
-          if (!appWithDate.taxNotificationDate) autoDates.taxNotificationDate = dateValue || nowStr;
-          autoDates.taxNoticeProvisionDate = nowStr; // Auto fill Ngày cung cấp TB Thuế
-        }
-        
-        if (targetStep === 'S4_Cho_Thong_Bao_Thue') {
-          if (!appWithDate.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
-          if (!appWithDate.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
-        }
-
-        if (targetStep === 'S5_1_PTDA_TiepNhan' && !appWithDate.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
-        if (targetStep === 'S6_Nhan_So_GCN') {
-          if (!appWithDate.gcnSignedDate) autoDates.gcnSignedDate = nowStr;
-        }
-        if (targetStep === 'S7_PTDA_Ban_Giao' && !appWithDate.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
-        if (targetStep === 'S7_1_PTT_Tiep_Nhan' && !appWithDate.gcnReceivedDate) autoDates.gcnReceivedDate = nowStr;
-        if (targetStep === 'S7_2_Ban_Giao_Khach' && !appWithDate.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
-        if (targetStep === 'Hoan_Tat' && !appWithDate.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
-
-        // GD Workflow Missing Auto Dates
-        if (targetStep === 'GD3_Cho_TBThue' && !appWithDate.submissionDate) 
-          autoDates.submissionDate = nowStr;
-          
-        if (targetStep === 'GD4_Cho_Nop_NVTC' && !appWithDate.taxNotificationDate) 
-          autoDates.taxNotificationDate = nowStr;
-          
-        if (targetStep === 'GD4_Cho_KT_TiepNhan_LaySo' && !appWithDate.taxReceiptDate) 
-          autoDates.taxReceiptDate = nowStr;
-          
-        if ((targetStep === 'GD5_Cho_Ky_In_GCN' || targetStep === 'GD5_Cho_GCN') && !appWithDate.gcnSignedDate) 
-          autoDates.gcnSignedDate = nowStr;
-          
-        if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !appWithDate.gcnReceivedDate) 
-          autoDates.gcnReceivedDate = nowStr;
-          
-        if (targetStep === 'GD6_Cho_BG_Khach' && !appWithDate.ptdaHandoverDate) 
-          autoDates.ptdaHandoverDate = nowStr;
 
         // Auto handover logic
         autoDates.isHandedOver = true;

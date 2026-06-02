@@ -555,7 +555,7 @@ export function useExcelImport({
                 let parsedAccountingDate = existingApp.accountingHandoverDate;
 
                 if (lowerBgKt === 'có' || lowerBgKt === 'da giao' || lowerBgKt === 'da ban giao' || lowerBgKt === 'đã giao' || lowerBgKt === 'đã bàn giao' || lowerBgKt === 'x') {
-                  parsedAccountingDate = new Date().toISOString().split('T')[0];
+                  parsedAccountingDate = undefined;
                 } else if (lowerBgKt === 'không' || lowerBgKt === 'khong' || lowerBgKt === '') {
                   parsedAccountingDate = undefined;
                 } else {
@@ -647,7 +647,7 @@ export function useExcelImport({
                 if (bgKhachStr !== undefined) {
                   const lowerBgKhach = bgKhachStr.toLowerCase();
                   if (lowerBgKhach === 'có' || lowerBgKhach === 'co' || lowerBgKhach === 'da giao' || lowerBgKhach === 'da ban giao' || lowerBgKhach === 'đã giao' || lowerBgKhach === 'đã bàn giao' || lowerBgKhach === 'x') {
-                    custHandoverDate = new Date().toISOString().split('T')[0];
+                    custHandoverDate = undefined;
                   }
                 }
              }
@@ -716,7 +716,7 @@ export function useExcelImport({
              if (bgKtStr !== undefined) {
                 const lowerBgKt = bgKtStr.toLowerCase();
                 if (lowerBgKt === 'có' || lowerBgKt === 'da giao' || lowerBgKt === 'da ban giao' || lowerBgKt === 'đã giao' || lowerBgKt === 'đã bàn giao' || lowerBgKt === 'x') {
-                  parsedNewAccountingDate = new Date().toISOString().split('T')[0];
+                  parsedNewAccountingDate = undefined;
                 } else if (lowerBgKt !== 'không' && lowerBgKt !== 'khong' && lowerBgKt !== '') {
                   parsedNewAccountingDate = parseDateFromExcel(bgKtStr) || undefined;
                 }
@@ -734,7 +734,7 @@ export function useExcelImport({
                 if (bgKhachStr !== undefined) {
                   const lowerBgKhach = bgKhachStr.toLowerCase();
                   if (lowerBgKhach === 'có' || lowerBgKhach === 'co' || lowerBgKhach === 'da giao' || lowerBgKhach === 'da ban giao' || lowerBgKhach === 'đã giao' || lowerBgKhach === 'đã bàn giao' || lowerBgKhach === 'x') {
-                    custHandoverDate = new Date().toISOString().split('T')[0];
+                    custHandoverDate = undefined;
                   }
                 }
              }
