@@ -167,10 +167,18 @@ const DOC_CHECKLIST_ITEMS = [
 // Đảm bảo URL hợp lệ
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || 'https://eewikwqwtgmrlvyrfgit.supabase.co').trim().replace(/\/$/, '');
 
-const SUPABASE_KEY = 
-  (import.meta.env.VITE_SUPABASE_KEY || 
-  import.meta.env.VITE_SUPABASE_ANON_KEY || 
-  '').trim();
+const JWT_ANON_KEY_STANDARD = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVld2lrd3F3dGdtcmx2eXJmZ2l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5MzkwOTUsImV4cCI6MjA5MzUxNTA5NX0.BaoDhOsVuVha0b8L-7caSE6vtrzmeIDdg7z2DLooCWc';
+
+const getValidSupabaseKey = (): string => {
+  // Validate if env variable is a valid JWT token
+  const keyCandidate = import.meta.env.VITE_SUPABASE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (keyCandidate && keyCandidate.trim().startsWith('eyJ')) {
+    return keyCandidate.trim();
+  }
+  return JWT_ANON_KEY_STANDARD;
+};
+
+const SUPABASE_KEY = getValidSupabaseKey();
 
 // Validate key trước khi tạo client
 if (!SUPABASE_KEY) {
@@ -1336,7 +1344,7 @@ export default function App() {
 
       if (selectedProjectId && selectedProject) {
         query = query.eq('project_name', selectedProject.name);
-      } else if (userRole !== 'ADMIN' && hasProjectAssignments) {
+      } else if (userRole !== 'ADMIN' && userRole !== 'DIRECTOR' && hasProjectAssignments) {
         const assignedNames = projects.filter(p => currentUser.assignedProjectIds?.includes(p.id)).map(p => p.name);
         if (assignedNames.length > 0) {
           query = query.in('project_name', assignedNames);
@@ -1698,7 +1706,7 @@ export default function App() {
         if (currentSelectedProject) {
           query = query.eq('project_name', currentSelectedProject.name);
         }
-      } else if (currentUserRole !== 'ADMIN') {
+      } else if (currentUserRole !== 'ADMIN' && currentUserRole !== 'DIRECTOR') {
         const hasProjectAssignments = currentUser?.assignedProjectIds && currentUser.assignedProjectIds.length > 0;
         if (hasProjectAssignments) {
           const assignedNames = projects.filter(p => currentUser.assignedProjectIds.includes(p.id)).map(p => p.name);
@@ -3294,8 +3302,8 @@ export default function App() {
     }
   };
 
-  const handleStepTransition = async (nextStep: StepName, note?: string) => {
-    const app = editApp || selectedApp;
+  const handleStepTransition = async (nextStep: StepName, note?: string, overrideApp?: Application) => {
+    const app = overrideApp || editApp || selectedApp;
     if (!app) return;
 
     // --- PRIORITIZED SELF-SERVICE JUMP LOGIC (At the absolute top) ---
@@ -3885,7 +3893,7 @@ export default function App() {
   const handleBulkResolveIssues = async () => {
     const appsToResolve = applications.filter(a => 
       selectedRows.includes(String(a.id)) && 
-      (a.isRejected || a.issue_status === 'OPEN')
+      (a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None'))
     );
     if (appsToResolve.length === 0) return;
     
@@ -4137,7 +4145,7 @@ export default function App() {
     if (!app) return;
 
     // Restriction: Only authorized depts can report errors/supplement requests
-    const allowedDepts: Dept[] = ['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'];
+    const allowedDepts: string[] = ['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL'];
     if (!allowedDepts.includes(userRole)) {
       showToast('Bạn không có quyền thực hiện chức năng Báo lỗi / Yêu cầu bổ sung.', 'error');
       return;
@@ -4182,13 +4190,14 @@ export default function App() {
 
     const updatedApp = {
       ...app,
-      status: stepConfig[app.currentStep]?.status || 'Processing',
+      status: (stepConfig[app.currentStep]?.status || 'Processing') as any,
       issueType: 'None' as const,
+      issueSeverity: 'Minor' as const,
       issueNotes: '',
       issue_status: 'RESOLVED' as const,
-      issue_type: app.issue_type || app.issueType || 'Sai sót Khác',
-      issue_severity: app.issue_severity || app.issueSeverity || 'Moderate',
-      issue_notes: app.issue_notes || app.issueNotes || app.issueNotes || '',
+      issue_type: 'None',
+      issue_severity: 'Minor',
+      issue_notes: '',
       isRejected: false,
       history: newHistory
     };
@@ -4236,9 +4245,9 @@ export default function App() {
         issueSeverity: 'Minor' as const,
         issueNotes: '',
         issue_status: 'RESOLVED' as const,
-        issue_type: app.issue_type || app.issueType || 'Sai sót Khác',
-        issue_severity: app.issue_severity || app.issueSeverity || 'Moderate',
-        issue_notes: app.issue_notes || app.issueNotes || app.issueNotes || '',
+        issue_type: 'None',
+        issue_severity: 'Minor',
+        issue_notes: '',
         history: newHistory
       };
 
@@ -4247,7 +4256,7 @@ export default function App() {
       handleSetApplications(prev => prev.map(a => a.id === appId ? finalApp : a));
       handleSetDashboardApps(prev => prev.map(a => a.id === appId ? finalApp : a));
       setSelectedApp(finalApp);
-      showToast('Đã xác nhận khắc phục xong vướng khoán.', 'success');
+      showToast('Đã xác nhận khắc phục xong vướng mắc.', 'success');
     } catch (error) {
       console.error(error);
      showToast('Lỗi khi cập nhật trạng thái.', 'error');
@@ -4259,7 +4268,7 @@ export default function App() {
     if (!app) return;
 
     // Restriction: Only authorized depts can reject apps
-    const allowedDepts: Dept[] = ['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'];
+    const allowedDepts: string[] = ['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL'];
     if (!allowedDepts.includes(userRole)) {
       showToast('Bạn không có quyền Trả về / Yêu cầu bổ sung hồ sơ.', 'error');
       return;
@@ -5415,7 +5424,10 @@ export default function App() {
       <FieldModeView 
         applications={applications} 
         projects={projects} 
-        onUpdateApp={(updated) => {
+        supabase={supabase}
+        currentUser={currentUser}
+        onStepTransition={handleStepTransition}
+        onUpdateApp={async (updated) => {
           handleSetApplications(prev => prev.map(a => a.id === updated.id ? updated : a));
           setNotifications(prev => [
             { 
@@ -5428,6 +5440,11 @@ export default function App() {
             },
             ...prev
           ]);
+          try {
+            await syncRecordToSupabase(updated);
+          } catch (err) {
+            console.error('Error syncing mobile update:', err);
+          }
         }} 
         theme={theme}
         onExit={() => setIsFieldMode(false)}
@@ -6314,7 +6331,7 @@ export default function App() {
                         onChange={(e) => { setSelectedProjectId(e.target.value === 'ALL' ? null : e.target.value); setCurrentPage(0); }}
                       >
                         <option key="all-projects" value="ALL">Tất cả dự án</option>
-                        {projects.map((p, index) => (
+                        {visibleProjects.map((p, index) => (
                           <option key={`project-filter-${p.id}-${index}`} value={p.id}>{p.name}</option>
                         ))}
                       </select>

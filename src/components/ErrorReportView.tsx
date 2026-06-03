@@ -32,8 +32,8 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
   // Pre-process and normalize applications with default fallbacks for legacy records
   const normalizedApps = useMemo(() => {
     return applications.map(app => {
-      const hasLegacyError = app.issueType && app.issueType !== 'None';
-      const status = app.issue_status || (hasLegacyError ? 'OPEN' : 'RESOLVED');
+      const hasActiveError = app.status === 'Error' || (app.issueType && app.issueType !== 'None');
+      const status = hasActiveError ? 'OPEN' : 'RESOLVED';
       const type = app.issue_type || app.issueType || 'None';
       const severity = app.issue_severity || app.issueSeverity || 'Thấp';
       const notes = app.issue_notes || app.issueNotes || '';

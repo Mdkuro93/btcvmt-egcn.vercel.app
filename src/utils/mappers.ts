@@ -208,9 +208,6 @@ export const mapToSnakeCase = (app: Application): Record<string, any> => {
     updated_at: new Date().toISOString()
   };
 
-  if ((app as any).issue_status !== undefined) data.issue_status = (app as any).issue_status;
-  if ((app as any).issue_created_at !== undefined) data.issue_created_at = (app as any).issue_created_at;
-
   Object.keys(data).forEach(key => {
     const isDateField = key.endsWith('_date') || 
                         key.endsWith('_deadline') || 

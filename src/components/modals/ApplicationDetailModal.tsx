@@ -123,10 +123,14 @@ export const ApplicationDetailModal = ({
                         {(editApp || selectedApp).rejectionCount > 0 && <span className="ml-2 text-[10px] font-mono bg-error/20 px-1.5 py-0.5 rounded">Trả về: {(editApp || selectedApp).rejectionCount} lần</span>}
                       </div>
                       
-                      {effectiveUserCanEdit && (
+                      {(effectiveUserCanEdit || ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole)) && (
                         <button 
-                          onClick={() => handleResolveIssue((editApp || selectedApp).id)}
-                          className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md flex items-center gap-2"
+                          disabled={!(effectiveUserCanEdit || ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole))}
+                          onClick={() => {
+                            if (!(effectiveUserCanEdit || ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole))) return;
+                            handleResolveIssue((editApp || selectedApp).id);
+                          }}
+                          className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <CheckCircle2 size={14} />
                           Xác nhận khắc phục xong
@@ -985,12 +989,16 @@ export const ApplicationDetailModal = ({
                             <>
                                 <div className="flex items-center gap-2">
                                      {/* Báo lỗi / Sai sót */}
-                                     {['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'].includes(userRole) && (
+                                     {['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL'].includes(userRole) && (
                                         <div className="relative">
                                             {!isReportIssueFormOpen ? (
                                                 <button 
-                                                    onClick={() => setIsReportIssueFormOpen(true)}
-                                                    className="p-4 border border-rose-500/30 text-rose-500 rounded-2xl hover:bg-rose-500 hover:text-white transition-all shadow-lg shadow-rose-900/20 flex items-center justify-center gap-2"
+                                                    disabled={!( ['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'].includes(userRole) || ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole) )}
+                                                    onClick={() => {
+                                                       if (!(['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'].includes(userRole) || ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole))) return;
+                                                       setIsReportIssueFormOpen(true);
+                                                    }}
+                                                    className="p-4 border border-rose-500/30 text-rose-500 rounded-2xl hover:bg-rose-500 hover:text-white transition-all shadow-lg shadow-rose-900/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                                     title="Báo sai sót"
                                                 >
                                                     <AlertTriangle size={20} />
@@ -1031,8 +1039,12 @@ export const ApplicationDetailModal = ({
                                                         className={cn("w-full p-4 rounded-2xl border text-xs font-bold min-h-[100px] outline-none focus:ring-2 focus:ring-rose-500/20", theme === 'dark' ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900")}
                                                     />
                                                     <button 
-                                                        onClick={() => handleSingleOrBulkReportIssue([editApp || selectedApp].filter(Boolean) as Application[])}
-                                                        className="w-full py-4 bg-rose-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 transition-all shadow-lg shadow-rose-900/30"
+                                                        disabled={!( ['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'].includes(userRole) || ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole) )}
+                                                        onClick={() => {
+                                                            if (!(['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'].includes(userRole) || ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole))) return;
+                                                            handleSingleOrBulkReportIssue([editApp || selectedApp].filter(Boolean) as Application[]);
+                                                        }}
+                                                        className="w-full py-4 bg-rose-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 transition-all shadow-lg shadow-rose-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
                                                     >
                                                         Xác nhận gửi báo cáo
                                                     </button>
@@ -1044,7 +1056,9 @@ export const ApplicationDetailModal = ({
                                      {/* Trả về */}
                                      { (editApp || selectedApp).currentStep !== 'S1_ChuanBi' && (editApp || selectedApp).currentStep !== 'GD1_ChuanBi' && (
                                         <button 
+                                            disabled={!['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL'].includes(userRole)}
                                             onClick={() => {
+                                              if (!['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL'].includes(userRole)) return;
                                               const app = editApp || selectedApp;
                                               let returnStep = '';
                                               const workflowType = app.workflowType || 'Quy_trinh_1';
@@ -1058,7 +1072,7 @@ export const ApplicationDetailModal = ({
                                                  else handleStepTransition(returnStep as StepName, reason);
                                               }
                                             }}
-                                            className="p-4 bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2"
+                                            className="p-4 bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                             title="Trả về"
                                         >
                                             <RotateCcw size={20} />
@@ -1088,10 +1102,27 @@ export const ApplicationDetailModal = ({
                                        const app = editApp || selectedApp;
                                        const role = userRole;                
                                        if (app.status === 'Error') {
+                                         const isSupportSpecial = (app.projectName?.includes('hỗ trợ')) && (app.currentStep === 'GD2_Cho_Nop_VPDK' || app.currentStep === 'S3_Nop_VPDK');
+                                         const currentStepDept = (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.dept;
+                                         const effectiveDept = isSupportSpecial ? 'KT' : currentStepDept;
+
+                                         let canAction = role === 'ADMIN' || 
+                                            role === 'DIRECTOR' || 
+                                            role === 'MANAGER' || 
+                                            role === 'MANAGER_ALL' ||
+                                            (role === 'MANAGER_PTT' && effectiveDept === 'PTT') ||
+                                            (role === 'MANAGER_KT' && effectiveDept === 'KT') ||
+                                            (role === 'MANAGER_PTDA' && effectiveDept === 'PTDA') ||
+                                            effectiveDept === role;
+
                                          return (
                                            <button 
-                                             onClick={handleResolveError}
-                                             className="w-full py-4 bg-emerald-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-emerald-500 shadow-xl shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
+                                             disabled={!canAction}
+                                             onClick={() => {
+                                               if (!canAction) return;
+                                               handleResolveError();
+                                             }}
+                                             className="w-full py-4 bg-emerald-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-emerald-500 shadow-xl shadow-emerald-900/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                            >
                                              <CheckCircle2 size={20} /> Xác nhận đã khắc phục lỗi
                                            </button>

@@ -537,12 +537,19 @@ export const ApplicationsTab = ({
                                 (userRole === 'MANAGER_PTDA' && effectiveDept === 'PTDA') ||
                                 effectiveDept === userRole;
                               
+                              const isPrivileged = ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole);
+                              const hasTransitionPermission = canHandleStep || isPrivileged;
+
                               // Step 7.2 Quy_trinh_2 custom logic
                               if (workflowType === 'Quy_trinh_2' && firstApp.currentStep === 'S7_2_Ban_Giao_Khach') {
-                                 if (canHandleStep) {
+                                 if (hasTransitionPermission) {
                                     return (
                                        <button 
-                                        onClick={() => handleBulkStepTransition('Hoan_Tat')}
+                                        disabled={!hasTransitionPermission}
+                                        onClick={() => {
+                                           if (!hasTransitionPermission) return;
+                                           handleBulkStepTransition('Hoan_Tat');
+                                        }}
                                         className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
                                       >
                                         Xác nhận Giao Khách & Hoàn tất
@@ -552,10 +559,15 @@ export const ApplicationsTab = ({
                                  return null;
                               }
                               
-                              if (nextStep && (canHandleStep || (firstApp.currentStep === 'S1_ChuanBi' && userRole === 'PTT') || (firstApp.currentStep === 'GD1_ChuanBi' && userRole === 'PTT'))) {
+                              const isAllowedNext = hasTransitionPermission || (firstApp.currentStep === 'S1_ChuanBi' && userRole === 'PTT') || (firstApp.currentStep === 'GD1_ChuanBi' && userRole === 'PTT');
+                              if (nextStep && isAllowedNext) {
                                 return (
                                   <button 
-                                    onClick={() => handleBulkStepTransition(nextStep)}
+                                    disabled={!isAllowedNext}
+                                    onClick={() => {
+                                      if (!isAllowedNext) return;
+                                      handleBulkStepTransition(nextStep);
+                                    }}
                                     className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
                                   >
                                     Chuyển tiếp {(stepConfig[nextStep] || INITIAL_STEP_CONFIG[nextStep])?.label} &rarr;
@@ -600,7 +612,7 @@ export const ApplicationsTab = ({
 
                           {selectedAppIds.some(id => {
                             const a = applications.find(x => String(x.id) === String(id));
-                            return a?.isRejected || a?.issue_status === 'OPEN' || 
+                            return a?.isRejected || a?.status === 'Error' || 
                                    (a?.issueType && a.issueType !== 'None');
                           }) && (
                             <button
