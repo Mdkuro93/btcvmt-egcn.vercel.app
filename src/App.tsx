@@ -473,10 +473,23 @@ export default function App() {
   
   const [search, setSearch] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'applications' | 'users' | 'resources' | 'reports' | 'settings'>('dashboard');
   const [dashboardTab, setDashboardTab] = useState<'ALL' | 'SELF_SERVICE' | 'LOAN'>('ALL');
   const [reportType, setReportType] = useState<'PROJECT' | 'REGION' | 'LOAN' | 'SLA' | 'PERFORMANCE' | 'ERROR'>('LOAN');
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1024) {
+        setIsSidebarCollapsed(true);
+      } else {
+        setIsSidebarCollapsed(false);
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (theme === 'light') {
@@ -5526,26 +5539,34 @@ export default function App() {
         toggleSidebarRegion={toggleSidebarRegion}
       />
 
+      {/* Mobile Drawer Backdrop overlay */}
+      {!isSidebarCollapsed && (
+        <div 
+          onClick={() => setIsSidebarCollapsed(true)} 
+          className="fixed inset-0 bg-black/60 z-30 lg:hidden backdrop-blur-sm transition-all duration-300"
+        ></div>
+      )}
+
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden z-10 relative bg-transparent">
         {/* First Login Security Warning Banner */}
         {currentUser?.isFirstLogin && (
           <div className={cn(
-            "px-6 py-3 flex items-center justify-between text-xs font-semibold select-none z-30 shadow-md",
+            "px-4 py-3 sm:px-6 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between text-[11px] sm:text-xs font-semibold select-none z-30 shadow-md gap-2.5",
             theme === 'light'
               ? "bg-amber-50 border-b border-amber-200 text-amber-800"
               : "bg-amber-950/40 border-b border-amber-500/20 text-amber-200"
           )}>
-            <div className="flex items-center gap-2">
-              <span className="text-sm">⚠️</span>
-              <p>
+            <div className="flex items-start sm:items-center gap-2">
+              <span className="text-sm shrink-0">⚠️</span>
+              <p className="leading-relaxed">
                 <span className="font-bold">CẢNH BÁO BẢO MẬT:</span> Đây là lần đầu tiên bạn đăng nhập hệ thống. Để đảm bảo an toàn cho dữ liệu hồ sơ, vui lòng thay đổi mật khẩu mặc định ngay lập tức.
               </p>
             </div>
             <button
               onClick={() => setIsChangePasswordModalOpen(true)}
               className={cn(
-                "px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider shadow-sm transition-all whitespace-nowrap shrink-0",
+                "w-full sm:w-auto px-3 py-2 sm:py-1.5 rounded-lg text-[10px] sm:text-[11px] font-bold uppercase tracking-wider shadow-sm transition-all whitespace-nowrap shrink-0 text-center",
                 theme === 'light'
                   ? "bg-amber-600 hover:bg-amber-700 text-white hover:shadow-md"
                   : "bg-amber-500 hover:bg-amber-400 text-slate-950 hover:shadow-md"
@@ -5558,26 +5579,33 @@ export default function App() {
 
         {/* Header */}
         <header className={cn(
-          "h-20 backdrop-blur-xl border-b flex items-center justify-between px-8 shrink-0 z-20 transition-all",
+          "h-16 sm:h-20 backdrop-blur-xl border-b flex items-center justify-between px-4 sm:px-8 shrink-0 z-20 transition-all gap-2",
           theme === 'light' ? "bg-white/70 border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800/80"
         )}>
-          <div className="flex items-center gap-4">
-            <h2 className={cn("text-2xl font-black font-serif italic tracking-tighter", theme === 'light' ? "text-slate-900" : "text-white")}>
+          <div className="flex items-center gap-2.5 overflow-hidden">
+            <button
+              onClick={() => setIsSidebarCollapsed(prev => !prev)}
+              className="lg:hidden p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+              title="Menu"
+            >
+              <Menu size={18} />
+            </button>
+            <h2 className={cn("text-sm sm:text-base md:text-2xl font-black font-sans tracking-tight truncate max-w-[160px] xs:max-w-xs sm:max-w-none", theme === 'light' ? "text-slate-900" : "text-white")} title={activeTab === 'dashboard' ? (selectedProject ? `Dashboard: ${selectedProject.name}` : 'Tổng quan Vùng') : (selectedProject ? `Hồ sơ: ${selectedProject.name}` : 'Danh sách Hồ sơ cấp GCN')}>
               {activeTab === 'dashboard' ? (selectedProject ? `Dashboard: ${selectedProject.name}` : 'Tổng quan Vùng') : (selectedProject ? `Hồ sơ: ${selectedProject.name}` : 'Danh sách Hồ sơ cấp GCN')}
             </h2>
           </div>
 
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2 border-r border-slate-800/20 pr-4">
+          <div className="flex items-center gap-2 sm:gap-6">
+            <div className="flex items-center gap-1.5 sm:gap-2 border-r border-slate-200 dark:border-slate-800/40 pr-2 sm:pr-4">
               <button 
                 onClick={handleDownloadTemplate}
                 className={cn(
-                  "p-2.5 rounded-full border transition-all shadow-sm group relative",
+                  "p-2 sm:p-2.5 rounded-full border transition-all shadow-sm group relative",
                   theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200" : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-festive-gold hover:border-festive-gold/30"
                 )}
                 title="Tải mẫu Excel"
               >
-                <Download size={18} />
+                <Download size={16} className="sm:w-[18px] sm:h-[18px]" />
               </button>
 
               <div className="relative">
@@ -5593,16 +5621,16 @@ export default function App() {
                   onClick={() => document.getElementById('excel-import')?.click()}
                   disabled={isImporting}
                   className={cn(
-                    "p-2.5 rounded-full border transition-all shadow-sm group relative",
+                    "p-2 sm:p-2.5 rounded-full border transition-all shadow-sm group relative",
                     theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-200" : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-emerald-400 hover:border-emerald-500/30",
                     isImporting && "opacity-50 cursor-not-allowed"
                   )}
                   title={isImporting ? "Đang xử lý..." : "Nhập từ Excel"}
                 >
                   {isImporting ? (
-                    <span className="w-[18px] h-[18px] border-2 border-emerald-500 border-t-transparent rounded-full animate-spin inline-block" />
+                    <span className="w-[16px] h-[16px] sm:w-[18px] sm:h-[18px] border-2 border-emerald-500 border-t-transparent rounded-full animate-spin inline-block" />
                   ) : (
-                    <Upload size={18} />
+                    <Upload size={16} className="sm:w-[18px] sm:h-[18px]" />
                   )}
                 </button>
               </div>
@@ -5612,7 +5640,7 @@ export default function App() {
                   onClick={healExistingRecords}
                   disabled={isImporting || healDone}
                   className={cn(
-                    "p-2.5 rounded-full border transition-all shadow-sm group relative",
+                    "p-2 sm:p-2.5 rounded-full border transition-all shadow-sm group relative",
                     healDone 
                       ? "opacity-40 cursor-not-allowed bg-slate-100 border-slate-200"
                       : theme === 'light' 
@@ -5623,25 +5651,26 @@ export default function App() {
                   title={healDone ? "Đã đồng bộ xong" : "Đồng bộ lại trạng thái hồ sơ"}
                 >
                   {isImporting ? (
-                    <span className="w-[18px] h-[18px] border-2 border-amber-500 border-t-transparent rounded-full animate-spin inline-block" />
+                    <span className="w-[16px] h-[16px] sm:w-[18px] sm:h-[18px] border-2 border-amber-500 border-t-transparent rounded-full animate-spin inline-block" />
                   ) : healDone ? (
-                    <CheckCircle size={18} />
+                    <CheckCircle size={16} className="sm:w-[18px] sm:h-[18px]" />
                   ) : (
-                    <RefreshCw size={18} />
+                    <RefreshCw size={16} className="sm:w-[18px] sm:h-[18px]" />
                   )}
                 </button>
               )}
 
               {(userRole === 'PTT' || userRole === 'MANAGER_PTT' || isManagementEdit) && (
-                    <button 
+                <button 
                   onClick={() => {
                     const defaultProj = selectedProject?.name || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
                     setNewApp(prev => ({ ...prev, projectName: defaultProj }));
                     setIsCreateModalOpen(true);
                   }}
-                  className="bg-festive-gold hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider shadow-lg shadow-festive-gold/10 transition-all active:scale-95"
+                  className="bg-festive-gold hover:bg-amber-400 text-slate-950 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider shadow-lg transition-all active:scale-95 whitespace-nowrap"
                 >
-                  + Hồ sơ
+                  <span className="inline-block sm:hidden">+ HS</span>
+                  <span className="hidden sm:inline-block">+ Hồ sơ</span>
                 </button>
               )}
             </div>
@@ -5690,7 +5719,7 @@ export default function App() {
               </div>
 
               {/* Realtime Status Indicator */}
-              <div className="flex items-center">
+              <div className="hidden md:flex items-center">
                 <button 
                   type="button"
                   onClick={() => {
@@ -5736,17 +5765,17 @@ export default function App() {
               <button 
                 onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
                 className={cn(
-                  "p-2.5 rounded-xl transition-all border",
+                  "p-2 sm:p-2.5 rounded-xl transition-all border",
                   theme === 'light' ? "bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-900 shadow-sm" : "bg-slate-900/50 border-slate-800 text-slate-400 hover:bg-slate-800/40 hover:text-slate-200"
                 )}
                 title={theme === 'light' ? "Chuyển chế độ tối" : "Chuyển chế độ sáng"}
               >
-                {theme === 'light' ? <Moon size={20} /> : <Sun size={20} className="text-festive-gold" />}
+                {theme === 'light' ? <Moon size={16} className="sm:w-5 sm:h-5" /> : <Sun size={16} className="text-festive-gold sm:w-5 sm:h-5" />}
               </button>
             </div>
 
             {/* User Profile */}
-            <div className="flex items-center gap-4 pl-6 border-l border-slate-800/20">
+            <div className="flex items-center gap-2 sm:gap-4 pl-2 sm:pl-6 border-l border-slate-200 dark:border-slate-800/20">
               <div className="text-right hidden sm:block overflow-hidden max-w-[150px]">
                 <p className={cn("text-xs font-bold uppercase tracking-wider truncate", theme === 'light' ? "text-slate-900" : "text-white")}>{currentUser?.name}</p>
                 <div className="flex items-center justify-end gap-2">

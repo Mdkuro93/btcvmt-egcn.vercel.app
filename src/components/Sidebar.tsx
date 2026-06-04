@@ -40,15 +40,21 @@ export const Sidebar = ({
 <>
       {/* Sidebar - Enhanced Blur and border */}
       <motion.aside 
-        animate={{ width: isSidebarCollapsed ? 80 : 256 }}
+        animate={{ 
+          width: isSidebarCollapsed 
+            ? (typeof window !== 'undefined' && window.innerWidth < 1024 ? 0 : 80) 
+            : 256,
+          x: (isSidebarCollapsed && typeof window !== 'undefined' && window.innerWidth < 1024) ? -256 : 0
+        }}
         transition={{ duration: 0.3, ease: 'easeInOut' }}
         className={cn(
-          "backdrop-blur-2xl border-r flex flex-col shrink-0 z-40 relative bg-slate-800 border-slate-700 shadow-2xl"
+          "backdrop-blur-2xl border-r flex flex-col shrink-0 z-40 bg-slate-800 border-slate-700 shadow-2xl transition-all duration-300",
+          "lg:relative fixed inset-y-0 left-0 h-full"
         )}
       >
         <button 
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="absolute -right-3.5 top-8 p-1.5 rounded-full bg-slate-700 border border-slate-600 text-slate-300 hover:text-white hover:bg-slate-600 transition-colors z-50 shadow-md"
+          className="absolute -right-3.5 top-8 p-1.5 rounded-full bg-slate-700 border border-slate-600 text-slate-300 hover:text-white hover:bg-slate-600 transition-colors z-50 shadow-md lg:block hidden"
         >
           <ChevronLeft size={16} className={cn("transition-transform duration-300", isSidebarCollapsed && "rotate-180")} />
         </button>

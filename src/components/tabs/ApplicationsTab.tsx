@@ -150,8 +150,8 @@ export const ApplicationsTab = ({
                   theme === 'light' ? "bg-white border-slate-200 shadow-slate-900/5" : "bg-slate-900/40 border-slate-800/50"
                 )}>
                   <div className={cn("p-3 border-b", theme === 'light' ? "border-slate-100 shadow-inner bg-slate-50/50" : "border-slate-800/50")}>
-                    <div className="flex items-center justify-between gap-4">
-                      <div className={cn("flex items-center gap-4 text-[11px]", theme === 'light' ? "text-slate-800" : "text-slate-200")}>
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                      <div className={cn("flex flex-wrap items-center gap-2 sm:gap-4 text-[10px] sm:text-[11px]", theme === 'light' ? "text-slate-800" : "text-slate-200")}>
                         <select 
                           value={pageSize}
                           onChange={(e) => {setPageSize(Number(e.target.value)); setCurrentPage(0);}}
@@ -161,15 +161,15 @@ export const ApplicationsTab = ({
                           <option value={50}>50 / trang</option>
                           <option value={100}>100 / trang</option>
                         </select>
-                        <div className={cn("flex items-center gap-2 font-bold", theme === 'light' ? "text-slate-600" : "text-slate-400")}>
+                        <div className={cn("flex items-center gap-1.5 sm:gap-2 font-bold", theme === 'light' ? "text-slate-600" : "text-slate-400")}>
                           <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className={cn("p-1 transition-colors disabled:opacity-30", theme === 'light' ? "hover:text-indigo-600" : "hover:text-festive-gold")}>Trước</button>
-                          <span className={cn("px-3 py-1 rounded-lg", theme === 'light' ? "bg-slate-200/50 text-slate-900" : "bg-slate-800 text-white")}>Trang {currentPage + 1}</span>
+                          <span className={cn("px-2.5 py-1 rounded-lg text-[10px] sm:text-xs", theme === 'light' ? "bg-slate-200/50 text-slate-900" : "bg-slate-800 text-white")}>Trang {currentPage + 1}</span>
                           <button onClick={() => setCurrentPage(p => ( (p+1)*pageSize < totalCount ? p + 1 : p))} disabled={(currentPage+1)*pageSize >= totalCount} className={cn("p-1 transition-colors disabled:opacity-30", theme === 'light' ? "hover:text-indigo-600" : "hover:text-festive-gold")}>Sau</button>
                         </div>
                         <span className="text-slate-500 font-bold italic opacity-70">Tổng: {totalCount.toLocaleString()} hồ sơ</span>
                       </div>
 
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex flex-wrap items-center gap-2">
                         {/* VIỆC 1: Sort buttons */}
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={cn(
