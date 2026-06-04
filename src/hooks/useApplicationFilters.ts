@@ -61,7 +61,7 @@ export const getComputedStageName = (r: any): string => {
       return 'CHỜ BÀN GIAO';
     }
     else {
-      return 'ĐANG CHUẨN BỊ';
+      return '1. ĐANG CHUẨN BỊ';
     }
   }
 
@@ -86,31 +86,31 @@ export const getComputedStageName = (r: any): string => {
   // Priority 4: TaxCompleted / TaxPaid
   else if (r.status === 'TaxPaid' || r.status === 'TaxCompleted' ||
            r.currentStep === 'S5_1_PTDA_TiepNhan') {
-    return 'ĐÃ NỘP THUẾ';
+    return '6. ĐÃ NỘP THUẾ';
   }
   // Priority 5: AWAITING_FINANCE (CHỜ HOÀN THÀNH NVTC)
-  else if (r.status === 'TaxPending' && r.taxNotificationDate) {
-    return 'CHỜ HOÀN THÀNH NVTC';
+  else if (r.taxNotificationDate || r.taxNotificationReceivedDate) {
+    return '5. CHỜ HOÀN THÀNH NVTC';
   }
   else if ([
     'S5_Tai_Chinh_Khach_Hang', 'GD4_Cho_Nop_NVTC', 
     'GD4_Cho_KT_TiepNhan_LaySo'
   ].includes(r.currentStep)) {
-    return 'CHỜ HOÀN THÀNH NVTC';
+    return '5. CHỜ HOÀN THÀNH NVTC';
   }
   // Priority 6: SUBMITTED / TAX_WARNING (phân loại theo SLA)
   else if (r.status === 'Submitted' || r.status === 'TaxPending' || r.submissionDate) {
-    if (r.submissionDate && !r.taxNotificationDate) {
+    if (r.submissionDate && !r.taxNotificationDate && !r.taxNotificationReceivedDate) {
       const daysDiff = (today.getTime() - new Date(r.submissionDate).getTime()) / (1000*60*60*24);
       if (daysDiff > submissionSLA) {
-        return 'CHỜ TB THUẾ';
+        return '4. CHỜ THÔNG BÁO THUẾ';
       } else {
-        return 'ĐÃ NỘP VPĐK';
+        return '3. ĐÃ NỘP VPĐK';
       }
-    } else if (r.taxNotificationDate) {
-      return 'CHỜ HOÀN THÀNH NVTC';
+    } else if (r.taxNotificationDate || r.taxNotificationReceivedDate) {
+      return '5. CHỜ HOÀN THÀNH NVTC';
     } else {
-      return 'ĐÃ NỘP VPĐK';
+      return '3. ĐÃ NỘP VPĐK';
     }
   }
   // Priority 7: AWAITING_SUBMISSION (CHỜ NỘP VPĐK / CHỜ KT TIẾP NHẬN)
@@ -122,11 +122,11 @@ export const getComputedStageName = (r: any): string => {
     r.currentStep === 'GD1_Cho_KT_TiepNhan' ||
     (r.accountingHandoverDate && !r.submissionDate)
   ) {
-    return 'CHỜ NỘP VPĐK';
+    return '2. CHỜ NỘP VPĐK';
   }
   // Default: PREPARING
   else {
-    return 'ĐANG CHUẨN BỊ';
+    return '1. ĐANG CHUẨN BỊ';
   }
 };
 
@@ -194,12 +194,12 @@ export function useApplicationFilters(
       // ================= 2. STATUS FILTER =================
       if (activeStatus) {
         const computedStage = getComputedStageName(a);
-        if (activeStatus === 'Processing' && computedStage !== 'ĐANG CHUẨN BỊ') return false;
-        if (activeStatus === 'WaitingVPDK' && computedStage !== 'CHỜ NỘP VPĐK') return false;
-        if (activeStatus === 'TaxPending' && computedStage !== 'CHỜ HOÀN THÀNH NVTC' && computedStage !== 'CHỜ TB THUẾ') return false;
+        if (activeStatus === 'Processing' && computedStage !== '1. ĐANG CHUẨN BỊ') return false;
+        if (activeStatus === 'WaitingVPDK' && computedStage !== '2. CHỜ NỘP VPĐK') return false;
+        if (activeStatus === 'TaxPending' && computedStage !== '5. CHỜ HOÀN THÀNH NVTC' && computedStage !== '4. CHỜ THÔNG BÁO THUẾ') return false;
         if (activeStatus === 'WaitingHandover' && computedStage !== 'CHỜ BÀN GIAO') return false;
-        if (activeStatus === 'TaxPaid' && computedStage !== 'ĐÃ NỘP THUẾ') return false;
-        if (activeStatus === 'Submitted' && computedStage !== 'ĐÃ NỘP VPĐK') return false;
+        if (activeStatus === 'TaxPaid' && computedStage !== '6. ĐÃ NỘP THUẾ') return false;
+        if (activeStatus === 'Submitted' && computedStage !== '3. ĐÃ NỘP VPĐK') return false;
         if (activeStatus === 'Completed' && computedStage !== 'HOÀN TẤT') return false;
         if (!['Processing', 'WaitingVPDK', 'TaxPending', 'WaitingHandover', 'TaxPaid', 'Submitted', 'Completed'].includes(activeStatus) && a.status !== activeStatus) return false;
       }
@@ -249,12 +249,12 @@ export function useApplicationFilters(
 
         switch (activeDashboardFilter) {
           // ===== DASHBOARD TIMELINE STAGES FILTER =====
-          case 'ĐANG CHUẨN BỊ':
-          case 'CHỜ NỘP VPĐK':
-          case 'ĐÃ NỘP VPĐK':
-          case 'CHỜ TB THUẾ':
-          case 'CHỜ HOÀN THÀNH NVTC':
-          case 'ĐÃ NỘP THUẾ':
+          case '1. ĐANG CHUẨN BỊ':
+          case '2. CHỜ NỘP VPĐK':
+          case '3. ĐÃ NỘP VPĐK':
+          case '4. CHỜ THÔNG BÁO THUẾ':
+          case '5. CHỜ HOÀN THÀNH NVTC':
+          case '6. ĐÃ NỘP THUẾ':
           case 'ĐÃ CÓ GCN':
           case 'CHỜ BÀN GIAO':
           case 'HOÀN TẤT':

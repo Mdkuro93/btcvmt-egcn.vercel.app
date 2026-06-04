@@ -71,7 +71,6 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
         S2_KT_Tiep_Nhan: 'receivedDate',
         S2_KT_Ban_giao: 'receivedDate',
         S3_Nop_VPDK: 'accountingHandoverDate',
-        S4_Cho_Thong_Bao_Thue: 'submissionDate',
         S5_Tai_Chinh_Khach_Hang: 'taxNotificationDate',
         S5_1_PTDA_TiepNhan: 'taxReceiptDate',
         S6_Nhan_So_GCN: 'taxReceiptDate',

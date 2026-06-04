@@ -146,7 +146,16 @@ export default function BulkTransitionModal({
               </div>
             )}
 
-            {(targetStepLabel?.toUpperCase().includes('3. NỘP VPĐK') || targetStepLabel?.toUpperCase().includes('3. NOP VPDK') || targetStepLabel?.toUpperCase().includes('GĐ2:') || targetStepLabel?.toUpperCase().includes('GD2:') || targetStepLabel?.toUpperCase().includes('GĐ3:') || targetStepLabel?.toUpperCase().includes('GD3:')) && (
+            {(targetStepLabel?.toUpperCase().includes('B3:') || 
+              targetStepLabel?.toUpperCase().includes('B4:') ||
+              targetStepLabel?.toUpperCase().includes('GĐ2:') || 
+              targetStepLabel?.toUpperCase().includes('GD2:') || 
+              targetStepLabel?.toUpperCase().includes('GĐ3:') || 
+              targetStepLabel?.toUpperCase().includes('GD3:') ||
+              targetStepLabel?.toUpperCase().includes('NỘP VPĐK') || 
+              targetStepLabel?.toUpperCase().includes('NOP VPDK') ||
+              targetStepLabel?.toUpperCase().includes('THÔNG BÁO THUẾ') ||
+              targetStepLabel?.toUpperCase().includes('THONG BAO THUE')) && (
               <>
                 <div className="space-y-3">
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">

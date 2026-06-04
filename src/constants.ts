@@ -66,11 +66,12 @@ export const MOCK_APPLICATIONS: Application[] = [
     phoneNumber: '0987654321',
     propertyType: 'Dat_Nen',
     loanStatus: 'Co_Vay',
-    currentStep: 'S4_Cho_Thong_Bao_Thue',
-    status: 'TaxPending',
+    currentStep: 'S3_Nop_VPDK',
+    status: 'Submitted',
     receivedDate: '2026-02-10',
+    submissionDate: '2026-02-15',
     taxPaymentStatus: 'Unpaid',
-    history: [{ id: 'h2', stepName: 'BƯỚC 4: THÔNG BÁO', dept: 'PTDA', receivedDate: '2026-02-15', performedBy: '550e8400-e29b-41d4-a716-446655440003', performedByName: 'Lê Phát Triển' }]
+    history: [{ id: 'h2', stepName: 'B3: Nộp hồ sơ tại VPĐK', dept: 'PTDA', receivedDate: '2026-02-15', performedBy: '550e8400-e29b-41d4-a716-446655440003', performedByName: 'Lê Phát Triển' }]
   },
   {
     id: '550e8400-e29b-41d4-a716-446655440012',
@@ -144,7 +145,6 @@ export const WORKFLOW_2_STEPS: StepName[] = [
   'S2_KT_Tiep_Nhan',
   'S2_KT_Ban_giao',
   'S3_Nop_VPDK',
-  'S4_Cho_Thong_Bao_Thue',
   'S5_Tai_Chinh_Khach_Hang',
   'S5_1_PTDA_TiepNhan',
   'S6_Nhan_So_GCN',
@@ -168,7 +168,7 @@ export const STEP_CONFIG: Record<string, { label: string, description: string, d
   S2_KT_Tiep_Nhan: { label: 'B2: KT tiếp nhận (Kế toán)', description: 'Bộ phận Kế toán tiếp nhận, kiểm tra tính pháp lý', dept: 'KT', status: 'WaitingVPDK', slaDays: 3, active: true },
   S2_KT_Ban_giao: { label: 'B2.1: KT bàn giao (PTDA)', description: 'Bộ phận Phát triển Dự án tiếp nhận hồ sơ từ KT và chuẩn bị nộp', dept: 'PTDA', status: 'WaitingVPDK', slaDays: 1, active: true },
   S3_Nop_VPDK: { label: 'B3: Nộp hồ sơ tại VPĐK', description: 'Bộ phận Phát triển Dự án nộp hồ sơ tại VPĐKĐĐ', dept: 'PTDA', status: 'Submitted', slaDays: 1, active: true },
-  S4_Cho_Thong_Bao_Thue: { label: 'B4: Chờ thông báo thuế', description: 'Chờ cơ quan thuế ban hành thông báo thuế (PTDA theo dõi)', dept: 'PTDA', status: 'TaxPending', slaDays: 10, active: true },
+  S4_Cho_Thong_Bao_Thue: { label: 'B4: Chờ thông báo thuế (Hợp nhất vào B3)', description: 'Chờ cơ quan thuế ban hành thông báo thuế (PTDA theo dõi)', dept: 'PTDA', status: 'TaxPending', slaDays: 10, active: false },
   S5_Tai_Chinh_Khach_Hang: { label: 'B5: PTT Đôn đốc thuế', description: 'Bộ phận Thủ tục theo dõi khách hàng thực hiện nghĩa vụ thuế', dept: 'PTT', status: 'TaxPending', slaDays: 5, active: true },
   S5_1_PTDA_TiepNhan: { label: 'B5.1: PTDA Nhận chứng từ thuế', description: 'Bộ phận Phát triển Dự án tiếp nhận chứng từ nộp thuế', dept: 'PTDA', status: 'TaxCompleted', slaDays: 3, active: true },
   S6_Nhan_So_GCN: { label: 'B6: Theo dõi kết quả GCN', description: 'Bộ phận Phát triển Dự án tiếp nhận kết quả GCN từ VPĐK', dept: 'PTDA', status: 'GCN_Issued', slaDays: 5, active: true },

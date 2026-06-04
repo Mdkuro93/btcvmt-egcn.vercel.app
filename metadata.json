@@ -1,6 +1,6 @@
 {
   "name": "Hệ thống quản lý tình trạng cấp GCN QSDĐ VMT",
-  "description": "Hệ thống quản lý tình trạng cấp Giấy chứng nhận quyền sử dụng đất VMT.",
+  "description": "Hệ thống quản lý tình trạng cấp Giấy chứng nhận quyền sử dụng đất VMT với quy trình tự động hóa (Data-driven Workflow).",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

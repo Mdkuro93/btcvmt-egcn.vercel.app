@@ -36,9 +36,7 @@ export const WorkflowEngine = {
     }
 
     // Logic đặc thù: PTT đôn đốc xong có thể bypass S4 để đẩy thẳng sang Khách nộp thuế (S5) trong Quy trình 2
-    if (!isJump && app.currentStep === 'S3_Nop_VPDK' && requestedNextStep === 'S4_Cho_Thong_Bao_Thue') {
-      finalStep = 'S5_Tai_Chinh_Khach_Hang';
-    }
+    // S4 đã được xóa khỏi WORKFLOW_2_STEPS, nên S3 -> S5 là bước tuần tự bình thường.
 
     return { finalStep, isJump };
   },
@@ -87,6 +85,15 @@ export const WorkflowEngine = {
 
       // 4. Bắt buộc dữ kiện theo từng rẽ nhánh quy trình:
       if (app.workflowType === 'Quy_trinh_2') {
+        if (app.currentStep === 'S3_Nop_VPDK' && finalStep === 'S5_Tai_Chinh_Khach_Hang') {
+           if (!app.taxNotificationDate && !app.taxNotificationReceivedDate) {
+             return { 
+               success: false, 
+               type: 'warning', 
+               message: 'Bắt buộc nhập Ngày Thông báo thuế trước khi chuyển sang chặng Tài chính.' 
+             };
+           }
+        }
         if (app.currentStep === 'S5_1_PTDA_TiepNhan' && finalStep === 'S6_Nhan_So_GCN') {
           if (!app.taxReceiptDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày Nhận chứng từ thuế trước khi chuyển.' };
           if (!app.gcnSignedDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày trình ký/In GCN trước khi chuyển.' };
@@ -102,7 +109,7 @@ export const WorkflowEngine = {
         if (ktSteps.concat(['S3_Nop_VPDK', 'GD2_Cho_Nop_VPDK'] as any[]).includes(finalStep) && ktSteps.includes(app.currentStep as string) && finalStep !== app.currentStep) {
           if (!app.contractSigningDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày ký HĐ trước khi chuyển.' };
         }
-        if ((app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK') && (finalStep === 'S4_Cho_Thong_Bao_Thue' || finalStep === 'GD3_Cho_TBThue')) {
+        if ((app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK') && (finalStep === 'S5_Tai_Chinh_Khach_Hang' || finalStep === 'GD3_Cho_TBThue')) {
           if (!app.submissionDate) return { success: false, type: 'warning', message: 'Yêu cầu: Ngày nộp VPĐK phải được cập nhật.' };
         }
       }

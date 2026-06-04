@@ -41,11 +41,31 @@ export const StatusBadge = ({ status, app, variant = 'default' }: { status: Unit
       effectiveStatus = app.customerHandoverDate ? 'Completed' : 'WaitingHandover';
     } else if (app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK') {
       effectiveStatus = (app.vpdkCode && app.submissionLocation && app.submissionDate) ? 'Submitted' : 'WaitingVPDK';
-    } else if (app.currentStep === 'S4_Cho_Thong_Bao_Thue' || app.currentStep === 'GD3_Cho_TBThue') {
-      effectiveStatus = 'TaxPending';
+      if (effectiveStatus === 'Submitted' && app.submissionDate) {
+        const subDate = new Date(app.submissionDate);
+        const daysDiff = (new Date().getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
+        if (daysDiff > 7 && !app.taxNotificationDate) effectiveStatus = 'TaxPending';
+      }
+    } else if (app.currentStep === 'GD3_Cho_TBThue') {
+      // Dynamic logic for tax notification wait
+      if (app.taxNotificationDate) {
+        effectiveStatus = 'TaxNotificationReceived';
+      } else if (app.submissionDate) {
+        const subDate = new Date(app.submissionDate);
+        const daysDiff = (new Date().getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
+        effectiveStatus = daysDiff > 7 ? 'TaxPending' : 'Submitted';
+      } else {
+        effectiveStatus = 'WaitingVPDK';
+      }
     } else if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' || app.currentStep === 'GD4_Cho_Nop_NVTC' || app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') {
-      effectiveStatus = app.taxReceiptDate ? 'TaxPaid' : 'TaxPaymentPending_Dynamic';
-    } else if (app.currentStep === 'S5_1_PTDA_TiepNhan') {
+      if (app.taxReceiptDate) {
+        effectiveStatus = 'TaxPaid';
+      } else if (app.taxNotificationDate) {
+        effectiveStatus = 'TaxNotificationReceived';
+      } else {
+        effectiveStatus = 'TaxPaymentPending_Dynamic';
+      }
+    } else if (['S5_1_PTDA_TiepNhan'].includes(app.currentStep)) {
        effectiveStatus = 'TaxPaid';
     } else if (['S6_Nhan_So_GCN', 'GD5_Cho_Ky_In_GCN'].includes(app.currentStep)) {
       effectiveStatus = app.gcnSignedDate ? 'GCN_Issued' : 'GCN_SignPending_Dynamic';
@@ -55,13 +75,14 @@ export const StatusBadge = ({ status, app, variant = 'default' }: { status: Unit
   }
 
   const configs: Record<string, { label: string, classes: string }> = {
-    Processing: { label: 'Đang chuẩn bị', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
-    WaitingVPDK: { label: 'Chờ nộp VPĐK', classes: 'bg-amber-500/10 text-amber-600 border border-amber-500/20' },
-    Submitted: { label: 'Đã nộp VPĐK', classes: 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20' },
-    TaxPending: { label: 'Chờ hoàn thành NVTC', classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20' },
-    TaxPaymentPending_Dynamic: { label: 'Chờ nộp thuế', classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20' },
+    Processing: { label: '1. Đang chuẩn bị', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
+    WaitingVPDK: { label: '2. Chờ nộp VPĐK', classes: 'bg-amber-500/10 text-amber-600 border border-amber-500/20' },
+    Submitted: { label: '3. ĐÃ NỘP VPĐK', classes: 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 shadow-[0_0_10px_rgba(99,102,241,0.1)]' },
+    TaxPending: { label: '4. CHỜ THÔNG BÁO THUẾ', classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20 animate-pulse' },
+    TaxNotificationReceived: { label: '5. CHỜ HOÀN THÀNH NVTC', classes: 'bg-sky-500/10 text-sky-600 border border-sky-500/20 shadow-[0_0_10px_rgba(14,165,233,0.1)]' },
+    TaxPaymentPending_Dynamic: { label: 'CHỜ NỘP THUẾ', classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20' },
     TaxCompleted: { label: 'Đã hoàn thành NVTC', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
-    TaxPaid: { label: 'ĐÃ NỘP THUẾ', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]' },
+    TaxPaid: { label: '6. ĐÃ NỘP THUẾ', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]' },
     GCN_SignPending_Dynamic: { label: 'CHỜ BÀN GIAO', classes: 'bg-amber-500/10 text-amber-600 border border-amber-500/20 shadow-[-1px_1px_10px_rgba(245,158,11,0.15)] animate-pulse' },
     GCN_Issued: { label: 'Đã ra GCN', classes: 'bg-sky-500/10 text-sky-600 border border-sky-500/20' },
     WaitingHandover: { label: 'CHỜ BÀN GIAO', classes: 'bg-amber-500/10 text-amber-600 border border-amber-500/20 animate-pulse' },

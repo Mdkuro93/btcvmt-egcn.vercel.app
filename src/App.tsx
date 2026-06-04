@@ -2448,9 +2448,9 @@ export default function App() {
     if (editData.customerHandoverDate) {
       updatedApp.currentStep = 'Hoan_Tat';
       updatedApp.status = 'Completed';
-      const historyItem: ApplicationHistory = {
+      const historyItem: any = {
         id: Math.random().toString(36).substr(2, 9),
-        timestamp: new Date().toLocaleString('vi-VN'),
+        timestamp: new Date().toISOString(),
         user: userRole,
         action: 'Tự động hoàn tất (Cập nhật nhanh ngày BG khách)',
       };
@@ -2560,9 +2560,10 @@ export default function App() {
       if (!app) continue;
       
       const appWithDate = { ...app, [bulkTransitionField.key]: bulkTransitionValue };
-      if (['S4_Cho_Thong_Bao_Thue', 'S3_Nop_VPDK', 'GD3_Cho_TBThue', 'GD1_Nop_VPDK', 'GD2_Cho_Nop_VPDK'].includes(bulkTransitionTarget || '')) {
-        if (bulkTransitionLocation) appWithDate.submissionLocation = bulkTransitionLocation as any;
-        if (bulkTransitionRefCode) appWithDate.vpdkCode = bulkTransitionRefCode;
+      const vpdKSteps = ['S3_Nop_VPDK', 'GD2_Cho_Nop_VPDK', 'GD3_Cho_TBThue'];
+      if (vpdKSteps.includes(bulkTransitionTarget || '')) {
+        if (bulkTransitionLocation !== undefined) appWithDate.submissionLocation = bulkTransitionLocation as any;
+        if (bulkTransitionRefCode !== undefined) appWithDate.vpdkCode = bulkTransitionRefCode;
       }
       
       const err = validateDateSequence(appWithDate);
@@ -2920,7 +2921,7 @@ export default function App() {
                 id: generateUUID(),
                 stepName: (stepConfig[initialStep] || INITIAL_STEP_CONFIG[initialStep]).label,
                 dept: 'PTT',
-                receivedDate: nowStr,
+                receivedDate: new Date().toISOString(),
                 note: 'Khởi tạo hồ sơ từ Import'
               }
             ],
@@ -3496,12 +3497,7 @@ export default function App() {
       if ((targetStep === 'S2_KT_Tiep_Nhan' || targetStep === 'GD1_Cho_KT_TiepNhan') && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
       if ((targetStep === 'S3_Nop_VPDK' || targetStep === 'GD3_Cho_TBThue') && !app.submissionDate) autoDates.submissionDate = nowStr;
       
-      if (targetStep === 'S5_Tai_Chinh_Khach_Hang') {
-        if (!app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
-        autoDates.taxNoticeProvisionDate = nowStr; // Ngày cung cấp TB Thuế (xử lý hệ thống)
-      }
-
-      if (targetStep === 'S4_Cho_Thong_Bao_Thue' || targetStep === 'GD3_Cho_TBThue') {
+      if (targetStep === 'S5_Tai_Chinh_Khach_Hang' || targetStep === 'GD3_Cho_TBThue') {
         if (!app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
         if (!app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
       }
@@ -3598,7 +3594,6 @@ export default function App() {
     else if (nextStep === 'S2_KT_Ban_giao') updateField = { key: 'contractSigningDate', label: 'Ngày ký HĐCN/HĐMB', isRequired: true };
     else if (nextStep === 'S3_Nop_VPDK') updateField = { key: 'submissionDate', label: 'Ngày nộp VPĐK', isRequired: true };
     else if (nextStep === 'S5_Tai_Chinh_Khach_Hang') updateField = { key: 'taxNotificationDate', label: 'Ngày TB Thuế', isRequired: true };
-    else if (nextStep === 'S4_Cho_Thong_Bao_Thue') updateField = { key: 'taxNotificationReceivedDate', label: 'Ngày nhận TB Thuế' };
     else if (nextStep === 'S5_1_PTDA_TiepNhan') updateField = { key: 'taxReceiptDate', label: 'Ngày nhận/cung cấp GNT / Nộp thuế', isRequired: true };
     else if (nextStep === 'S6_Nhan_So_GCN') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN', isRequired: true };
     else if (nextStep === 'S7_PTDA_Ban_Giao') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN', isRequired: true };
@@ -3609,7 +3604,13 @@ export default function App() {
     // GD workflow
     else if (nextStep === 'GD1_Cho_KT_TiepNhan') 
       updateField = { 
-        key: 'accountingHandoverDate', 
+        key: 'contractSigningDate', 
+        label: 'Ngày ký HĐCN/HĐMB',
+        isRequired: false
+      };
+    else if (nextStep === 'GD2_Cho_Nop_VPDK')
+      updateField = {
+        key: 'contractSigningDate',
         label: 'Ngày ký HĐCN/HĐMB',
         isRequired: false
       };
@@ -3658,7 +3659,7 @@ export default function App() {
 
     // Check if transition from KT requires contractSigningDate, wait we update it via bulk transition field anyway!
     // But if we transition to S2_KT_Ban_giao, it is required, which is already enforced by bulkTransitionField.isRequired.
-    if (['S4_Cho_Thong_Bao_Thue', 'S3_Nop_VPDK', 'GD3_Cho_TBThue'].includes(nextStep)) {
+    if (['S3_Nop_VPDK', 'GD3_Cho_TBThue', 'S5_Tai_Chinh_Khach_Hang'].includes(nextStep)) {
       if (!location || !refCode) {
         showToast(`Vui lòng nhập nơi nộp hồ sơ và mã hồ sơ/phiếu hẹn.`, 'warning');
         return;
@@ -3709,9 +3710,14 @@ export default function App() {
           (appWithDate as any)[bulkTransitionField.key] = dateValue;
         }
 
-        if (['S4_Cho_Thong_Bao_Thue', 'S3_Nop_VPDK', 'GD3_Cho_TBThue', 'GD1_Nop_VPDK', 'GD2_Cho_Nop_VPDK'].includes(recordNextStep)) {
-          if (location) appWithDate.submissionLocation = location as any;
-          if (refCode) appWithDate.vpdkCode = refCode;
+        // Save location and refCode if provided in the bulk transition (usually for nộp VPĐK steps)
+        const vpdKSteps = [
+          'S3_Nop_VPDK', 'S5_Tai_Chinh_Khach_Hang',
+          'GD2_Cho_Nop_VPDK', 'GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'Hoan_Tat'
+        ];
+        if (vpdKSteps.includes(recordNextStep as string)) {
+          if (location !== undefined) appWithDate.submissionLocation = location as any;
+          if (refCode !== undefined) appWithDate.vpdkCode = refCode;
         }
 
         // Check chronology for all selected apps
@@ -3741,7 +3747,7 @@ export default function App() {
             id: `hist-${Date.now()}-${appWithDate.id}`,
             stepName: (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label,
             dept: nextDeptLabel,
-            receivedDate: nowStr,
+            receivedDate: new Date().toISOString(),
             note: `${note}. ${handoverNote}`,
             performedBy: currentUser?.id,
             performedByName: currentUser?.name
@@ -3759,7 +3765,7 @@ export default function App() {
           autoDates.taxNoticeProvisionDate = nowStr; // Auto fill Ngày cung cấp TB Thuế
         }
         
-        if (targetStep === 'S4_Cho_Thong_Bao_Thue') {
+        if (targetStep === 'S5_Tai_Chinh_Khach_Hang') {
           if (!appWithDate.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
           if (!appWithDate.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
         }
@@ -4247,7 +4253,7 @@ export default function App() {
         id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         stepName: 'Khắc phục lỗi',
         dept: userRole as Dept,
-        receivedDate: new Date().toISOString().split('T')[0],
+        receivedDate: new Date().toISOString(),
         note: 'Đã khắc phục', // Updated note
         performedBy: currentUser?.id,
         performedByName: currentUser?.name
@@ -4357,7 +4363,7 @@ export default function App() {
         id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         stepName: 'Yêu cầu chỉnh sửa / Bổ sung',
         dept: userRole as Dept,
-        receivedDate: new Date().toISOString().split('T')[0],
+        receivedDate: new Date().toISOString(),
         note: `Hồ sơ sai sót/cần bổ sung: ${reason}`,
         performedBy: currentUser?.id,
         performedByName: currentUser?.name
@@ -4500,8 +4506,8 @@ export default function App() {
         nextApp.status = 'TaxCompleted';
       }
       
-      // Auto-promote status if taxNotificationDate or taxNotificationReceivedDate is added and current step is S4_Cho_Thong_Bao_Thue
-      if ((field === 'taxNotificationReceivedDate' || field === 'taxNotificationDate') && value && editApp.currentStep === 'S4_Cho_Thong_Bao_Thue') {
+      // Auto-promote status if taxNotificationDate or taxNotificationReceivedDate is added and current step is S3_Nop_VPDK
+      if ((field === 'taxNotificationReceivedDate' || field === 'taxNotificationDate') && value && editApp.currentStep === 'S3_Nop_VPDK') {
         nextApp.currentStep = 'S5_Tai_Chinh_Khach_Hang';
       }
 
@@ -4544,9 +4550,9 @@ export default function App() {
         if (field === 'customerHandoverDate' && value) {
           nextApp.currentStep = 'Hoan_Tat';
           nextApp.status = 'Completed';
-          const historyItem: ApplicationHistory = {
+          const historyItem: any = {
             id: Math.random().toString(36).substr(2, 9),
-            timestamp: new Date().toLocaleString('vi-VN'),
+            timestamp: new Date().toISOString(),
             user: userRole,
             action: 'Tự động hoàn tất (Có ngày BG khách)',
           };
@@ -4593,9 +4599,9 @@ export default function App() {
       }
       
       if (field === 'currentStep') {
-        const historyItem: ApplicationHistory = {
+        const historyItem: any = {
           id: Math.random().toString(36).substr(2, 9),
-          timestamp: new Date().toLocaleString('vi-VN'),
+          timestamp: new Date().toISOString(),
           user: userRole,
           action: `Chuyển trạng thái sang: ${value}`,
         };
@@ -4647,9 +4653,9 @@ export default function App() {
             if (field === 'customerHandoverDate' && value) {
               nextApp.currentStep = 'Hoan_Tat';
               nextApp.status = 'Completed';
-              const historyItem: ApplicationHistory = {
+              const historyItem: any = {
                 id: Math.random().toString(36).substr(2, 9),
-                timestamp: new Date().toLocaleString('vi-VN'),
+                timestamp: new Date().toISOString(),
                 user: userRole,
                 action: 'Tự động hoàn tất (Có ngày BG khách)',
               };
@@ -4764,7 +4770,7 @@ export default function App() {
             id: generateUUID(),
             stepName: (stepConfig[initialStep] || INITIAL_STEP_CONFIG[initialStep]).label,
             dept: 'PTT',
-            receivedDate: new Date().toISOString().split('T')[0],
+            receivedDate: new Date().toISOString(),
             note: 'Khởi tạo hồ sơ mới'
           }
         ]
@@ -5006,7 +5012,6 @@ export default function App() {
     // Chờ hoàn thành NVTC:
     const ptdaTaxPending = apps.filter(a => 
       (a.currentStep === 'S5_1_PTDA_TiepNhan' || 
-       a.currentStep === 'S4_Cho_Thong_Bao_Thue' ||
        a.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') && !a.taxReceiptDate
     ).length;
     // Chờ in/ký GCN -> CHỜ BÀN GIAO: 
@@ -5281,7 +5286,7 @@ export default function App() {
     const submissionSLA = 
       slaConfig?.['Nộp VPĐK'] ?? 
       slaConfig?.['S3_Nop_VPDK'] ?? 
-      slaConfig?.['GD3_Cho_TBThue'] ?? 5;
+      slaConfig?.['GD3_Cho_TBThue'] ?? 7; // Mặc định 7 ngày theo yêu cầu
 
     const stages = {
       PREPARING: [] as Application[], 
@@ -5340,7 +5345,7 @@ export default function App() {
         stages.TAX_PAID.push(r);
       }
       // Ưu tiên 5: AWAITING_FINANCE (CHỜ HOÀN THÀNH NVTC)
-      else if (r.status === 'TaxPending' && (r.taxNotificationDate || r.taxNotificationReceivedDate)) {
+      else if (r.taxNotificationDate || r.taxNotificationReceivedDate) {
         stages.AWAITING_FINANCE.push(r);
       }
       else if ([
@@ -5383,9 +5388,7 @@ export default function App() {
     });
 
     const createStageItem = (name: string, list: Application[], color: string, statusId: UnitStatus) => {
-      // Chỉ đếm các hồ sơ đang thực sự gặp sai sót (chưa được khắc phục)
       const errorCount = list.filter(a => {
-        // Hồ sơ được xem là "Đang có lỗi" nếu hiện tại đang gắn cờ lỗi chưa xử lý hoặc bị trả hồ sơ
         return (a.status as string) === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None');
       }).length;
       return {
@@ -5400,12 +5403,12 @@ export default function App() {
     };
 
     return [
-      createStageItem('ĐANG CHUẨN BỊ', stages.PREPARING, '#94a3b8', 'Processing'),
-      createStageItem('CHỜ NỘP VPĐK', stages.AWAITING_SUBMISSION, '#f59e0b', 'WaitingVPDK'),
-      createStageItem('ĐÃ NỘP VPĐK', stages.SUBMITTED, '#3b82f6', 'Submitted'),
-      createStageItem('CHỜ TB THUẾ', stages.TAX_WARNING, '#f97316', 'TaxPending'),
-      createStageItem('CHỜ HOÀN THÀNH NVTC', stages.AWAITING_FINANCE, '#8b5cf6', 'TaxPending'),
-      createStageItem('ĐÃ NỘP THUẾ', stages.TAX_PAID, '#10b981', 'TaxCompleted'),
+      createStageItem('1. ĐANG CHUẨN BỊ', stages.PREPARING, '#94a3b8', 'Processing'),
+      createStageItem('2. CHỜ NỘP VPĐK', stages.AWAITING_SUBMISSION, '#f59e0b', 'WaitingVPDK'),
+      createStageItem('3. ĐÃ NỘP VPĐK', stages.SUBMITTED, '#3b82f6', 'Submitted'),
+      createStageItem('4. CHỜ THÔNG BÁO THUẾ', stages.TAX_WARNING, '#f97316', 'TaxPending'),
+      createStageItem('5. CHỜ HOÀN THÀNH NVTC', stages.AWAITING_FINANCE, '#8b5cf6', 'TaxPending'),
+      createStageItem('6. ĐÃ NỘP THUẾ', stages.TAX_PAID, '#10b981', 'TaxCompleted'),
       createStageItem('ĐÃ CÓ GCN', stages.GCN_READY, '#06b6d4', 'GCN_Issued'),
       createStageItem('CHỜ BÀN GIAO', stages.WAITING_HANDOVER, '#6366f1', 'WaitingHandover'),
       createStageItem('HOÀN TẤT', stages.COMPLETED, '#22c55e', 'Completed')

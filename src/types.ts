@@ -58,6 +58,7 @@ export type UnitStatus =
   | 'WaitingVPDK'
   | 'Submitted' 
   | 'TaxPending' 
+  | 'TaxNotificationReceived'
   | 'TaxCompleted' 
   | 'TaxPaid'
   | 'WaitingHandover'

@@ -1,5 +1,6 @@
 import { Application, StepName } from '../types';
 import { calculateSLA } from './statusEngine';
+import { WORKFLOW_1_STEPS, WORKFLOW_2_STEPS } from '../constants';
 
 export const calculateDaysDiff = (dateStr: string) => {
   if (!dateStr) return 0;
@@ -23,10 +24,9 @@ export const getPhaseIndex = (step: StepName): number => {
   if (step === 'S1_ChuanBi') return 0;
   if (['S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao'].includes(step)) return 1;
   if (step === 'S3_Nop_VPDK') return 2;
-  if (step === 'S4_Cho_Thong_Bao_Thue') return 3;
-  if (['S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan'].includes(step)) return 4;
-  if (step === 'S6_Nhan_So_GCN') return 5;
-  if (['S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach'].includes(step)) return 6;
+  if (['S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan'].includes(step)) return 3;
+  if (step === 'S6_Nhan_So_GCN') return 4;
+  if (['S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach'].includes(step)) return 5;
   
   // Quy trình 1 (6 bước)
   if (['GD1_ChuanBi', 'GD1_Cho_KT_TiepNhan'].includes(step)) return 0;
@@ -103,82 +103,78 @@ export const validateSkippedSteps = (
   return warnings;
 };
 
+export const getStepIndex = (step: StepName, workflowType?: string): number => {
+  const steps = workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+  return steps.indexOf(step);
+};
+
 export const inferStepFromDates = (
   app: any,
   slaConfig?: Record<string, number>
 ): { currentStep: StepName; status: import('../types').UnitStatus } => {
   const isQT2 = app.workflowType === 'Quy_trinh_2';
-  
+  const steps = isQT2 ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+  const currentIdx = steps.indexOf(app.currentStep || (isQT2 ? 'S1_ChuanBi' : 'GD1_ChuanBi'));
+
   const hasHandover = app.customerHandoverDate && app.customerHandoverDate !== '---' && app.customerHandoverDate !== 'None' && String(app.customerHandoverDate).trim() !== '';
+
+  let inferred: { currentStep: StepName; status: import('../types').UnitStatus };
 
   if (app.isSelfService) {
     if (app.customerHandoverDate)
-      return { currentStep: 'Hoan_Tat', status: 'Completed' };
-    if (app.gcnReceivedDate)
-      return { 
+      inferred = { currentStep: 'Hoan_Tat', status: 'Completed' };
+    else if (app.gcnReceivedDate)
+      inferred = { 
         currentStep: isQT2 ? 'S7_1_PTT_Tiep_Nhan' : 'GD5_Cho_PTT_TiepNhan_BG',
         status: 'WaitingHandover' 
       };
-    return { 
-      currentStep: isQT2 ? 'S1_ChuanBi' : 'GD1_ChuanBi', 
-      status: 'Processing' 
-    };
-  }
-  
-  if (hasHandover) 
-    return { currentStep: 'Hoan_Tat', status: 'Completed' };
-  
-  if (isQT2) {
-    if (app.gcnReceivedDate)        return { currentStep: 'S7_1_PTT_Tiep_Nhan', status: 'WaitingHandover' };
-    if (app.ptdaHandoverDate)       return { currentStep: 'S7_PTDA_Ban_Giao', status: 'WaitingHandover' };
-    if (app.gcnSignedDate)          return { currentStep: 'S6_Nhan_So_GCN', status: 'GCN_Issued' };
-    if (app.taxReceiptDate)         return { currentStep: 'S5_1_PTDA_TiepNhan', status: 'TaxCompleted' };
-    if (app.taxNotificationDate)    return { currentStep: 'S5_Tai_Chinh_Khach_Hang', status: 'TaxPending' };
-    
-    if (app.submissionDate && !app.taxNotificationDate) {
-      const subDate = new Date(app.submissionDate);
-      const daysDiff = (new Date().getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
-      const sla = slaConfig?.['Nộp VPĐK'] ?? 5;
-      return daysDiff > sla
-        ? { currentStep: 'S4_Cho_Thong_Bao_Thue', status: 'TaxPending' }
-        : { currentStep: 'S3_Nop_VPDK', status: 'Submitted' };
+    else
+      inferred = { 
+        currentStep: isQT2 ? 'S1_ChuanBi' : 'GD1_ChuanBi', 
+        status: 'Processing' 
+      };
+  } else if (hasHandover) {
+    inferred = { currentStep: 'Hoan_Tat', status: 'Completed' };
+  } else if (isQT2) {
+    if (app.gcnReceivedDate)        inferred = { currentStep: 'S7_1_PTT_Tiep_Nhan', status: 'WaitingHandover' };
+    else if (app.ptdaHandoverDate)  inferred = { currentStep: 'S7_PTDA_Ban_Giao', status: 'WaitingHandover' };
+    else if (app.gcnSignedDate)     inferred = { currentStep: 'S6_Nhan_So_GCN', status: 'GCN_Issued' };
+    else if (app.taxReceiptDate)    inferred = { currentStep: 'S5_1_PTDA_TiepNhan', status: 'TaxCompleted' };
+    else if (app.taxNotificationDate) inferred = { currentStep: 'S5_Tai_Chinh_Khach_Hang', status: 'TaxNotificationReceived' };
+    else if (app.submissionDate) {
+      inferred = { currentStep: 'S3_Nop_VPDK', status: 'Submitted' };
     }
-    
-    if (app.vpdkCode)               return { currentStep: 'S3_Nop_VPDK', status: 'Submitted' };
-    
-    if (app.accountingHandoverDate && !app.submissionDate) {
-      return { currentStep: 'S2_KT_Tiep_Nhan', status: 'Processing' };
-    }
-    if (!app.accountingHandoverDate) {
-      return { currentStep: 'S1_ChuanBi', status: 'Processing' };
-    }
-    
-    return { currentStep: 'S1_ChuanBi', status: 'Processing' };
+    else if (app.vpdkCode)          inferred = { currentStep: 'S3_Nop_VPDK', status: 'Submitted' };
+    else if (app.accountingHandoverDate) inferred = { currentStep: 'S2_KT_Tiep_Nhan', status: 'Processing' };
+    else inferred = { currentStep: 'S1_ChuanBi', status: 'Processing' };
   } else {
-    if (app.gcnReceivedDate)        return { currentStep: 'GD5_Cho_PTT_TiepNhan_BG', status: 'WaitingHandover' };
-    if (app.gcnSignedDate)          return { currentStep: 'GD5_Cho_GCN', status: 'GCN_Issued' };
-    if (app.taxReceiptDate)         return { currentStep: 'GD4_Cho_KT_TiepNhan_LaySo', status: 'TaxCompleted' };
-    if (app.taxNotificationDate)    return { currentStep: 'GD4_Cho_Nop_NVTC', status: 'TaxPending' };
-
-    if (app.submissionDate && !app.taxNotificationDate) {
+    if (app.gcnReceivedDate)        inferred = { currentStep: 'GD5_Cho_PTT_TiepNhan_BG', status: 'WaitingHandover' };
+    else if (app.gcnSignedDate)     inferred = { currentStep: 'GD5_Cho_GCN', status: 'GCN_Issued' };
+    else if (app.taxReceiptDate)    inferred = { currentStep: 'GD4_Cho_KT_TiepNhan_LaySo', status: 'TaxCompleted' };
+    else if (app.taxNotificationDate) inferred = { currentStep: 'GD4_Cho_Nop_NVTC', status: 'TaxNotificationReceived' };
+    else if (app.submissionDate) {
       const subDate = new Date(app.submissionDate);
       const daysDiff = (new Date().getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
-      const sla = slaConfig?.['Nộp VPĐK'] ?? 5;
-      return daysDiff > sla
-        ? { currentStep: 'GD3_Cho_TBThue', status: 'TaxPending' }
-        : { currentStep: 'GD3_Cho_TBThue', status: 'Submitted' };
+      // Đồng nhất với Dashboard: > 7 ngày là Chờ TB Thuế
+      if (daysDiff > 7) {
+        inferred = { currentStep: 'GD3_Cho_TBThue', status: 'TaxPending' };
+      } else {
+        inferred = { currentStep: 'GD3_Cho_TBThue', status: 'Submitted' };
+      }
     }
-
-    if (app.vpdkCode)               return { currentStep: 'GD2_Cho_Nop_VPDK', status: 'WaitingVPDK' };
-    
-    if (app.accountingHandoverDate && !app.submissionDate) {
-      return { currentStep: 'GD1_Cho_KT_TiepNhan', status: 'Processing' };
-    }
-    if (!app.accountingHandoverDate) {
-      return { currentStep: 'GD1_ChuanBi', status: 'Processing' };
-    }
-    
+    else if (app.vpdkCode)          inferred = { currentStep: 'GD2_Cho_Nop_VPDK', status: 'WaitingVPDK' };
+    else if (app.accountingHandoverDate) inferred = { currentStep: 'GD1_Cho_KT_TiepNhan', status: 'Processing' };
+    else inferred = { currentStep: 'GD1_ChuanBi', status: 'Processing' };
   }
+
+  // Chống nhảy lùi bước: Chỉ cập nhật nếu bước mới tiến xa hơn hoặc bằng bước hiện tại
+  // Ngoại trừ trường hợp hồ sơ đang có lỗi/sai sót (chủ động lùi để sửa) hoặc reset
+  const inferredIdx = steps.indexOf(inferred.currentStep);
+  if (inferredIdx < currentIdx && app.status !== 'Error' && !app._forceRegression) {
+    return { currentStep: app.currentStep, status: app.status };
+  }
+
+  return inferred;
 };
 
 export function validateDateSequence(app: Partial<Application>): string | null {
