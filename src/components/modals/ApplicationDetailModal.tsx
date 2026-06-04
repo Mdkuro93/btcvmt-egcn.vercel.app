@@ -11,6 +11,38 @@ import { DetailCard, StatusBadge } from '../AppSubComponents';
 import { WORKFLOW_1_STEPS, WORKFLOW_2_STEPS, STEP_CONFIG as INITIAL_STEP_CONFIG, getNextStep } from '../../constants';
 import { getOverdueInfo, getPhaseIndex } from '../../utils/appUtils';
 
+const formatLogTime = (timeStr: string) => {
+  if (!timeStr) return '---';
+  
+  if (timeStr.includes(',') && timeStr.includes('/')) {
+      const parts = timeStr.split(',');
+      const timePart = parts[1] ? parts[1].trim() : '';
+      const datePart = parts[0] ? parts[0].trim() : '';
+      return timePart ? `${timePart} - ${datePart}` : datePart;
+  }
+
+  try {
+    const date = new Date(timeStr);
+    if (isNaN(date.getTime())) return timeStr;
+
+    const d = date.getDate().toString().padStart(2, '0');
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const y = date.getFullYear();
+    const hh = date.getHours().toString().padStart(2, '0');
+    const mm = date.getMinutes().toString().padStart(2, '0');
+
+    const isDateOnly = (timeStr.length <= 10 && !timeStr.includes(':')) || (hh === '00' && mm === '00' && !timeStr.includes(':') && !timeStr.includes('T'));
+    
+    if (isDateOnly) {
+        return `${d}/${m}/${y}`;
+    }
+
+    return `${hh}:${mm} - ${d}/${m}/${y}`;
+  } catch (e) {
+    return timeStr;
+  }
+};
+
 export const ApplicationDetailModal = ({
   selectedApp,
   editApp,
@@ -913,7 +945,11 @@ export const ApplicationDetailModal = ({
                                                content: entry.changes || '',
                                              }));
                                              
-                                             const merged = [...h, ...a].sort((x, y) => (y.time || '').localeCompare(x.time || ''));
+                                             const merged = [...h, ...a].sort((x, y) => {
+                                               const dateX = new Date(x.time || 0).getTime();
+                                               const dateY = new Date(y.time || 0).getTime();
+                                               return dateY - dateX;
+                                             });
                                              
                                              if (merged.length === 0) return (
                                                <tr>
@@ -926,7 +962,7 @@ export const ApplicationDetailModal = ({
                                              return merged.map((log, index) => (
                                                <tr key={`${log.type}-${log.id || 'noid'}-${log.time || 'notime'}-${index}`} className={cn("border-b transition-colors group", theme === 'dark' ? "border-slate-800/50 hover:bg-slate-800/20 text-slate-300" : "border-slate-100 hover:bg-slate-50 text-slate-700")}>
                                                  <td className="p-3 text-[11px] whitespace-nowrap align-top pt-4">
-                                                   <div className="font-bold">{log.time}</div>
+                                                   <div className="font-bold">{formatLogTime(log.time)}</div>
                                                  </td>
                                                  <td className="p-3 text-[11px] font-bold text-indigo-400 align-top pt-4 whitespace-nowrap">
                                                    {log.user}

@@ -1,0 +1,95 @@
+src/components/tabs/ApplicationsTab.tsx:142:                key="applications"
+src/components/tabs/ApplicationsTab.tsx:206:                              key={`sort-${field}-${idx}`}
+src/components/tabs/ApplicationsTab.tsx:297:                                        key={`flag-${item.key}-${idx}`}
+src/components/tabs/ApplicationsTab.tsx:451:                                  key={`filter-tag-${idx}-${act.label}`}
+src/components/tabs/ApplicationsTab.tsx:710:                              <th key={`head-${f.key}-${index}`} className="px-2 py-2 text-center whitespace-nowrap bg-indigo-500/5 border-b border-slate-800/10">{f.label}</th>
+src/components/tabs/ApplicationsTab.tsx:764:                              key={`app-row-${app.id || 'new'}-${app.unitCode || 'none'}-${index}`} 
+src/components/tabs/ApplicationsTab.tsx:940:                                      key={`cell-${app.id}-${f.key}-${fIdx}`} 
+src/components/tabs/DashboardTab.tsx:58:                key="dashboard"
+src/components/tabs/DashboardTab.tsx:352:                                <Cell key={`cell-normal-dashboard-progress-${entry.color || index}-${index}`} fill={entry.color} />
+src/components/tabs/DashboardTab.tsx:465:                                    key={`cell-pie-dashboard-overall-${entry.name || index}-${index}`} 
+src/components/tabs/DashboardTab.tsx:521:                                               <Cell key={`cell-ratio-dashboard-loan-${entry.name || index}-${index}`} fill={entry.color} />
+src/components/tabs/DashboardTab.tsx:561:                                                 key={`cell-loan-status-dashboard-${entry.name || index}-${index}`} 
+src/components/tabs/DashboardTab.tsx:629:                          <div key={`dept-${dept.dept}-${idx}`} className={cn(
+src/components/tabs/DashboardTab.tsx:684:                            <option key={`region-opt-${index}`} value={r}>{r}</option>
+src/components/tabs/DashboardTab.tsx:716:                                key={`project-row-${p.id || p.name}-${index}`} 
+src/components/tabs/ResourcesTab.tsx:20:                key="resources"
+src/components/tabs/ResourcesTab.tsx:55:                        <div key={`${item}-${idx}`} className={cn(
+src/components/tabs/ResourcesTab.tsx:122:                          <button key={`resource-doc-${idx}`} className={cn(
+src/components/modals/BulkIssueModal.tsx:105:                  key={`severity-${value}`}
+src/components/modals/UserManagementModal.tsx:65:                          key={p.val}
+src/components/modals/UserManagementModal.tsx:166:                        <label key={`project-assign-${project.id}-${index}`} className="flex items-center gap-2 p-2 hover:bg-slate-800/50 rounded-lg cursor-pointer transition-colors">
+src/components/modals/CreateApplicationModal.tsx:104:                            <option key={`create-proj-opt-${p.id || 'none'}-${pIdx}`} value={p.name}>{p.name}</option>
+src/components/modals/ProjectModal.tsx:150:                    <div key={`project-checklist-${idx}`} className="flex gap-2">
+src/components/modals/ApplicationDetailModal.tsx:360:                          <div key={label} className={cn("flex flex-col items-center gap-4", appData.workflowType === 'Quy_trinh_1' && label === '07' ? "hidden" : "")}>
+src/components/modals/ApplicationDetailModal.tsx:547:                                           key={`chk-${item}-${idx}`}
+src/components/modals/ApplicationDetailModal.tsx:931:                                               <tr key={`${log.type}-${log.id || 'noid'}-${log.time || 'notime'}-${index}`} className={cn("border-b transition-colors group", theme === 'dark' ? "border-slate-800/50 hover:bg-slate-800/20 text-slate-300" : "border-slate-100 hover:bg-slate-50 text-slate-700")}>
+src/components/modals/ApplicationDetailModal.tsx:987:                                           key={`${file.id}-${index}`}
+src/components/modals/ImportPreviewModal.tsx:99:                  <li key={`err-${e.substring(0, 10).replace(/[^a-zA-Z0-9]/g, "")}-${i}`} className="text-rose-600 text-sm font-medium">{e}</li>
+src/components/modals/ImportPreviewModal.tsx:112:                  <li key={`dup-${w.substring(0, 10).replace(/[^a-zA-Z0-9]/g, "")}-${i}`} className="text-rose-600 text-sm font-medium">{w}</li>
+src/components/modals/ImportPreviewModal.tsx:125:                  <li key={`cross-${w.substring(0, 10).replace(/[^a-zA-Z0-9]/g, "")}-${i}`} className="text-amber-700 text-sm font-medium leading-relaxed">{w}</li>
+src/components/modals/ImportPreviewModal.tsx:138:                  <li key={`other-${w.substring(0, 10).replace(/[^a-zA-Z0-9]/g, "")}-${i}`} className="text-amber-700 text-sm font-medium">{w}</li>
+src/components/SettingsView.tsx:169:                    <div key={step} className={cn(
+src/components/SettingsView.tsx:213:                    <div key={step} className={cn(
+src/components/SettingsView.tsx:285:                <div key={`${item}-${idx}`} className={cn(
+src/components/SettingsView.tsx:632:                    <tr key={`${workflowTab}-${key}-${index}`} className={cn(
+src/components/AppSubComponents.tsx:128:                  options.map((opt, idx) => <option key={`${opt}-${idx}`} value={opt}>{opt}</option>)
+src/components/AppSubComponents.tsx:170:        key={`festive-fw-${i}`}
+src/components/ResourcesCenter.tsx:30:           <div key={cat.name} className={cn(
+src/components/ResourcesCenter.tsx:67:             <div key={`resource-item-${i}`} className="p-6 flex items-center justify-between group hover:bg-slate-800/10 transition-all">
+src/components/HandoverRecord.tsx:53:              <React.Fragment key={`${app.id}-${idx}`}>
+src/components/HandoverRecord.tsx:65:                          <span key={`${f.id || 'file'}-${fIdx}`} className="truncate max-w-[100px]">• {f.name}</span>
+src/components/HandoverRecord.tsx:77:                          key={`${f.id || 'file-link'}-${fIdx}`} 
+src/components/HandoverRecord.tsx:92:              <tr key={`skeleton-${i}`}>
+src/components/UserManagementView.tsx:61:              <tr key={`${user.id}-${idx}`} className={cn(
+src/components/ErrorReportView.tsx:267:                      <Cell key={`err-severity-cell-${index}`} fill={entry.color} />
+src/components/ErrorReportView.tsx:329:                      <Cell key={`err-type-cell-${index}`} fill={index === 0 ? '#ef4444' : index === 1 ? '#f59e0b' : '#6366f1'} />
+src/components/ErrorReportView.tsx:372:                    <tr key={`error-matrix-row-${type}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
+src/components/ErrorReportView.tsx:435:                    <Cell key={`err-step-cell-${index}`} fill={index % 2 === 0 ? '#8b5cf6' : '#6366f1'} />
+src/components/ErrorReportView.tsx:487:                    key={`${app.id}-${index}`} 
+src/components/NotificationPanel.tsx:110:                  key={`${rem.id}-${index}`}
+src/components/NotificationPanel.tsx:149:                key={`${n.id || 'notif'}-${idx}`} 
+src/components/FieldModeView.tsx:438:              key={`proj-tab-${p.id}-${index}`}
+src/components/FieldModeView.tsx:525:                  key={`field-app-${app.id}-${index}`} 
+src/components/FieldModeView.tsx:822:                                      key={`edit-st-${st.val}`}
+src/components/FieldModeView.tsx:1019:                                                 <option key={`back-st-${st}-${idx}`} value={st}>
+src/components/FieldModeView.tsx:1081:                                       <div key={`timeline-${stepKey}-${idx}`} className="flex gap-4 items-start text-left relative">
+src/components/FieldModeView.tsx:1166:                                  <div key={`file-list-item-${file.id || i}`} className="py-2.5 flex items-center justify-between text-left">
+src/components/DashboardCharts.tsx:128:                    <Cell key={`cell-normal-${index}`} fill={entry.color} />
+src/components/DashboardCharts.tsx:138:                    <Cell key={`cell-error-${index}`} fill="#ef4444" />
+src/components/DashboardCharts.tsx:197:                      key={`cell-pie-dashboard-${entry.name || index}-${index}`} 
+src/components/DashboardCharts.tsx:230:              <div key={`pie-legend-${entry.name}-${index}`} className="flex flex-col gap-0.5">
+src/components/ReportsView.tsx:564:              key={`nav-err-sw-${type}-${idx}`}
+src/components/ReportsView.tsx:578:            key="nav-error-ERROR"
+src/components/ReportsView.tsx:628:              key={`nav-main-sw-${type}-${idx}`}
+src/components/ReportsView.tsx:642:          key="nav-main-ERROR"
+src/components/ReportsView.tsx:684:            <option key={`export-proj-opt-${p.id}-${pIdx}`} value={p.id}>
+src/components/ReportsView.tsx:728:            key={reportType}
+src/components/ReportsView.tsx:747:                    <span key={`${r}-${idx}`} className="px-2 py-0.5 bg-indigo-500/10 text-indigo-500 text-[8px] font-black rounded-lg border border-indigo-500/20">{r}</span>
+src/components/ReportsView.tsx:754:                 <div key={`kpi-${kpi}-${i}`} className="space-y-1">
+src/components/ReportsView.tsx:817:                          key={`loan-proj-filter-${p.id}-${pIdx}`}
+src/components/ReportsView.tsx:894:                                   <Cell key={`loan-pie-cell-${index}-${entry.name}`} fill={entry.color} />
+src/components/ReportsView.tsx:950:                                   <Cell key={`loan-bar-cell-${index}-${entry.name}`} fill={entry.color} />
+src/components/ReportsView.tsx:998:                            key={`${app.id}-${index}`} 
+src/components/ReportsView.tsx:1117:                           <div key={`usr-perf-stat-${user.id || 'u'}-${i}`} className={cn(
+src/components/ReportsView.tsx:1148:                      <div key={`top-user-card-${user.id || 'n'}-${index}`} className={cn(
+src/components/ReportsView.tsx:1189:                              <Cell key={`sla-chart-cell-${index}`} fill={entry.isCritical ? '#f43f5e' : entry.avgDays > 5 ? '#f59e0b' : '#6366f1'} />
+src/components/ReportsView.tsx:1200:                           <div key={`${item.step}-${i}`} className={cn(
+src/components/ReportsView.tsx:1312:                  <div key={`proj-ranking-list-${p.id || p.name || 'e'}-${i}`} className="flex items-center gap-4">
+src/components/ProjectManagementView.tsx:102:             key={`${region}-${idx}`} 
+src/components/ProjectManagementView.tsx:147:                        key={`${project.id}-${pIdx}`}
+src/components/Sidebar.tsx:353:              <div key={`side-reg-${region}-${regIndex}`} className="space-y-1">
+src/components/Sidebar.tsx:400:                          key={`sidebar-proj-${p.id}-${pIndex}`} 
+src/components/ThemeToggle.tsx:47:              key="moon"
+src/components/ThemeToggle.tsx:57:              key="sun"
+src/components/ThemeToggle.tsx:72:               key={`toggle-particle-${i}`}
+src/App.tsx:5857:                key="dashboard-tab-view"
+src/App.tsx:5899:                key="applications-tab-view"
+src/App.tsx:6023:                key="users"
+src/App.tsx:6042:                key="projects"
+src/App.tsx:6077:                key="reports"
+src/App.tsx:6101:                key="settings"
+src/App.tsx:6129:                key="resources-tab-view"
+src/App.tsx:6424:                        <option key="all-projects-filter" value="ALL">Tất cả dự án</option>
+src/App.tsx:6426:                          <option key={`project-filter-${p.id}-${index}`} value={p.id}>{p.name}</option>
+src/App.tsx:6441:                        <option key="all-status-filter" value="ALL">Tất cả trạng thái</option>

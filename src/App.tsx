@@ -8,6 +8,7 @@ import { diffDays } from './utils/dateUtils';
 import { buildFlags } from './utils/flagUtils';
 import { mapFromSnakeCase, mapToSnakeCase, mapUserFromSnakeCase, mapUserToSnakeCase, safeParse } from './utils/mappers';
 import { calculateDaysDiff, calculateDaysBetweenDates, getPhaseIndex, getTaxStatus, getOverdueInfo, inferStepFromDates } from './utils/appUtils';
+import { WorkflowEngine } from './utils/workflowEngine';
 import { StatCard, StatusBadge, DetailCard, FestiveBranding, PrintStyles } from './components/AppSubComponents';
 
 import { useExcelImport } from './hooks/useExcelImport';
@@ -22,6 +23,7 @@ const generateUUID = (): string => {
     return v.toString(16);
   });
 };
+
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Cell,
   PieChart, Pie, LabelList, Label, Legend, AreaChart, Area
@@ -222,7 +224,11 @@ console.log('[Key Check]', {
  * If a record has customerHandoverDate but is not in Hoan_Tat step or Completed status,
  * this function identifies it and triggers a sync back to Supabase.
  */
-const useSelfHealingData = (applications: Application[], setApplications: (apps: Application[]) => void) => {
+const useSelfHealingData = (
+  applications: Application[], 
+  setApplications: (apps: Application[]) => void,
+  registerSelfUpdate?: (idOrIds: (number | string) | (number | string)[]) => void
+) => {
   const { showToast } = useToast();
   const healingRef = useRef(false);
 
@@ -254,6 +260,9 @@ const useSelfHealingData = (applications: Application[], setApplications: (apps:
 
       try {
         console.log(`[Self-Healing] Detected ${inconsistentApps.length} inconsistent records. Syncing to Supabase...`);
+        if (registerSelfUpdate) {
+          registerSelfUpdate(healedApps.map(a => a.id));
+        }
         // Bulk update the inconsistent ones
         const updatedApps = await bulkSyncRecordsToSupabase(healedApps, applications, showToast);
         setApplications(updatedApps);
@@ -472,6 +481,38 @@ const parseExcelDate = (value: any): string | undefined => {
 // HandoverRecord template moved to components/
 
 export default function App() {
+  const { toast, showToast } = useToast();
+  const selfUpdateRef = useRef<Set<number>>(new Set());
+
+  const registerSelfUpdate = useCallback((idOrIds: (number | string) | (number | string)[]) => {
+    const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
+    ids.forEach(id => {
+      const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
+      if (!isNaN(numericId)) {
+        selfUpdateRef.current.add(numericId);
+        setTimeout(() => {
+          selfUpdateRef.current.delete(numericId);
+        }, 5000);
+      }
+    });
+  }, []);
+
+  const localSyncRecord = useCallback(async (app: Application) => {
+    const finalApp = await syncRecordToSupabase(app);
+    if (finalApp && finalApp.id) {
+      registerSelfUpdate(finalApp.id);
+    }
+    return finalApp;
+  }, [registerSelfUpdate]);
+
+  const localBulkSync = useCallback(async (appsToSync: Application[], allApplications: Application[], showToastArg?: any) => {
+    const finalApps = await bulkSyncRecordsToSupabase(appsToSync, allApplications, showToastArg || showToast);
+    const syncedIds = finalApps
+      .filter(fa => appsToSync.some(a => a.unitCode === fa.unitCode && a.projectName === fa.projectName))
+      .map(fa => fa.id);
+    registerSelfUpdate(syncedIds);
+    return finalApps;
+  }, [registerSelfUpdate, showToast]);
   
   const [search, setSearch] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
@@ -741,7 +782,7 @@ export default function App() {
     });
   }, [sortApplications]);
 
-  useSelfHealingData(applications, handleSetApplications);
+  useSelfHealingData(applications, handleSetApplications, registerSelfUpdate);
 
   const handleSetDashboardApps = useCallback((newDataOrUpdater: Application[] | ((prev: Application[]) => Application[])) => {
     setDashboardApps(prev => {
@@ -1207,6 +1248,13 @@ export default function App() {
 
             if (eventType === 'INSERT') {
               const newApp = mapFromSnakeCase(newRow);
+              
+              const isSelfUpdated = selfUpdateRef.current.has(newApp.id as number);
+              if (isSelfUpdated) {
+                selfUpdateRef.current.delete(newApp.id as number);
+                return;
+              }
+
               handleSetApplications(prev => {
                 const exists = prev.some(a => a.id === newApp.id);
                 if (exists) return prev;
@@ -1226,6 +1274,12 @@ export default function App() {
             else if (eventType === 'UPDATE') {
               const updatedApp = mapFromSnakeCase(newRow);
               
+              const isSelfUpdated = selfUpdateRef.current.has(updatedApp.id as number);
+              if (isSelfUpdated) {
+                selfUpdateRef.current.delete(updatedApp.id as number);
+                return; // SKIP local update because it is already synchronized locally
+              }
+
               handleSetApplications(prev => prev.map(a => 
                 a.id === updatedApp.id ? updatedApp : a
               ));
@@ -1233,15 +1287,10 @@ export default function App() {
                 a.id === updatedApp.id ? updatedApp : a
               ));
 
-              const isSelfUpdated = selfUpdateRef.current.has(updatedApp.id as number);
-              if (isSelfUpdated) {
-                selfUpdateRef.current.delete(updatedApp.id as number);
-              } else {
-                showToast(
-                  `📋 Hồ sơ ${updatedApp.unitCode} vừa được cập nhật bởi người khác`,
-                  'info'
-                );
-              }
+              showToast(
+                `📋 Hồ sơ ${updatedApp.unitCode} vừa được cập nhật bởi người khác`,
+                'info'
+              );
 
               // Nếu user đang xem/sửa hồ sơ này
               setSelectedApp(prev => {
@@ -1264,6 +1313,13 @@ export default function App() {
 
             else if (eventType === 'DELETE') {
               const deletedId = oldRow.id;
+              
+              const isSelfDeleted = selfUpdateRef.current.has(deletedId as number);
+              if (isSelfDeleted) {
+                selfUpdateRef.current.delete(deletedId as number);
+                return; // SKIP local update
+              }
+
               handleSetApplications(prev => 
                 prev.filter(a => a.id !== deletedId)
               );
@@ -2065,7 +2121,6 @@ export default function App() {
   }, [activeTab]);
   const [isEditing, setIsEditing] = useState(false);
   const [conflictWarning, setConflictWarning] = useState<string | null>(null);
-  const selfUpdateRef = useRef<Set<number>>(new Set());
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editUser, setEditUser] = useState<UserProfile | null>(null);
   const [newUser, setNewUser] = useState({
@@ -2147,7 +2202,6 @@ export default function App() {
     setIsHandoverTicketOpen(true);
   };
   
-  const { toast, showToast } = useToast();
   const [isSavingApp, setIsSavingApp] = useState(false);
 
   const {
@@ -2170,7 +2224,7 @@ export default function App() {
   } = useBulkActions({
     applications,
     setApplications,
-    bulkSyncRecordsToSupabase,
+    bulkSyncRecordsToSupabase: localBulkSync,
     updateAppIssue,
     showToast,
     setIsSavingApp,
@@ -2405,7 +2459,7 @@ export default function App() {
 
     setIsSavingApp(true);
     try {
-      const finalApp = await syncRecordToSupabase(updatedApp);
+      const finalApp = await localSyncRecord(updatedApp);
       
       handleSetApplications(prev => prev.map(a => a.id === id ? finalApp : a));
       handleSetDashboardApps(prev => prev.map(a => a.id === id ? finalApp : a));
@@ -2464,7 +2518,7 @@ export default function App() {
             };
         });
 
-        const syncedApps = await Promise.all(updatedApps.map(app => syncRecordToSupabase(app)));
+        const syncedApps = await Promise.all(updatedApps.map(app => localSyncRecord(app)));
         
         handleSetApplications(prev => prev.map(a => {
             const updated = syncedApps.find(sa => sa.id === a.id);
@@ -2994,7 +3048,7 @@ export default function App() {
     setHighlightedAppId,
     setActiveTab,
     visibleProjects,
-    bulkSyncRecordsToSupabase,
+    bulkSyncRecordsToSupabase: localBulkSync,
     supabase,
     userRole
   });
@@ -3272,7 +3326,7 @@ export default function App() {
       id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       userId: currentUser?.id || 'admin',
       userName: currentUser?.name || 'Admin',
-      timestamp: new Date().toLocaleString('vi-VN'),
+      timestamp: new Date().toISOString(),
       action: `${mode} ${action}`,
       changes: detail || (isBulk ? `Xử lý đồng thời ${count} hồ sơ` : `Cập nhật hồ sơ ${unitCode}`)
     };
@@ -3284,20 +3338,20 @@ export default function App() {
     
     try {
       if (editApp.id) {
-        selfUpdateRef.current.add(editApp.id as number);
-        setTimeout(() => {
-          selfUpdateRef.current.delete(editApp.id as number);
-        }, 2000);
+        registerSelfUpdate(editApp.id);
       }
 
       const auditEntry = createAuditEntry('Cập nhật thông tin', false, 1, editApp.unitCode, 'Chỉnh sửa chi tiết hồ sơ');
 
+      const inferred = inferStepFromDates(editApp, slaConfig);
       const updatedApp = {
         ...editApp,
+        currentStep: inferred.currentStep,
+        status: inferred.status === 'Error' ? editApp.status : inferred.status,
         auditTrail: [auditEntry, ...(editApp.auditTrail || [])]
       };
 
-      const finalApp = await syncRecordToSupabase(updatedApp);
+      const finalApp = await localSyncRecord(updatedApp);
       const oldId = updatedApp.id;
 
       handleSetApplications(prev => prev.map(app => app.id === oldId ? finalApp : app));
@@ -3396,121 +3450,39 @@ export default function App() {
     const app = overrideApp || editApp || selectedApp;
     if (!app) return;
 
-    // --- PRIORITIZED SELF-SERVICE JUMP LOGIC (At the absolute top) ---
-    const currStepCfg = stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep];
-    const currentStepDept = currStepCfg?.dept;
-    const isSelfServiceJumpEligible = app.isSelfService && ['PTT', 'PTDA', 'KT'].includes(currentStepDept as any);
-
-    if (isSelfServiceJumpEligible) {
-      nextStep = 'Hoan_Tat';
-    }
-    // -------------------------------------------------------------
-    
-    // Allow transition if returning (nextIdx < currentIdx) even if there are errors, 
-    // because returning is often the way to flag an error.
-    const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
-    const currentIdx = workflowSteps.indexOf(app.currentStep);
-    const nextIdx = workflowSteps.indexOf(nextStep);
-    const isMovingForward = nextIdx > currentIdx;
-
-    if (isMovingForward && (app.status === 'Error' || app.isRejected)) {
-      showToast('Hồ sơ đang bị sai sót/vướng mắc hoặc bị trả về. Hãy hoàn thành khắc phục trước khi chuyển bước.', 'error');
+    // Sử dụng WorkflowEngine tập trung
+    const transitionCheck = WorkflowEngine.validateTransition(app, nextStep, userRole);
+    if (!transitionCheck.success) {
+      showToast(transitionCheck.message || 'Lỗi chuyển bước', transitionCheck.type as 'error' | 'warning');
       return;
     }
-
-    // Field validations
-    if (isMovingForward) {
-      if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
-        if (nextIdx > currentIdx + 1 && !isSelfServiceJumpEligible) {
-          showToast('Hồ sơ yêu cầu chuyển bước tuần tự (trừ hồ sơ khách tự làm sổ).', 'error');
-          return;
-        }
-      }
-
-    // Date order validation for single transition
-      const chronoError = validateDateSequence(app);
-      if (chronoError) {
-        if (chronoError.startsWith('⚠️')) {
-          showToast(chronoError, 'warning');
-        } else {
-          showToast(`Lỗi trình tự ngày: ${chronoError}`, 'warning');
-          return;
-        }
-      }
-
-      // Workflow validations
-      if (app.workflowType === 'Quy_trinh_2') {
-        if (app.currentStep === 'S2_KT_Tiep_Nhan' && nextStep === 'S2_KT_Ban_giao') {
-           // Allow
-        }
-        if (app.currentStep === 'S2_KT_Ban_giao' && nextStep === 'S3_Nop_VPDK') {
-          // ...
-        }
-        if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' && nextStep === 'S5_1_PTDA_TiepNhan') {
-           // PTT đôn đốc xong chuyển cho PTDA tiếp nhận chứng từ
-        }
-        if (app.currentStep === 'S5_1_PTDA_TiepNhan' && nextStep === 'S6_Nhan_So_GCN') {
-          if (!app.taxReceiptDate) {
-            showToast('Bắt buộc nhập Ngày nộp NPVTC / Nhận chứng từ thuế trước khi chuyển tới B6.', 'warning');
-            return;
-          }
-          if (!app.gcnSignedDate) {
-            showToast('Bắt buộc nhập Ngày trình ký/In GCN trước khi chuyển bước.', 'warning');
-            return;
-          }
-        }
-        if (app.currentStep === 'S6_Nhan_So_GCN' && nextStep === 'S7_PTDA_Ban_Giao') {
-          if (!app.ptdaHandoverDate) {
-            showToast('Bắt buộc nhập Ngày bàn giao GCN cho PTT trước khi chuyển bước.', 'warning');
-            return;
-          }
-        }
-        if (app.currentStep === 'S7_2_Ban_Giao_Khach' && nextStep === 'Hoan_Tat') {
-          if (!app.customerHandoverDate) {
-            showToast('Bắt buộc nhập Ngày BG GCN cho khách trước khi hoàn tất.', 'warning');
-            return;
-          }
-        }
-      } else {
-        // Workflow 1 validations (assuming similar to previous)
-        const ktSteps = ['S2_KT_Tiep_Nhan', 'GD1_KT_HoanThien'];
-        if (ktSteps.concat(['S3_Nop_VPDK', 'GD1_Nop_VPDK']).includes(nextStep) && ktSteps.includes(app.currentStep) && nextStep !== app.currentStep) {
-          if (!app.contractSigningDate) {
-            showToast('Bắt buộc nhập Ngày ký HĐCN/HĐMB trước khi chuyển bước.', 'warning');
-            return;
-          }
-        }
-        
-        if ((app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD1_Nop_VPDK') && (nextStep === 'S4_Cho_Thong_Bao_Thue' || nextStep === 'GD3_Cho_TBThue')) {
-          if (!app.submissionDate) {
-            showToast('Yêu cầu nhập đầy đủ: Ngày nộp VPĐK.', 'warning');
-            return;
-          }
-        }
-      }
-    }
-
-    // Smart logic for step bypassing: Step 3 (PTDA) bypasses Step 4 to Step 5 (PTT)
-    let targetStep = nextStep;
-    if (app.currentStep === 'S3_Nop_VPDK' && isMovingForward && nextStep === 'S4_Cho_Thong_Bao_Thue') {
-      targetStep = 'S5_Tai_Chinh_Khach_Hang';
-    }
+    
+    const targetStep = transitionCheck.nextStep || nextStep;
+    
+    const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+    const currentIdx = workflowSteps.indexOf(app.currentStep as StepName);
+    const nextIdx = workflowSteps.indexOf(targetStep);
+    const isMovingForward = nextIdx > currentIdx;
 
     const nowStr = new Date().toISOString().split('T')[0];
+    const fullNow = new Date().toISOString();
     const prevHistory = [...app.history];
     if (prevHistory.length > 0) {
-      prevHistory[0] = { ...prevHistory[0], completedDate: nowStr };
+      prevHistory[0] = { ...prevHistory[0], completedDate: fullNow };
     }
 
+    const currentStepLabel = (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep]).label;
+    const targetStepLabel = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label;
     const nextDeptLabel = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).dept;
-    const handoverNote = note || `Hồ sơ đã được hoàn tất và tự động bàn giao sang bộ phận ${nextDeptLabel}`;
+    const transitionDirection = isMovingForward ? 'Chuyển' : 'Trả hồ sơ';
+    const handoverNote = note || `${transitionDirection} từ bước [${currentStepLabel}] sang [${targetStepLabel}] (Bộ phận xử lý tiếp theo: ${nextDeptLabel})`;
 
     const newHistory = [
       {
         id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        stepName: (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label,
+        stepName: targetStepLabel,
         dept: nextDeptLabel,
-        receivedDate: nowStr,
+        receivedDate: fullNow,
         note: handoverNote,
         performedBy: currentUser?.id,
         performedByName: currentUser?.name
@@ -3583,7 +3555,7 @@ export default function App() {
     };
 
     try {
-      const finalApp = await syncRecordToSupabase(updatedApp);
+      const finalApp = await localSyncRecord(updatedApp);
       await notifyNextDepartment(finalApp, targetStep);
 
       // Cleanup notifications if complete
@@ -3879,7 +3851,7 @@ export default function App() {
       });
       
       // Perform bulk upsert to Supabase
-      const finalApps = await bulkSyncRecordsToSupabase(appsToSync, updatedApps);
+      const finalApps = await localBulkSync(appsToSync, updatedApps);
       handleSetApplications(finalApps);
       handleSetDashboardApps(prev => {
         const next = [...prev];
@@ -3947,6 +3919,7 @@ export default function App() {
       }
 
       // 2. Delete from Database
+      registerSelfUpdate(selectedAppIds);
       const { error } = await supabase
         .from('records')
         .delete()
@@ -4047,13 +4020,16 @@ export default function App() {
       };
 
       // 3. Update record in Database
-      const finalApp = await syncRecordToSupabase(updatedApp);
+      const finalApp = await localSyncRecord(updatedApp);
+      
+      const auditEntry = createAuditEntry('Tải tài liệu', false, 1, app.unitCode, `Đã tải lên tài liệu "${file.name}"`);
+      const finalWithAudit = { ...finalApp, auditTrail: [auditEntry, ...(finalApp.auditTrail || [])] };
+      await localSyncRecord(finalWithAudit);
 
-      const updatedApps = applications.map(a => a.id === app.id ? finalApp : a);
-      handleSetApplications(updatedApps);
-      handleSetDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
-      if (editApp && editApp.id === app.id) setEditApp(finalApp);
-      if (selectedApp && selectedApp.id === app.id) setSelectedApp(finalApp);
+      handleSetApplications(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
+      handleSetDashboardApps(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
+      if (editApp && editApp.id === app.id) setEditApp(finalWithAudit);
+      if (selectedApp && selectedApp.id === app.id) setSelectedApp(finalWithAudit);
       
       showToast(`Đã tải tài liệu "${file.name}" lên Supabase Storage thành công.`, 'success');
     } catch (error) {
@@ -4093,13 +4069,16 @@ export default function App() {
       }
 
       // 2. Update DB record
-      const finalApp = await syncRecordToSupabase(updatedApp);
+      const finalApp = await localSyncRecord(updatedApp);
+      
+      const auditEntry = createAuditEntry('Xóa tài liệu', false, 1, app.unitCode, `Đã xóa tài liệu "${fileToDelete?.name || 'Tài liệu'}"`);
+      const finalWithAudit = { ...finalApp, auditTrail: [auditEntry, ...(finalApp.auditTrail || [])] };
+      await localSyncRecord(finalWithAudit);
 
-      const updatedApps = applications.map(a => a.id === app.id ? finalApp : a);
-      handleSetApplications(updatedApps);
-      handleSetDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
-      if (editApp && editApp.id === app.id) setEditApp(finalApp);
-      if (selectedApp && selectedApp.id === app.id) setSelectedApp(finalApp);
+      handleSetApplications(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
+      handleSetDashboardApps(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
+      if (editApp && editApp.id === app.id) setEditApp(finalWithAudit);
+      if (selectedApp && selectedApp.id === app.id) setSelectedApp(finalWithAudit);
       showToast(fileToDelete?.isShared ? 'Đã gỡ bỏ bản sao tài liệu chung.' : 'Đã xóa tài liệu khỏi hệ thống thành công.', 'success');
     } catch (error) {
       console.error('Supabase file delete error:', error);
@@ -4160,7 +4139,7 @@ export default function App() {
         }));
 
       // 4. Batch update to Supabase
-      const updatedApplications = await bulkSyncRecordsToSupabase(appsToUpdate, applications);
+      const updatedApplications = await localBulkSync(appsToUpdate, applications);
       
       handleSetApplications(updatedApplications);
       handleSetDashboardApps(prev => prev.map(a => {
@@ -4243,7 +4222,7 @@ export default function App() {
 
     setIsSavingApp(true);
     try {
-      const finalApp = await syncRecordToSupabase(updatedApp);
+      const finalApp = await localSyncRecord(updatedApp);
 
       handleSetApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
       setSelectedApp(finalApp);
@@ -4292,7 +4271,7 @@ export default function App() {
 
     setIsSavingApp(true);
     try {
-      const finalApp = await syncRecordToSupabase(updatedApp);
+      const finalApp = await localSyncRecord(updatedApp);
 
       handleSetApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
       setSelectedApp(finalApp);
@@ -4339,7 +4318,13 @@ export default function App() {
         history: newHistory
       };
 
-      const finalApp = await syncRecordToSupabase(updatedApp);
+      const auditEntry = createAuditEntry('Khắc phục vướng mắc', false, 1, app.unitCode, 'Đã xác nhận hoàn tất khắc phục sai sót/vướng mắc');
+      const updatedAppWithAudit = {
+        ...updatedApp,
+        auditTrail: [auditEntry, ...(app.auditTrail || [])]
+      };
+
+      const finalApp = await localSyncRecord(updatedAppWithAudit);
       
       handleSetApplications(prev => prev.map(a => a.id === appId ? finalApp : a));
       handleSetDashboardApps(prev => prev.map(a => a.id === appId ? finalApp : a));
@@ -4406,7 +4391,7 @@ export default function App() {
       );
       await Promise.all(promises);
 
-      const finalApp = await syncRecordToSupabase(updatedApp);
+      const finalApp = await localSyncRecord(updatedApp);
       const oldId = app.id;
 
       handleSetApplications(prev => prev.map(a => a.id === oldId ? finalApp : a));
@@ -4794,6 +4779,9 @@ export default function App() {
       if (error) throw error;
       
       const appToAdd = mapFromSnakeCase(data[0]);
+      if (appToAdd?.id) {
+        registerSelfUpdate(appToAdd.id);
+      }
 
       handleSetApplications(prev => [appToAdd, ...prev]);
       handleSetDashboardApps(prev => [appToAdd, ...prev]);
@@ -5541,7 +5529,7 @@ export default function App() {
             ...prev
           ]);
           try {
-            await syncRecordToSupabase(updated);
+            await localSyncRecord(updated);
           } catch (err) {
             console.error('Error syncing mobile update:', err);
           }

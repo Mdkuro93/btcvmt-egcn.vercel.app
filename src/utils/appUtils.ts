@@ -178,7 +178,75 @@ export const inferStepFromDates = (
       return { currentStep: 'GD1_ChuanBi', status: 'Processing' };
     }
     
-    return { currentStep: 'GD1_ChuanBi', status: 'Processing' };
   }
 };
+
+export function validateDateSequence(app: Partial<Application>): string | null {
+  const chronoDates = [
+    { key: 'receivedDate', label: 'Ngày nhận HS' },
+    { key: 'accountingHandoverDate', label: 'Ngày KT tiếp nhận' },
+    { key: 'submissionDate', label: 'Ngày nộp VPĐK' },
+    { key: 'taxNotificationDate', label: 'Ngày TB Thuế' },
+    { key: 'taxReceiptDate', label: 'Ngày nộp thuế/NVTC' },
+    { key: 'gcnSignedDate', label: 'Ngày ký GCN' },
+    { key: 'gcnReceivedDate', label: 'Ngày nhận GCN' },
+    { key: 'ptdaHandoverDate', label: 'Ngày PTDA bàn giao' },
+    { key: 'customerHandoverDate', label: 'Ngày BG Khách' }
+  ];
+
+  const isDateEmptyOrInvalid = (val: any) => {
+    if (!val || val === '---' || typeof val !== 'string' || val.trim() === '') return true;
+    return isNaN(new Date(val).getTime());
+  };
+
+  let maxFilledIdx = -1;
+  for (let i = chronoDates.length - 1; i >= 0; i--) {
+    if (!isDateEmptyOrInvalid(app[chronoDates[i].key as keyof Application])) {
+      maxFilledIdx = i;
+      break;
+    }
+  }
+
+  if (maxFilledIdx > 0) {
+    let hasBypass = false;
+    for (let i = 0; i < maxFilledIdx; i++) {
+      if (isDateEmptyOrInvalid(app[chronoDates[i].key as keyof Application])) {
+        hasBypass = true;
+        break;
+      }
+    }
+
+    if (!hasBypass) {
+      const activeDates = chronoDates
+        .slice(0, maxFilledIdx + 1)
+        .map(d => ({ ...d, value: app[d.key as keyof Application] }))
+        .filter(d => !isDateEmptyOrInvalid(d.value));
+
+      for (let i = 0; i < activeDates.length - 1; i++) {
+        const d1 = activeDates[i];
+        const d2 = activeDates[i+1];
+        const date1 = new Date(d1.value as string);
+        const date2 = new Date(d2.value as string);
+        date1.setHours(0, 0, 0, 0);
+        date2.setHours(0, 0, 0, 0);
+        
+        if (date2 < date1) {
+          return `${d2.label} không được nhỏ hơn ${d1.label}`;
+        }
+      }
+    }
+  }
+
+  if (!isDateEmptyOrInvalid(app.contractSigningDate) && !isDateEmptyOrInvalid(app.accountingHandoverDate)) {
+    const ktDate = new Date(app.accountingHandoverDate!);
+    const hdDate = new Date(app.contractSigningDate!);
+    ktDate.setHours(0,0,0,0);
+    hdDate.setHours(0,0,0,0);
+    if (hdDate < ktDate) {
+      return `⚠️ Ngày ký HĐCN (${app.contractSigningDate}) nhỏ hơn ngày KT tiếp nhận (${app.accountingHandoverDate}). Vui lòng kiểm tra lại nếu là hồ sơ đặc thù.`;
+    }
+  }
+
+  return null;
+}
 

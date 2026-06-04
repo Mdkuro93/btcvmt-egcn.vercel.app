@@ -760,8 +760,8 @@ export const ApplicationsTab = ({
                           
                           return (
                             <tr 
-                              id={`app-row-${app.id}`}
-                              key={`app-row-${app.id}-${currentPage}-${index}`} 
+                              id={`app-row-${app.id || 'new'}-${index}`}
+                              key={`app-row-${app.id || 'new'}-${app.unitCode || 'none'}-${index}`} 
                               ref={el => tableRowRefs.current[index] = el}
                               className={cn(
                                 "transition-all cursor-pointer group border-b relative h-[32px]",
