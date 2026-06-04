@@ -280,7 +280,7 @@ export const ApplicationDetailModal = ({
                 )}
 
                 {(() => {
-                  const overdueInfo = getOverdueInfo(editApp || selectedApp, stepConfig, slaConfig);
+                  const overdueInfo = getOverdueInfo(editApp || selectedApp, stepConfig, slaConfig, true);
                   if (!overdueInfo.isOverdue) return null;
                   return (
                     <motion.div 
