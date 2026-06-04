@@ -43,20 +43,31 @@ export const Sidebar = ({
     }
   };
 
+  const handleProjectClick = (projectId: string | null) => {
+    setSelectedProjectId(projectId);
+    if (activeTab !== 'applications' && activeTab !== 'reports') {
+      setActiveTab('dashboard');
+    }
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsSidebarCollapsed(true);
+    }
+  };
+
   return (
 <>
       {/* Sidebar - Enhanced Blur and border */}
       <motion.aside 
+        initial={false}
         animate={{ 
           width: isSidebarCollapsed 
             ? (typeof window !== 'undefined' && window.innerWidth < 1024 ? 0 : 80) 
             : 256,
-          x: (isSidebarCollapsed && typeof window !== 'undefined' && window.innerWidth < 1024) ? -256 : 0
+          x: (isSidebarCollapsed && typeof window !== 'undefined' && window.innerWidth < 1024) ? -260 : 0
         }}
-        transition={{ duration: 0.3, ease: 'easeInOut' }}
+        transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
         className={cn(
-          "backdrop-blur-2xl border-r flex flex-col shrink-0 z-40 bg-slate-800 border-slate-700 shadow-2xl transition-all duration-300",
-          "lg:relative fixed inset-y-0 left-0 h-full"
+          "backdrop-blur-2xl border-r flex flex-col shrink-0 bg-slate-800 border-slate-700 shadow-2xl transition-all duration-300",
+          "lg:relative fixed inset-y-0 left-0 h-full lg:z-40 z-50"
         )}
       >
         <button 
@@ -296,7 +307,7 @@ export const Sidebar = ({
 
           <div className="lg:flex-1 lg:overflow-y-auto overflow-visible custom-scrollbar px-1 space-y-4 pb-6">
             <button 
-              onClick={() => setSelectedProjectId(null)}
+              onClick={() => handleProjectClick(null)}
               title="Tất cả dự án"
               className={cn(
                 "w-full flex items-center gap-3 py-2.5 rounded-xl transition-all text-sm font-black uppercase tracking-tight overflow-hidden",
@@ -388,12 +399,7 @@ export const Sidebar = ({
                         <button 
                           key={`sidebar-proj-${p.id}-${pIndex}`} 
                           title={p.name}
-                          onClick={() => { 
-                            setSelectedProjectId(p.id); 
-                            if (activeTab !== 'applications' && activeTab !== 'reports') {
-                              setActiveTab('dashboard'); 
-                            }
-                          }}
+                          onClick={() => handleProjectClick(p.id)}
                           className={cn(
                             "w-full flex items-center gap-3 py-2.5 rounded-xl transition-all text-sm font-black group relative overflow-hidden",
                             isSidebarCollapsed ? "justify-center px-0 ml-[-12px]" : "px-4",

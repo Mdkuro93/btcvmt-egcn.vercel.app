@@ -5547,11 +5547,15 @@ export default function App() {
       />
 
       {/* Mobile Drawer Backdrop overlay */}
+      {/* Backdrop for Mobile */}
       {!isSidebarCollapsed && (
-        <div 
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           onClick={() => setIsSidebarCollapsed(true)} 
-          className="fixed inset-0 bg-black/60 z-30 lg:hidden backdrop-blur-sm transition-all duration-300"
-        ></div>
+          className="fixed inset-0 bg-slate-900/60 z-[45] lg:hidden backdrop-blur-sm transition-opacity duration-300"
+        ></motion.div>
       )}
 
       {/* Main Content */}
@@ -5589,15 +5593,15 @@ export default function App() {
           "h-16 sm:h-20 backdrop-blur-xl border-b flex items-center justify-between px-4 sm:px-8 shrink-0 z-20 transition-all gap-2",
           theme === 'light' ? "bg-white/70 border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800/80"
         )}>
-          <div className="flex items-center gap-2.5 overflow-hidden">
+          <div className="flex items-center gap-3 overflow-hidden">
             <button
               onClick={() => setIsSidebarCollapsed(prev => !prev)}
-              className="lg:hidden p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
-              title="Menu"
+              className="lg:hidden p-2 rounded-xl bg-slate-800/10 border border-slate-200 dark:border-slate-800 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all shrink-0 active:scale-95 shadow-sm"
+              aria-label="Toggle Menu"
             >
-              <Menu size={18} />
+              <Menu size={20} />
             </button>
-            <h2 className={cn("text-sm sm:text-base md:text-2xl font-black font-sans tracking-tight truncate max-w-[160px] xs:max-w-xs sm:max-w-none", theme === 'light' ? "text-slate-900" : "text-white")} title={activeTab === 'dashboard' ? (selectedProject ? `Dashboard: ${selectedProject.name}` : 'Tổng quan Vùng') : (selectedProject ? `Hồ sơ: ${selectedProject.name}` : 'Danh sách Hồ sơ cấp GCN')}>
+            <h2 className={cn("text-sm sm:text-base md:text-2xl font-black font-sans tracking-tight truncate max-w-[140px] xs:max-w-xs sm:max-w-none", theme === 'light' ? "text-slate-900" : "text-white")} title={activeTab === 'dashboard' ? (selectedProject ? `Dashboard: ${selectedProject.name}` : 'Tổng quan Vùng') : (selectedProject ? `Hồ sơ: ${selectedProject.name}` : 'Danh sách Hồ sơ cấp GCN')}>
               {activeTab === 'dashboard' ? (selectedProject ? `Dashboard: ${selectedProject.name}` : 'Tổng quan Vùng') : (selectedProject ? `Hồ sơ: ${selectedProject.name}` : 'Danh sách Hồ sơ cấp GCN')}
             </h2>
           </div>
