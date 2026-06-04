@@ -90,62 +90,106 @@ export default function LoginScreen({
     }
   };
 
+  const isDark = theme === 'dark';
+
   return (
-    <div className="flex items-center justify-center min-h-screen relative overflow-hidden font-sans bg-slate-950 selection:bg-amber-500/30">
+    <div className={`flex items-center justify-center min-h-screen relative overflow-hidden font-sans transition-colors duration-300 ${
+      isDark ? 'bg-slate-950 selection:bg-amber-500/30' : 'bg-slate-50 selection:bg-amber-500/20'
+    }`}>
       {/* Background Amber Orbs */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute -top-[10%] -left-[10%] w-[500px] h-[500px] bg-amber-500/20 blur-[120px] rounded-full mix-blend-screen"></div>
-        <div className="absolute top-[20%] right-[10%] w-[400px] h-[400px] bg-amber-600/10 blur-[100px] rounded-full mix-blend-screen"></div>
-        <div className="absolute bottom-[-10%] left-[20%] w-[600px] h-[600px] bg-indigo-500/10 blur-[150px] rounded-full mix-blend-screen"></div>
+        <div className={`absolute -top-[10%] -left-[10%] w-[280px] h-[280px] sm:w-[500px] sm:h-[500px] blur-[80px] sm:blur-[120px] rounded-full transition-all duration-500 ${
+          isDark ? 'bg-amber-500/15 mix-blend-screen' : 'bg-amber-500/5'
+        }`}></div>
+        <div className={`absolute top-[20%] right-[10%] w-[250px] h-[250px] sm:w-[400px] sm:h-[400px] blur-[70px] sm:blur-[100px] rounded-full transition-all duration-500 ${
+          isDark ? 'bg-amber-600/10 mix-blend-screen' : 'bg-amber-600/5'
+        }`}></div>
+        <div className={`absolute bottom-[-15%] left-[20%] w-[350px] h-[350px] sm:w-[600px] sm:h-[600px] blur-[90px] sm:blur-[150px] rounded-full transition-all duration-500 ${
+          isDark ? 'bg-indigo-500/10 mix-blend-screen' : 'bg-indigo-500/5'
+        }`}></div>
       </div>
       
-      {/* Theme Toggle - adjusted for dark glass theme */}
-      <div className="absolute top-8 right-8 z-20">
+      {/* Theme Toggle - dynamic coloring */}
+      <div className="absolute top-4 right-4 sm:top-8 sm:right-8 z-20">
         <button 
           onClick={onThemeToggle}
-          className="p-3 rounded-2xl transition-all shadow-xl backdrop-blur-md border border-white/10 bg-white/5 text-amber-500 hover:bg-white/10"
+          className={`p-2.5 sm:p-3 rounded-xl sm:rounded-2xl transition-all shadow-lg backdrop-blur-md border ${
+            isDark 
+              ? 'border-white/10 bg-white/5 text-amber-500 hover:bg-white/10' 
+              : 'border-slate-200 bg-white/80 text-amber-600 hover:bg-slate-50 shadow-slate-200/50'
+          }`}
         >
-          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+          {isDark ? <Sun size={18} className="sm:w-5 sm:h-5" /> : <Moon size={18} className="sm:w-5 sm:h-5" />}
         </button>
       </div>
 
       <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
-        className="w-full max-w-md p-10 rounded-[32px] backdrop-blur-xl border border-white/10 bg-white/5 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] z-10 relative"
+        className={`w-full max-w-sm sm:max-w-md mx-4 p-6 sm:p-10 rounded-3xl backdrop-blur-xl border transition-all duration-300 z-10 relative ${
+          isDark 
+            ? 'border-white/10 bg-white/5 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)]' 
+            : 'border-slate-200/80 bg-white/90 shadow-[0_8px_32px_0_rgba(15,23,42,0.06)]'
+        }`}
       >
-        <div className="absolute inset-0 rounded-[32px] bg-gradient-to-br from-white/5 to-transparent pointer-events-none"></div>
+        <div className={`absolute inset-0 rounded-3xl pointer-events-none ${
+          isDark ? 'bg-gradient-to-br from-white/5 to-transparent' : 'bg-gradient-to-br from-slate-50/50 to-transparent'
+        }`}></div>
         
-        <div className="flex flex-col items-center mb-10 relative z-10">
-          <div className="w-20 h-20 bg-gradient-to-br from-amber-400 to-amber-600 rounded-[24px] flex items-center justify-center mb-6 shadow-[0_0_40px_-10px_rgba(245,158,11,0.5)] border border-white/20">
-            <ShieldCheck className="text-white" size={40} strokeWidth={1.5} />
+        <div className="flex flex-col items-center mb-6 sm:mb-8 relative z-10">
+          <div className={`w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl sm:rounded-[24px] flex items-center justify-center mb-4 sm:mb-6 shadow-[0_0_30px_-5px_rgba(245,158,11,0.4)] border border-white/20`}>
+            <ShieldCheck className="text-white w-8 h-8 sm:w-10 sm:h-10" strokeWidth={1.5} />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-white mb-2">GCN Tracker</h1>
-          <p className="text-slate-400 text-sm font-medium text-center leading-relaxed">Hệ thống quản lý tình trạng<br/>cấp GCN QSDĐ VMT</p>
+          <h1 className={`text-2xl sm:text-3xl font-bold tracking-tight mb-2 transition-colors ${
+            isDark ? 'text-white' : 'text-slate-900'
+          }`}>
+            GCN Tracker
+          </h1>
+          <p className={`text-xs sm:text-sm font-medium text-center leading-relaxed transition-colors ${
+            isDark ? 'text-slate-400' : 'text-slate-500'
+          }`}>
+            Hệ thống quản lý tình trạng<br className="hidden sm:inline"/> cấp GCN QSDĐ VMT
+          </p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-6 relative z-10">
-          <div className="space-y-2">
-            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pl-1">Tên đăng nhập / Email</label>
+        <form onSubmit={handleLogin} className="space-y-4 sm:space-y-6 relative z-10">
+          <div className="space-y-1.5 sm:space-y-2">
+            <label className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-widest pl-1 transition-colors ${
+              isDark ? 'text-slate-400' : 'text-slate-500'
+            }`}>
+              Tên đăng nhập / Email
+            </label>
             <div className="relative group">
               <input 
                 type="text" 
                 placeholder="Nhập tên đăng nhập..."
-                className="w-full rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-base border border-white/10 bg-black/20 text-white placeholder:text-slate-600 group-hover:border-white/20"
+                className={`w-full rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 outline-none focus:ring-2 transition-all text-sm sm:text-base border group-hover:border-amber-500/20 ${
+                  isDark 
+                    ? 'border-white/10 bg-black/20 text-white placeholder:text-slate-600 focus:ring-amber-500/40' 
+                    : 'border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:ring-amber-500/30 focus:bg-white'
+                }`}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
               />
             </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pl-1">Mật khẩu</label>
+          <div className="space-y-1.5 sm:space-y-2">
+            <label className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-widest pl-1 transition-colors ${
+              isDark ? 'text-slate-400' : 'text-slate-500'
+            }`}>
+              Mật khẩu
+            </label>
             <div className="relative group">
               <input 
                 type="password" 
                 placeholder="••••••••"
-                className="w-full rounded-2xl px-5 py-4 outline-none focus:ring-2 focus:ring-amber-500/50 transition-all text-base border border-white/10 bg-black/20 text-white placeholder:text-slate-600 group-hover:border-white/20"
+                className={`w-full rounded-xl sm:rounded-2xl px-4 sm:px-5 py-3 sm:py-4 outline-none focus:ring-2 transition-all text-sm sm:text-base border group-hover:border-amber-500/20 ${
+                  isDark 
+                    ? 'border-white/10 bg-black/20 text-white placeholder:text-slate-600 focus:ring-amber-500/40' 
+                    : 'border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:ring-amber-500/30 focus:bg-white'
+                }`}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -156,7 +200,7 @@ export default function LoginScreen({
           <button 
             type="submit"
             disabled={isLoading}
-            className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-4 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-[0_0_20px_-5px_rgba(245,158,11,0.5)] hover:shadow-[0_0_30px_-5px_rgba(245,158,11,0.6)] hover:scale-[1.02] active:scale-95 transition-all mt-6 disabled:opacity-70 disabled:cursor-not-allowed border border-amber-400/50"
+            className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-3.5 sm:py-4 rounded-xl sm:rounded-2xl font-bold uppercase tracking-widest text-xs sm:text-sm shadow-[0_0_20px_-5px_rgba(245,158,11,0.5)] hover:shadow-[0_0_30px_-5px_rgba(245,158,11,0.6)] hover:scale-[1.01] active:scale-95 transition-all mt-4 sm:mt-6 disabled:opacity-75 disabled:cursor-not-allowed border border-amber-400/50"
           >
             {isLoading ? 'Đang xử lí...' : 'Đăng nhập'}
           </button>
