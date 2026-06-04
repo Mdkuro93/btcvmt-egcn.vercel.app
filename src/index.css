@@ -115,6 +115,35 @@
 }
 
 /* 3. SCROLLBAR TÙY CHỈNH THEO THEME */
+/* 4. VIEW TRANSITION THEME RIPPLE EFFECT */
+@keyframes mesh-gradient {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(10%, 10%) rotate(180deg); }
+  100% { transform: translate(0, 0) rotate(360deg); }
+}
+
+.animate-mesh {
+  animation: mesh-gradient 20s ease-in-out infinite;
+}
+
+.animate-mesh-slow {
+  animation: mesh-gradient 35s ease-in-out infinite reverse;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 9999;
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
   height: 6px;

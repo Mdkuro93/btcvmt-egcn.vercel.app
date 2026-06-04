@@ -95,23 +95,32 @@ export const ApplicationDetailModal = ({
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed right-0 top-0 bottom-0 w-full md:w-[750px] lg:w-[900px] bg-[#1E293B] z-50 shadow-2xl flex flex-col border-l border-slate-700"
+              className={cn(
+                "fixed right-0 top-0 bottom-0 w-full md:w-[750px] lg:w-[900px] z-50 shadow-2xl flex flex-col border-l",
+                theme === 'light' ? "bg-slate-50 border-slate-200" : "bg-[#1E293B] border-slate-700"
+              )}
             >
-              <div className="p-8 border-b border-slate-700 flex flex-col md:flex-row items-start md:items-center justify-between bg-slate-900/50 gap-4">
+              <div className={cn(
+                "p-4 sm:p-8 border-b flex flex-col md:flex-row items-start md:items-center justify-between gap-4",
+                theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/50 border-slate-700"
+              )}>
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-3 mb-2">
                     <span className="px-3 py-1 bg-indigo-500/10 text-indigo-400 rounded-lg text-sm font-black uppercase tracking-widest border border-indigo-500/20">
                       {(editApp || selectedApp).unitCode}
                     </span>
                     <StatusBadge status={(editApp || selectedApp).status} app={editApp || selectedApp} />
-                    <span className="px-2.5 py-1 bg-slate-800 text-slate-300 rounded-full text-xs font-bold border border-slate-700 flex items-center gap-1.5">
+                    <span className={cn(
+                      "px-2.5 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5",
+                      theme === 'light' ? "bg-slate-100 text-slate-600 border-slate-200" : "bg-slate-800 text-slate-300 border-slate-700"
+                    )}>
                       <Activity size={12} />
                       {stepConfig[(editApp || selectedApp).currentStep]?.label || (editApp || selectedApp).currentStep}
                     </span>
                   </div>
-                  <h3 className="text-2xl font-black text-slate-100 italic font-serif">{(editApp || selectedApp).projectName}</h3>
-                  <p className="text-sm text-slate-400 font-bold uppercase tracking-widest mt-1 flex items-center gap-2">
-                    <User size={14} className="text-slate-500" />
+                  <h3 className={cn("text-2xl font-black italic font-serif", theme === 'light' ? "text-slate-900" : "text-slate-100")}>{(editApp || selectedApp).projectName}</h3>
+                  <p className={cn("text-sm font-bold uppercase tracking-widest mt-1 flex items-center gap-2", theme === 'light' ? "text-slate-500" : "text-slate-400")}>
+                    <User size={14} className={theme === 'light' ? "text-slate-400" : "text-slate-50"} />
                     {(editApp || selectedApp).customerName}
                   </p>
                   
@@ -144,7 +153,10 @@ export const ApplicationDetailModal = ({
                   {isManagement && (
                     <button 
                       onClick={() => setExpandedSections(expandedSections.length > 0 ? [] : ['PTT_SECTION', 'KT_SECTION', 'PTDA_SECTION', 'OTHER_SECTION'])}
-                      className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all border border-slate-700 mr-2"
+                      className={cn(
+                        "px-4 py-3 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all border mr-2",
+                        theme === 'light' ? "bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200" : "bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700"
+                      )}
                     >
                       {expandedSections.length > 0 ? 'Thu gọn' : 'Mở rộng tất cả'}
                     </button>
@@ -210,7 +222,10 @@ export const ApplicationDetailModal = ({
                             setEditApp(null);
                             setConflictWarning(null);
                           }}
-                          className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all border border-slate-700"
+                          className={cn(
+                            "px-6 py-3 text-xs font-bold uppercase tracking-widest rounded-2xl transition-all border",
+                            theme === 'light' ? "bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200" : "bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700"
+                          )}
                         >
                           Hủy
                         </button>
@@ -230,7 +245,10 @@ export const ApplicationDetailModal = ({
                       setIsPrintingHandover(true);
                       setTimeout(() => window.print(), 500);
                     }}
-                    className="p-3 bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white rounded-2xl transition-all border border-indigo-500/20"
+                    className={cn(
+                      "p-3 rounded-2xl transition-all border",
+                      theme === 'light' ? "bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border-indigo-100" : "bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border-indigo-500/20"
+                    )}
                     title="In phiếu bàn giao"
                   >
                     <Printer size={18} />
@@ -239,7 +257,10 @@ export const ApplicationDetailModal = ({
                   {userRole === 'ADMIN' && (
                     <button 
                       onClick={() => handleDeleteApp((editApp || selectedApp).id, (editApp || selectedApp).unitCode)}
-                      className="p-3 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-2xl transition-all border border-rose-500/20"
+                      className={cn(
+                        "p-3 rounded-2xl transition-all border",
+                        theme === 'light' ? "bg-rose-50 hover:bg-rose-100 text-rose-500 border-rose-100" : "bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white border-rose-500/20"
+                      )}
                       title="Xóa hồ sơ"
                     >
                       <Trash2 size={18} />
@@ -251,19 +272,25 @@ export const ApplicationDetailModal = ({
                       setIsEditing(false);
                       setEditApp(null);
                     }}
-                    className="p-3 hover:bg-slate-800 rounded-2xl transition-colors text-slate-500 border border-transparent hover:border-slate-700"
+                    className={cn(
+                      "p-3 rounded-2xl transition-colors border border-transparent",
+                      theme === 'light' ? "hover:bg-slate-100 text-slate-400 hover:border-slate-200" : "hover:bg-slate-800 text-slate-500 hover:border-slate-700"
+                    )}
                   >
                     <X size={24} />
                   </button>
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-10 custom-scrollbar">
                 {(editApp || selectedApp).isRejected && (
                   <motion.div 
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex items-start gap-4 mb-6"
+                    className={cn(
+                      "p-4 border rounded-2xl flex items-start gap-4 mb-6",
+                      theme === 'light' ? "bg-rose-50 border-rose-100" : "bg-rose-500/10 border-rose-500/20"
+                    )}
                   >
                     <div className="w-10 h-10 rounded-xl bg-rose-500 flex items-center justify-center shrink-0 shadow-lg shadow-rose-500/20">
                       <RotateCcw size={20} className="text-white" />
@@ -273,8 +300,8 @@ export const ApplicationDetailModal = ({
                         <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Hồ sơ Cần bổ sung / Sửa đổi</p>
                         <span className="text-[10px] font-mono text-rose-400 bg-rose-500/5 px-2 py-0.5 rounded border border-rose-500/10">Lần {(editApp || selectedApp).rejectionCount}</span>
                       </div>
-                      <p className="text-xs font-bold text-slate-200">{(editApp || selectedApp).rejectionReason}</p>
-                      <p className="text-[10px] text-slate-500 mt-2 italic font-medium">Báo cáo bời bộ phận Kế toán. Vui lòng cập nhật thông tin và bàn giao lại.</p>
+                      <p className={cn("text-xs font-bold", theme === 'light' ? "text-slate-800" : "text-slate-200")}>{(editApp || selectedApp).rejectionReason}</p>
+                      <p className={cn("text-[10px] mt-2 italic font-medium", theme === 'light' ? "text-slate-500" : "text-slate-500")}>Báo cáo bời bộ phận Kế toán. Vui lòng cập nhật thông tin và bàn giao lại.</p>
                     </div>
                   </motion.div>
                 )}
@@ -409,19 +436,22 @@ export const ApplicationDetailModal = ({
                 <div className="grid grid-cols-1 gap-6">
                    {/* PTT Section */}
                    <div className={cn("border rounded-3xl overflow-hidden transition-all", theme === 'dark' ? "border-slate-800 bg-slate-900/20" : "border-slate-200 bg-white")}>
-                     <div 
-                       className={cn("flex flex-wrap items-center justify-between p-5 cursor-pointer hover:bg-indigo-500/5 transition-colors", expandedSections.includes('PTT_SECTION') && (theme === 'dark' ? "border-b border-slate-800" : "border-b border-slate-200"))}
-                       onClick={() => toggleSection('PTT_SECTION')}
-                     >
-                        <div className="flex items-center gap-3">
-                            <div className="w-1.5 h-6 bg-indigo-500 rounded-full"></div>
-                            <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-white" : "text-slate-900")}>1. Thủ tục & Khách hàng (PTT)</h4>
-                        </div>
-                        <div className="flex items-center gap-4">
-                           {userRole === 'PTT' && <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-3 py-1 rounded-full font-black uppercase border border-indigo-500/20">Vùng của bạn</span>}
-                           {expandedSections.includes('PTT_SECTION') ? <ChevronUp size={20} className="text-slate-500" /> : <ChevronDown size={20} className="text-slate-500" />}
-                        </div>
+                    <div className={cn(
+                      "flex flex-wrap items-center justify-between p-5 cursor-pointer transition-colors", 
+                      expandedSections.includes('PTT_SECTION') && (theme === 'dark' ? "border-b border-slate-800" : "border-b border-slate-200"),
+                      theme === 'light' ? "hover:bg-slate-50 text-slate-600" : "hover:bg-indigo-500/5 text-slate-300"
+                    )}
+                    onClick={() => toggleSection('PTT_SECTION')}
+                  >
+                     <div className="flex items-center gap-3">
+                         <div className="w-1.5 h-6 bg-indigo-500 rounded-full"></div>
+                         <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-white" : "text-slate-900")}>1. Thủ tục & Khách hàng (PTT)</h4>
                      </div>
+                     <div className="flex items-center gap-4">
+                        {userRole === 'PTT' && <span className="text-[10px] bg-indigo-500/10 text-indigo-400 px-3 py-1 rounded-full font-black uppercase border border-indigo-500/20">Vùng của bạn</span>}
+                        {expandedSections.includes('PTT_SECTION') ? <ChevronUp size={20} className="text-slate-500" /> : <ChevronDown size={20} className="text-slate-500" />}
+                     </div>
+                  </div>
                      <AnimatePresence>
                        {expandedSections.includes('PTT_SECTION') && (
                          <motion.div
@@ -440,28 +470,28 @@ export const ApplicationDetailModal = ({
                                   </div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                  <DetailCard theme={theme} label="Mã lô/căn" value={(editApp || selectedApp).unitCode} isEditing={isEditing} />
+                                  <DetailCard theme={theme} label="Mã lô/ căn" value={(editApp || selectedApp).unitCode} isEditing={isEditing} />
                                   <DetailCard theme={theme} label="Dự án" value={(editApp || selectedApp).projectName} isEditing={isEditing} />
                                   <DetailCard theme={theme}
                                     label="Tên khách hàng" 
                                     value={(editApp || selectedApp).customerName} 
                                     editable={isFieldEditable('customerName')}
                                     isEditing={isEditing}
-                                    onChange={(val) => handleFieldChange('customerName', val)}
+                                    onChange={(val: string) => handleFieldChange('customerName', val)}
                                   />
                                   <DetailCard theme={theme}
                                     label="Đối tượng ký HĐCN" 
                                     value={(editApp || selectedApp).contractSignerType} 
                                     editable={isFieldEditable('contractSignerType')}
                                     isEditing={isEditing}
-                                    onChange={(val) => handleFieldChange('contractSignerType', val)}
+                                    onChange={(val: string) => handleFieldChange('contractSignerType', val)}
                                   />
                                   <DetailCard theme={theme}
                                     label="Số điện thoại" 
                                     value={(editApp || selectedApp).phoneNumber} 
                                     editable={isFieldEditable('phoneNumber')}
                                     isEditing={isEditing}
-                                    onChange={(val) => handleFieldChange('phoneNumber', val)}
+                                    onChange={(val: string) => handleFieldChange('phoneNumber', val)}
                                   />
                                   <DetailCard theme={theme}
                                     label="Loại tài sản" 
@@ -470,7 +500,7 @@ export const ApplicationDetailModal = ({
                                     editable={isFieldEditable('propertyType')}
                                     isEditing={isEditing}
                                     options={['Quyền sử dụng đất (Nhà đất/Đất nền)', 'Căn hộ']}
-                                    onChange={(val) => handleFieldChange('propertyType', val === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen')}
+                                    onChange={(val: string) => handleFieldChange('propertyType', val === 'Căn hộ' ? 'Can_Ho' : 'Dat_Nen')}
                                   />
                                   <DetailCard theme={theme}
                                     label="Sử dụng gói vay" 
@@ -479,7 +509,7 @@ export const ApplicationDetailModal = ({
                                     editable={isFieldEditable('loanStatus')}
                                     isEditing={isEditing}
                                     options={['Có vay', 'Không vay']}
-                                    onChange={(val) => handleFieldChange('loanStatus', val === 'Có vay' ? 'Co_Vay' : 'Khong_Vay')}
+                                    onChange={(val: string) => handleFieldChange('loanStatus', val === 'Có vay' ? 'Co_Vay' : 'Khong_Vay')}
                                   />
                                   <DetailCard theme={theme}
                                     label="Ngày ký HĐCN/HĐMB" 
@@ -487,7 +517,7 @@ export const ApplicationDetailModal = ({
                                     type="date"
                                     editable={isFieldEditable('contractSigningDate')}
                                     isEditing={isEditing}
-                                    onChange={(val) => handleFieldChange('contractSigningDate', val)}
+                                    onChange={(val: string) => handleFieldChange('contractSigningDate', val)}
                                   />
                                   {(editApp || selectedApp).loanStatus === 'Co_Vay' && (
                                     <DetailCard theme={theme}
@@ -496,7 +526,7 @@ export const ApplicationDetailModal = ({
                                       type="date"
                                       editable={isFieldEditable('bankCommitmentDeadline')}
                                       isEditing={isEditing}
-                                      onChange={(val) => handleFieldChange('bankCommitmentDeadline', val)}
+                                      onChange={(val: string) => handleFieldChange('bankCommitmentDeadline', val)}
                                     />
                                   )}
                                 </div>
@@ -550,19 +580,23 @@ export const ApplicationDetailModal = ({
 
                    {/* PROGRESS SECTION: TIẾN TRÌNH XỬ LÝ HỒ SƠ (Steps 2-7) */}
                    <div className={cn("border rounded-3xl overflow-hidden transition-all", theme === 'dark' ? "border-slate-800 bg-slate-900/20" : "border-slate-200 bg-white")}>
-                      <div 
-                        className={cn("flex flex-wrap items-center justify-between p-5 cursor-pointer hover:bg-emerald-500/5 transition-colors", expandedSections.includes('PROGRESS_SECTION') && (theme === 'dark' ? "border-b border-slate-800" : "border-b border-slate-200"))}
-                        onClick={() => toggleSection('PROGRESS_SECTION')}
-                      >
-                         <div className="flex items-center gap-3">
-                             <div className="w-1.5 h-6 bg-emerald-500 rounded-full"></div>
-                             <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-white" : "text-slate-900")}>2. TIẾN TRÌNH XỬ LÝ HỒ SƠ</h4>
-                         </div>
-                         <div className="flex items-center gap-4">
-                            {['KT', 'PTDA'].includes(userRole) && <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full font-black uppercase border border-emerald-500/20">Vùng trọng tâm của bạn</span>}
-                            {expandedSections.includes('PROGRESS_SECTION') ? <ChevronUp size={20} className="text-slate-500" /> : <ChevronDown size={20} className="text-slate-500" />}
-                         </div>
-                      </div>
+                    <div 
+                      className={cn(
+                        "flex flex-wrap items-center justify-between p-5 cursor-pointer transition-colors", 
+                        expandedSections.includes('PROGRESS_SECTION') && (theme === 'dark' ? "border-b border-slate-800" : "border-b border-slate-200"),
+                        theme === 'light' ? "hover:bg-slate-50 text-slate-600" : "hover:bg-emerald-500/5 text-slate-300"
+                      )}
+                      onClick={() => toggleSection('PROGRESS_SECTION')}
+                    >
+                       <div className="flex items-center gap-3">
+                           <div className="w-1.5 h-6 bg-emerald-500 rounded-full"></div>
+                           <h4 className={cn("text-sm font-black uppercase tracking-widest", theme === 'dark' ? "text-white" : "text-slate-900")}>2. TIẾN TRÌNH XỬ LÝ HỒ SƠ</h4>
+                       </div>
+                       <div className="flex items-center gap-4">
+                          {['KT', 'PTDA'].includes(userRole) && <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full font-black uppercase border border-emerald-500/20">Vùng trọng tâm của bạn</span>}
+                          {expandedSections.includes('PROGRESS_SECTION') ? <ChevronUp size={20} className="text-slate-500" /> : <ChevronDown size={20} className="text-slate-500" />}
+                       </div>
+                    </div>
                       <AnimatePresence>
                         {expandedSections.includes('PROGRESS_SECTION') && (
                           <motion.div
@@ -751,22 +785,40 @@ export const ApplicationDetailModal = ({
                       </div>
                       <div className="p-6 space-y-6">
                          {/* Tabs for Issue Tracking/History/Documents */}
-                               <div className="flex items-center gap-2 p-1 bg-slate-900/50 rounded-xl border border-slate-800 w-fit">
+                               <div className={cn(
+                                 "flex flex-wrap items-center gap-2 p-1 rounded-xl transition-all w-fit",
+                                 theme === 'light' ? "bg-slate-100 border border-slate-200" : "bg-slate-900/50 border border-slate-800"
+                               )}>
                                   <button 
                                     onClick={() => setDetailTab('Issues')}
-                                    className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2", detailTab === 'Issues' ? "bg-red-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300")}
+                                    className={cn(
+                                      "px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2", 
+                                      detailTab === 'Issues' 
+                                        ? "bg-rose-600 text-white shadow-lg" 
+                                        : theme === 'light' ? "text-slate-500 hover:bg-slate-200" : "text-slate-500 hover:text-slate-300"
+                                    )}
                                   >
                                     <AlertTriangle size={14} /> Vướng mắc
                                   </button>
                                   <button 
                                     onClick={() => setDetailTab('History')}
-                                    className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2", detailTab === 'History' ? "bg-indigo-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300")}
+                                    className={cn(
+                                      "px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2", 
+                                      detailTab === 'History' 
+                                        ? "bg-indigo-600 text-white shadow-lg" 
+                                        : theme === 'light' ? "text-slate-500 hover:bg-slate-200" : "text-slate-500 hover:text-slate-300"
+                                    )}
                                   >
                                     <HistoryIcon size={14} /> Nhật ký & Lịch sử
                                   </button>
                                   <button 
                                     onClick={() => setDetailTab('Documents')}
-                                    className={cn("px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2", detailTab === 'Documents' ? "bg-emerald-600 text-white shadow-lg" : "text-slate-500 hover:text-slate-300")}
+                                    className={cn(
+                                      "px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2", 
+                                      detailTab === 'Documents' 
+                                        ? "bg-emerald-600 text-white shadow-lg" 
+                                        : theme === 'light' ? "text-slate-500 hover:bg-slate-200" : "text-slate-500 hover:text-slate-300"
+                                    )}
                                   >
                                     <FileText size={14} /> Tài liệu số
                                   </button>
@@ -774,16 +826,24 @@ export const ApplicationDetailModal = ({
 
                                {detailTab === 'Issues' && (
                                  <div className="space-y-6">
-                                   <div className="bg-error/5 p-5 rounded-2xl border border-error/20 space-y-4">
+                                   <div className={cn(
+                                     "p-5 rounded-2xl border space-y-4",
+                                     theme === 'light' ? "bg-rose-50 border-rose-100" : "bg-rose-500/5 border-rose-500/20"
+                                   )}>
                                       <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
-                                          <AlertTriangle size={16} className="text-error" />
-                                          <h4 className="text-xs font-bold text-error uppercase tracking-[0.2em]">Cập nhật Vướng mắc & Sai sót</h4>
+                                          <AlertTriangle size={16} className="text-rose-500" />
+                                          <h4 className={cn("text-xs font-bold uppercase tracking-[0.2em]", theme === 'light' ? "text-rose-700" : "text-rose-500")}>Cập nhật Vướng mắc & Sai sót</h4>
                                         </div>
                                         {((editApp || selectedApp).status === 'Error' || (editApp || selectedApp).isRejected) && (
                                           <button 
                                             onClick={handleResolveError}
-                                            className="text-[9px] bg-emerald-500/10 text-emerald-500 px-3 py-1 rounded-md font-bold uppercase border border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all"
+                                            className={cn(
+                                              "text-[9px] px-3 py-1 rounded-md font-bold uppercase border transition-all",
+                                              theme === 'light' 
+                                                ? "bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700 shadow-md shadow-emerald-200" 
+                                                : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500 hover:text-white"
+                                            )}
                                           >
                                             Đã khắc phục xong
                                           </button>
@@ -983,8 +1043,10 @@ export const ApplicationDetailModal = ({
                        </div>
                     </div>
 
-                    {/* Action Bar - Phương án A hàng ngang */}
-                    <div className="p-6 border-t border-slate-700 bg-slate-950 flex flex-wrap items-center gap-3 mt-auto sticky bottom-0 z-50">
+                    <div className={cn(
+                      "p-6 border-t flex flex-wrap items-center gap-3 mt-auto sticky bottom-0 z-50",
+                      theme === 'light' ? "bg-white border-slate-200" : "bg-slate-950 border-slate-700"
+                    )}>
                         {!isEditing && (editApp || selectedApp).status !== 'Completed' ? (
                             <>
                                 <div className="flex items-center gap-2">
@@ -1005,7 +1067,10 @@ export const ApplicationDetailModal = ({
                                                     <span className="text-[10px] font-black uppercase tracking-widest hidden lg:inline">Báo lỗi</span>
                                                 </button>
                                             ) : (
-                                                <div className={cn("absolute bottom-full mb-3 right-0 w-80 p-6 rounded-[2rem] border space-y-4 shadow-2xl z-[101]", theme === 'dark' ? "bg-slate-950 border-rose-500/30 shadow-black" : "bg-rose-50 border-rose-200 shadow-rose-200/50")}>
+                                                <div className={cn(
+                                                  "absolute bottom-full mb-3 right-0 w-80 p-6 rounded-[2rem] border space-y-4 shadow-2xl z-[101]",
+                                                  theme === 'dark' ? "bg-slate-950 border-rose-500/30 shadow-black" : "bg-white border-rose-200 shadow-[0_12px_40px_rgba(244,63,94,0.15)]"
+                                                )}>
                                                     <div className="flex justify-between items-center">
                                                         <label className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Thông tin vướng mắc</label>
                                                         <button onClick={() => setIsReportIssueFormOpen(false)} className="text-slate-400 hover:text-rose-500 p-1"><X size={18} /></button>
@@ -1072,7 +1137,10 @@ export const ApplicationDetailModal = ({
                                                  else handleStepTransition(returnStep as StepName, reason);
                                               }
                                             }}
-                                            className="p-4 bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            className={cn(
+                                              "p-4 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed border",
+                                              theme === 'light' ? "bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200 hover:text-slate-700" : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700"
+                                            )}
                                             title="Trả về"
                                         >
                                             <RotateCcw size={20} />
@@ -1212,7 +1280,10 @@ export const ApplicationDetailModal = ({
                                             setEditApp(null);
                                             setConflictWarning(null);
                                         }}
-                                        className="flex-1 py-4 bg-slate-800 text-slate-400 hover:bg-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+                                        className={cn(
+                                          "flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border",
+                                          theme === 'light' ? "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200" : "bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700"
+                                        )}
                                     >
                                         Hủy bỏ
                                     </button>

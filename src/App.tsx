@@ -128,6 +128,7 @@ import { DashboardTab } from './components/tabs/DashboardTab';
 import { ApplicationsTab } from './components/tabs/ApplicationsTab';
 import { ResourcesTab } from './components/tabs/ResourcesTab';
 import { Routes, Route, Link } from 'react-router-dom';
+import { ThemeToggle } from './components/ThemeToggle';
 import ReportScreen from './pages/ReportScreen';
 import { cn } from './lib/utils';
 import { formatDate } from './utils/dateUtils';
@@ -473,6 +474,46 @@ export default function App() {
   
   const [search, setSearch] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+
+  const handleThemeToggle = useCallback((e: React.MouseEvent) => {
+    const isDark = theme === 'dark';
+    const nextTheme = isDark ? 'light' : 'dark';
+    
+    // View Transition implementation
+    if (!(document as any).startViewTransition) {
+      setTheme(nextTheme);
+      return;
+    }
+
+    const x = e.clientX;
+    const y = e.clientY;
+    const endRadius = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y)
+    );
+
+    const transition = (document as any).startViewTransition(() => {
+      setTheme(nextTheme);
+    });
+
+    transition.ready.then(() => {
+      const clipPath = [
+        `circle(0px at ${x}px ${y}px)`,
+        `circle(${endRadius}px at ${x}px ${y}px)`,
+      ];
+
+      document.documentElement.animate(
+        {
+          clipPath: clipPath,
+        },
+        {
+          duration: 700,
+          easing: "ease-in-out",
+          pseudoElement: "::view-transition-new(root)",
+        }
+      );
+    });
+  }, [theme]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'applications' | 'users' | 'resources' | 'reports' | 'settings'>('dashboard');
   const [dashboardTab, setDashboardTab] = useState<'ALL' | 'SELF_SERVICE' | 'LOAN'>('ALL');
@@ -5448,7 +5489,7 @@ export default function App() {
   }
 
   if (!currentUser) {
-    return <LoginScreen theme={theme} onThemeToggle={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} onLogin={(user) => {
+    return <LoginScreen theme={theme} onThemeToggle={handleThemeToggle} onLogin={(user) => {
       setCurrentUser(user);
     }} supabase={supabase} />;
   }
@@ -5773,16 +5814,7 @@ export default function App() {
               </div>
 
               {/* Theme Toggle */}
-              <button 
-                onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-                className={cn(
-                  "p-2 sm:p-2.5 rounded-xl transition-all border",
-                  theme === 'light' ? "bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-900 shadow-sm" : "bg-slate-900/50 border-slate-800 text-slate-400 hover:bg-slate-800/40 hover:text-slate-200"
-                )}
-                title={theme === 'light' ? "Chuyển chế độ tối" : "Chuyển chế độ sáng"}
-              >
-                {theme === 'light' ? <Moon size={16} className="sm:w-5 sm:h-5" /> : <Sun size={16} className="text-festive-gold sm:w-5 sm:h-5" />}
-              </button>
+              <ThemeToggle theme={theme} onToggle={handleThemeToggle} />
             </div>
 
             {/* User Profile */}

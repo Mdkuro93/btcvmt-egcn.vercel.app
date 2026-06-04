@@ -498,8 +498,10 @@ export const ApplicationsTab = ({
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 100 }}
                         className={cn(
-                          "fixed bottom-10 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-1 p-2 border rounded-3xl backdrop-blur-xl ring-1 shadow-2xl transition-all",
-                          theme === 'light' ? "bg-white/90 border-slate-200 ring-slate-900/5 shadow-slate-900/10 text-slate-800" : "bg-slate-950/90 border-slate-800 ring-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] text-slate-200"
+                          "fixed bottom-8 sm:bottom-12 left-1/2 -translate-x-1/2 z-[60] flex flex-wrap sm:flex-nowrap items-center justify-center gap-1.5 p-2 rounded-2xl backdrop-blur-md border shadow-[0_-12px_40px_rgba(0,0,0,0.12)] transition-all",
+                          theme === 'light' 
+                            ? "bg-white/80 border-slate-200/60 text-slate-800 shadow-slate-200" 
+                            : "bg-slate-900/80 border-slate-700/50 text-slate-200 shadow-black/40"
                         )}
                       >
                         <div className={cn(
@@ -669,7 +671,10 @@ export const ApplicationsTab = ({
                     )}
                   </AnimatePresence>
 
-                  <div className="overflow-auto max-h-[calc(100vh-180px)] relative border-t border-slate-800/10">
+                  <div className={cn(
+                    "overflow-auto max-h-[calc(100vh-180px)] relative border-t border-slate-800/10 custom-scrollbar transition-all duration-300",
+                    selectedAppIds.length > 0 && "pb-32 sm:pb-24"
+                  )}>
                     <table className="w-full text-left border-separate border-spacing-0">
                       <thead className="sticky top-0 z-20">
                         <tr className={cn(
