@@ -504,17 +504,23 @@ export default function App() {
   // Initialize session on app load
   useEffect(() => {
     const initSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data?.session?.user) {
-        const { data: profile } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', data.session.user.id)
-          .maybeSingle();
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (data?.session?.user) {
+          const { data: profile } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', data.session.user.id)
+            .maybeSingle();
 
-        if (profile) {
-          setCurrentUser(mapUserFromSnakeCase(profile));
+          if (profile) {
+            setCurrentUser(mapUserFromSnakeCase(profile));
+          }
         }
+      } catch (err) {
+        console.error('Error in initSession:', err);
+      } finally {
+        setIsAuthLoading(false);
       }
     };
     initSession();
@@ -709,6 +715,7 @@ export default function App() {
   const [isLoadingApps, setIsLoadingApps] = useState(true);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isChartsReady, setIsChartsReady] = useState(false);
 
   useEffect(() => {
@@ -5416,7 +5423,7 @@ export default function App() {
   const setIsBulkDocumentModalOpen = setIsBulkDocumentOpen;
   const setIsBulkNoteModalOpen = setIsBulkNoteOpen;
 
-  if (isInitialLoading) {
+  if (isInitialLoading || isAuthLoading) {
     return (
       <div className={cn(
         "min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-500",
@@ -5809,7 +5816,7 @@ export default function App() {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 md:px-8 bg-transparent custom-scrollbar relative">
+        <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:px-8 md:py-6 bg-transparent custom-scrollbar relative">
           <AnimatePresence mode="wait">
       <DashboardTab
         key="dashboard-tab-view"

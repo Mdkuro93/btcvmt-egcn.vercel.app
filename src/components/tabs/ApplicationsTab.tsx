@@ -149,31 +149,49 @@ export const ApplicationsTab = ({
                   "backdrop-blur-md rounded-3xl shadow-2xl border transition-all overflow-hidden",
                   theme === 'light' ? "bg-white border-slate-200 shadow-slate-900/5" : "bg-slate-900/40 border-slate-800/50"
                 )}>
-                  <div className={cn("p-3 border-b", theme === 'light' ? "border-slate-100 shadow-inner bg-slate-50/50" : "border-slate-800/50")}>
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                      <div className={cn("flex flex-wrap items-center gap-2 sm:gap-4 text-[10px] sm:text-[11px]", theme === 'light' ? "text-slate-800" : "text-slate-200")}>
-                        <select 
-                          value={pageSize}
-                          onChange={(e) => {setPageSize(Number(e.target.value)); setCurrentPage(0);}}
-                          className={cn("px-2 py-1 rounded-lg text-[10px] outline-none font-bold", theme === 'light' ? "bg-slate-200/50 text-slate-800 border border-slate-300/50" : "bg-slate-800 text-slate-200 border border-slate-700")}
-                        >
-                          <option value={20}>20 / trang</option>
-                          <option value={50}>50 / trang</option>
-                          <option value={100}>100 / trang</option>
-                        </select>
-                        <div className={cn("flex items-center gap-1.5 sm:gap-2 font-bold", theme === 'light' ? "text-slate-600" : "text-slate-400")}>
-                          <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className={cn("p-1 transition-colors disabled:opacity-30", theme === 'light' ? "hover:text-indigo-600" : "hover:text-festive-gold")}>Trước</button>
-                          <span className={cn("px-2.5 py-1 rounded-lg text-[10px] sm:text-xs", theme === 'light' ? "bg-slate-200/50 text-slate-900" : "bg-slate-800 text-white")}>Trang {currentPage + 1}</span>
-                          <button onClick={() => setCurrentPage(p => ( (p+1)*pageSize < totalCount ? p + 1 : p))} disabled={(currentPage+1)*pageSize >= totalCount} className={cn("p-1 transition-colors disabled:opacity-30", theme === 'light' ? "hover:text-indigo-600" : "hover:text-festive-gold")}>Sau</button>
+                  <div className={cn("p-2 lg:p-3 border-b", theme === 'light' ? "border-slate-100 shadow-inner bg-slate-50/50" : "border-slate-800/50")}>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                        <div className={cn("flex flex-wrap items-center gap-2 text-[10px] sm:text-[11px]", theme === 'light' ? "text-slate-800" : "text-slate-200")}>
+                          <select 
+                            value={pageSize}
+                            onChange={(e) => {setPageSize(Number(e.target.value)); setCurrentPage(0);}}
+                            className={cn("px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[10px] outline-none font-bold", theme === 'light' ? "bg-slate-200/50 text-slate-800 border border-slate-300/50" : "bg-slate-800 text-slate-200 border border-slate-700")}
+                          >
+                            <option value={20}>20 / trang</option>
+                            <option value={50}>50 / trang</option>
+                            <option value={100}>100 / trang</option>
+                          </select>
+                          <div className={cn("flex items-center gap-1 sm:gap-2 font-bold", theme === 'light' ? "text-slate-600" : "text-slate-400")}>
+                            <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className={cn("p-1 transition-colors disabled:opacity-30", theme === 'light' ? "hover:text-indigo-600" : "hover:text-festive-gold")}>Trước</button>
+                            <span className={cn("px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px]", theme === 'light' ? "bg-slate-200/50 text-slate-900" : "bg-slate-800 text-white")}>T. {currentPage + 1}</span>
+                            <button onClick={() => setCurrentPage(p => ( (p+1)*pageSize < totalCount ? p + 1 : p))} disabled={(currentPage+1)*pageSize >= totalCount} className={cn("p-1 transition-colors disabled:opacity-30", theme === 'light' ? "hover:text-indigo-600" : "hover:text-festive-gold")}>Sau</button>
+                          </div>
+                          <span className="text-slate-500 font-bold italic opacity-70">Tổng: {totalCount.toLocaleString()} hồ sơ</span>
                         </div>
-                        <span className="text-slate-500 font-bold italic opacity-70">Tổng: {totalCount.toLocaleString()} hồ sơ</span>
+
+                        {/* Search Input inline on mobile/desktop */}
+                        <div className="relative group w-full sm:w-48">
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                          <input 
+                            type="text" 
+                            placeholder="Tìm kiếm nhanh..." 
+                            className={cn(
+                              "pl-8 pr-3 py-1 sm:py-1.5 rounded-full text-[10px] font-bold transition-all w-full outline-none border tracking-tight",
+                              theme === 'light' ? "bg-white border-slate-200 text-slate-800 focus:border-indigo-500/50 shadow-sm" : "bg-slate-950/40 border-slate-800 text-slate-200 focus:border-festive-gold/50"
+                            )}
+                            value={search}
+                            onChange={(e) => { setSearch(e.target.value); setCurrentPage(0); }}
+                          />
+                        </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2">
-                        {/* VIỆC 1: Sort buttons */}
-                        <div className="flex items-center gap-1.5 flex-wrap">
+                      {/* Horizontal Ribbon on mobile, flex row on desktop */}
+                      <div className="flex flex-nowrap lg:flex-wrap items-center gap-2 overflow-x-auto lg:overflow-visible custom-scrollbar -mx-1 px-1 py-1 w-full lg:w-auto shrink-0 select-none">
+                        {/* Sort buttons */}
+                        <div className="flex items-center gap-1 flex-nowrap shrink-0">
                           <span className={cn(
-                            "text-[9px] font-black uppercase tracking-wider",
+                            "text-[9px] font-black uppercase tracking-wider whitespace-nowrap mr-1",
                             theme === 'dark' ? "text-slate-500" : "text-slate-400"
                           )}>
                             Sắp xếp:
@@ -192,7 +210,7 @@ export const ApplicationsTab = ({
                                   prev.direction === 'asc' ? 'desc' : 'asc'
                               }))}
                               className={cn(
-                                "px-2 py-1 rounded-lg border text-[9px] font-black",
+                                "px-2 py-1 rounded-lg border text-[9px] font-black shrink-0 whitespace-nowrap",
                                 "transition-all uppercase tracking-wider",
                                 sortConfig.field === field
                                   ? theme === 'dark'
@@ -213,35 +231,22 @@ export const ApplicationsTab = ({
                           ))}
                         </div>
 
-
-
-                        <div className="relative group">
-                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-                          <input 
-                            type="text" 
-                            placeholder="Tìm kiếm nhanh..." 
-                            className={cn(
-                              "pl-8 pr-3 py-1.5 rounded-full text-[10px] font-bold transition-all w-40 outline-none border tracking-tight",
-                              theme === 'light' ? "bg-white border-slate-200 text-slate-800 focus:border-indigo-500/50 shadow-sm" : "bg-slate-950/40 border-slate-800 text-slate-200 focus:border-festive-gold/50"
-                            )}
-                            value={search}
-                            onChange={(e) => { setSearch(e.target.value); setCurrentPage(0); }}
-                          />
-                        </div>
+                        <div className="h-4 w-px bg-slate-700/30 mx-1 shrink-0 lg:block hidden" />
 
                         {selectedAppIds.length > 0 && (
                           <button 
                             onClick={handleBulkPrint}
-                            className="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 active:scale-95 transition-all"
+                            className="flex items-center gap-2 px-3 py-1 bg-indigo-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 active:scale-95 transition-all shrink-0 whitespace-nowrap"
                           >
                             <Printer size={12} />
                             In ({selectedAppIds.length})
                           </button>
                         )}
+
                         <button 
                           onClick={() => setIsShowFilters(!isShowFilters)}
                           className={cn(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
+                            "flex items-center gap-2 px-2.5 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all hover:scale-[1.02] shrink-0 whitespace-nowrap",
                             isShowFilters || (selectedProjectId || filterStatus !== 'ALL' || filterLoanStatus !== 'ALL' || filterSelfService !== 'ALL' || filterSLAStatus !== 'ALL' || filterIssue !== 'ALL')
                               ? "bg-festive-gold text-slate-950 border-festive-gold shadow-lg shadow-festive-gold/15 font-black" 
                               : (theme === 'light' ? "bg-white text-slate-600 border-slate-200 shadow-sm hover:bg-slate-50" : "bg-slate-950/40 text-slate-400 border-slate-800 hover:border-festive-gold/30")

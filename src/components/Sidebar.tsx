@@ -36,6 +36,13 @@ export const Sidebar = ({
 
   const [projectSearch, setProjectSearch] = useState('');
 
+  const handleTabClick = (tab: string) => {
+    setActiveTab(tab);
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsSidebarCollapsed(true);
+    }
+  };
+
   return (
 <>
       {/* Sidebar - Enhanced Blur and border */}
@@ -59,11 +66,11 @@ export const Sidebar = ({
           <ChevronLeft size={16} className={cn("transition-transform duration-300", isSidebarCollapsed && "rotate-180")} />
         </button>
         <div className={cn(
-          "p-6 border-b mb-4 flex items-center gap-3 transition-colors",
+          "p-4 sm:p-6 border-b mb-4 flex items-center gap-3 transition-colors",
           theme === 'light' 
             ? "border-slate-200 bg-gradient-to-br from-slate-100/30 to-transparent" 
             : "border-slate-800/50 bg-gradient-to-br from-slate-800/30 to-transparent",
-          isSidebarCollapsed ? "px-5" : "px-6"
+          isSidebarCollapsed ? "px-5" : "px-4 sm:px-6"
         )}>
           <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_-5px_rgba(245,158,11,0.5)] border border-white/20 shrink-0">
             <ShieldCheck className="text-white" size={24} strokeWidth={1.5} />
@@ -83,12 +90,12 @@ export const Sidebar = ({
           </AnimatePresence>
         </div>
 
-        <nav className="flex-1 flex flex-col overflow-hidden px-4 space-y-1">
+        <nav className="flex-1 flex flex-col overflow-y-auto lg:overflow-hidden px-4 space-y-1.5 custom-scrollbar">
           <div className="space-y-1 flex-shrink-0">
           <button 
-            onClick={() => setActiveTab('dashboard')}
+            onClick={() => handleTabClick('dashboard')}
             className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
+              "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               isSidebarCollapsed ? "justify-center px-0" : "px-4",
               activeTab === 'dashboard'                
                 ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
@@ -106,9 +113,9 @@ export const Sidebar = ({
             </AnimatePresence>
           </button>
           <button 
-            onClick={() => setActiveTab('applications')}
+            onClick={() => handleTabClick('applications')}
             className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
+              "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               activeTab === 'applications' 
                 ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
                 : "text-slate-300 hover:bg-slate-700 hover:text-white"
@@ -127,9 +134,9 @@ export const Sidebar = ({
 
           {isManagement && (
             <button 
-              onClick={() => setActiveTab('reports')}
+              onClick={() => handleTabClick('reports')}
               className={cn(
-                "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
+                "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                 activeTab === 'reports' 
                   ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
                   : "text-slate-300 hover:bg-slate-700 hover:text-white"
@@ -148,9 +155,9 @@ export const Sidebar = ({
           )}
 
           <button 
-            onClick={() => setActiveTab('resources')}
+            onClick={() => handleTabClick('resources')}
             className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
+              "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               activeTab === 'resources' 
                 ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
                 : "text-slate-300 hover:bg-slate-700 hover:text-white"
@@ -170,9 +177,9 @@ export const Sidebar = ({
           {userRole === 'ADMIN' && (
             <>
               <button 
-                onClick={() => setActiveTab('users')}
+                onClick={() => handleTabClick('users')}
                 className={cn(
-                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
+                  "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'users' 
                     ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
                     : "text-slate-300 hover:bg-slate-700 hover:text-white"
@@ -189,9 +196,9 @@ export const Sidebar = ({
             </AnimatePresence>
               </button>
               <button 
-                onClick={() => setActiveTab('projects')}
+                onClick={() => handleTabClick('projects')}
                 className={cn(
-                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
+                  "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'projects' 
                     ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
                     : "text-slate-300 hover:bg-slate-700 hover:text-white"
@@ -208,9 +215,9 @@ export const Sidebar = ({
             </AnimatePresence>
               </button>
               <button 
-                onClick={() => setActiveTab('settings')}
+                onClick={() => handleTabClick('settings')}
                 className={cn(
-                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold text-sm",
+                  "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'settings' 
                     ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
                     : "text-slate-300 hover:bg-slate-700 hover:text-white"
@@ -229,13 +236,18 @@ export const Sidebar = ({
             </>
           )}
 
-          <div className="pt-4 mt-4 border-t border-slate-800/10">
+          <div className="pt-3 mt-3 border-t border-slate-700/50">
             <button 
-              onClick={() => setIsFieldMode(true)}
+              onClick={() => {
+                setIsFieldMode(true);
+                if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                  setIsSidebarCollapsed(true);
+                }
+              }}
               title="Field Portal (Mobile)"
               className={cn(
-                "w-full flex items-center gap-3 py-4 rounded-2xl transition-all duration-200 font-bold text-[11px] uppercase tracking-wider overflow-hidden",
-                isSidebarCollapsed ? "justify-center px-0" : "px-8",
+                "w-full flex items-center gap-3 py-2.5 px-4 rounded-xl transition-all duration-200 font-bold text-[11px] uppercase tracking-wider overflow-hidden",
+                isSidebarCollapsed ? "justify-center px-0" : "px-4",
                 "bg-indigo-600/10 text-indigo-400 border border-indigo-600/20 hover:bg-indigo-600/20"
               )}
             >
@@ -251,7 +263,7 @@ export const Sidebar = ({
           </div>
           </div>
 
-          <div className={cn("pt-4 border-t border-slate-800/10 mt-4 pb-2 transition-all flex-shrink-0", isSidebarCollapsed ? "px-4" : "px-6")}>
+          <div className={cn("pt-4 border-t border-slate-700/50 mt-4 pb-2 transition-all flex-shrink-0", isSidebarCollapsed ? "px-4" : "px-6")}>
             <AnimatePresence mode="popLayout">
               {!isSidebarCollapsed ? (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -282,7 +294,7 @@ export const Sidebar = ({
             </AnimatePresence>
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar px-4 space-y-4 pb-6">
+          <div className="lg:flex-1 lg:overflow-y-auto overflow-visible custom-scrollbar px-1 space-y-4 pb-6">
             <button 
               onClick={() => setSelectedProjectId(null)}
               title="Tất cả dự án"
