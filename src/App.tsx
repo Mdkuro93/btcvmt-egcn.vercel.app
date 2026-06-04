@@ -7,7 +7,7 @@ import { calculateSLA } from './utils/statusEngine';
 import { diffDays } from './utils/dateUtils';
 import { buildFlags } from './utils/flagUtils';
 import { mapFromSnakeCase, mapToSnakeCase, mapUserFromSnakeCase, mapUserToSnakeCase, safeParse } from './utils/mappers';
-import { calculateDaysDiff, calculateDaysBetweenDates, getPhaseIndex, getTaxStatus, getOverdueInfo } from './utils/appUtils';
+import { calculateDaysDiff, calculateDaysBetweenDates, getPhaseIndex, getTaxStatus, getOverdueInfo, inferStepFromDates } from './utils/appUtils';
 import { StatCard, StatusBadge, DetailCard, FestiveBranding, PrintStyles } from './components/AppSubComponents';
 
 import { useExcelImport } from './hooks/useExcelImport';
@@ -329,7 +329,7 @@ const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplicati
   if (appsToSync.length === 0) return allApplications;
   try {
     const recordsToInsert: any[] = appsToSync
-      .filter(a => !a.id || typeof a.id === 'string')
+      .filter(a => !a.id || (typeof a.id === 'string' && a.id.includes('-imp-')))
       .map(app => {
         const snakeObj = mapToSnakeCase(app);
         delete snakeObj.id; // Ensure id is NOT sent for insert
@@ -337,7 +337,7 @@ const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplicati
       });
 
     const recordsToUpdate: any[] = appsToSync
-      .filter(a => a.id && typeof a.id === 'number')
+      .filter(a => a.id && !a.id.toString().includes('-imp-'))
       .map(app => mapToSnakeCase(app));
 
     let insertedData: any[] = [];
@@ -379,10 +379,10 @@ const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplicati
     if (allReturnedData.length > 0) {
       allReturnedData.forEach(item => {
         const returnedApp = mapFromSnakeCase(item);
-        // Find existing app by unitCode if it was a new record (no numeric id yet)
+        // Find existing app by unitCode if it was a new record
         const idx = updatedAppsLocal.findIndex(a => 
-          (typeof returnedApp.id === 'number' && a.id === returnedApp.id) || 
-          (a.unitCode === returnedApp.unitCode && typeof a.id !== 'number')
+          (a.id === returnedApp.id) || 
+          (a.unitCode === returnedApp.unitCode && a.projectName === returnedApp.projectName && a.id.toString().includes('-imp-'))
         );
         
         if (idx !== -1) {
@@ -2383,6 +2383,13 @@ export default function App() {
     const auditEntry = createAuditEntry('Cập nhật nhanh', false, 1, app.unitCode);
     let updatedApp = { ...app, ...editData, auditTrail: [auditEntry, ...(app.auditTrail || [])] };
 
+    // Automatically infer step and status from newly edited dates
+    const inferred = inferStepFromDates(updatedApp, slaConfig);
+    updatedApp.currentStep = inferred.currentStep;
+    if (updatedApp.status !== 'Error') {
+      updatedApp.status = inferred.status;
+    }
+
     // Auto-promote to Hoan_Tat if customerHandoverDate is updated
     if (editData.customerHandoverDate) {
       updatedApp.currentStep = 'Hoan_Tat';
@@ -2812,8 +2819,15 @@ export default function App() {
 
         let updated = { ...mergedApp, updated_at: nowStr };
 
+        // Automatically infer step and status from newly entered dates
+        const inferred = inferStepFromDates(updated, slaConfig);
+        updated.currentStep = inferred.currentStep;
+        if (updated.status !== 'Error') {
+          updated.status = inferred.status;
+        }
+
         if (processedChanges.gcnReceivedDate) {
-          const isEarly = ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => (updated.currentStep as string).startsWith(prefix));
+          const isEarly = ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => (original.currentStep as string).startsWith(prefix));
           if (isEarly) {
             updated.issueType = 'Sai sót Khác';
             updated.issueNotes = (updated.issueNotes ? updated.issueNotes + '\n' : '') + 'Cảnh báo: Lệch tiến độ thực tế (Có ngày nhận GCN nhưng chưa tới bước bàn giao)';

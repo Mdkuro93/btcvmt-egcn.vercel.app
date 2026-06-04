@@ -103,3 +103,82 @@ export const validateSkippedSteps = (
   return warnings;
 };
 
+export const inferStepFromDates = (
+  app: any,
+  slaConfig?: Record<string, number>
+): { currentStep: StepName; status: import('../types').UnitStatus } => {
+  const isQT2 = app.workflowType === 'Quy_trinh_2';
+  
+  const hasHandover = app.customerHandoverDate && app.customerHandoverDate !== '---' && app.customerHandoverDate !== 'None' && String(app.customerHandoverDate).trim() !== '';
+
+  if (app.isSelfService) {
+    if (app.customerHandoverDate)
+      return { currentStep: 'Hoan_Tat', status: 'Completed' };
+    if (app.gcnReceivedDate)
+      return { 
+        currentStep: isQT2 ? 'S7_1_PTT_Tiep_Nhan' : 'GD5_Cho_PTT_TiepNhan_BG',
+        status: 'WaitingHandover' 
+      };
+    return { 
+      currentStep: isQT2 ? 'S1_ChuanBi' : 'GD1_ChuanBi', 
+      status: 'Processing' 
+    };
+  }
+  
+  if (hasHandover) 
+    return { currentStep: 'Hoan_Tat', status: 'Completed' };
+  
+  if (isQT2) {
+    if (app.gcnReceivedDate)        return { currentStep: 'S7_1_PTT_Tiep_Nhan', status: 'WaitingHandover' };
+    if (app.ptdaHandoverDate)       return { currentStep: 'S7_PTDA_Ban_Giao', status: 'WaitingHandover' };
+    if (app.gcnSignedDate)          return { currentStep: 'S6_Nhan_So_GCN', status: 'GCN_Issued' };
+    if (app.taxReceiptDate)         return { currentStep: 'S5_1_PTDA_TiepNhan', status: 'TaxCompleted' };
+    if (app.taxNotificationDate)    return { currentStep: 'S5_Tai_Chinh_Khach_Hang', status: 'TaxPending' };
+    
+    if (app.submissionDate && !app.taxNotificationDate) {
+      const subDate = new Date(app.submissionDate);
+      const daysDiff = (new Date().getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
+      const sla = slaConfig?.['Nộp VPĐK'] ?? 5;
+      return daysDiff > sla
+        ? { currentStep: 'S4_Cho_Thong_Bao_Thue', status: 'TaxPending' }
+        : { currentStep: 'S3_Nop_VPDK', status: 'Submitted' };
+    }
+    
+    if (app.vpdkCode)               return { currentStep: 'S3_Nop_VPDK', status: 'Submitted' };
+    
+    if (app.accountingHandoverDate && !app.submissionDate) {
+      return { currentStep: 'S2_KT_Tiep_Nhan', status: 'Processing' };
+    }
+    if (!app.accountingHandoverDate) {
+      return { currentStep: 'S1_ChuanBi', status: 'Processing' };
+    }
+    
+    return { currentStep: 'S1_ChuanBi', status: 'Processing' };
+  } else {
+    if (app.gcnReceivedDate)        return { currentStep: 'GD5_Cho_PTT_TiepNhan_BG', status: 'WaitingHandover' };
+    if (app.gcnSignedDate)          return { currentStep: 'GD5_Cho_GCN', status: 'GCN_Issued' };
+    if (app.taxReceiptDate)         return { currentStep: 'GD4_Cho_KT_TiepNhan_LaySo', status: 'TaxCompleted' };
+    if (app.taxNotificationDate)    return { currentStep: 'GD4_Cho_Nop_NVTC', status: 'TaxPending' };
+
+    if (app.submissionDate && !app.taxNotificationDate) {
+      const subDate = new Date(app.submissionDate);
+      const daysDiff = (new Date().getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
+      const sla = slaConfig?.['Nộp VPĐK'] ?? 5;
+      return daysDiff > sla
+        ? { currentStep: 'GD3_Cho_TBThue', status: 'TaxPending' }
+        : { currentStep: 'GD3_Cho_TBThue', status: 'Submitted' };
+    }
+
+    if (app.vpdkCode)               return { currentStep: 'GD2_Cho_Nop_VPDK', status: 'WaitingVPDK' };
+    
+    if (app.accountingHandoverDate && !app.submissionDate) {
+      return { currentStep: 'GD1_Cho_KT_TiepNhan', status: 'Processing' };
+    }
+    if (!app.accountingHandoverDate) {
+      return { currentStep: 'GD1_ChuanBi', status: 'Processing' };
+    }
+    
+    return { currentStep: 'GD1_ChuanBi', status: 'Processing' };
+  }
+};
+
