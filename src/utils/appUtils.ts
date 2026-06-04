@@ -44,7 +44,7 @@ export const getPhaseIndex = (step: StepName): number => {
 export const getTaxStatus = (app: Application) => {
   if (app.status === 'Error') return { label: 'Sai sót/Vướng mắc', color: 'text-rose-500' };
   if (app.taxReceiptDate) return { label: 'Hoàn thành', color: 'text-emerald-500' };
-  if (!app.taxNotificationReceivedDate) return { label: 'Chưa có TB thuế', color: 'text-slate-500' };
+  if (!app.taxNotificationDate && !app.taxNotificationReceivedDate) return { label: 'Chưa có TB thuế', color: 'text-slate-500' };
   return { label: 'Chưa hoàn thành', color: 'text-amber-500' };
 };
 

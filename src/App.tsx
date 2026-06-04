@@ -125,6 +125,7 @@ import { CreateApplicationModal } from './components/modals/CreateApplicationMod
 import { UserManagementModal } from './components/modals/UserManagementModal';
 import { Sidebar } from './components/Sidebar';
 import { DashboardTab } from './components/tabs/DashboardTab';
+import { ThemeRipple } from './components/ThemeRipple';
 import { ApplicationsTab } from './components/tabs/ApplicationsTab';
 import { ResourcesTab } from './components/tabs/ResourcesTab';
 import { Routes, Route, Link } from 'react-router-dom';
@@ -3429,18 +3430,16 @@ export default function App() {
            // Allow
         }
         if (app.currentStep === 'S2_KT_Ban_giao' && nextStep === 'S3_Nop_VPDK') {
-          if (!app.submissionLocation || !app.vpdkCode || !app.submissionDate) {
-            // Check if dates are being provided via the transition modal (handled by caller if not already set)
-            // But we keep this as a general check.
-          }
+          // ...
         }
         if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' && nextStep === 'S5_1_PTDA_TiepNhan') {
-          if (!app.taxReceiptDate) {
-            showToast('Bắt buộc nhập Ngày nhận/cung cấp GNT / Nộp thuế trước khi chuyển bước.', 'warning');
-            return;
-          }
+           // PTT đôn đốc xong chuyển cho PTDA tiếp nhận chứng từ
         }
         if (app.currentStep === 'S5_1_PTDA_TiepNhan' && nextStep === 'S6_Nhan_So_GCN') {
+          if (!app.taxReceiptDate) {
+            showToast('Bắt buộc nhập Ngày nộp NPVTC / Nhận chứng từ thuế trước khi chuyển tới B6.', 'warning');
+            return;
+          }
           if (!app.gcnSignedDate) {
             showToast('Bắt buộc nhập Ngày trình ký/In GCN trước khi chuyển bước.', 'warning');
             return;
@@ -4428,7 +4427,7 @@ export default function App() {
     const pttFields = [
       'customerName', 'contractSignerType', 'phoneNumber', 'loanStatus', 'bankCommitmentDeadline', 'propertyType', 
       'contractSigningDate', 'receivedDate', 'isSelfService', 'customerHandoverDate', 'taxNotificationReceivedDate', 'accountingHandoverDate', 'staffName',
-      'gcnReceivedDate'
+      'gcnReceivedDate', 'taxReceiptDate'
     ];
 
     // Financial & Tax & Authority Submission: KT responsible for processing according to function (Tax/Accounting)
@@ -4441,7 +4440,7 @@ export default function App() {
 
     // Project/Authority: PTDA responsible for processing dates (GCN milestones)
     const ptdaFields = [
-      'vpdkCode', 'taxNotificationDate', 'taxNoticeProvisionDate', 'gcnSignedDate',
+      'vpdkCode', 'taxNotificationDate', 'taxNoticeProvisionDate', 'gcnSignedDate', 'taxReceiptDate',
       'issueType', 'issueNotes', 'issueSeverity'
     ];
 
@@ -4502,9 +4501,14 @@ export default function App() {
         nextApp.status = 'TaxCompleted';
       }
       
-      // Auto-promote status if taxNotificationReceivedDate is added and current step is S4_Cho_Thong_Bao_Thue
-      if (field === 'taxNotificationReceivedDate' && value && editApp.currentStep === 'S4_Cho_Thong_Bao_Thue') {
+      // Auto-promote status if taxNotificationDate or taxNotificationReceivedDate is added and current step is S4_Cho_Thong_Bao_Thue
+      if ((field === 'taxNotificationReceivedDate' || field === 'taxNotificationDate') && value && editApp.currentStep === 'S4_Cho_Thong_Bao_Thue') {
         nextApp.currentStep = 'S5_Tai_Chinh_Khach_Hang';
+      }
+
+      // Auto-promote for GD workflow step 3 to step 4
+      if ((field === 'taxNotificationReceivedDate' || field === 'taxNotificationDate') && value && editApp.currentStep === 'GD3_Cho_TBThue') {
+        nextApp.currentStep = 'GD4_Cho_Nop_NVTC';
       }
 
       // Check Lệch Tiến Độ Thực Tế cho GCN
@@ -4942,8 +4946,11 @@ export default function App() {
       a.currentStep === 'S2_KT_Tiep_Nhan'
     ).length;
     const pttIssues = apps.filter(a => a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None')).length;
-    // PTT Tax Pending: Matching "CHỜ HOÀN THÀNH NVTC" in chartData
-    const pttTaxPending = pendingTaxCount;
+    // PTT Tax Pending: Matching "CHỜ HOÀN THÀNH NVTC"
+    const pttTaxPending = apps.filter(a => 
+      a.currentStep === 'S5_Tai_Chinh_Khach_Hang' || 
+      a.currentStep === 'GD4_Cho_Nop_NVTC'
+    ).length;
     
     const pttWaitingHandover = waitingHandoverCount;
     const pttSlowest = apps.filter(a => stepConfig[a.currentStep]?.dept === 'PTT')
@@ -4995,7 +5002,11 @@ export default function App() {
     // Chờ TB Thuế: ChoThue must exclude S3_Nop_VPDK
     const ptdaNoTax = choThue.length;
     // Chờ hoàn thành NVTC:
-    const ptdaTaxPending = apps.filter(a => (a.currentStep === 'S5_Tai_Chinh_Khach_Hang' || a.currentStep === 'GD4_Cho_Nop_NVTC') && !a.taxReceiptDate).length;
+    const ptdaTaxPending = apps.filter(a => 
+      (a.currentStep === 'S5_1_PTDA_TiepNhan' || 
+       a.currentStep === 'S4_Cho_Thong_Bao_Thue' ||
+       a.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') && !a.taxReceiptDate
+    ).length;
     // Chờ in/ký GCN -> CHỜ BÀN GIAO: 
     const ptdaGcnWaiting = apps.filter(a => a.status === 'WaitingHandover' || a.currentStep === 'GD5_Cho_PTT_TiepNhan_BG').length;
     const ptdaIssues = apps.filter(a => (a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None')) && stepConfig[a.currentStep]?.dept === 'PTDA').length;
@@ -5327,7 +5338,7 @@ export default function App() {
         stages.TAX_PAID.push(r);
       }
       // Ưu tiên 5: AWAITING_FINANCE (CHỜ HOÀN THÀNH NVTC)
-      else if (r.status === 'TaxPending' && r.taxNotificationDate) {
+      else if (r.status === 'TaxPending' && (r.taxNotificationDate || r.taxNotificationReceivedDate)) {
         stages.AWAITING_FINANCE.push(r);
       }
       else if ([
@@ -5339,14 +5350,14 @@ export default function App() {
       // Ưu tiên 6: SUBMITTED / TAX_WARNING (phân loại theo SLA)
       else if (r.status === 'Submitted' || r.status === 'TaxPending' ||
                r.submissionDate) {
-        if (r.submissionDate && !r.taxNotificationDate) {
+        if (r.submissionDate && !r.taxNotificationDate && !r.taxNotificationReceivedDate) {
           const daysDiff = (today.getTime() - 
             new Date(r.submissionDate).getTime()) / (1000*60*60*24);
           if (daysDiff > submissionSLA)
             stages.TAX_WARNING.push(r);
           else
             stages.SUBMITTED.push(r);
-        } else if (r.taxNotificationDate) {
+        } else if (r.taxNotificationDate || r.taxNotificationReceivedDate) {
           stages.AWAITING_FINANCE.push(r);
         } else {
           stages.SUBMITTED.push(r);
@@ -5532,9 +5543,11 @@ export default function App() {
       <Route path="/report" element={<ReportScreen applications={applications.length > 0 ? applications : dashboardApps} />} />
       <Route path="*" element={
         <div className={cn(
-          "flex h-screen w-full overflow-hidden font-sans relative transition-colors duration-500 bg-slate-50 text-slate-900",
+          "flex h-screen w-full overflow-hidden font-sans relative transition-colors duration-700",
+          theme === 'dark' ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"
         )}>
-      <PrintStyles />
+          <ThemeRipple theme={theme} />
+          <PrintStyles />
       <div className="hidden">
         <HandoverRecord 
           apps={applications.filter(a => selectedAppIds.includes(a.id))} 
@@ -5854,167 +5867,172 @@ export default function App() {
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-2 sm:p-4 md:px-8 md:py-6 bg-transparent custom-scrollbar relative">
           <AnimatePresence mode="wait">
-      <DashboardTab
-        key="dashboard-tab-view"
-        activeTab={activeTab}
-        userRole={userRole}
-        dashboardApps={dashboardApps}
-        applications={applications}
-        theme={theme}
-        dashboardFilter={dashboardFilter}
-        handleDashboardClick={handleDashboardClick}
-        stats={stats}
-        chartData={chartData}
-        monthlySlaData={[]}
-        projectPerformance={[]}
-        selectedProject={selectedProject}
-        kpis={kpis}
-        setActiveTab={setActiveTab}
-        setFilterStatus={setFilterStatus}
-        setDashboardFilter={setDashboardFilter}
-        setFilterSLAStatus={setFilterSLAStatus}
-        setFilterIssue={setFilterIssue}
-        setSearch={setSearch}
-        overallPieData={overallPieData}
-        overallPieTotal={overallPieTotal}
-        roleKpis={roleKpis}
-        loanRatioTotal={loanRatioTotal}
-        loanPieData={loanPieData}
-        projectRegionFilter={projectRegionFilter}
-        setProjectRegionFilter={setProjectRegionFilter}
-        REGION_ORDER={REGION_ORDER}
-        visibleProjects={visibleProjects}
-        setSelectedProjectId={setSelectedProjectId}
-        selectedProjectId={selectedProjectId}
-        isManagement={isManagement}
-        setReportType={setReportType}
-        dashboardTab={dashboardTab}
-        setDashboardTab={setDashboardTab}
-        progressChartData={progressChartData}
-        showToast={showToast}
-      />
-      <ApplicationsTab
-        key="applications-tab-view"
-        activeTab={activeTab} 
-        userRole={userRole} 
-        theme={theme} 
-        isTableDense={isTableDense} 
-        setIsTableDense={setIsTableDense} 
-        searchQuery={searchQuery} 
-        setSearchQuery={setSearchQuery} 
-        bulkTransitionTarget={bulkTransitionTarget} 
-        setBulkTransitionTarget={setBulkTransitionTarget} 
-        bulkTransitionLocation={bulkTransitionLocation} 
-        setBulkTransitionLocation={setBulkTransitionLocation} 
-        bulkTransitionField={bulkTransitionField} 
-        setBulkTransitionField={setBulkTransitionField}
-        dashboardApps={dashboardApps}
-        applications={applications}
-        dashboardFilter={dashboardFilter}
-        selectedProject={selectedProject}
-        projects={projects}
-        visibleApps={visibleApps}
-        displayedApps={displayedApps}
-        selectedRows={selectedRows}
-        setSelectedRows={setSelectedRows}
-        handleSelectApp={handleSelectApp}
-        handleQuickSave={handleQuickSave}
-        handleSpreadsheetChange={handleSpreadsheetChange}
-        handleSpreadsheetPaste={handleSpreadsheetPaste}
-        handleDownloadTemplate={handleDownloadTemplate}
-        handleParseTemplate={handleParseTemplate}
-        handleBulkPrint={handleBulkPrint}
-        handleBulkDelete={handleBulkDelete}
-        handleBulkResolveIssues={handleBulkResolveIssues}
-        handleToggleChecklist={handleToggleChecklist}
-        setIsHandoverTicketOpen={setIsHandoverTicketOpen}
-        setIsBulkDocumentModalOpen={setIsBulkDocumentModalOpen}
-        setIsBulkNoteModalOpen={setIsBulkNoteModalOpen}
-        setIsBulkNoteOpen={setIsBulkNoteOpen}
-        setIsBulkDocumentOpen={setIsBulkDocumentModalOpen}
-        setIsBulkIssueOpen={setIsBulkIssueOpen}
-        selectedAppIds={selectedAppIds}
-        setSelectedAppIds={setSelectedAppIds}
-        isSavingApp={isSavingApp}
-        isManagementEdit={isManagementEdit}
-        isFieldEditable={isFieldEditable}
-        filteredApps={filteredApps}
-        isSpreadsheetMode={isSpreadsheetMode}
-        setIsSpreadsheetMode={setIsSpreadsheetMode}
-        EDITABLE_DATE_FIELDS={EDITABLE_DATE_FIELDS}
-        isLoadingApps={isLoadingApps}
-        slaConfig={slaConfig}
-        INITIAL_STEP_CONFIG={INITIAL_STEP_CONFIG}
-        handleResolveIssue={handleResolveIssue}
-        setPreviewFile={setPreviewFile}
-        handleDeleteApp={handleDeleteApp}
-        setSpreadsheetChanges={setSpreadsheetChanges}
-        setSpreadsheetErrors={setSpreadsheetErrors}
-        confirmSpreadsheetUpdates={confirmSpreadsheetUpdates}
-        checklistTemplates={checklistTemplates}
-        quickEditId={quickEditId}
-        quickEditData={quickEditData}
-        setQuickEditId={setQuickEditId}
-        setQuickEditData={setQuickEditData}
-        activeCell={activeCell}
-        setActiveCell={setActiveCell}
-        spreadsheetChanges={spreadsheetChanges}
-        spreadsheetErrors={spreadsheetErrors}
-        formErrors={formErrors}
-        conflictWarning={conflictWarning}
-        userCanEdit={userCanEdit}
-        stepConfig={stepConfig}
-        getTaxStatus={getTaxStatus}
-        getOverdueInfo={getOverdueInfo}
-        calculateDaysDiff={calculateDaysDiff}
-        selectedProjectId={selectedProjectId}
-        setSelectedProjectId={setSelectedProjectId}
-        filterStatus={filterStatus}
-        setFilterStatus={setFilterStatus}
-        filterLoanStatus={filterLoanStatus}
-        setFilterLoanStatus={setFilterLoanStatus}
-        filterSelfService={filterSelfService}
-        setFilterSelfService={setFilterSelfService}
-        filterIssue={filterIssue}
-        setFilterIssue={setFilterIssue}
-        filterSLAStatus={filterSLAStatus}
-        setFilterSLAStatus={setFilterSLAStatus}
-        selectedFlags={selectedFlags}
-        setSelectedFlags={setSelectedFlags}
-        sortConfig={sortConfig}
-        setSortConfig={setSortConfig}
-        currentPage={currentPage}
-        setCurrentPage={setCurrentPage}
-        pageSize={pageSize}
-        setPageSize={setPageSize}
-        isFieldMode={isFieldMode}
-        setIsFieldMode={setIsFieldMode}
-        isAdvancedFiltersOpen={isAdvancedFiltersOpen}
-        setIsAdvancedFiltersOpen={setIsAdvancedFiltersOpen}
-        handleSort={handleSort}
-        paginatedApps={paginatedApps}
-        totalPages={totalPages}
-        tableRowRefs={tableRowRefs}
-        highlightedAppId={highlightedAppId}
-        selectedIndex={selectedIndex}
-        setSelectedIndex={setSelectedIndex}
-        lastSelectedIndex={lastSelectedIndex}
-        setLastSelectedIndex={setLastSelectedIndex}
-        currentUser={currentUser}
-        isManagement={isManagement}
-        hasSettingsAccess={hasSettingsAccess}
-        hasUserAccess={hasUserAccess}
-        totalCount={totalCount}
-        search={search}
-        setSearch={setSearch}
-        setIsShowFilters={setIsShowFilters}
-        isShowFilters={isShowFilters}
-        quickFilterRef={quickFilterRef}
-        setIsQuickFilterOpen={setIsQuickFilterOpen}
-        isQuickFilterOpen={isQuickFilterOpen}
-        setDashboardFilter={setDashboardFilter}
-        handleBulkStepTransition={handleBulkStepTransition}
-      />
+            {activeTab === 'dashboard' && (
+              <DashboardTab
+                key="dashboard-tab-view"
+                activeTab={activeTab}
+                userRole={userRole}
+                dashboardApps={dashboardApps}
+                applications={applications}
+                theme={theme}
+                dashboardFilter={dashboardFilter}
+                handleDashboardClick={handleDashboardClick}
+                stats={stats}
+                chartData={chartData}
+                monthlySlaData={[]}
+                projectPerformance={[]}
+                selectedProject={selectedProject}
+                kpis={kpis}
+                setActiveTab={setActiveTab}
+                setFilterStatus={setFilterStatus}
+                setDashboardFilter={setDashboardFilter}
+                setFilterSLAStatus={setFilterSLAStatus}
+                setFilterIssue={setFilterIssue}
+                setSearch={setSearch}
+                overallPieData={overallPieData}
+                overallPieTotal={overallPieTotal}
+                roleKpis={roleKpis}
+                loanRatioTotal={loanRatioTotal}
+                loanPieData={loanPieData}
+                projectRegionFilter={projectRegionFilter}
+                setProjectRegionFilter={setProjectRegionFilter}
+                REGION_ORDER={REGION_ORDER}
+                visibleProjects={visibleProjects}
+                setSelectedProjectId={setSelectedProjectId}
+                selectedProjectId={selectedProjectId}
+                isManagement={isManagement}
+                setReportType={setReportType}
+                dashboardTab={dashboardTab}
+                setDashboardTab={setDashboardTab}
+                progressChartData={progressChartData}
+                showToast={showToast}
+              />
+            )}
+            
+            {activeTab === 'applications' && (
+              <ApplicationsTab
+                key="applications-tab-view"
+                activeTab={activeTab} 
+                userRole={userRole} 
+                theme={theme} 
+                isTableDense={isTableDense} 
+                setIsTableDense={setIsTableDense} 
+                searchQuery={searchQuery} 
+                setSearchQuery={setSearchQuery} 
+                bulkTransitionTarget={bulkTransitionTarget} 
+                setBulkTransitionTarget={setBulkTransitionTarget} 
+                bulkTransitionLocation={bulkTransitionLocation} 
+                setBulkTransitionLocation={setBulkTransitionLocation} 
+                bulkTransitionField={bulkTransitionField} 
+                setBulkTransitionField={setBulkTransitionField}
+                dashboardApps={dashboardApps}
+                applications={applications}
+                dashboardFilter={dashboardFilter}
+                selectedProject={selectedProject}
+                projects={projects}
+                visibleApps={visibleApps}
+                displayedApps={displayedApps}
+                selectedRows={selectedRows}
+                setSelectedRows={setSelectedRows}
+                handleSelectApp={handleSelectApp}
+                handleQuickSave={handleQuickSave}
+                handleSpreadsheetChange={handleSpreadsheetChange}
+                handleSpreadsheetPaste={handleSpreadsheetPaste}
+                handleDownloadTemplate={handleDownloadTemplate}
+                handleParseTemplate={handleParseTemplate}
+                handleBulkPrint={handleBulkPrint}
+                handleBulkDelete={handleBulkDelete}
+                handleBulkResolveIssues={handleBulkResolveIssues}
+                handleToggleChecklist={handleToggleChecklist}
+                setIsHandoverTicketOpen={setIsHandoverTicketOpen}
+                setIsBulkDocumentModalOpen={setIsBulkDocumentModalOpen}
+                setIsBulkNoteModalOpen={setIsBulkNoteModalOpen}
+                setIsBulkNoteOpen={setIsBulkNoteOpen}
+                setIsBulkDocumentOpen={setIsBulkDocumentModalOpen}
+                setIsBulkIssueOpen={setIsBulkIssueOpen}
+                selectedAppIds={selectedAppIds}
+                setSelectedAppIds={setSelectedAppIds}
+                isSavingApp={isSavingApp}
+                isManagementEdit={isManagementEdit}
+                isFieldEditable={isFieldEditable}
+                filteredApps={filteredApps}
+                isSpreadsheetMode={isSpreadsheetMode}
+                setIsSpreadsheetMode={setIsSpreadsheetMode}
+                EDITABLE_DATE_FIELDS={EDITABLE_DATE_FIELDS}
+                isLoadingApps={isLoadingApps}
+                slaConfig={slaConfig}
+                INITIAL_STEP_CONFIG={INITIAL_STEP_CONFIG}
+                handleResolveIssue={handleResolveIssue}
+                setPreviewFile={setPreviewFile}
+                handleDeleteApp={handleDeleteApp}
+                setSpreadsheetChanges={setSpreadsheetChanges}
+                setSpreadsheetErrors={setSpreadsheetErrors}
+                confirmSpreadsheetUpdates={confirmSpreadsheetUpdates}
+                checklistTemplates={checklistTemplates}
+                quickEditId={quickEditId}
+                quickEditData={quickEditData}
+                setQuickEditId={setQuickEditId}
+                setQuickEditData={setQuickEditData}
+                activeCell={activeCell}
+                setActiveCell={setActiveCell}
+                spreadsheetChanges={spreadsheetChanges}
+                spreadsheetErrors={spreadsheetErrors}
+                formErrors={formErrors}
+                conflictWarning={conflictWarning}
+                userCanEdit={userCanEdit}
+                stepConfig={stepConfig}
+                getTaxStatus={getTaxStatus}
+                getOverdueInfo={getOverdueInfo}
+                calculateDaysDiff={calculateDaysDiff}
+                selectedProjectId={selectedProjectId}
+                setSelectedProjectId={setSelectedProjectId}
+                filterStatus={filterStatus}
+                setFilterStatus={setFilterStatus}
+                filterLoanStatus={filterLoanStatus}
+                setFilterLoanStatus={setFilterLoanStatus}
+                filterSelfService={filterSelfService}
+                setFilterSelfService={setFilterSelfService}
+                filterIssue={filterIssue}
+                setFilterIssue={setFilterIssue}
+                filterSLAStatus={filterSLAStatus}
+                setFilterSLAStatus={setFilterSLAStatus}
+                selectedFlags={selectedFlags}
+                setSelectedFlags={setSelectedFlags}
+                sortConfig={sortConfig}
+                setSortConfig={setSortConfig}
+                currentPage={currentPage}
+                setCurrentPage={setCurrentPage}
+                pageSize={pageSize}
+                setPageSize={setPageSize}
+                isFieldMode={isFieldMode}
+                setIsFieldMode={setIsFieldMode}
+                isAdvancedFiltersOpen={isAdvancedFiltersOpen}
+                setIsAdvancedFiltersOpen={setIsAdvancedFiltersOpen}
+                handleSort={handleSort}
+                paginatedApps={paginatedApps}
+                totalPages={totalPages}
+                tableRowRefs={tableRowRefs}
+                highlightedAppId={highlightedAppId}
+                selectedIndex={selectedIndex}
+                setSelectedIndex={setSelectedIndex}
+                lastSelectedIndex={lastSelectedIndex}
+                setLastSelectedIndex={setLastSelectedIndex}
+                currentUser={currentUser}
+                isManagement={isManagement}
+                hasSettingsAccess={hasSettingsAccess}
+                hasUserAccess={hasUserAccess}
+                totalCount={totalCount}
+                search={search}
+                setSearch={setSearch}
+                setIsShowFilters={setIsShowFilters}
+                isShowFilters={isShowFilters}
+                quickFilterRef={quickFilterRef}
+                setIsQuickFilterOpen={setIsQuickFilterOpen}
+                isQuickFilterOpen={isQuickFilterOpen}
+                setDashboardFilter={setDashboardFilter}
+                handleBulkStepTransition={handleBulkStepTransition}
+              />
+            )}
             {activeTab === 'users' && (
               <motion.div 
                 key="users"
@@ -6121,14 +6139,16 @@ export default function App() {
                 />
               </motion.div>
             )}
-      <ResourcesTab
-        key="resources-tab-view"
-        activeTab={activeTab}
-        theme={theme}
-        userRole={userRole}
-        handleDownloadTemplate={handleDownloadTemplate}
-        DOC_CHECKLIST_ITEMS={DOC_CHECKLIST_ITEMS}
-      />
+            {activeTab === 'resources' && (
+              <ResourcesTab
+                key="resources-tab-view"
+                activeTab={activeTab}
+                theme={theme}
+                userRole={userRole}
+                handleDownloadTemplate={handleDownloadTemplate}
+                DOC_CHECKLIST_ITEMS={DOC_CHECKLIST_ITEMS}
+              />
+            )}
           </AnimatePresence>
         </div>
       </main>
@@ -6416,7 +6436,7 @@ export default function App() {
                         value={selectedProjectId || 'ALL'}
                         onChange={(e) => { setSelectedProjectId(e.target.value === 'ALL' ? null : e.target.value); setCurrentPage(0); }}
                       >
-                        <option key="all-projects" value="ALL">Tất cả dự án</option>
+                        <option key="all-projects-filter" value="ALL">Tất cả dự án</option>
                         {visibleProjects.map((p, index) => (
                           <option key={`project-filter-${p.id}-${index}`} value={p.id}>{p.name}</option>
                         ))}
@@ -6433,7 +6453,7 @@ export default function App() {
                         value={filterStatus}
                         onChange={(e) => { setFilterStatus(e.target.value as any); setCurrentPage(0); }}
                       >
-                        <option key="all-status" value="ALL">Tất cả trạng thái</option>
+                        <option key="all-status-filter" value="ALL">Tất cả trạng thái</option>
                         <option value="Processing">ĐANG CHUẨN BỊ</option>
                         <option value="WaitingVPDK">CHỜ NỘP VPĐK</option>
                         <option value="TaxPending">CHỜ HOÀN THÀNH NVTC</option>

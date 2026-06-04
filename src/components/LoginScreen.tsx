@@ -99,15 +99,20 @@ export default function LoginScreen({
         initial={{ opacity: 0, scale: 0.95, y: 30 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-        className={`w-full max-w-sm sm:max-w-md mx-4 p-8 sm:p-12 rounded-[2.5rem] backdrop-blur-2xl border transition-all duration-700 z-10 relative group ${
+        className={`w-full max-w-sm sm:max-w-md mx-4 p-8 sm:p-12 rounded-[3.5rem] backdrop-blur-3xl border transition-all duration-700 z-10 relative group ${
           isDark 
-            ? 'border-white/10 bg-white/5 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]' 
-            : 'border-white/80 bg-white/70 shadow-[0_25px_50px_-12px_rgba(15,23,42,0.1)]'
+            ? 'border-white/10 bg-slate-900/40 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.7)] hover:border-amber-500/20' 
+            : 'border-white/90 bg-white/70 shadow-[0_40px_100px_-20px_rgba(15,23,42,0.15)] hover:border-amber-500/30'
         }`}
       >
+        {/* Superior Ambient Glow */}
+        <div className={`absolute -inset-2 rounded-[4rem] blur-2xl opacity-20 group-hover:opacity-30 transition-opacity duration-1000 pointer-events-none -z-10 ${
+          isDark ? 'bg-amber-500/20' : 'bg-amber-500/30'
+        }`} />
+        
         {/* Interior glow effect */}
-        <div className={`absolute -inset-px rounded-[2.5rem] pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
-          isDark ? 'bg-gradient-to-br from-amber-500/5 to-transparent' : 'bg-gradient-to-br from-amber-500/10 to-transparent'
+        <div className={`absolute -inset-px rounded-[3.5rem] pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-1000 ${
+          isDark ? 'bg-gradient-to-br from-amber-500/5 via-transparent to-indigo-500/5' : 'bg-gradient-to-br from-amber-500/10 via-transparent to-indigo-500/5'
         }`} />
         
         <div className="flex flex-col items-center mb-8 relative z-10">

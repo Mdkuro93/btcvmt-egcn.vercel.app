@@ -7,8 +7,8 @@ import {
   Building2, MapPin, Layers, Wallet, Filter, AlertCircle, CreditCard, ChevronRight, UserCheck, CheckCircle2, Files, BarChart3
 } from 'lucide-react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Tooltip, ResponsiveContainer, 
-  LineChart, Line, AreaChart, Area, Legend, PieChart as RechartsPieChart, PieChart, Pie, Cell, LabelList 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, 
+  LineChart, Line, AreaChart, Area, Legend, PieChart, Pie, Cell, LabelList 
 } from 'recharts';
 import DashboardAlerts from '../DashboardAlerts';
 
@@ -179,32 +179,6 @@ export const DashboardTab = ({
                     />
                   </div>
                 )}
-
-                
-                <div className="hidden">
-                  <DashboardAlerts 
-                    theme={theme}
-                    stats={{
-                      loanCount: kpis.loanCount,
-                      regularCount: kpis.regularCount,
-                      overdueCount: kpis.overdue,
-                      errorCount: kpis.error,
-                    }}
-                    onFilterChange={(filter) => {
-                      setActiveTab('applications');
-                      setFilterStatus('ALL');
-                      setDashboardFilter('ALL');
-                      if (filter === 'SLA_OVERDUE') {
-                        setFilterSLAStatus('OVERDUE');
-                        setFilterIssue('ALL');
-                      } else if (filter === 'HAS_ERROR') {
-                        setFilterIssue('ERROR');
-                        setFilterSLAStatus('ALL');
-                      }
-                      setSearch('');
-                    }}
-                  />
-                </div>
 
                 {/* Charts Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

@@ -132,18 +132,20 @@ export const BackgroundParticles: React.FC<BackgroundParticlesProps> = ({ theme 
         </motion.div>
       </div>
 
-      {/* Layer 2: Topology Grid */}
+      {/* Layer 2: Artistic Topology Grid */}
       <motion.div 
         animate={{ x: -mousePos.x * 0.5, y: -mousePos.y * 0.5 }}
-        className="absolute inset-0 z-1 opacity-[0.06] dark:opacity-[0.08]"
+        className="absolute inset-0 z-1 opacity-[0.05] dark:opacity-[0.08]"
       >
         <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
-              <path d="M 60 0 L 0 0 0 60" fill="none" stroke={isDark ? "white" : "black"} strokeWidth="0.5" strokeDasharray="4,2"/>
+            <pattern id="topology" width="100" height="100" patternUnits="userSpaceOnUse">
+              <path d="M 100 0 L 0 0 0 100" fill="none" stroke={isDark ? "white" : "black"} strokeWidth="0.2" strokeDasharray="3,3"/>
+              <circle cx="0" cy="0" r="1.5" fill={isDark ? "white" : "black"} fillOpacity="0.3" />
+              <path d="M 20 40 L 40 20 M 60 80 L 80 60" stroke={isDark ? "white" : "black"} strokeWidth="0.1" />
             </pattern>
           </defs>
-          <rect width="100%" height="100%" fill="url(#grid)" />
+          <rect width="100%" height="100%" fill="url(#topology)" />
         </svg>
       </motion.div>
 

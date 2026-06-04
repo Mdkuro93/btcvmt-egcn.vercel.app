@@ -1015,8 +1015,8 @@ export default function FieldModeView({
                                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2.5 text-xs font-bold text-white focus:border-rose-500 outline-none mt-1"
                                             >
                                                <option value="">-- Chọn bước cần trả về --</option>
-                                               {backwardSteps.map((st) => (
-                                                 <option key={`back-st-${st}`} value={st}>
+                                               {backwardSteps.map((st, idx) => (
+                                                 <option key={`back-st-${st}-${idx}`} value={st}>
                                                     {(STEP_CONFIG[st] || { label: st }).label}
                                                  </option>
                                                ))}
@@ -1078,7 +1078,7 @@ export default function FieldModeView({
                                      const isFuture = idx > currentStepIndex;
                                      
                                      return (
-                                       <div key={`timeline-${stepKey}`} className="flex gap-4 items-start text-left relative">
+                                       <div key={`timeline-${stepKey}-${idx}`} className="flex gap-4 items-start text-left relative">
                                           {/* Step circle indicator */}
                                           <div className={cn(
                                             "w-6.5 h-6.5 rounded-full flex items-center justify-center font-bold text-[9px] shrink-0 border z-10",

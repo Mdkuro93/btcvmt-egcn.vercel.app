@@ -566,7 +566,11 @@ export const ApplicationsTab = ({
                                  return null;
                               }
                               
-                              const isAllowedNext = hasTransitionPermission || (firstApp.currentStep === 'S1_ChuanBi' && userRole === 'PTT') || (firstApp.currentStep === 'GD1_ChuanBi' && userRole === 'PTT');
+                              const isTaxStep = firstApp.currentStep === 'S5_Tai_Chinh_Khach_Hang' || firstApp.currentStep === 'GD4_Cho_Nop_NVTC';
+                              const isAllowedNext = hasTransitionPermission || 
+                                (firstApp.currentStep === 'S1_ChuanBi' && userRole === 'PTT') || 
+                                (firstApp.currentStep === 'GD1_ChuanBi' && userRole === 'PTT') ||
+                                (isTaxStep && (userRole === 'PTT' || userRole === 'PTDA'));
                               if (nextStep && isAllowedNext) {
                                 return (
                                   <button 

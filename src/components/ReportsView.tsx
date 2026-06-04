@@ -56,8 +56,10 @@ const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Appli
   if (app) {
     if (app.status === 'WaitingHandover' || app.status === 'Completed') {
       effectiveStatus = app.customerHandoverDate ? 'Completed' : 'WaitingHandover';
-    } else if (app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK' || app.currentStep === 'GD3_Cho_TBThue') {
+    } else if (app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK') {
       effectiveStatus = (app.vpdkCode && app.submissionLocation && app.submissionDate) ? 'Submitted' : 'WaitingVPDK';
+    } else if (app.currentStep === 'S4_Cho_Thong_Bao_Thue' || app.currentStep === 'GD3_Cho_TBThue') {
+      effectiveStatus = 'TaxPending';
     } else if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' || app.currentStep === 'GD4_Cho_Nop_NVTC' || app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') {
       effectiveStatus = app.taxReceiptDate ? 'TaxPaid' : 'TaxPaymentPending_Dynamic';
     } else if (app.currentStep === 'S5_1_PTDA_TiepNhan') {
