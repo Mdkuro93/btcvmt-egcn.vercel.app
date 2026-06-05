@@ -94,6 +94,21 @@ export const ApplicationDetailModal = ({
 }: any) => {
 
   const currentApp = editApp || selectedApp;
+  
+  const isStep2OrLater = currentApp ? (
+    currentApp.workflowType === 'Quy_trinh_2'
+      ? ['S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK', 'S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach', 'Hoan_Tat'].includes(currentApp.currentStep)
+      : ['GD1_Cho_KT_TiepNhan', 'GD2_Cho_Nop_VPDK', 'GD3_Nop_VPDK', 'GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Cho_BG_Khach', 'Hoan_Tat'].includes(currentApp.currentStep)
+  ) : false;
+
+  const isStep3OrLater = currentApp ? (
+    currentApp.workflowType === 'Quy_trinh_2'
+      ? ['S3_Nop_VPDK', 'S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach', 'Hoan_Tat'].includes(currentApp.currentStep)
+      : ['GD3_Nop_VPDK', 'GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Cho_BG_Khach', 'Hoan_Tat'].includes(currentApp.currentStep)
+  ) : false;
+
+  const isFinishedStep = currentApp ? currentApp.currentStep === 'Hoan_Tat' : false;
+
   const isSupportSpecial = currentApp && (currentApp.projectName?.includes('hỗ trợ')) && (currentApp.currentStep === 'GD2_Cho_Nop_VPDK' || currentApp.currentStep === 'S3_Nop_VPDK');
   const currentStepDept = currentApp && (stepConfig[currentApp.currentStep] || INITIAL_STEP_CONFIG[currentApp.currentStep])?.dept;
   const effectiveDept = currentApp ? (isSupportSpecial ? 'KT' : currentStepDept) : '';
@@ -648,7 +663,7 @@ export const ApplicationDetailModal = ({
                                  </div>
                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                    <DetailCard theme={theme}
-                                     label="(*) Ngày ký HĐCN/HĐMB" 
+                                     label={isStep2OrLater ? "(*) Ngày ký HĐCN/HĐMB" : "Ngày ký HĐCN/HĐMB"} 
                                      value={(editApp || selectedApp).contractSigningDate} 
                                      type="date"
                                      editable={isFieldEditable('contractSigningDate')}
@@ -668,7 +683,7 @@ export const ApplicationDetailModal = ({
                                  </div>
                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                    <DetailCard theme={theme}
-                                     label="(*) Nơi nộp hồ sơ" 
+                                     label={isStep3OrLater ? "(*) Nơi nộp hồ sơ" : "Nơi nộp hồ sơ"} 
                                      value={(editApp || selectedApp).submissionLocation === 'TP_DANANG' ? 'VPĐK Thành phố' : (editApp || selectedApp).submissionLocation === 'PHUONG' ? 'VPĐK Quận/Huyện/Phường' : undefined} 
                                      type="select"
                                      options={['---', 'VPĐK Thành phố', 'VPĐK Quận/Huyện/Phường']}
@@ -677,14 +692,14 @@ export const ApplicationDetailModal = ({
                                      onChange={(val) => handleFieldChange('submissionLocation', val === 'VPĐK Thành phố' ? 'TP_DANANG' : (val === 'VPĐK Quận/Huyện/Phường' ? 'PHUONG' : null))}
                                    />
                                    <DetailCard theme={theme}
-                                     label="(*) Mã HS / Số phiếu hẹn" 
+                                     label={isStep3OrLater ? "(*) Mã HS / Số phiếu hẹn" : "Mã HS / Số phiếu hẹn"} 
                                      value={(editApp || selectedApp).vpdkCode} 
                                      editable={isFieldEditable('vpdkCode')}
                                      isEditing={isEditing}
                                      onChange={(val) => handleFieldChange('vpdkCode', val)}
                                    />
                                    <DetailCard theme={theme}
-                                     label="(*) Ngày nộp VPĐK" 
+                                     label={isStep3OrLater ? "(*) Ngày nộp VPĐK" : "Ngày nộp VPĐK"} 
                                      value={(editApp || selectedApp).submissionDate} 
                                      type="date"
                                      editable={isFieldEditable('submissionDate')}
@@ -790,7 +805,7 @@ export const ApplicationDetailModal = ({
                                      onChange={(val) => handleFieldChange('ptdaHandoverDate', val)}
                                    />
                                    <DetailCard theme={theme}
-                                     label="(*) Ngày BG GCN cho khách" 
+                                     label={isFinishedStep ? "(*) Ngày BG GCN cho khách" : "Ngày BG GCN cho khách"} 
                                      value={(editApp || selectedApp).customerHandoverDate} 
                                      type="date"
                                      editable={isFieldEditable('customerHandoverDate')}

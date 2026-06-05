@@ -2911,7 +2911,7 @@ export default function App() {
             status: updated.status || initialStatus,
             receivedDate: updated.receivedDate || nowStr,
             taxPaymentStatus: updated.taxPaymentStatus || 'Unpaid',
-            submissionLocation: updated.submissionLocation || 'PHUONG',
+            submissionLocation: updated.submissionLocation,
             isSelfService: typeof updated.isSelfService === 'boolean' ? updated.isSelfService : false,
             propertyType: updated.propertyType || 'Dat_Nen',
             loanStatus: updated.loanStatus || 'Khong_Vay',
@@ -2997,7 +2997,7 @@ export default function App() {
     projectName: '',
     propertyType: 'Dat_Nen' as PropertyType,
     loanStatus: 'Khong_Vay' as 'Co_Vay' | 'Khong_Vay',
-    submissionLocation: 'PHUONG' as 'PHUONG' | 'TP_DANANG',
+    submissionLocation: undefined as 'PHUONG' | 'TP_DANANG' | undefined,
     currentStep: 'S1_ChuanBi' as StepName,
     isSelfService: false,
     commitmentDate: ''
@@ -4810,7 +4810,7 @@ export default function App() {
         projectName: visibleProjects[0]?.name || '',
         propertyType: 'Dat_Nen',
         loanStatus: 'Khong_Vay',
-        submissionLocation: 'PHUONG',
+        submissionLocation: undefined,
         currentStep: 'S1_ChuanBi',
         isSelfService: false,
         commitmentDate: ''
