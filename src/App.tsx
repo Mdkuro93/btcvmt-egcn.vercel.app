@@ -1566,7 +1566,7 @@ export default function App() {
             .not('submission_date', 'is', null)
             .filter('tax_notification_date', 'is', null)
             .in('current_step', [
-              'S4_Cho_Thong_Bao_Thue', 'GD3_Cho_TBThue'
+              'S4_Cho_Thong_Bao_Thue', 'GD3_Nop_VPDK'
             ]);
         }
         else if (dNorm === 'CHỜ HOÀN THÀNH NVTC') {
@@ -1630,7 +1630,7 @@ export default function App() {
             .in('current_step', [
               'S3_Nop_VPDK',
               'S4_Cho_Thong_Bao_Thue',
-              'GD3_Cho_TBThue'
+              'GD3_Nop_VPDK'
             ]);
         }
         else if (dashboardFilter === 'WAIT_TAX_NOTICE_OVERDUE') {
@@ -1639,7 +1639,7 @@ export default function App() {
             .filter('tax_notification_date', 'is', null)
             .in('current_step', [
               'S4_Cho_Thong_Bao_Thue',
-              'GD3_Cho_TBThue'
+              'GD3_Nop_VPDK'
             ]);
         }
         else if (dashboardFilter === 'PTDA_TAX_PENDING_COMPLETE') {
@@ -1720,7 +1720,7 @@ export default function App() {
         }
         else if (dashboardFilter === 'PTDA_NO_TAX') {
           query = query.in('current_step', [
-            'GD3_Cho_TBThue', 'S4_Cho_Thong_Bao_Thue'
+            'GD3_Nop_VPDK', 'S4_Cho_Thong_Bao_Thue'
           ]);
         }
         else if (dashboardFilter === 'PTDA_TAX_PENDING') {
@@ -2560,7 +2560,7 @@ export default function App() {
       if (!app) continue;
       
       const appWithDate = { ...app, [bulkTransitionField.key]: bulkTransitionValue };
-      const vpdKSteps = ['S3_Nop_VPDK', 'GD2_Cho_Nop_VPDK', 'GD3_Cho_TBThue'];
+      const vpdKSteps = ['S3_Nop_VPDK', 'GD2_Cho_Nop_VPDK', 'GD3_Nop_VPDK'];
       if (vpdKSteps.includes(bulkTransitionTarget || '')) {
         if (bulkTransitionLocation !== undefined) appWithDate.submissionLocation = bulkTransitionLocation as any;
         if (bulkTransitionRefCode !== undefined) appWithDate.vpdkCode = bulkTransitionRefCode;
@@ -3495,9 +3495,9 @@ export default function App() {
     const autoDates: Partial<Application> = {};
     if (isMovingForward) {
       if ((targetStep === 'S2_KT_Tiep_Nhan' || targetStep === 'GD1_Cho_KT_TiepNhan') && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
-      if ((targetStep === 'S3_Nop_VPDK' || targetStep === 'GD3_Cho_TBThue') && !app.submissionDate) autoDates.submissionDate = nowStr;
+      if ((targetStep === 'S3_Nop_VPDK' || targetStep === 'GD3_Nop_VPDK') && !app.submissionDate) autoDates.submissionDate = nowStr;
       
-      if (targetStep === 'S5_Tai_Chinh_Khach_Hang' || targetStep === 'GD3_Cho_TBThue') {
+      if (targetStep === 'S5_Tai_Chinh_Khach_Hang' || targetStep === 'GD4_Cho_Nop_NVTC') {
         if (!app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
         if (!app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
       }
@@ -3614,7 +3614,7 @@ export default function App() {
         label: 'Ngày ký HĐCN/HĐMB',
         isRequired: false
       };
-    else if (nextStep === 'GD3_Cho_TBThue') updateField = { key: 'submissionDate', label: 'Ngày nộp VPĐK', isRequired: true };
+    else if (nextStep === 'GD3_Nop_VPDK') updateField = { key: 'submissionDate', label: 'Ngày nộp VPĐK', isRequired: true };
     else if (nextStep === 'GD4_Cho_Nop_NVTC') updateField = { key: 'taxNotificationDate', label: 'Ngày TB Thuế', isRequired: true };
     else if (nextStep === 'GD4_Cho_KT_TiepNhan_LaySo') updateField = { key: 'taxReceiptDate', label: 'Ngày nhận/cung cấp GNT / Nộp thuế', isRequired: true };
     else if (nextStep === 'GD5_Cho_Ky_In_GCN') updateField = { key: 'gcnSignedDate', label: 'Ngày trình ký/In GCN', isRequired: true };
@@ -3659,7 +3659,7 @@ export default function App() {
 
     // Check if transition from KT requires contractSigningDate, wait we update it via bulk transition field anyway!
     // But if we transition to S2_KT_Ban_giao, it is required, which is already enforced by bulkTransitionField.isRequired.
-    if (['S3_Nop_VPDK', 'GD3_Cho_TBThue', 'S5_Tai_Chinh_Khach_Hang'].includes(nextStep)) {
+    if (['S3_Nop_VPDK', 'GD3_Nop_VPDK', 'S5_Tai_Chinh_Khach_Hang'].includes(nextStep)) {
       if (!location || !refCode) {
         showToast(`Vui lòng nhập nơi nộp hồ sơ và mã hồ sơ/phiếu hẹn.`, 'warning');
         return;
@@ -3713,7 +3713,7 @@ export default function App() {
         // Save location and refCode if provided in the bulk transition (usually for nộp VPĐK steps)
         const vpdKSteps = [
           'S3_Nop_VPDK', 'S5_Tai_Chinh_Khach_Hang',
-          'GD2_Cho_Nop_VPDK', 'GD3_Cho_TBThue', 'GD4_Cho_Nop_NVTC', 'Hoan_Tat'
+          'GD2_Cho_Nop_VPDK', 'GD3_Nop_VPDK', 'GD4_Cho_Nop_NVTC', 'Hoan_Tat'
         ];
         if (vpdKSteps.includes(recordNextStep as string)) {
           if (location !== undefined) appWithDate.submissionLocation = location as any;
@@ -3780,7 +3780,7 @@ export default function App() {
         if (targetStep === 'Hoan_Tat' && !appWithDate.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
 
         // GD Workflow Missing Auto Dates
-        if (targetStep === 'GD3_Cho_TBThue' && !appWithDate.submissionDate) 
+        if (targetStep === 'GD3_Nop_VPDK' && !appWithDate.submissionDate) 
           autoDates.submissionDate = nowStr;
           
         if (targetStep === 'GD4_Cho_Nop_NVTC' && !appWithDate.taxNotificationDate) 
@@ -4512,7 +4512,7 @@ export default function App() {
       }
 
       // Auto-promote for GD workflow step 3 to step 4
-      if ((field === 'taxNotificationReceivedDate' || field === 'taxNotificationDate') && value && editApp.currentStep === 'GD3_Cho_TBThue') {
+      if ((field === 'taxNotificationReceivedDate' || field === 'taxNotificationDate') && value && editApp.currentStep === 'GD3_Nop_VPDK') {
         nextApp.currentStep = 'GD4_Cho_Nop_NVTC';
       }
 
@@ -5286,7 +5286,7 @@ export default function App() {
     const submissionSLA = 
       slaConfig?.['Nộp VPĐK'] ?? 
       slaConfig?.['S3_Nop_VPDK'] ?? 
-      slaConfig?.['GD3_Cho_TBThue'] ?? 7; // Mặc định 7 ngày theo yêu cầu
+      slaConfig?.['GD3_Nop_VPDK'] ?? 7; // Mặc định 7 ngày theo yêu cầu
 
     const stages = {
       PREPARING: [] as Application[], 

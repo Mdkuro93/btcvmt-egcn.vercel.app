@@ -27,7 +27,7 @@ export type StepName =
   | 'GD1_ChuanBi'
   | 'GD1_Cho_KT_TiepNhan'
   | 'GD2_Cho_Nop_VPDK'
-  | 'GD3_Cho_TBThue'
+  | 'GD3_Nop_VPDK'
   | 'GD4_Cho_Nop_NVTC'
   | 'GD4_Cho_KT_TiepNhan_LaySo'
   | 'GD5_Cho_Ky_In_GCN'

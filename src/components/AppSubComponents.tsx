@@ -46,7 +46,7 @@ export const StatusBadge = ({ status, app, variant = 'default' }: { status: Unit
         const daysDiff = (new Date().getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
         if (daysDiff > 7 && !app.taxNotificationDate) effectiveStatus = 'TaxPending';
       }
-    } else if (app.currentStep === 'GD3_Cho_TBThue') {
+    } else if (app.currentStep === 'GD3_Nop_VPDK') {
       // Dynamic logic for tax notification wait
       if (app.taxNotificationDate) {
         effectiveStatus = 'TaxNotificationReceived';

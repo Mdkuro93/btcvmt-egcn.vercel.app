@@ -109,7 +109,7 @@ export const WorkflowEngine = {
         if (ktSteps.concat(['S3_Nop_VPDK', 'GD2_Cho_Nop_VPDK'] as any[]).includes(finalStep) && ktSteps.includes(app.currentStep as string) && finalStep !== app.currentStep) {
           if (!app.contractSigningDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày ký HĐ trước khi chuyển.' };
         }
-        if ((app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK') && (finalStep === 'S5_Tai_Chinh_Khach_Hang' || finalStep === 'GD3_Cho_TBThue')) {
+        if ((app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK') && (finalStep === 'S5_Tai_Chinh_Khach_Hang' || finalStep === 'GD3_Nop_VPDK')) {
           if (!app.submissionDate) return { success: false, type: 'warning', message: 'Yêu cầu: Ngày nộp VPĐK phải được cập nhật.' };
         }
       }

@@ -31,7 +31,7 @@ export const getPhaseIndex = (step: StepName): number => {
   // Quy trình 1 (6 bước)
   if (['GD1_ChuanBi', 'GD1_Cho_KT_TiepNhan'].includes(step)) return 0;
   if (['GD2_Cho_Nop_VPDK'].includes(step)) return 1;
-  if (step === 'GD3_Cho_TBThue') return 2;
+  if (step === 'GD3_Nop_VPDK') return 2;
   if (['GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo'].includes(step)) return 3;
   if (['GD5_Cho_Ky_In_GCN', 'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG'].includes(step)) return 4;
   if (['GD6_Cho_BG_Khach'].includes(step)) return 5;
@@ -157,9 +157,9 @@ export const inferStepFromDates = (
       const daysDiff = (new Date().getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
       // Đồng nhất với Dashboard: > 7 ngày là Chờ TB Thuế
       if (daysDiff > 7) {
-        inferred = { currentStep: 'GD3_Cho_TBThue', status: 'TaxPending' };
+        inferred = { currentStep: 'GD3_Nop_VPDK', status: 'TaxPending' };
       } else {
-        inferred = { currentStep: 'GD3_Cho_TBThue', status: 'Submitted' };
+        inferred = { currentStep: 'GD3_Nop_VPDK', status: 'Submitted' };
       }
     }
     else if (app.vpdkCode)          inferred = { currentStep: 'GD2_Cho_Nop_VPDK', status: 'WaitingVPDK' };

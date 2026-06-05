@@ -63,7 +63,7 @@ const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Appli
         const daysDiff = (new Date().getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
         if (daysDiff > 7 && !app.taxNotificationDate) effectiveStatus = 'TaxPending';
       }
-    } else if (app.currentStep === 'GD3_Cho_TBThue') {
+    } else if (app.currentStep === 'GD3_Nop_VPDK') {
       effectiveStatus = 'TaxPending';
     } else if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' || app.currentStep === 'GD4_Cho_Nop_NVTC' || app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') {
       effectiveStatus = app.taxReceiptDate ? 'TaxPaid' : 'TaxPaymentPending_Dynamic';
@@ -512,7 +512,7 @@ export default function ReportsView({
       else if (r.gcnSignedDate || r.currentStep === 'S6_Nhan_So_GCN' || r.currentStep === 'GD5_Cho_GCN' || r.currentStep === 'GD5_Cho_PTT_TiepNhan_BG' || r.currentStep === 'GD5_Cho_Ky_In_GCN') stages.GCN_READY.push(r);
       else if (r.taxReceiptDate || r.currentStep === 'S5_1_PTDA_TiepNhan' || r.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') stages.TAX_PAID.push(r);
       else if (r.taxNotificationDate || r.currentStep === 'S5_Tai_Chinh_Khach_Hang' || r.currentStep === 'GD4_Cho_Nop_NVTC') stages.AWAITING_FINANCE.push(r);
-      else if (r.submissionDate || r.currentStep === 'S3_Nop_VPDK' || r.currentStep === 'GD3_Cho_TBThue') {
+      else if (r.submissionDate || r.currentStep === 'S3_Nop_VPDK' || r.currentStep === 'GD3_Nop_VPDK') {
         const subDate = new Date(r.submissionDate || today);
         const daysDiff = (today.getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
         if (daysDiff > 7) stages.TAX_WARNING.push(r);

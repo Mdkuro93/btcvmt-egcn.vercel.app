@@ -82,7 +82,7 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
         GD1_ChuanBi: 'contractSigningDate',
         GD1_Cho_KT_TiepNhan: 'accountingHandoverDate',
         GD2_Cho_Nop_VPDK: 'accountingHandoverDate',
-        GD3_Cho_TBThue: 'submissionDate',
+        GD3_Nop_VPDK: 'submissionDate',
         GD4_Cho_Nop_NVTC: 'taxNotificationDate',
         GD4_Cho_KT_TiepNhan_LaySo: 'taxReceiptDate',
         GD5_Cho_Ky_In_GCN: 'taxReceiptDate',
