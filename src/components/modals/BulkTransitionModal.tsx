@@ -148,8 +148,6 @@ export default function BulkTransitionModal({
 
             {(targetStepLabel?.toUpperCase().includes('B3:') || 
               targetStepLabel?.toUpperCase().includes('B4:') ||
-              targetStepLabel?.toUpperCase().includes('GĐ2:') || 
-              targetStepLabel?.toUpperCase().includes('GD2:') || 
               targetStepLabel?.toUpperCase().includes('GĐ3:') || 
               targetStepLabel?.toUpperCase().includes('GD3:') ||
               targetStepLabel?.toUpperCase().includes('NỘP VPĐK') || 

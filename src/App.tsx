@@ -2560,7 +2560,7 @@ export default function App() {
       if (!app) continue;
       
       const appWithDate = { ...app, [bulkTransitionField.key]: bulkTransitionValue };
-      const vpdKSteps = ['S3_Nop_VPDK', 'GD2_Cho_Nop_VPDK', 'GD3_Nop_VPDK'];
+      const vpdKSteps = ['S3_Nop_VPDK', 'GD3_Nop_VPDK'];
       if (vpdKSteps.includes(bulkTransitionTarget || '')) {
         if (bulkTransitionLocation !== undefined) appWithDate.submissionLocation = bulkTransitionLocation as any;
         if (bulkTransitionRefCode !== undefined) appWithDate.vpdkCode = bulkTransitionRefCode;
@@ -3713,7 +3713,7 @@ export default function App() {
         // Save location and refCode if provided in the bulk transition (usually for nộp VPĐK steps)
         const vpdKSteps = [
           'S3_Nop_VPDK', 'S5_Tai_Chinh_Khach_Hang',
-          'GD2_Cho_Nop_VPDK', 'GD3_Nop_VPDK', 'GD4_Cho_Nop_NVTC', 'Hoan_Tat'
+          'GD3_Nop_VPDK', 'GD4_Cho_Nop_NVTC', 'Hoan_Tat'
         ];
         if (vpdKSteps.includes(recordNextStep as string)) {
           if (location !== undefined) appWithDate.submissionLocation = location as any;
