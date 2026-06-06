@@ -10,6 +10,7 @@ export interface BulkTransitionModalProps {
   selectedCount: number;
   unitCodes: string[];
   targetStepLabel: string;
+  targetStep?: string | null;
   updateField: { key: string; label: string; isRequired?: boolean } | null;
   value: string;
   onChangeValue: (v: string) => void;
@@ -29,6 +30,7 @@ export default function BulkTransitionModal({
   selectedCount,
   unitCodes,
   targetStepLabel,
+  targetStep,
   updateField,
   value,
   onChangeValue,
@@ -43,6 +45,31 @@ export default function BulkTransitionModal({
   if (!isOpen) return null;
 
   const isDateWarning = dateError?.startsWith('⚠️');
+
+  const isStep3OrLater = targetStep ? (
+    ['S3_Nop_VPDK', 'S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach', 'Hoan_Tat'].includes(targetStep) ||
+    ['GD3_Nop_VPDK', 'GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_GCN', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Cho_BG_Khach', 'Hoan_Tat'].includes(targetStep)
+  ) : (
+    (targetStepLabel?.toUpperCase().includes('B3:') || 
+     targetStepLabel?.toUpperCase().includes('B4:') ||
+     targetStepLabel?.toUpperCase().includes('B5:') ||
+     targetStepLabel?.toUpperCase().includes('B6:') ||
+     targetStepLabel?.toUpperCase().includes('GĐ3:') || 
+     targetStepLabel?.toUpperCase().includes('GD3:') ||
+     targetStepLabel?.toUpperCase().includes('GĐ4:') || 
+     targetStepLabel?.toUpperCase().includes('GD4:') ||
+     targetStepLabel?.toUpperCase().includes('NỘP VPĐK') || 
+     targetStepLabel?.toUpperCase().includes('NOP VPDK') ||
+     targetStepLabel?.toUpperCase().includes('THÔNG BÁO THUẾ') ||
+     targetStepLabel?.toUpperCase().includes('THONG BAO THUE')) &&
+     !targetStepLabel?.toUpperCase().includes('B2:') &&
+     !targetStepLabel?.toUpperCase().includes('GĐ1:') &&
+     !targetStepLabel?.toUpperCase().includes('GD1:') &&
+     // Exclude any step mentioning B2 directly
+     !targetStepLabel?.toUpperCase().includes('B2') &&
+     !targetStepLabel?.toUpperCase().includes('KT TIẾP NHẬN') &&
+     !targetStepLabel?.toUpperCase().includes('B1:')
+  );
 
   return (
     <AnimatePresence>
@@ -128,7 +155,7 @@ export default function BulkTransitionModal({
               </div>
             )}
 
-            {targetStepLabel?.toUpperCase().includes('2. TIẾP NHẬN') && (
+            {(targetStepLabel?.toUpperCase().includes('TIẾP NHẬN') || targetStep === 'S2_KT_Tiep_Nhan' || targetStep === 'GD1_Cho_KT_TiepNhan') && (
               <div className={cn("space-y-3 p-4 rounded-2xl border", theme === 'dark' ? "bg-amber-500/10 border-amber-500/20" : "bg-amber-50 border-amber-200")}>
                 <label className={cn("block text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-2", theme === 'dark' ? "text-amber-500" : "text-amber-700")}>
                   <BookOpen size={14} /> Danh mục hồ sơ gốc tham khảo
@@ -146,14 +173,7 @@ export default function BulkTransitionModal({
               </div>
             )}
 
-            {(targetStepLabel?.toUpperCase().includes('B3:') || 
-              targetStepLabel?.toUpperCase().includes('B4:') ||
-              targetStepLabel?.toUpperCase().includes('GĐ3:') || 
-              targetStepLabel?.toUpperCase().includes('GD3:') ||
-              targetStepLabel?.toUpperCase().includes('NỘP VPĐK') || 
-              targetStepLabel?.toUpperCase().includes('NOP VPDK') ||
-              targetStepLabel?.toUpperCase().includes('THÔNG BÁO THUẾ') ||
-              targetStepLabel?.toUpperCase().includes('THONG BAO THUE')) && (
+            {isStep3OrLater && (
               <>
                 <div className="space-y-3">
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">

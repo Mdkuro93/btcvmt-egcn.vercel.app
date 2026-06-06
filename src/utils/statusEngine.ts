@@ -16,40 +16,41 @@ export function calculateDaysDiff(dateStr: string) {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
-const slaCache = new WeakMap<any, { isOverdue: boolean, daysLate: number, label?: string }>();
+// FIX #1: Đã xóa WeakMap slaCache.
+// Lý do: WeakMap bind theo object reference. Khi app object không đổi reference
+// (ví dụ Realtime trả cùng data, hoặc code mutate trực tiếp), kết quả SLA cũ
+// được giữ lại vĩnh viễn → hồ sơ quá hạn hiển thị "NORMAL" sai.
+// calculateSLA là hàm thuần (pure function của dữ liệu), chi phí tính toán nhỏ,
+// không cần cache. Nếu cần tối ưu hiệu năng trong tương lai, dùng useMemo ở tầng
+// component với dependency rõ ràng thay vì cache tại engine layer.
 
 export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
   if (!app) return { isOverdue: false, daysLate: 0 };
-  if (slaCache.has(app)) return slaCache.get(app)!;
 
   try {
     const currentStep = app.currentStep || app.current_step;
     if (!currentStep) return { isOverdue: false, daysLate: 0 };
-    
+
     const finalStepConfig = stepConfig || (typeof window !== 'undefined' && (window as any).__STEP_CONFIG__) || DEFAULT_STEP_CONFIG;
     const finalSlaConfig = slaConfig || (typeof window !== 'undefined' && (window as any).__SLA_CONFIG__) || DEFAULT_SLA_CONFIG;
-    
+
     const config = finalStepConfig[currentStep];
     if (!config || !config.label || currentStep === 'Hoan_Tat' || currentStep === 'HOAN_TAT') {
-      const res = { isOverdue: false, daysLate: 0 };
-      slaCache.set(app, res);
-      return res;
+      return { isOverdue: false, daysLate: 0 };
     }
 
     const sla = finalSlaConfig[config.label] || config.slaDays || 10;
-    
+
     let stepStartTime: number = 0;
     const history = app.history || [];
-    
+
     // Find the latest history entry for the current step config label
     const matchedHistory = history.find((h: any) => h.stepName === config.label);
-    
+
     // Check if the current step is completed in system logs
     if (matchedHistory && matchedHistory.completedDate) {
       // Step already completed: hide active warning from UI immediately
-      const res = { isOverdue: false, daysLate: 0 };
-      slaCache.set(app, res);
-      return res;
+      return { isOverdue: false, daysLate: 0 };
     }
 
     if (matchedHistory) {
@@ -77,7 +78,7 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
         S7_PTDA_Ban_Giao: 'gcnReceivedDate',
         S7_1_PTT_Tiep_Nhan: 'gcnReceivedDate',
         S7_2_Ban_Giao_Khach: 'customerHandoverDate',
-        
+
         // Workflow 1
         GD1_ChuanBi: 'contractSigningDate',
         GD1_Cho_KT_TiepNhan: 'accountingHandoverDate',
@@ -96,7 +97,7 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
       const camelKey = fieldKey;
       const snakeKey = fieldKey.replace(/([A-Z])/g, "_$1").toLowerCase();
       const comparisonDate = (app[camelKey] || app[snakeKey] || app.receivedDate || app.received_date) as string | undefined;
-      
+
       if (comparisonDate) {
         stepStartTime = new Date(comparisonDate).getTime();
       } else {
@@ -112,22 +113,16 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
     const now = new Date().getTime();
     // Minute-precise duration elapsed
     const elapsedDays = Math.max(0, now - stepStartTime) / (1000 * 60 * 60 * 24);
-    
+
     if (elapsedDays > sla) {
       // Calculate float days late precisely
       const daysLate = parseFloat((elapsedDays - sla).toFixed(1));
-      const res = { isOverdue: true, daysLate, label: `Trễ ${config.label}` };
-      slaCache.set(app, res);
-      return res;
+      return { isOverdue: true, daysLate, label: `Trễ ${config.label}` };
     }
 
-    const res = { isOverdue: false, daysLate: 0 };
-    slaCache.set(app, res);
-    return res;
+    return { isOverdue: false, daysLate: 0 };
   } catch (error) {
-    const res = { isOverdue: false, daysLate: 0 };
-    slaCache.set(app, res);
-    return res;
+    return { isOverdue: false, daysLate: 0 };
   }
 }
 
@@ -138,7 +133,7 @@ export function getSLAStatus(app: any, stepConfig?: any, slaConfig?: any): 'OVER
 
 export function getFinalStatus(app: any) {
   if (app.customerHandoverDate || app.customer_handover_date) return 'Completed';
-  
+
   if (app.isSelfService) {
     return 'Processing';
   }
@@ -146,10 +141,10 @@ export function getFinalStatus(app: any) {
   if (app.gcnSignedDate) return 'GCN_Issued';
   if (app.taxReceiptDate) return 'TaxPaid';
   if (app.submissionDate) return 'Submitted';
-  
+
   if (app.status === 'WAITING_HANDOVER' || app.current_step === 'CHỜ BÀN GIAO' || app.status === 'CHỜ BÀN GIAO' || app.currentStep === 'CHỜ BÀN GIAO') return 'WaitingHandover';
   if (app.status === 'AWAITING_FINANCE' || app.current_step === 'CHỜ HOÀN THÀNH NVTC' || app.status === 'CHỜ HOÀN THÀNH NVTC' || app.currentStep === 'CHỜ HOÀN THÀNH NVTC') return 'TaxPending';
-  
+
   return 'Processing';
 }
 

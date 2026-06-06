@@ -110,12 +110,6 @@ export const DetailCard = ({ label, value, field, valueColor = 'text-white', edi
 
   const todayStr = new Date().toISOString().split('T')[0];
   const isDeadlineStr = label.toLowerCase().includes('cam kết') || label.toLowerCase().includes('commitment');
-
-  useEffect(() => {
-    if (active && type === 'date' && !value && !isDeadlineStr && onChange) {
-      onChange(todayStr);
-    }
-  }, [active, type, value, isDeadlineStr]);
   
   return (
     <div className={cn(

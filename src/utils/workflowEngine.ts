@@ -18,7 +18,7 @@ export interface TransitionResult {
 
 export const WorkflowEngine = {
   /**
-   * Tính toán bước tiếp theo hợp lệ dựa trên logic nhảy cóc (Self-Service) 
+   * Tính toán bước tiếp theo hợp lệ dựa trên logic nhảy cóc (Self-Service)
    * hoặc luồng (Workflow) đặc thù.
    */
   determineTargetStep(app: Application, requestedNextStep: StepName): { finalStep: StepName, isJump: boolean } {
@@ -27,7 +27,7 @@ export const WorkflowEngine = {
 
     const currStepCfg = STEP_CONFIG[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep];
     const currentStepDept = currStepCfg?.dept;
-    
+
     // Logic ưu tiên tuyệt đối: Hồ sơ "Khách tự làm sổ" bỏ qua các đoạn nội bộ
     const isSelfServiceJumpEligible = app.isSelfService && ['PTT', 'PTDA', 'KT'].includes(currentStepDept as any);
     if (isSelfServiceJumpEligible) {
@@ -45,18 +45,23 @@ export const WorkflowEngine = {
    * Kiểm duyệt các điều kiện để được phép chuyển sang bước mong muốn
    */
   validateTransition(app: Application, requestedNextStep: StepName, userRole: string): TransitionResult {
-    const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
-    const currentIdx = workflowSteps.indexOf(app.currentStep);
-    
+    // Đảm bảo nhận chính xác tham số workflowType từ app (hỗ trợ cả camelCase và snake_case)
+    const storedType = app.workflowType || (app as any).workflow_type;
+    const workflowType = storedType || (app.projectName && app.projectName.includes('Quy trình 2') ? 'Quy_trinh_2' : 'Quy_trinh_1');
+    const workflowSteps = workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+
+    // Fallback if currentStep is not found in the selected workflow steps (e.g. data mismatch)
+    const currentIdx = Math.max(0, workflowSteps.indexOf(app.currentStep));
+
     const { finalStep, isJump } = this.determineTargetStep(app, requestedNextStep);
     const nextIdx = workflowSteps.indexOf(finalStep);
     const isMovingForward = nextIdx > currentIdx;
 
     // 1. Kiểm tra trạng thái hồ sơ có đang đình trệ (Error/Rejected)
     if (isMovingForward && (app.status === 'Error' || app.isRejected)) {
-      return { 
-        success: false, 
-        type: 'error', 
+      return {
+        success: false,
+        type: 'error',
         message: 'Hồ sơ đang bị sai sót/vướng mắc hoặc bị trả về. Hãy hoàn thiện trước khi xác nhận chuyển bước.'
       };
     }
@@ -73,7 +78,7 @@ export const WorkflowEngine = {
         }
       }
 
-      // 3. Date Sequences Validation (Tính loggic thời gian)
+      // 3. Date Sequences Validation (Tính logic thời gian)
       const chronoError = validateDateSequence(app);
       if (chronoError) {
         return {
@@ -84,15 +89,27 @@ export const WorkflowEngine = {
       }
 
       // 4. Bắt buộc dữ kiện theo từng rẽ nhánh quy trình:
+
+      // --- FIX #3: Validate bắt buộc khi Self-Service jump về Hoan_Tat ---
+      if (isJump && finalStep === 'Hoan_Tat') {
+        if (!app.customerHandoverDate) {
+          return {
+            success: false,
+            type: 'warning',
+            message: 'Bắt buộc nhập Ngày BG GCN cho khách trước khi Hoàn Tất (kể cả hồ sơ Khách tự làm sổ).'
+          };
+        }
+      }
+
       if (app.workflowType === 'Quy_trinh_2') {
         if (app.currentStep === 'S3_Nop_VPDK' && finalStep === 'S5_Tai_Chinh_Khach_Hang') {
-           if (!app.taxNotificationDate && !app.taxNotificationReceivedDate) {
-             return { 
-               success: false, 
-               type: 'warning', 
-               message: 'Bắt buộc nhập Ngày Thông báo thuế trước khi chuyển sang chặng Tài chính.' 
-             };
-           }
+          if (!app.taxNotificationDate && !app.taxNotificationReceivedDate) {
+            return {
+              success: false,
+              type: 'warning',
+              message: 'Bắt buộc nhập Ngày Thông báo thuế trước khi chuyển sang chặng Tài chính.'
+            };
+          }
         }
         if (app.currentStep === 'S5_1_PTDA_TiepNhan' && finalStep === 'S6_Nhan_So_GCN') {
           if (!app.taxReceiptDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày Nhận chứng từ thuế trước khi chuyển.' };
@@ -105,12 +122,28 @@ export const WorkflowEngine = {
           if (!app.customerHandoverDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày BG GCN cho khách để Hoàn Tất.' };
         }
       } else {
+        // --- FIX #8: Bổ sung validation đầy đủ cho Quy_trinh_1 ở các milestone cuối ---
         const ktSteps = ['S2_KT_Tiep_Nhan', 'GD1_KT_HoanThien'];
         if (ktSteps.concat(['S3_Nop_VPDK', 'GD2_Cho_Nop_VPDK'] as any[]).includes(finalStep) && ktSteps.includes(app.currentStep as string) && finalStep !== app.currentStep) {
           if (!app.contractSigningDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày ký HĐ trước khi chuyển.' };
         }
         if ((app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK') && (finalStep === 'S5_Tai_Chinh_Khach_Hang' || finalStep === 'GD3_Nop_VPDK')) {
           if (!app.submissionDate) return { success: false, type: 'warning', message: 'Yêu cầu: Ngày nộp VPĐK phải được cập nhật.' };
+        }
+
+        // Validate milestone cuối Quy trình 1
+        if (finalStep === 'GD5_Cho_Ky_In_GCN' || finalStep === 'GD5_Cho_GCN') {
+          if (!app.taxReceiptDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày nộp thuế/NVTC trước khi chuyển sang bước GCN.' };
+        }
+        if (app.currentStep === 'GD5_Cho_GCN' && finalStep === 'GD5_Cho_PTT_TiepNhan_BG') {
+          if (!app.gcnSignedDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày trình ký/In GCN trước khi chuyển.' };
+          if (!app.gcnReceivedDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày nhận GCN thực tế trước khi chuyển.' };
+        }
+        if (app.currentStep === 'GD5_Cho_PTT_TiepNhan_BG' && finalStep === 'GD6_Cho_BG_Khach') {
+          if (!app.ptdaHandoverDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày bàn giao GCN cho PTT trước khi chuyển.' };
+        }
+        if (app.currentStep === 'GD6_Cho_BG_Khach' && finalStep === 'Hoan_Tat') {
+          if (!app.customerHandoverDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày BG GCN cho khách để Hoàn Tất.' };
         }
       }
     }

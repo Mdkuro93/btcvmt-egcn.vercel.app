@@ -590,7 +590,7 @@ export function useExcelImport({
 
              if (changes.length > 0) {
                 if (updatedApp.status !== 'Error') {
-                  const inferred = inferStepFromDates(updatedApp, slaConfig);
+                  const inferred = inferStepFromDates(updatedApp, slaConfig, 'IMPORT');
                   
                   // THÊM: Validate bước bị nhảy cóc
                   const skippedWarnings = validateSkippedSteps(updatedApp, inferred.currentStep);
@@ -612,6 +612,20 @@ export function useExcelImport({
                     }
                   }
                 }
+                
+                const auditEntry = {
+                  id: `audit-${Date.now()}-${updatedApp.unitCode}-${Math.random().toString(36).substring(2,9)}`,
+                  action: 'Import Excel',
+                  timestamp: new Date().toISOString(),
+                  isBulk: true,
+                  affectedCount: 1,
+                  targetInfo: `Căn ${updatedApp.unitCode}`,
+                  user: 'Hệ thống (Import)',
+                  userId: 'system-import',
+                  note: `Cập nhật từ Excel. Các thay đổi: ${changes.join(' | ')}`
+                };
+                updatedApp.auditTrail = [auditEntry, ...(updatedApp.auditTrail || [])];
+                
                 appsToUpdate.push({ app: updatedApp, rowData: row, changes });
              }
 
@@ -723,7 +737,7 @@ export function useExcelImport({
              const isNotes = getRowStr(row, 'issueNotes');
              if (isNotes) newApp.issueNotes = isNotes;
 
-             const inferred = inferStepFromDates(newApp as Application, slaConfig);
+             const inferred = inferStepFromDates(newApp as Application, slaConfig, 'IMPORT');
              
              // THÊM: Validate bước bị nhảy cóc
              const skippedWarnings = validateSkippedSteps(newApp as Application, inferred.currentStep);
@@ -733,6 +747,19 @@ export function useExcelImport({
              
              newApp.status = inferred.status;
              newApp.currentStep = inferred.currentStep;
+
+             const auditEntry = {
+               id: `audit-${Date.now()}-${newApp.unitCode}-${Math.random().toString(36).substring(2,9)}`,
+               action: 'Import Excel (Tạo mới)',
+               timestamp: new Date().toISOString(),
+               isBulk: true,
+               affectedCount: 1,
+               targetInfo: `Căn ${newApp.unitCode}`,
+               user: 'Hệ thống (Import)',
+               userId: 'system-import',
+               note: `Tạo mới hồ sơ từ Excel`
+             };
+             newApp.auditTrail = [auditEntry];
 
              appsToCreate.push({ app: newApp as Application, rowData: row });
           }

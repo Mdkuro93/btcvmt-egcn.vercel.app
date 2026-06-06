@@ -397,7 +397,7 @@ export const Sidebar = ({
                     >
                       {regionProjects.map((p, pIndex) => (
                         <button 
-                          key={`sidebar-proj-${p.id}-${pIndex}`} 
+                          key={`sidebar-proj-${region}-${p.id}-${pIndex}`} 
                           title={p.name}
                           onClick={() => handleProjectClick(p.id)}
                           className={cn(

@@ -7,7 +7,7 @@ import { calculateSLA } from './utils/statusEngine';
 import { diffDays } from './utils/dateUtils';
 import { buildFlags } from './utils/flagUtils';
 import { mapFromSnakeCase, mapToSnakeCase, mapUserFromSnakeCase, mapUserToSnakeCase, safeParse } from './utils/mappers';
-import { calculateDaysDiff, calculateDaysBetweenDates, getPhaseIndex, getTaxStatus, getOverdueInfo, inferStepFromDates } from './utils/appUtils';
+import { calculateDaysDiff, calculateDaysBetweenDates, getPhaseIndex, getTaxStatus, getOverdueInfo, inferStepFromDates, validateDateSequence } from './utils/appUtils';
 import { WorkflowEngine } from './utils/workflowEngine';
 import { StatCard, StatusBadge, DetailCard, FestiveBranding, PrintStyles } from './components/AppSubComponents';
 
@@ -235,48 +235,9 @@ const useSelfHealingData = (
   useEffect(() => {
     if (applications.length === 0) return;
     if (healingRef.current) return;
-
-    const inconsistentApps = applications.filter(app => 
-      app.customerHandoverDate && (app.currentStep !== 'Hoan_Tat' || app.status !== 'Completed')
-    );
-
-    if (inconsistentApps.length === 0) return;
-
-    healingRef.current = true;
-
-    const fixApps = async () => {
-      const healedApps = inconsistentApps.map(app => ({
-        ...app,
-        currentStep: 'Hoan_Tat' as StepName,
-        status: 'Completed' as UnitStatus,
-        auditTrail: [{
-          id: Math.random().toString(36).substr(2, 9),
-          timestamp: new Date().toISOString(),
-          userId: 'system',
-          userName: 'Hệ thống (Self-Healing)',
-          action: 'Đồng bộ trạng thái Hoàn tất dựa trên ngày BG khách'
-        }, ...(app.auditTrail || [])]
-      }));
-
-      try {
-        console.log(`[Self-Healing] Detected ${inconsistentApps.length} inconsistent records. Syncing to Supabase...`);
-        if (registerSelfUpdate) {
-          registerSelfUpdate(healedApps.map(a => a.id));
-        }
-        // Bulk update the inconsistent ones
-        const updatedApps = await bulkSyncRecordsToSupabase(healedApps, applications, showToast);
-        setApplications(updatedApps);
-      } catch (error) {
-        console.error('[Self-Healing] Error fixing records:', error);
-        showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
-      } finally {
-        setTimeout(() => {
-          healingRef.current = false;
-        }, 5000);
-      }
-    };
-
-    fixApps();
+    
+    // Disabled self-healing data that forcefully sets currentStep
+    return;
   }, [applications]);
 };
 
@@ -349,22 +310,23 @@ const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplicati
       .filter(a => a.id && !a.id.toString().includes('-imp-'))
       .map(app => mapToSnakeCase(app));
 
+    const LIGHT_SELECT = [
+      'id','unit_code','project_name','customer_name',
+      'current_step','status','workflow_type',
+      'contract_signing_date','submission_date',
+      'tax_notification_date','tax_receipt_date',
+      'gcn_signed_date','gcn_received_date',
+      'customer_handover_date','accounting_handover_date',
+      'ptda_handover_date','vpdk_code','loan_status',
+      'is_self_service','property_type','contract_signer_type',
+      'phone_number','received_date','bank_commitment_deadline',
+      'submission_location','issue_type','issue_severity',
+      'issue_notes','is_rejected','created_at',
+      'history', 'audit_trail', 'scanned_files'
+    ].join(',');
+
     let insertedData: any[] = [];
     if (recordsToInsert.length > 0) {
-      const LIGHT_SELECT = [
-        'id','unit_code','project_name','customer_name',
-        'current_step','status','workflow_type',
-        'contract_signing_date','submission_date',
-        'tax_notification_date','tax_receipt_date',
-        'gcn_signed_date','gcn_received_date',
-        'customer_handover_date','accounting_handover_date',
-        'ptda_handover_date','vpdk_code','loan_status',
-        'is_self_service','property_type','contract_signer_type',
-        'phone_number','received_date','bank_commitment_deadline',
-        'submission_location','issue_type','issue_severity',
-        'issue_notes','is_rejected','created_at'
-      ].join(',');
-
       const { data: insertResult, error: insertError } = await supabase
         .from('records')
         .insert(recordsToInsert)
@@ -375,11 +337,12 @@ const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplicati
 
     let updatedData: any[] = [];
     if (recordsToUpdate.length > 0) {
-      const { error: updateError } = await supabase
+      const { data: upsertResult, error: updateError } = await supabase
         .from('records')
-        .upsert(recordsToUpdate, { onConflict: 'id' });
+        .upsert(recordsToUpdate, { onConflict: 'id' })
+        .select(LIGHT_SELECT);
       if (updateError) throw updateError;
-      updatedData = recordsToUpdate;
+      updatedData = upsertResult || recordsToUpdate; // fallback về local nếu select không trả data
     }
     
     const allReturnedData = [...insertedData, ...updatedData];
@@ -1451,7 +1414,8 @@ export default function App() {
         submission_location, vpdk_code,
         issue_type, issue_severity, issue_notes,
         is_rejected, workflow_type, created_at,
-        assigned_to, tax_payment_status
+        assigned_to, tax_payment_status,
+        history, audit_trail, scanned_files
       `, { count: 'exact' });
       
       if (search) {
@@ -2437,25 +2401,16 @@ export default function App() {
     const auditEntry = createAuditEntry('Cập nhật nhanh', false, 1, app.unitCode);
     let updatedApp = { ...app, ...editData, auditTrail: [auditEntry, ...(app.auditTrail || [])] };
 
-    // Automatically infer step and status from newly edited dates
-    const inferred = inferStepFromDates(updatedApp, slaConfig);
-    updatedApp.currentStep = inferred.currentStep;
+    // Removed auto step mapping in RUNTIME mode
+    // currentStep is only mapped by WorkflowEngine now
     if (updatedApp.status !== 'Error') {
-      updatedApp.status = inferred.status;
+      // Keep existing status unless handled by workflow
+      // Let's not mutate status automatically here either for run time!
+      updatedApp.status = app.status;
     }
 
-    // Auto-promote to Hoan_Tat if customerHandoverDate is updated
-    if (editData.customerHandoverDate) {
-      updatedApp.currentStep = 'Hoan_Tat';
-      updatedApp.status = 'Completed';
-      const historyItem: any = {
-        id: Math.random().toString(36).substr(2, 9),
-        timestamp: new Date().toISOString(),
-        user: userRole,
-        action: 'Tự động hoàn tất (Cập nhật nhanh ngày BG khách)',
-      };
-      updatedApp.history = [historyItem, ...(app.history || [])];
-    }
+    // Removed auto promote to Hoan_Tat based on customerHandoverDate
+    // User must use workflow transition to change step.
 
     setIsSavingApp(true);
     try {
@@ -2874,12 +2829,11 @@ export default function App() {
 
         let updated = { ...mergedApp, updated_at: nowStr };
 
-        // Automatically infer step and status from newly entered dates
-        const inferred = inferStepFromDates(updated, slaConfig);
-        updated.currentStep = inferred.currentStep;
-        if (updated.status !== 'Error') {
-          updated.status = inferred.status;
-        }
+        const auditEntry = createAuditEntry('Chỉnh sửa Grid lưới', false, 1, updated.unitCode, `Các trường chỉnh sửa: ${Object.keys(processedChanges).join(', ')}`);
+        updated.auditTrail = [auditEntry, ...(updated.auditTrail || [])];
+
+        // Removed inference from RUNTIME mode here.
+        // Step and Status remain as they were in original unless modified via WorkflowEngine.
 
         if (processedChanges.gcnReceivedDate) {
           const isEarly = ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => (original.currentStep as string).startsWith(prefix));
@@ -3146,7 +3100,7 @@ export default function App() {
         formatExcelDate(app.taxReceiptDate),
         formatExcelDate(app.gcnSignedDate),
         formatExcelDate(app.gcnReceivedDate),
-        formatExcelDate(app.accountingHandoverDate),
+        formatExcelDate(app.ptdaHandoverDate),
         formatExcelDate(app.customerHandoverDate)
       ]);
     } else if (userRole === 'PTT' || userRole === 'MANAGER_PTT') {
@@ -3251,7 +3205,7 @@ export default function App() {
         formatExcelDate(app.taxReceiptDate),
         formatExcelDate(app.gcnSignedDate),
         formatExcelDate(app.gcnReceivedDate),
-        formatExcelDate(app.accountingHandoverDate),
+        formatExcelDate(app.ptdaHandoverDate),
         formatExcelDate(app.customerHandoverDate)
       ]);
     }
@@ -3344,11 +3298,9 @@ export default function App() {
 
       const auditEntry = createAuditEntry('Cập nhật thông tin', false, 1, editApp.unitCode, 'Chỉnh sửa chi tiết hồ sơ');
 
-      const inferred = inferStepFromDates(editApp, slaConfig);
+      // Removal of inferStepFromDates in UI update.
       const updatedApp = {
         ...editApp,
-        currentStep: inferred.currentStep,
-        status: inferred.status === 'Error' ? editApp.status : inferred.status,
         auditTrail: [auditEntry, ...(editApp.auditTrail || [])]
       };
 
@@ -3459,6 +3411,7 @@ export default function App() {
     }
     
     const targetStep = transitionCheck.nextStep || nextStep;
+    console.log(`[Manual Update Step] mode=RUNTIME app=${app.unitCode}, ${app.currentStep} -> ${targetStep}`);
     
     const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
     const currentIdx = workflowSteps.indexOf(app.currentStep as StepName);
@@ -3491,26 +3444,11 @@ export default function App() {
       ...prevHistory
     ];
 
-    // Auto-populate dates based on transition to minimize input effort
     const autoDates: Partial<Application> = {};
-    if (isMovingForward) {
-      if ((targetStep === 'S2_KT_Tiep_Nhan' || targetStep === 'GD1_Cho_KT_TiepNhan') && !app.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
-      if ((targetStep === 'S3_Nop_VPDK' || targetStep === 'GD3_Nop_VPDK') && !app.submissionDate) autoDates.submissionDate = nowStr;
-      
-      if (targetStep === 'S5_Tai_Chinh_Khach_Hang' || targetStep === 'GD4_Cho_Nop_NVTC') {
-        if (!app.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
-        if (!app.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
-      }
-      if ((targetStep === 'S5_1_PTDA_TiepNhan' || targetStep === 'GD4_Cho_KT_TiepNhan_LaySo') && !app.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
-      if ((targetStep === 'S6_Nhan_So_GCN' || targetStep === 'GD5_Cho_Ky_In_GCN') && !app.gcnSignedDate) autoDates.gcnSignedDate = nowStr;
-      if ((targetStep === 'S7_PTDA_Ban_Giao' || targetStep === 'GD6_Cho_BG_Khach') && !app.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
-      if (targetStep === 'S7_1_PTT_Tiep_Nhan' && !app.gcnReceivedDate) autoDates.gcnReceivedDate = nowStr;
-      if (targetStep === 'Hoan_Tat' && !app.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
-    }
+    // Removed auto-populate dates based on transition
 
     // Auto handover status
     autoDates.isHandedOver = true;
-    autoDates.handoverDate = nowStr;
 
     let targetStatus = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).status;
     
@@ -3518,12 +3456,12 @@ export default function App() {
     if (targetStep === 'S2_KT_Tiep_Nhan') targetStatus = 'WaitingVPDK'; // CHỜ NỘP VPĐK
     if (targetStep === 'S5_1_PTDA_TiepNhan') targetStatus = 'TaxPaid'; // ĐÃ NỘP THUẾ
     if (targetStep === 'S7_2_Ban_Giao_Khach' || targetStep === 'GD6_Cho_BG_Khach' || targetStep === 'GD5_Cho_PTT_TiepNhan_BG') {
-       targetStatus = app.customerHandoverDate || autoDates.customerHandoverDate ? 'Completed' : 'WaitingHandover';
+       targetStatus = app.customerHandoverDate ? 'Completed' : 'WaitingHandover';
     }
 
     if (targetStep === 'Hoan_Tat') targetStatus = 'Completed';
 
-    if (targetStatus === 'TaxCompleted' && !app.taxReceiptDate && !autoDates.taxReceiptDate) {
+    if (targetStatus === 'TaxCompleted' && !app.taxReceiptDate) {
       targetStatus = 'TaxPending'; // Fallback if no receipt date yet
     }
     
@@ -3535,7 +3473,7 @@ export default function App() {
       ...autoDates,
       currentStep: targetStep,
       status: finalStatus,
-      isRejected: !isMovingForward || (targetStep === 'S1_ChuanBi' ? app.isRejected : false),
+      isRejected: !isMovingForward,
       rejectionReason: !isMovingForward ? note : (targetStep === 'S1_ChuanBi' ? app.rejectionReason : ''),
       history: newHistory,
       auditTrail: [
@@ -3657,16 +3595,6 @@ export default function App() {
       return;
     }
 
-    // Check if transition from KT requires contractSigningDate, wait we update it via bulk transition field anyway!
-    // But if we transition to S2_KT_Ban_giao, it is required, which is already enforced by bulkTransitionField.isRequired.
-    if (['S3_Nop_VPDK', 'GD3_Nop_VPDK', 'S5_Tai_Chinh_Khach_Hang'].includes(nextStep)) {
-      if (!location || !refCode) {
-        showToast(`Vui lòng nhập nơi nộp hồ sơ và mã hồ sơ/phiếu hẹn.`, 'warning');
-        return;
-      }
-    }
-
-
     const nowStr = new Date().toISOString().split('T')[0];
     const updatedCount = selectedAppIds.length;
     setIsSavingApp(true);
@@ -3674,6 +3602,47 @@ export default function App() {
     try {
       const chronoErrors: string[] = [];
       const chronoWarnings: string[] = [];
+      
+      // Preliminary Chronology Check — collect ALL errors before proceeding
+      for (const app of applications) {
+        if (!selectedAppIds.includes(app.id)) continue;
+        
+        const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+        const currentIdx = workflowSteps.indexOf(app.currentStep);
+        
+        let recordNextStep = nextStep;
+        const currentStepCfg = stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep];
+        const currentDept = currentStepCfg?.dept;
+        const isSelfServiceJumpEligible = app.isSelfService && ['PTT', 'PTDA', 'KT'].includes(currentDept as any);
+        if (isSelfServiceJumpEligible) recordNextStep = 'Hoan_Tat';
+        
+        const nextIdx = workflowSteps.indexOf(recordNextStep);
+        if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
+          if (nextIdx !== currentIdx + 1 && !isSelfServiceJumpEligible) continue;
+        }
+        
+        let appWithDate = { ...app };
+        if (bulkTransitionField && dateValue) {
+          (appWithDate as any)[bulkTransitionField.key] = dateValue;
+        }
+
+        const chronoError = validateDateSequence(appWithDate);
+        if (chronoError) {
+          if (chronoError.startsWith('⚠️')) {
+            chronoWarnings.push(`Căn ${app.unitCode}: ${chronoError}`);
+          } else {
+            chronoErrors.push(`Căn ${app.unitCode}: ${chronoError}`);
+          }
+        }
+      }
+
+      // Block execution if any hard chrono errors found
+      if (chronoErrors.length > 0) {
+        showToast(`Lỗi trình tự ngày: ${chronoErrors[0]}`, 'error');
+        setIsSavingApp(false);
+        return;
+      }
+
       let actuallyUpdatedCount = 0;
 
       const updatedApps = applications.map(app => {
@@ -3719,18 +3688,9 @@ export default function App() {
           if (location !== undefined) appWithDate.submissionLocation = location as any;
           if (refCode !== undefined) appWithDate.vpdkCode = refCode;
         }
-
-        // Check chronology for all selected apps
-        const chronoError = validateDateSequence(appWithDate);
-        if (chronoError) {
-          if (chronoError.startsWith('⚠️')) {
-            chronoWarnings.push(`Căn ${appWithDate.unitCode}: ${chronoError}`);
-          } else {
-            chronoErrors.push(`Căn ${appWithDate.unitCode}: ${chronoError}`);
-          }
-        }
         
         let targetStep = recordNextStep;
+        console.log(`[Bulk Update Step] mode=RUNTIME app=${appWithDate.unitCode}, ${appWithDate.currentStep} -> ${targetStep}`);
         
         const prevHistory = [...appWithDate.history];
         if (prevHistory.length > 0) {
@@ -3755,52 +3715,11 @@ export default function App() {
           ...prevHistory
         ];
         
-        // Auto-populate dates based on transition to minimize input effort
+        // Removed auto-populate dates based on transition
         const autoDates: Partial<Application> = {};
-        if ((targetStep === 'S2_KT_Tiep_Nhan' || targetStep === 'GD1_Cho_KT_TiepNhan') && !appWithDate.accountingHandoverDate) autoDates.accountingHandoverDate = nowStr;
-        if (targetStep === 'S3_Nop_VPDK' && !appWithDate.submissionDate) autoDates.submissionDate = nowStr;
-        
-        if (targetStep === 'S5_Tai_Chinh_Khach_Hang') {
-          if (!appWithDate.taxNotificationDate) autoDates.taxNotificationDate = dateValue || nowStr;
-          autoDates.taxNoticeProvisionDate = nowStr; // Auto fill Ngày cung cấp TB Thuế
-        }
-        
-        if (targetStep === 'S5_Tai_Chinh_Khach_Hang') {
-          if (!appWithDate.taxNotificationDate) autoDates.taxNotificationDate = nowStr;
-          if (!appWithDate.taxNoticeProvisionDate) autoDates.taxNoticeProvisionDate = nowStr;
-        }
-
-        if (targetStep === 'S5_1_PTDA_TiepNhan' && !appWithDate.taxReceiptDate) autoDates.taxReceiptDate = nowStr;
-        if (targetStep === 'S6_Nhan_So_GCN') {
-          if (!appWithDate.gcnSignedDate) autoDates.gcnSignedDate = nowStr;
-        }
-        if (targetStep === 'S7_PTDA_Ban_Giao' && !appWithDate.ptdaHandoverDate) autoDates.ptdaHandoverDate = nowStr;
-        if (targetStep === 'S7_1_PTT_Tiep_Nhan' && !appWithDate.gcnReceivedDate) autoDates.gcnReceivedDate = nowStr;
-        if (targetStep === 'S7_2_Ban_Giao_Khach' && !appWithDate.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
-        if (targetStep === 'Hoan_Tat' && !appWithDate.customerHandoverDate) autoDates.customerHandoverDate = nowStr;
-
-        // GD Workflow Missing Auto Dates
-        if (targetStep === 'GD3_Nop_VPDK' && !appWithDate.submissionDate) 
-          autoDates.submissionDate = nowStr;
-          
-        if (targetStep === 'GD4_Cho_Nop_NVTC' && !appWithDate.taxNotificationDate) 
-          autoDates.taxNotificationDate = nowStr;
-          
-        if (targetStep === 'GD4_Cho_KT_TiepNhan_LaySo' && !appWithDate.taxReceiptDate) 
-          autoDates.taxReceiptDate = nowStr;
-          
-        if ((targetStep === 'GD5_Cho_Ky_In_GCN' || targetStep === 'GD5_Cho_GCN') && !appWithDate.gcnSignedDate) 
-          autoDates.gcnSignedDate = nowStr;
-          
-        if (targetStep === 'GD5_Cho_PTT_TiepNhan_BG' && !appWithDate.gcnReceivedDate) 
-          autoDates.gcnReceivedDate = nowStr;
-          
-        if (targetStep === 'GD6_Cho_BG_Khach' && !appWithDate.ptdaHandoverDate) 
-          autoDates.ptdaHandoverDate = nowStr;
 
         // Auto handover logic
         autoDates.isHandedOver = true;
-        autoDates.handoverDate = bulkTransitionField && dateValue ? dateValue : nowStr;
 
         let targetStatus = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).status;
         
@@ -3809,12 +3728,12 @@ export default function App() {
         if (targetStep === 'GD4_Cho_Nop_NVTC') targetStatus = 'TaxPending'; // CHỜ TB THUẾ / CHỜ ĐÓNG THUẾ
         if (targetStep === 'S5_1_PTDA_TiepNhan') targetStatus = 'TaxPaid'; // ĐÃ NỘP THUẾ
         if (targetStep === 'S7_2_Ban_Giao_Khach' || targetStep === 'GD6_Cho_BG_Khach' || targetStep === 'GD5_Cho_PTT_TiepNhan_BG') {
-           targetStatus = app.customerHandoverDate || autoDates.customerHandoverDate ? 'Completed' : 'WaitingHandover';
+           targetStatus = app.customerHandoverDate ? 'Completed' : 'WaitingHandover';
         }
 
         if (targetStep === 'Hoan_Tat') targetStatus = 'Completed';
 
-        if (targetStatus === 'TaxCompleted' && !appWithDate.taxReceiptDate && !autoDates.taxReceiptDate) {
+        if (targetStatus === 'TaxCompleted' && !appWithDate.taxReceiptDate) {
           targetStatus = 'TaxPending';
         }
 
@@ -3823,7 +3742,7 @@ export default function App() {
           ...autoDates,
           currentStep: targetStep,
           status: targetStep === 'S1_ChuanBi' ? 'Error' : targetStatus,
-          isRejected: targetStep === 'S1_ChuanBi' ? appWithDate.isRejected : false,
+          isRejected: false,
           rejectionReason: targetStep === 'S1_ChuanBi' ? appWithDate.rejectionReason : '',
           history: newHistory,
           auditTrail: [
@@ -3838,12 +3757,6 @@ export default function App() {
           ]
         };
       });
-
-      if (chronoErrors.length > 0) {
-        showToast(`Lỗi trình tự ngày: ${chronoErrors[0]}`, 'error');
-        setIsSavingApp(false);
-        return;
-      }
 
       if (actuallyUpdatedCount === 0) {
         showToast('Không có hồ sơ nào đủ điều kiện để thực hiện chuyển bước này hàng loạt.', 'warning');
@@ -3881,7 +3794,7 @@ export default function App() {
       }
 
       // Notifications for bulk transition
-      await Promise.all(appsToSync.map(app => notifyNextDepartment(app, app.currentStep)));
+      await Promise.all(appsToSync.map(app => notifyNextDepartment(app, nextStep)));
 
       // Cleanup notifications for finished apps
       if (nextStep === 'Hoan_Tat') {
@@ -4026,11 +3939,12 @@ export default function App() {
       };
 
       // 3. Update record in Database
-      const finalApp = await localSyncRecord(updatedApp);
-      
       const auditEntry = createAuditEntry('Tải tài liệu', false, 1, app.unitCode, `Đã tải lên tài liệu "${file.name}"`);
-      const finalWithAudit = { ...finalApp, auditTrail: [auditEntry, ...(finalApp.auditTrail || [])] };
-      await localSyncRecord(finalWithAudit);
+      const appWithAudit = {
+        ...updatedApp,
+        auditTrail: [auditEntry, ...(updatedApp.auditTrail || [])]
+      };
+      const finalWithAudit = await localSyncRecord(appWithAudit);
 
       handleSetApplications(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
       handleSetDashboardApps(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
@@ -4075,11 +3989,12 @@ export default function App() {
       }
 
       // 2. Update DB record
-      const finalApp = await localSyncRecord(updatedApp);
-      
       const auditEntry = createAuditEntry('Xóa tài liệu', false, 1, app.unitCode, `Đã xóa tài liệu "${fileToDelete?.name || 'Tài liệu'}"`);
-      const finalWithAudit = { ...finalApp, auditTrail: [auditEntry, ...(finalApp.auditTrail || [])] };
-      await localSyncRecord(finalWithAudit);
+      const appWithAudit = {
+        ...updatedApp,
+        auditTrail: [auditEntry, ...(updatedApp.auditTrail || [])]
+      };
+      const finalWithAudit = await localSyncRecord(appWithAudit);
 
       handleSetApplications(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
       handleSetDashboardApps(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
@@ -4506,16 +4421,8 @@ export default function App() {
         nextApp.status = 'TaxCompleted';
       }
       
-      // Auto-promote status if taxNotificationDate or taxNotificationReceivedDate is added and current step is S3_Nop_VPDK
-      if ((field === 'taxNotificationReceivedDate' || field === 'taxNotificationDate') && value && editApp.currentStep === 'S3_Nop_VPDK') {
-        nextApp.currentStep = 'S5_Tai_Chinh_Khach_Hang';
-      }
-
-      // Auto-promote for GD workflow step 3 to step 4
-      if ((field === 'taxNotificationReceivedDate' || field === 'taxNotificationDate') && value && editApp.currentStep === 'GD3_Nop_VPDK') {
-        nextApp.currentStep = 'GD4_Cho_Nop_NVTC';
-      }
-
+      // Removed auto-promote currentStep from date logic in RUNTIME mode
+      
       // Check Lệch Tiến Độ Thực Tế cho GCN
       if (field === 'gcnReceivedDate' && value) {
         const isEarly = ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => nextApp.currentStep.startsWith(prefix));
@@ -4534,33 +4441,19 @@ export default function App() {
       }
 
       // Auto-promote for Self Service or Normal applications accordingly
+      // ONLY change status, DO NOT auto-derive currentStep
       if (nextApp.isSelfService) {
         if (nextApp.customerHandoverDate || nextApp.status === 'Completed' || nextApp.currentStep === 'Hoan_Tat') {
-          nextApp.currentStep = 'Hoan_Tat';
           nextApp.status = 'Completed';
         } else if (nextApp.gcnReceivedDate) {
-          nextApp.currentStep = nextApp.workflowType === 'Quy_trinh_2' ? 'S7_2_Ban_Giao_Khach' : 'GD6_Cho_BG_Khach';
           nextApp.status = 'WaitingHandover';
         } else {
-          nextApp.currentStep = nextApp.workflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
           nextApp.status = 'Processing';
         }
       } else {
-        // Auto-promote to Hoan_Tat if customerHandoverDate is added
-        if (field === 'customerHandoverDate' && value) {
-          nextApp.currentStep = 'Hoan_Tat';
-          nextApp.status = 'Completed';
-          const historyItem: any = {
-            id: Math.random().toString(36).substr(2, 9),
-            timestamp: new Date().toISOString(),
-            user: userRole,
-            action: 'Tự động hoàn tất (Có ngày BG khách)',
-          };
-          nextApp.history = [historyItem, ...(nextApp.history || [])];
-        } else {
-          if (nextApp.status !== 'Error') {
-            nextApp.status = determineStatusFromStep(nextApp.currentStep);
-          }
+        // Only update status appropriately without modifying step
+        if (nextApp.status !== 'Error') {
+          nextApp.status = determineStatusFromStep(nextApp.currentStep);
         }
       }
 
@@ -4639,31 +4532,15 @@ export default function App() {
           // Auto-promote for Self Service or Normal applications accordingly
           if (nextApp.isSelfService) {
             if (nextApp.customerHandoverDate || nextApp.status === 'Completed' || nextApp.currentStep === 'Hoan_Tat') {
-              nextApp.currentStep = 'Hoan_Tat';
               nextApp.status = 'Completed';
             } else if (nextApp.gcnReceivedDate) {
-              nextApp.currentStep = nextApp.workflowType === 'Quy_trinh_2' ? 'S7_2_Ban_Giao_Khach' : 'GD6_Cho_BG_Khach';
               nextApp.status = 'WaitingHandover';
             } else {
-              nextApp.currentStep = nextApp.workflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
               nextApp.status = 'Processing';
             }
           } else {
-            // Auto-promote to Hoan_Tat if customerHandoverDate is added
-            if (field === 'customerHandoverDate' && value) {
-              nextApp.currentStep = 'Hoan_Tat';
-              nextApp.status = 'Completed';
-              const historyItem: any = {
-                id: Math.random().toString(36).substr(2, 9),
-                timestamp: new Date().toISOString(),
-                user: userRole,
-                action: 'Tự động hoàn tất (Có ngày BG khách)',
-              };
-              nextApp.history = [historyItem, ...(app.history || [])];
-            } else {
-              if (nextApp.status !== 'Error') {
-                nextApp.status = determineStatusFromStep(nextApp.currentStep);
-              }
+            if (nextApp.status !== 'Error') {
+              nextApp.status = determineStatusFromStep(nextApp.currentStep);
             }
           }
 
@@ -6312,6 +6189,7 @@ export default function App() {
         selectedCount={selectedAppIds.length}
         unitCodes={applications.filter(a => selectedAppIds.includes(a.id)).map(a => a.unitCode)}
         targetStepLabel={bulkTransitionTarget ? (stepConfig[bulkTransitionTarget] || INITIAL_STEP_CONFIG[bulkTransitionTarget]).label : ''}
+        targetStep={bulkTransitionTarget}
         updateField={bulkTransitionField}
         value={bulkTransitionValue}
         onChangeValue={setBulkTransitionValue}

@@ -110,11 +110,23 @@ export const getStepIndex = (step: StepName, workflowType?: string): number => {
 
 export const inferStepFromDates = (
   app: any,
-  slaConfig?: Record<string, number>
+  slaConfig?: Record<string, number>,
+  mode: 'IMPORT' | 'RUNTIME' = 'RUNTIME'
 ): { currentStep: StepName; status: import('../types').UnitStatus } => {
   const isQT2 = app.workflowType === 'Quy_trinh_2';
+  const defaultStep = isQT2 ? 'S1_ChuanBi' : 'GD1_ChuanBi';
+  
+  if (mode === 'RUNTIME') {
+    return {
+      currentStep: app.currentStep || defaultStep,
+      status: app.status || 'Processing'
+    };
+  }
+
+  console.log(`[inferStepFromDates] Running in mode=${mode} for unit ${app.unitCode}`);
+
   const steps = isQT2 ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
-  const currentIdx = steps.indexOf(app.currentStep || (isQT2 ? 'S1_ChuanBi' : 'GD1_ChuanBi'));
+  const currentIdx = steps.indexOf(app.currentStep || defaultStep);
 
   const hasHandover = app.customerHandoverDate && app.customerHandoverDate !== '---' && app.customerHandoverDate !== 'None' && String(app.customerHandoverDate).trim() !== '';
 
@@ -167,9 +179,15 @@ export const inferStepFromDates = (
     else inferred = { currentStep: 'GD1_ChuanBi', status: 'Processing' };
   }
 
-  // Chống nhảy lùi bước: Chỉ cập nhật nếu bước mới tiến xa hơn hoặc bằng bước hiện tại
-  // Ngoại trừ trường hợp hồ sơ đang có lỗi/sai sót (chủ động lùi để sửa) hoặc reset
+  // TRICT ANTI-ROLLBACK for IMPORT MODE:
+  // Giữ nguyên step hiện tại nếu import thấp hơn, nâng step nếu import cao hơn
   const inferredIdx = steps.indexOf(inferred.currentStep);
+  if (mode === 'IMPORT' && inferredIdx < currentIdx) {
+    console.log(`[IMPORT SECURITY] Blocked step regression. app=${app.unitCode}, currentStep=${app.currentStep}, inferredStep=${inferred.currentStep}. Keeping current!`);
+    return { currentStep: app.currentStep, status: app.status };
+  }
+
+  // Preserve existing fallback for other cases if any
   if (inferredIdx < currentIdx && app.status !== 'Error' && !app._forceRegression) {
     return { currentStep: app.currentStep, status: app.status };
   }
