@@ -85,7 +85,7 @@ export default function LoginScreen({
 
   return (
     <div className={`flex items-center justify-center min-h-screen relative overflow-hidden font-sans transition-colors duration-700 ${
-      isDark ? 'bg-slate-950 selection:bg-amber-500/30' : 'bg-slate-50 selection:bg-amber-500/20'
+      isDark ? 'bg-slate-950 selection:bg-amber-500/30' : 'bg-[var(--color-bg-primary)] selection:bg-amber-500/10'
     }`}>
       {/* Dynamic Masterpiece Background */}
       <BackgroundParticles theme={theme} />
@@ -102,7 +102,7 @@ export default function LoginScreen({
         className={`w-full max-w-sm sm:max-w-md mx-4 p-8 sm:p-12 rounded-[3.5rem] backdrop-blur-3xl border transition-all duration-700 z-10 relative group ${
           isDark 
             ? 'border-white/10 bg-slate-900/40 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.7)] hover:border-amber-500/20' 
-            : 'border-white/90 bg-white/70 shadow-[0_40px_100px_-20px_rgba(15,23,42,0.15)] hover:border-amber-500/30'
+            : 'border-white/90 bg-[var(--color-bg-secondary)] shadow-[0_30px_60px_-12px_rgba(0,0,0,0.06)] hover:shadow-[0_40px_80px_-12px_rgba(0,0,0,0.1)] hover:border-amber-500/10'
         }`}
       >
         {/* Superior Ambient Glow */}
@@ -126,7 +126,7 @@ export default function LoginScreen({
           </motion.div>
           
           <h1 className={`text-3xl font-black tracking-tight mb-2 transition-colors duration-500 ${
-            isDark ? 'text-white' : 'text-slate-900'
+            isDark ? 'text-white' : 'text-[var(--color-text-primary)]'
           }`}>
             GCN Tracker
           </h1>
@@ -151,7 +151,7 @@ export default function LoginScreen({
                 className={`w-full rounded-2xl px-6 py-4 outline-none transition-all duration-300 text-sm border font-medium ${
                   isDark 
                     ? 'border-white/5 bg-slate-900/40 text-white placeholder:text-slate-700 focus:border-amber-500/50 focus:bg-slate-900/60' 
-                    : 'border-slate-200 bg-white/50 text-slate-900 placeholder:text-slate-300 focus:border-amber-500/50 focus:bg-white/80'
+                    : 'border-slate-100 bg-white/50 text-[var(--color-text-primary)] placeholder:text-slate-300 focus:border-amber-500/30 focus:bg-white'
                 }`}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -173,7 +173,7 @@ export default function LoginScreen({
                 className={`w-full rounded-2xl px-6 py-4 outline-none transition-all duration-300 text-sm border font-medium ${
                   isDark 
                     ? 'border-white/5 bg-slate-900/40 text-white placeholder:text-slate-700 focus:border-amber-500/50 focus:bg-slate-900/60' 
-                    : 'border-slate-200 bg-white/50 text-slate-900 placeholder:text-slate-300 focus:border-amber-500/50 focus:bg-white/80'
+                    : 'border-slate-100 bg-white/50 text-[var(--color-text-primary)] placeholder:text-slate-300 focus:border-amber-500/30 focus:bg-white'
                 }`}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

@@ -17,7 +17,7 @@ export const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 
       isActive ? "ring-2 ring-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.3)] border-indigo-500/50" : "",
       theme === 'dark' 
         ? "bg-[var(--color-bg-secondary)] backdrop-blur-xl border-slate-700/50 hover:border-festive-gold/30 shadow-2xl" 
-        : "bg-white border-slate-200/60 hover:border-festive-gold/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]"
+        : "bg-white border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.02)] hover:shadow-[0_20px_40px_rgb(0,0,0,0.05)]"
     )}
   >
     <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/5 rounded-full blur-2xl"></div>
@@ -116,7 +116,7 @@ export const DetailCard = ({ label, value, field, valueColor = 'text-[var(--colo
       "p-4 border rounded-2xl transition-all group backdrop-blur-sm relative overflow-hidden",
       active 
         ? "bg-emerald-500/5 border-emerald-500/30 ring-1 ring-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.05)]" 
-        : theme === 'dark' ? "bg-slate-950/40 border-slate-800" : "bg-slate-50/50 border-slate-200 shadow-sm"
+        : theme === 'dark' ? "bg-slate-950/40 border-slate-800" : "bg-white border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)]"
     )}>
       {active && <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/5 blur-2xl -mr-8 -mt-8 rounded-full"></div>}
       

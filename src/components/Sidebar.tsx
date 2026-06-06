@@ -66,13 +66,17 @@ export const Sidebar = ({
         }}
         transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
         className={cn(
-          "backdrop-blur-2xl border-r flex flex-col shrink-0 bg-[var(--color-bg-primary)] border-slate-700 shadow-2xl transition-all duration-300",
+          "backdrop-blur-2xl border-r flex flex-col shrink-0 transition-all duration-300",
+          theme === 'light' ? "bg-white/80 border-slate-200 shadow-xl shadow-slate-200/20" : "bg-[var(--color-bg-primary)] border-slate-700 shadow-2xl",
           "lg:relative fixed inset-y-0 left-0 h-full lg:z-40 z-50"
         )}
       >
         <button 
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="absolute -right-3.5 top-8 p-1.5 rounded-full bg-slate-700 border border-slate-600 text-slate-300 hover:text-[var(--color-text-primary)] hover:bg-slate-600 transition-colors z-50 shadow-md lg:block hidden"
+          className={cn(
+            "absolute -right-3.5 top-8 p-1.5 rounded-full border transition-colors z-50 shadow-md lg:block hidden",
+            theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-indigo-600 hover:bg-slate-50" : "bg-slate-700 border-slate-600 text-slate-300 hover:text-[var(--color-text-primary)] hover:bg-slate-600"
+          )}
         >
           <ChevronLeft size={16} className={cn("transition-transform duration-300", isSidebarCollapsed && "rotate-180")} />
         </button>
@@ -109,8 +113,10 @@ export const Sidebar = ({
               "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               isSidebarCollapsed ? "justify-center px-0" : "px-4",
               activeTab === 'dashboard'                
-                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-[var(--color-text-primary)] shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
-                : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
+                ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
+                : theme === 'light' 
+                  ? "text-slate-500 hover:bg-indigo-50/50 hover:text-indigo-600" 
+                  : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
             )}
           >
             <LayoutDashboard size={18} />
@@ -128,8 +134,10 @@ export const Sidebar = ({
             className={cn(
               "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               activeTab === 'applications' 
-                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-[var(--color-text-primary)] shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
-                : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
+                ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
+                : theme === 'light' 
+                  ? "text-slate-500 hover:bg-indigo-50/50 hover:text-indigo-600" 
+                  : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
             )}
           >
             <Files size={18} />
@@ -149,8 +157,10 @@ export const Sidebar = ({
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                 activeTab === 'reports' 
-                  ? "bg-gradient-to-r from-amber-500 to-amber-600 text-[var(--color-text-primary)] shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
-                  : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
+                  ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
+                  : theme === 'light' 
+                    ? "text-slate-500 hover:bg-indigo-50/50 hover:text-indigo-600" 
+                    : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
               )}
             >
               <FileBarChart size={18} />
@@ -170,8 +180,10 @@ export const Sidebar = ({
             className={cn(
               "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               activeTab === 'resources' 
-                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-[var(--color-text-primary)] shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
-                : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
+                ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
+                : theme === 'light' 
+                  ? "text-slate-500 hover:bg-indigo-50/50 hover:text-indigo-600" 
+                  : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
             )}
           >
             <HelpCircle size={18} />
@@ -192,8 +204,10 @@ export const Sidebar = ({
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'users' 
-                    ? "bg-gradient-to-r from-amber-500 to-amber-600 text-[var(--color-text-primary)] shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
-                    : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
+                    ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
+                    : theme === 'light' 
+                      ? "text-slate-500 hover:bg-indigo-50/50 hover:text-indigo-600" 
+                      : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
                 )}
               >
                 <User size={18} />
@@ -211,8 +225,10 @@ export const Sidebar = ({
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'projects' 
-                    ? "bg-gradient-to-r from-amber-500 to-amber-600 text-[var(--color-text-primary)] shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
-                    : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
+                    ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
+                    : theme === 'light' 
+                      ? "text-slate-500 hover:bg-indigo-50/50 hover:text-indigo-600" 
+                      : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
                 )}
               >
                 <Building2 size={18} />
@@ -230,8 +246,10 @@ export const Sidebar = ({
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'settings' 
-                    ? "bg-gradient-to-r from-amber-500 to-amber-600 text-[var(--color-text-primary)] shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
-                    : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
+                    ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
+                    : theme === 'light' 
+                      ? "text-slate-500 hover:bg-indigo-50/50 hover:text-indigo-600" 
+                      : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
                 )}
               >
                 <Settings size={18} />

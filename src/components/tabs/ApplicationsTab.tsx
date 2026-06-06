@@ -149,14 +149,14 @@ export const ApplicationsTab = ({
                   "backdrop-blur-md rounded-3xl shadow-2xl border transition-all overflow-hidden",
                   theme === 'light' ? "bg-white border-slate-200 shadow-slate-900/5" : "bg-slate-900/40 border-slate-800/50"
                 )}>
-                  <div className={cn("p-2 lg:p-3 border-b", theme === 'light' ? "border-slate-100 shadow-inner bg-slate-50/50" : "border-slate-800/50")}>
+                  <div className={cn("p-2 lg:p-3 border-b", theme === 'light' ? "border-[var(--color-border-subtle)]/50 shadow-inner bg-[var(--color-bg-primary)]/30" : "border-slate-800/50")}>
                     <div className="flex flex-col gap-2">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                        <div className={cn("flex flex-wrap items-center gap-2 text-[10px] sm:text-[11px]", theme === 'light' ? "text-slate-800" : "text-slate-200")}>
+                        <div className={cn("flex flex-wrap items-center gap-2 text-[10px] sm:text-[11px]", theme === 'light' ? "text-[var(--color-text-primary)]" : "text-slate-200")}>
                           <select 
                             value={pageSize}
                             onChange={(e) => {setPageSize(Number(e.target.value)); setCurrentPage(0);}}
-                            className={cn("px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[10px] outline-none font-bold", theme === 'light' ? "bg-slate-200/50 text-slate-800 border border-slate-300/50" : "bg-slate-800 text-slate-200 border border-slate-700")}
+                            className={cn("px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[10px] outline-none font-bold", theme === 'light' ? "bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] border border-[var(--color-border-subtle)]" : "bg-slate-800 text-slate-200 border border-slate-700")}
                           >
                             <option value={20}>20 / trang</option>
                             <option value={50}>50 / trang</option>

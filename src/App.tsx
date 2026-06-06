@@ -5426,7 +5426,7 @@ export default function App() {
       <Route path="*" element={
         <div className={cn(
           "flex h-screen w-full overflow-hidden font-sans relative transition-colors duration-700",
-          theme === 'dark' ? "bg-[var(--color-bg-primary)] text-[var(--color-text-primary)]" : "bg-slate-50 text-slate-900"
+          theme === 'dark' ? "bg-[var(--color-bg-primary)] text-[var(--color-text-primary)]" : "bg-[var(--color-bg-primary)] text-[var(--color-text-primary)]"
         )}>
           <ThemeRipple theme={theme} />
           <PrintStyles />
@@ -5527,28 +5527,28 @@ export default function App() {
         {/* Header */}
         <header className={cn(
           "h-16 sm:h-20 backdrop-blur-xl border-b flex items-center justify-between px-4 sm:px-8 shrink-0 z-20 transition-all gap-2",
-          theme === 'light' ? "bg-white/70 border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800/80"
+          theme === 'light' ? "bg-[var(--color-bg-secondary)]/80 border-[var(--color-border-subtle)] shadow-sm" : "bg-slate-900/40 border-slate-800/80"
         )}>
           <div className="flex items-center gap-3 overflow-hidden">
             <button
               onClick={() => setIsSidebarCollapsed(prev => !prev)}
-              className="lg:hidden p-2 rounded-xl bg-slate-800/10 border border-slate-200 dark:border-slate-800 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all shrink-0 active:scale-95 shadow-sm"
+              className="lg:hidden p-2 rounded-xl bg-slate-800/10 border border-[var(--color-border-subtle)] dark:border-slate-800 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all shrink-0 active:scale-95 shadow-sm"
               aria-label="Toggle Menu"
             >
               <Menu size={20} />
             </button>
-            <h2 className={cn("text-sm sm:text-base md:text-2xl font-black font-sans tracking-tight truncate max-w-[140px] xs:max-w-xs sm:max-w-none", theme === 'light' ? "text-slate-900" : "text-[var(--color-text-primary)]")} title={activeTab === 'dashboard' ? (selectedProject ? `Dashboard: ${selectedProject.name}` : 'Tổng quan Vùng') : (selectedProject ? `Hồ sơ: ${selectedProject.name}` : 'Danh sách Hồ sơ cấp GCN')}>
+            <h2 className={cn("text-sm sm:text-base md:text-2xl font-black font-sans tracking-tight truncate max-w-[140px] xs:max-w-xs sm:max-w-none", theme === 'light' ? "text-[var(--color-text-primary)]" : "text-[var(--color-text-primary)]")} title={activeTab === 'dashboard' ? (selectedProject ? `Dashboard: ${selectedProject.name}` : 'Tổng quan Vùng') : (selectedProject ? `Hồ sơ: ${selectedProject.name}` : 'Danh sách Hồ sơ cấp GCN')}>
               {activeTab === 'dashboard' ? (selectedProject ? `Dashboard: ${selectedProject.name}` : 'Tổng quan Vùng') : (selectedProject ? `Hồ sơ: ${selectedProject.name}` : 'Danh sách Hồ sơ cấp GCN')}
             </h2>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-6">
-            <div className="flex items-center gap-1.5 sm:gap-2 border-r border-slate-200 dark:border-slate-800/40 pr-2 sm:pr-4">
+            <div className="flex items-center gap-1.5 sm:gap-2 border-r border-[var(--color-border-subtle)] dark:border-slate-800/40 pr-2 sm:pr-4">
               <button 
                 onClick={handleDownloadTemplate}
                 className={cn(
                   "p-2 sm:p-2.5 rounded-full border transition-all shadow-sm group relative",
-                  theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200" : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-festive-gold hover:border-festive-gold/30"
+                  theme === 'light' ? "bg-[var(--color-bg-secondary)] border-[var(--color-border-subtle)] text-slate-400 hover:text-indigo-600 hover:border-indigo-200" : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-festive-gold hover:border-festive-gold/30"
                 )}
                 title="Tải mẫu Excel"
               >
@@ -5569,7 +5569,7 @@ export default function App() {
                   disabled={isImporting}
                   className={cn(
                     "p-2 sm:p-2.5 rounded-full border transition-all shadow-sm group relative",
-                    theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-200" : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-emerald-400 hover:border-emerald-500/30",
+                    theme === 'light' ? "bg-[var(--color-bg-secondary)] border-[var(--color-border-subtle)] text-slate-400 hover:text-emerald-600 hover:border-emerald-200" : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-emerald-400 hover:border-emerald-500/30",
                     isImporting && "opacity-50 cursor-not-allowed"
                   )}
                   title={isImporting ? "Đang xử lý..." : "Nhập từ Excel"}
@@ -5589,9 +5589,9 @@ export default function App() {
                   className={cn(
                     "p-2 sm:p-2.5 rounded-full border transition-all shadow-sm group relative",
                     healDone 
-                      ? "opacity-40 cursor-not-allowed bg-slate-100 border-slate-200"
+                      ? "opacity-40 cursor-not-allowed bg-slate-100 border-[var(--color-border-subtle)]"
                       : theme === 'light' 
-                        ? "bg-white border-slate-200 text-slate-400 hover:text-amber-600 hover:border-amber-200" 
+                        ? "bg-[var(--color-bg-secondary)] border-[var(--color-border-subtle)] text-slate-400 hover:text-amber-600 hover:border-amber-200" 
                         : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-amber-400 hover:border-amber-500/30",
                     isImporting && "opacity-50 cursor-not-allowed"
                   )}
@@ -5631,7 +5631,7 @@ export default function App() {
                     "p-2.5 rounded-xl transition-all relative border",
                     isNotiOpen 
                       ? (theme === 'light' ? "bg-slate-200 border-slate-300 text-slate-950" : "bg-slate-800 border-slate-700 text-[var(--color-text-primary)]") 
-                      : (theme === 'light' ? "bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-900 shadow-sm" : "bg-slate-900/50 border-slate-800 text-slate-400 hover:bg-slate-800/40 hover:text-[var(--color-text-primary)]")
+                      : (theme === 'light' ? "bg-[var(--color-bg-secondary)] border-[var(--color-border-subtle)] text-slate-500 hover:bg-slate-100 hover:text-[var(--color-text-primary)] shadow-sm" : "bg-slate-900/50 border-slate-800 text-slate-400 hover:bg-slate-800/40 hover:text-[var(--color-text-primary)]")
                   )}
                   title="Thông báo"
                 >
@@ -5713,9 +5713,9 @@ export default function App() {
             </div>
 
             {/* User Profile */}
-            <div className="flex items-center gap-2 sm:gap-4 pl-2 sm:pl-6 border-l border-slate-200 dark:border-slate-800/20">
+            <div className="flex items-center gap-2 sm:gap-4 pl-2 sm:pl-6 border-l border-[var(--color-border-subtle)] dark:border-slate-800/20">
               <div className="text-right hidden sm:block overflow-hidden max-w-[150px]">
-                <p className={cn("text-xs font-bold uppercase tracking-wider truncate", theme === 'light' ? "text-slate-900" : "text-[var(--color-text-primary)]")}>{currentUser?.name}</p>
+                <p className={cn("text-xs font-bold uppercase tracking-wider truncate", theme === 'light' ? "text-[var(--color-text-primary)]" : "text-[var(--color-text-primary)]")}>{currentUser?.name}</p>
                 <div className="flex items-center justify-end gap-2">
                   <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider truncate">Phòng: {currentUser?.dept}</p>
                   <button 
@@ -5736,7 +5736,7 @@ export default function App() {
                 }}
                 className={cn(
                   "p-2.5 rounded-xl transition-all border",
-                  theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 shadow-sm" : "bg-slate-900/50 border-slate-800 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10"
+                  theme === 'light' ? "bg-[var(--color-bg-secondary)] border-[var(--color-border-subtle)] text-slate-400 hover:text-rose-600 hover:bg-rose-50 shadow-sm" : "bg-slate-900/50 border-slate-800 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10"
                 )}
                 title="Đăng xuất"
               >

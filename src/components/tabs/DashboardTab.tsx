@@ -440,10 +440,10 @@ export const DashboardTab = ({
 
                     <div className={cn(
                       "p-8 rounded-[3rem] border transition-all duration-500 relative overflow-hidden group",
-                      theme === 'light' ? "bg-white/70 border-slate-200/60 shadow-xl backdrop-blur-xl" : "bg-slate-900/40 border-slate-800/50 shadow-xl"
+                      theme === 'light' ? "bg-[var(--color-bg-secondary)]/80 border-[var(--color-border-subtle)] shadow-md backdrop-blur-xl" : "bg-slate-900/40 border-slate-800/50 shadow-xl"
                     )}>
                       <div>
-                        <h3 className={cn("font-black mb-6 font-serif text-sm italic flex items-center gap-3 uppercase tracking-widest", theme === 'light' ? "text-slate-800" : "text-white")}>
+                        <h3 className={cn("font-black mb-6 font-serif text-sm italic flex items-center gap-3 uppercase tracking-widest", theme === 'light' ? "text-[var(--color-text-primary)]" : "text-white")}>
                           <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]" />
                           Tỉ lệ Trạng thái
                         </h3>
@@ -501,8 +501,8 @@ export const DashboardTab = ({
                       </div>
                     </div>
 
-                      <div className={cn("p-6 rounded-3xl border mt-4 overflow-hidden", theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/40 border-slate-800")}>
-                         <h3 className={cn("font-bold mb-4 font-serif text-sm italic flex items-center gap-3", theme === 'light' ? "text-slate-900" : "text-white")}>
+                      <div className={cn("p-6 rounded-3xl border mt-4 overflow-hidden shadow-sm", theme === 'light' ? "bg-[var(--color-bg-secondary)] border-[var(--color-border-subtle)]" : "bg-slate-900/40 border-slate-800")}>
+                         <h3 className={cn("font-bold mb-4 font-serif text-sm italic flex items-center gap-3", theme === 'light' ? "text-[var(--color-text-primary)]" : "text-white")}>
                            <Wallet size={14} className="text-emerald-500" />
                            Thống kê vay vốn
                          </h3>
@@ -571,7 +571,7 @@ export const DashboardTab = ({
                                                   return (
                                                     <div className={cn(
                                                        "p-3 rounded-xl text-[10px] font-black border backdrop-blur-md shadow-2xl", 
-                                                       theme === 'light' ? "bg-white border-slate-200 text-slate-800 shadow-indigo-100" : "bg-slate-900 border-slate-800 text-white"
+                                                       theme === 'light' ? "bg-[var(--color-bg-secondary)] border-[var(--color-border-subtle)] text-[var(--color-text-primary)] shadow-lg shadow-indigo-500/5" : "bg-slate-900 border-slate-800 text-white"
                                                     )}>
                                                       <div className="flex items-center gap-2 mb-1">
                                                          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: data.color }} />
