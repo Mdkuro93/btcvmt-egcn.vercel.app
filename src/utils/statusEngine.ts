@@ -81,11 +81,11 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
 
         // Workflow 1
         GD1_ChuanBi: 'contractSigningDate',
-        GD1_Cho_KT_TiepNhan: 'accountingHandoverDate',
+        GD1_Cho_KT_TiepNhan: 'contractSigningDate',
         GD2_Cho_Nop_VPDK: 'accountingHandoverDate',
-        GD3_Nop_VPDK: 'submissionDate',
-        GD4_Cho_Nop_NVTC: 'taxNotificationDate',
-        GD4_Cho_KT_TiepNhan_LaySo: 'taxReceiptDate',
+        GD3_Nop_VPDK: 'accountingHandoverDate',
+        GD4_Cho_Nop_NVTC: 'submissionDate',
+        GD4_Cho_KT_TiepNhan_LaySo: 'taxNotificationDate',
         GD5_Cho_Ky_In_GCN: 'taxReceiptDate',
         GD5_Cho_GCN: 'gcnSignedDate',
         GD5_Cho_PTT_TiepNhan_BG: 'gcnReceivedDate',
@@ -93,10 +93,43 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
         Hoan_Tat: 'customerHandoverDate'
       };
 
+      const milestoneOrder = [
+        'receivedDate',
+        'accountingHandoverDate',
+        'submissionDate',
+        'taxNotificationDate',
+        'taxReceiptDate',
+        'gcnSignedDate',
+        'gcnReceivedDate',
+        'ptdaHandoverDate',
+        'customerHandoverDate'
+      ];
+
       const fieldKey = mapping[currentStep] || 'receivedDate';
-      const camelKey = fieldKey;
-      const snakeKey = fieldKey.replace(/([A-Z])/g, "_$1").toLowerCase();
-      const comparisonDate = (app[camelKey] || app[snakeKey] || app.receivedDate || app.received_date) as string | undefined;
+      
+      // FIX #2: Smart Waterfall Fallback
+      // Thay vì nhảy thẳng về receivedDate nếu fieldKey trống, ta sẽ rà ngược danh sách
+      // milestone để tìm mốc thời gian gần nhất đã được ghi nhận.
+      let comparisonDate: string | undefined;
+      const startIdx = milestoneOrder.indexOf(fieldKey);
+      
+      if (startIdx !== -1) {
+        // Rà ngược từ mốc của step hiện tại về đầu
+        for (let i = startIdx; i >= 0; i--) {
+          const k = milestoneOrder[i];
+          const snakeK = k.replace(/([A-Z])/g, "_$1").toLowerCase();
+          const val = (app[k] || app[snakeK]) as string | undefined;
+          if (val && val !== '---' && val !== 'None' && String(val).trim() !== '') {
+            comparisonDate = val;
+            break;
+          }
+        }
+      }
+
+      // Nếu vẫn không tìm thấy mốc nào trong sequence, dùng fallback cuối cùng
+      if (!comparisonDate) {
+        comparisonDate = (app.receivedDate || app.received_date) as string | undefined;
+      }
 
       if (comparisonDate) {
         stepStartTime = new Date(comparisonDate).getTime();
