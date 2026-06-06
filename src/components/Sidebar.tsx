@@ -75,7 +75,7 @@ export const Sidebar = ({
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           className={cn(
             "absolute -right-3.5 top-8 p-1.5 rounded-full border transition-colors z-50 shadow-md lg:block hidden",
-            theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-indigo-600 hover:bg-slate-50" : "bg-slate-700 border-slate-600 text-slate-300 hover:text-[var(--color-text-primary)] hover:bg-slate-600"
+            theme === 'light' ? "bg-white border-slate-200 text-slate-400 hover:text-amber-600 hover:bg-slate-50" : "bg-slate-700 border-slate-600 text-slate-300 hover:text-[var(--color-text-primary)] hover:bg-slate-600"
           )}
         >
           <ChevronLeft size={16} className={cn("transition-transform duration-300", isSidebarCollapsed && "rotate-180")} />
@@ -113,9 +113,9 @@ export const Sidebar = ({
               "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               isSidebarCollapsed ? "justify-center px-0" : "px-4",
               activeTab === 'dashboard'                
-                ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
+                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/20" 
                 : theme === 'light' 
-                  ? "text-slate-500 hover:bg-indigo-50/50 hover:text-indigo-600" 
+                  ? "text-slate-500 hover:bg-amber-50/50 hover:text-amber-600" 
                   : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
             )}
           >
@@ -134,9 +134,9 @@ export const Sidebar = ({
             className={cn(
               "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               activeTab === 'applications' 
-                ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
+                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/20" 
                 : theme === 'light' 
-                  ? "text-slate-500 hover:bg-indigo-50/50 hover:text-indigo-600" 
+                  ? "text-slate-500 hover:bg-amber-50/50 hover:text-amber-600" 
                   : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
             )}
           >
@@ -157,9 +157,9 @@ export const Sidebar = ({
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                 activeTab === 'reports' 
-                  ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
+                  ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/20" 
                   : theme === 'light' 
-                    ? "text-slate-500 hover:bg-indigo-50/50 hover:text-indigo-600" 
+                    ? "text-slate-500 hover:bg-amber-50/50 hover:text-amber-600" 
                     : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
               )}
             >
@@ -180,9 +180,9 @@ export const Sidebar = ({
             className={cn(
               "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               activeTab === 'resources' 
-                ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
+                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/20" 
                 : theme === 'light' 
-                  ? "text-slate-500 hover:bg-indigo-50/50 hover:text-indigo-600" 
+                  ? "text-slate-500 hover:bg-amber-50/50 hover:text-amber-600" 
                   : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
             )}
           >
@@ -204,9 +204,9 @@ export const Sidebar = ({
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'users' 
-                    ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
+                    ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/20" 
                     : theme === 'light' 
-                      ? "text-slate-500 hover:bg-indigo-50/50 hover:text-indigo-600" 
+                      ? "text-slate-500 hover:bg-amber-50/50 hover:text-amber-600" 
                       : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
                 )}
               >
@@ -225,9 +225,9 @@ export const Sidebar = ({
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'projects' 
-                    ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
+                    ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/20" 
                     : theme === 'light' 
-                      ? "text-slate-500 hover:bg-indigo-50/50 hover:text-indigo-600" 
+                      ? "text-slate-500 hover:bg-amber-50/50 hover:text-amber-600" 
                       : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
                 )}
               >
@@ -246,9 +246,9 @@ export const Sidebar = ({
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'settings' 
-                    ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-lg shadow-indigo-500/20" 
+                    ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/20" 
                     : theme === 'light' 
-                      ? "text-slate-500 hover:bg-indigo-50/50 hover:text-indigo-600" 
+                      ? "text-slate-500 hover:bg-amber-50/50 hover:text-amber-600" 
                       : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
                 )}
               >
@@ -277,7 +277,7 @@ export const Sidebar = ({
               className={cn(
                 "w-full flex items-center gap-3 py-2.5 px-4 rounded-xl transition-all duration-200 font-bold text-[11px] uppercase tracking-wider overflow-hidden",
                 isSidebarCollapsed ? "justify-center px-0" : "px-4",
-                "bg-indigo-600/10 text-indigo-400 border border-indigo-600/20 hover:bg-indigo-600/20"
+                "bg-amber-600/10 text-amber-500 border border-amber-600/20 hover:bg-amber-600/20"
               )}
             >
               <LayoutDashboard size={14} className="shrink-0" />
@@ -331,11 +331,11 @@ export const Sidebar = ({
                 "w-full flex items-center gap-3 py-2.5 rounded-xl transition-all text-sm font-black uppercase tracking-tight overflow-hidden",
                 isSidebarCollapsed ? "justify-center px-0" : "px-4",
                 selectedProjectId === null 
-                  ? (theme === 'light' ? "bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200" : "bg-slate-800/80 text-festive-gold ring-1 ring-slate-700")
+                  ? (theme === 'light' ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200" : "bg-slate-800/80 text-festive-gold ring-1 ring-slate-700")
                   : (theme === 'light' ? "text-slate-500 hover:bg-slate-50" : "text-slate-400 hover:bg-slate-800/50")
               )}
             >
-              <MapIcon size={16} className={cn("shrink-0", selectedProjectId === null ? (theme === 'light' ? "text-indigo-600" : "text-festive-gold") : "text-slate-500")} />
+              <MapIcon size={16} className={cn("shrink-0", selectedProjectId === null ? (theme === 'light' ? "text-amber-600" : "text-festive-gold") : "text-slate-500")} />
               <AnimatePresence>
                 {!isSidebarCollapsed && (
                   <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="truncate whitespace-nowrap overflow-hidden">
@@ -422,7 +422,7 @@ export const Sidebar = ({
                             "w-full flex items-center gap-3 py-2.5 rounded-xl transition-all text-sm font-black group relative overflow-hidden",
                             isSidebarCollapsed ? "justify-center px-0 ml-[-12px]" : "px-4",
                             selectedProjectId === p.id 
-                              ? (theme === 'light' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "bg-slate-800/80 text-festive-gold ring-1 ring-slate-700") 
+                              ? (theme === 'light' ? "bg-amber-600 text-white shadow-lg shadow-amber-600/20" : "bg-slate-800/80 text-festive-gold ring-1 ring-slate-700") 
                               : (theme === 'light' ? "text-slate-500 hover:bg-white hover:shadow-sm" : "text-slate-400 hover:bg-slate-800/50")
                           )}
                         >

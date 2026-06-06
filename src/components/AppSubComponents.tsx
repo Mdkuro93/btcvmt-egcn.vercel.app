@@ -40,8 +40,14 @@ export const StatusBadge = ({ status, app, variant = 'default' }: { status: Unit
     if (app.status === 'WaitingHandover' || app.status === 'Completed') {
       effectiveStatus = app.customerHandoverDate ? 'Completed' : 'WaitingHandover';
     } else if (app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK') {
-      effectiveStatus = (app.vpdkCode && app.submissionLocation && app.submissionDate) ? 'Submitted' : 'WaitingVPDK';
-      if (effectiveStatus === 'Submitted' && app.submissionDate) {
+      const isActuallySubmitted = (app.vpdkCode && app.submissionLocation && app.submissionDate);
+      if (app.currentStep === 'S3_Nop_VPDK') {
+        effectiveStatus = isActuallySubmitted ? 'Submitted' : 'WaitingVPDK_Step3';
+      } else {
+        effectiveStatus = isActuallySubmitted ? 'Submitted' : 'WaitingVPDK';
+      }
+      
+      if (isActuallySubmitted && app.submissionDate) {
         const subDate = new Date(app.submissionDate);
         const daysDiff = (new Date().getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
         if (daysDiff > 7 && !app.taxNotificationDate) effectiveStatus = 'TaxPending';
@@ -77,6 +83,7 @@ export const StatusBadge = ({ status, app, variant = 'default' }: { status: Unit
   const configs: Record<string, { label: string, classes: string }> = {
     Processing: { label: '1. Đang chuẩn bị', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
     WaitingVPDK: { label: '2. Chờ nộp VPĐK', classes: 'bg-amber-500/10 text-amber-600 border border-amber-500/20' },
+    WaitingVPDK_Step3: { label: '3. CHỜ NỘP VPĐK', classes: 'bg-amber-500/10 text-amber-600 border border-amber-500/20' },
     Submitted: { label: '3. ĐÃ NỘP VPĐK', classes: 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 shadow-[0_0_10px_rgba(99,102,241,0.1)]' },
     TaxPending: { label: '4. CHỜ THÔNG BÁO THUẾ', classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20 animate-pulse' },
     TaxNotificationReceived: { label: '5. CHỜ HOÀN THÀNH NVTC', classes: 'bg-sky-500/10 text-sky-600 border border-sky-500/20 shadow-[0_0_10px_rgba(14,165,233,0.1)]' },
