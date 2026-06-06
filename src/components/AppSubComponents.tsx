@@ -16,18 +16,18 @@ export const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 
       onClick ? "cursor-pointer hover:scale-[1.02] active:scale-95" : "",
       isActive ? "ring-2 ring-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.3)] border-indigo-500/50" : "",
       theme === 'dark' 
-        ? "bg-slate-900/80 backdrop-blur-xl border-slate-700/50 hover:border-festive-gold/30 shadow-2xl" 
+        ? "bg-[var(--color-bg-secondary)] backdrop-blur-xl border-slate-700/50 hover:border-festive-gold/30 shadow-2xl" 
         : "bg-white border-slate-200/60 hover:border-festive-gold/40 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)]"
     )}
   >
     <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/5 rounded-full blur-2xl"></div>
     <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-transform group-hover:rotate-12", colorClass)}>
-      <Icon size={28} className="text-white" />
+      <Icon size={28} className="text-[var(--color-text-primary)]" />
     </div>
     <div>
       <p className={cn("text-xs font-bold uppercase tracking-wider mb-1", theme === 'dark' ? "text-slate-500" : "text-slate-500")}>{title}</p>
       <div className="flex items-center justify-between">
-        <p className={cn("text-3xl font-black tracking-tighter", theme === 'dark' ? "text-white" : "text-slate-900")}>{value}</p>
+        <p className={cn("text-3xl font-black tracking-tighter", theme === 'dark' ? "text-[var(--color-text-primary)]" : "text-slate-900")}>{value}</p>
         {onClick && <ArrowRight size={16} className={cn("transition-all", theme === 'dark' ? "text-slate-500 group-hover:text-festive-gold" : "text-slate-400 group-hover:text-festive-gold")} />}
       </div>
     </div>
@@ -103,10 +103,10 @@ export const StatusBadge = ({ status, app, variant = 'default' }: { status: Unit
   );
 };
 
-export const DetailCard = ({ label, value, field, valueColor = 'text-white', editable = false, type = 'text', options, onChange, isEditing = false, theme = 'dark' }: { label: string, value?: string, field?: keyof Application, valueColor?: string, editable?: boolean, type?: string, options?: string[], onChange?: (val: any) => void, isEditing?: boolean, theme?: 'light' | 'dark' }) => {
+export const DetailCard = ({ label, value, field, valueColor = 'text-[var(--color-text-primary)]', editable = false, type = 'text', options, onChange, isEditing = false, theme = 'dark' }: { label: string, value?: string, field?: keyof Application, valueColor?: string, editable?: boolean, type?: string, options?: string[], onChange?: (val: any) => void, isEditing?: boolean, theme?: 'light' | 'dark' }) => {
   const active = editable && isEditing;
-  const darkValueColor = valueColor === 'text-white' ? 'text-white' : valueColor;
-  const lightValueColor = valueColor === 'text-white' ? 'text-slate-900' : valueColor;
+  const darkValueColor = valueColor === 'text-[var(--color-text-primary)]' ? 'text-[var(--color-text-primary)]' : valueColor;
+  const lightValueColor = valueColor === 'text-[var(--color-text-primary)]' ? 'text-slate-900' : valueColor;
 
   const todayStr = new Date().toISOString().split('T')[0];
   const isDeadlineStr = label.toLowerCase().includes('cam kết') || label.toLowerCase().includes('commitment');

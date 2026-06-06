@@ -5361,7 +5361,7 @@ export default function App() {
     return (
       <div className={cn(
         "min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-500",
-        theme === 'dark' ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-900"
+        theme === 'dark' ? "bg-[var(--color-bg-primary)] text-[var(--color-text-primary)]" : "bg-slate-50 text-slate-900"
       )}>
         <div className="relative">
           <div className="w-24 h-24 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
@@ -5426,7 +5426,7 @@ export default function App() {
       <Route path="*" element={
         <div className={cn(
           "flex h-screen w-full overflow-hidden font-sans relative transition-colors duration-700",
-          theme === 'dark' ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900"
+          theme === 'dark' ? "bg-[var(--color-bg-primary)] text-[var(--color-text-primary)]" : "bg-slate-50 text-slate-900"
         )}>
           <ThemeRipple theme={theme} />
           <PrintStyles />
@@ -5452,7 +5452,7 @@ export default function App() {
           "absolute inset-0 transition-all duration-500",
           theme === 'light' 
             ? "bg-gradient-to-br from-white/95 via-slate-50/98 to-white/95" 
-            : "bg-gradient-to-br from-slate-950/98 via-slate-900/98 to-slate-950/98"
+            : "bg-gradient-to-br from-[var(--color-bg-primary)]/98 via-[var(--color-bg-secondary)]/98 to-[var(--color-bg-primary)]/98"
         )}></div>
         <FestiveBranding />
       </div>
@@ -5537,7 +5537,7 @@ export default function App() {
             >
               <Menu size={20} />
             </button>
-            <h2 className={cn("text-sm sm:text-base md:text-2xl font-black font-sans tracking-tight truncate max-w-[140px] xs:max-w-xs sm:max-w-none", theme === 'light' ? "text-slate-900" : "text-white")} title={activeTab === 'dashboard' ? (selectedProject ? `Dashboard: ${selectedProject.name}` : 'Tổng quan Vùng') : (selectedProject ? `Hồ sơ: ${selectedProject.name}` : 'Danh sách Hồ sơ cấp GCN')}>
+            <h2 className={cn("text-sm sm:text-base md:text-2xl font-black font-sans tracking-tight truncate max-w-[140px] xs:max-w-xs sm:max-w-none", theme === 'light' ? "text-slate-900" : "text-[var(--color-text-primary)]")} title={activeTab === 'dashboard' ? (selectedProject ? `Dashboard: ${selectedProject.name}` : 'Tổng quan Vùng') : (selectedProject ? `Hồ sơ: ${selectedProject.name}` : 'Danh sách Hồ sơ cấp GCN')}>
               {activeTab === 'dashboard' ? (selectedProject ? `Dashboard: ${selectedProject.name}` : 'Tổng quan Vùng') : (selectedProject ? `Hồ sơ: ${selectedProject.name}` : 'Danh sách Hồ sơ cấp GCN')}
             </h2>
           </div>
@@ -5630,8 +5630,8 @@ export default function App() {
                   className={cn(
                     "p-2.5 rounded-xl transition-all relative border",
                     isNotiOpen 
-                      ? (theme === 'light' ? "bg-slate-200 border-slate-300 text-slate-950" : "bg-slate-800 border-slate-700 text-white") 
-                      : (theme === 'light' ? "bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-900 shadow-sm" : "bg-slate-900/50 border-slate-800 text-slate-400 hover:bg-slate-800/40 hover:text-slate-200")
+                      ? (theme === 'light' ? "bg-slate-200 border-slate-300 text-slate-950" : "bg-slate-800 border-slate-700 text-[var(--color-text-primary)]") 
+                      : (theme === 'light' ? "bg-white border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-900 shadow-sm" : "bg-slate-900/50 border-slate-800 text-slate-400 hover:bg-slate-800/40 hover:text-[var(--color-text-primary)]")
                   )}
                   title="Thông báo"
                 >
@@ -5715,7 +5715,7 @@ export default function App() {
             {/* User Profile */}
             <div className="flex items-center gap-2 sm:gap-4 pl-2 sm:pl-6 border-l border-slate-200 dark:border-slate-800/20">
               <div className="text-right hidden sm:block overflow-hidden max-w-[150px]">
-                <p className={cn("text-xs font-bold uppercase tracking-wider truncate", theme === 'light' ? "text-slate-900" : "text-white")}>{currentUser?.name}</p>
+                <p className={cn("text-xs font-bold uppercase tracking-wider truncate", theme === 'light' ? "text-slate-900" : "text-[var(--color-text-primary)]")}>{currentUser?.name}</p>
                 <div className="flex items-center justify-end gap-2">
                   <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider truncate">Phòng: {currentUser?.dept}</p>
                   <button 

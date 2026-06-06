@@ -66,13 +66,13 @@ export const Sidebar = ({
         }}
         transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
         className={cn(
-          "backdrop-blur-2xl border-r flex flex-col shrink-0 bg-slate-800 border-slate-700 shadow-2xl transition-all duration-300",
+          "backdrop-blur-2xl border-r flex flex-col shrink-0 bg-[var(--color-bg-primary)] border-slate-700 shadow-2xl transition-all duration-300",
           "lg:relative fixed inset-y-0 left-0 h-full lg:z-40 z-50"
         )}
       >
         <button 
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="absolute -right-3.5 top-8 p-1.5 rounded-full bg-slate-700 border border-slate-600 text-slate-300 hover:text-white hover:bg-slate-600 transition-colors z-50 shadow-md lg:block hidden"
+          className="absolute -right-3.5 top-8 p-1.5 rounded-full bg-slate-700 border border-slate-600 text-slate-300 hover:text-[var(--color-text-primary)] hover:bg-slate-600 transition-colors z-50 shadow-md lg:block hidden"
         >
           <ChevronLeft size={16} className={cn("transition-transform duration-300", isSidebarCollapsed && "rotate-180")} />
         </button>
@@ -84,7 +84,7 @@ export const Sidebar = ({
           isSidebarCollapsed ? "px-5" : "px-4 sm:px-6"
         )}>
           <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl flex items-center justify-center shadow-[0_0_20px_-5px_rgba(245,158,11,0.5)] border border-white/20 shrink-0">
-            <ShieldCheck className="text-white" size={24} strokeWidth={1.5} />
+            <ShieldCheck className="text-[var(--color-text-primary)]" size={24} strokeWidth={1.5} />
           </div>
           <AnimatePresence>
             {!isSidebarCollapsed && (
@@ -94,7 +94,7 @@ export const Sidebar = ({
                 exit={{ opacity: 0, width: 0 }} 
                 className="overflow-hidden whitespace-nowrap"
               >
-                 <h1 className="font-bold text-xl tracking-tight text-white font-sans">GCN Tracker</h1>
+                 <h1 className="font-bold text-xl tracking-tight text-[var(--color-text-primary)] font-sans">GCN Tracker</h1>
                  <p className={cn("text-xs uppercase font-bold tracking-[0.2em] leading-none text-slate-400")}>Regional</p>
               </motion.div>
             )}
@@ -109,8 +109,8 @@ export const Sidebar = ({
               "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               isSidebarCollapsed ? "justify-center px-0" : "px-4",
               activeTab === 'dashboard'                
-                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
-                : "text-slate-300 hover:bg-slate-700 hover:text-white"
+                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-[var(--color-text-primary)] shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
+                : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
             )}
           >
             <LayoutDashboard size={18} />
@@ -128,8 +128,8 @@ export const Sidebar = ({
             className={cn(
               "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               activeTab === 'applications' 
-                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
-                : "text-slate-300 hover:bg-slate-700 hover:text-white"
+                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-[var(--color-text-primary)] shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
+                : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
             )}
           >
             <Files size={18} />
@@ -149,8 +149,8 @@ export const Sidebar = ({
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                 activeTab === 'reports' 
-                  ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
-                  : "text-slate-300 hover:bg-slate-700 hover:text-white"
+                  ? "bg-gradient-to-r from-amber-500 to-amber-600 text-[var(--color-text-primary)] shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
+                  : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
               )}
             >
               <FileBarChart size={18} />
@@ -170,8 +170,8 @@ export const Sidebar = ({
             className={cn(
               "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
               activeTab === 'resources' 
-                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
-                : "text-slate-300 hover:bg-slate-700 hover:text-white"
+                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-[var(--color-text-primary)] shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
+                : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
             )}
           >
             <HelpCircle size={18} />
@@ -192,8 +192,8 @@ export const Sidebar = ({
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'users' 
-                    ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
-                    : "text-slate-300 hover:bg-slate-700 hover:text-white"
+                    ? "bg-gradient-to-r from-amber-500 to-amber-600 text-[var(--color-text-primary)] shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
+                    : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
                 )}
               >
                 <User size={18} />
@@ -211,8 +211,8 @@ export const Sidebar = ({
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'projects' 
-                    ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
-                    : "text-slate-300 hover:bg-slate-700 hover:text-white"
+                    ? "bg-gradient-to-r from-amber-500 to-amber-600 text-[var(--color-text-primary)] shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
+                    : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
                 )}
               >
                 <Building2 size={18} />
@@ -230,8 +230,8 @@ export const Sidebar = ({
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-2.5 sm:py-3 rounded-xl transition-all duration-200 font-bold text-sm",
                   activeTab === 'settings' 
-                    ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
-                    : "text-slate-300 hover:bg-slate-700 hover:text-white"
+                    ? "bg-gradient-to-r from-amber-500 to-amber-600 text-[var(--color-text-primary)] shadow-[0_0_15px_-3px_rgba(245,158,11,0.4)]" 
+                    : "text-slate-300 hover:bg-slate-700 hover:text-[var(--color-text-primary)]"
                 )}
               >
                 <Settings size={18} />

@@ -5,15 +5,15 @@
 :root {
   --primary-amber: #f59e0b;
   --secondary-indigo: #6366f1;
-  --bg-deep-navy: #020617;
+  --bg-deep-navy: #1E2022;
   --card-glass: rgba(255, 255, 255, 0.05);
   --border-glass: rgba(255, 255, 255, 0.1);
   
   /* Đồng bộ với các biến cũ của bạn */
-  --color-bg-primary: #020617;
-  --color-bg-secondary: #0f172a;
-  --color-text-primary: #f1f5f9;
-  --color-text-secondary: #94a3b8;
+  --color-bg-primary: #1E2022;
+  --color-bg-secondary: #23272A;
+  --color-text-primary: #E8E4DC;
+  --color-text-secondary: #B8B2A7;
 }
 
 @theme {
@@ -23,7 +23,7 @@
   
   --color-festive-red: #E11D48;
   --color-festive-gold: #F59E0B;
-  --color-festive-dark: #020617;
+  --color-festive-dark: #1E2022;
   --color-accent-emerald: #10B981;
 
   --color-brand: #4F46E5;
@@ -31,6 +31,13 @@
   --color-error: #F43F5E;
   --color-warning: #F59E0B;
   --color-info: #6366f1;
+
+  /* Overriding default slate colors to match our theme */
+  --color-slate-950: #1E2022;
+  --color-slate-900: #23272A;
+  --color-slate-800: #2D3235;
+  --color-slate-700: #3E4448;
+  --color-slate-100: #E8E4DC;
 }
 
 @layer base {
