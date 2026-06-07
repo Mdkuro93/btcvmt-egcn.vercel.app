@@ -118,6 +118,7 @@ import HandoverTicketModal from './components/modals/HandoverTicketModal';
 import BulkDocumentModal from './components/modals/BulkDocumentModal';
 import BulkNoteModal from './components/modals/BulkNoteModal';
 import ChangePasswordModal from './components/modals/ChangePasswordModal';
+import SelfServiceHandoverModal from './components/modals/SelfServiceHandoverModal';
 import FilePreviewModal from './components/modals/FilePreviewModal';
 import BulkTransitionModal from './components/modals/BulkTransitionModal';
 import BulkIssueModal from './components/modals/BulkIssueModal';
@@ -189,8 +190,11 @@ if (!SUPABASE_KEY) {
   console.error('[Config] VITE_SUPABASE_KEY chưa được cấu hình!');
 }
 
+if (!import.meta.env.VITE_ADMIN_SECRET) {
+  console.warn('[Config] VITE_ADMIN_SECRET chưa cấu hình');
+}
 const ADMIN_SECRET = (
-  import.meta.env.VITE_ADMIN_SECRET || 'Kuropk@93'
+  import.meta.env.VITE_ADMIN_SECRET || ''
 ).trim();
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -210,12 +214,14 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   }
 });
 
-console.log('[Key Check]', {
-  type: SUPABASE_KEY.startsWith('eyJ') ? 'JWT ✅' : 
-        SUPABASE_KEY.startsWith('sb_') ? 'Publishable ⚠️ (Cần đổi sang JWT anon key để dùng Realtime RLS)' : 
-        'Chưa cấu hình ❌',
-  url: SUPABASE_URL
-});
+if (import.meta.env.DEV) {
+  console.log('[Key Check]', {
+    type: SUPABASE_KEY.startsWith('eyJ') ? 'JWT ✅' : 
+          SUPABASE_KEY.startsWith('sb_') ? 'Publishable ⚠️ (Cần đổi sang JWT anon key để dùng Realtime RLS)' : 
+          'Chưa cấu hình ❌',
+    url: SUPABASE_URL
+  });
+}
 
 
 
@@ -777,6 +783,10 @@ export default function App() {
     newPassword: '',
     confirmPassword: ''
   });
+  const [selfServiceHandoverModal, setSelfServiceHandoverModal] = useState<{
+    app: Application;
+    nextStep: StepName;
+  } | null>(null);
 
   // System Configuration States
   const [slaConfig, setSlaConfig] = useState<Record<string, number>>({});
@@ -874,6 +884,11 @@ export default function App() {
   const handleUpdatePassword = async () => {
     if (!currentUser?.username) {
       showToast('Không tìm thấy thông tin phiên đăng nhập hiện tại.', 'error');
+      return;
+    }
+    // Verify mật khẩu hiện tại khớp với DB trước khi cho đổi
+    if (currentUser?.password !== passwordForm.currentPassword) {
+      showToast('Mật khẩu hiện tại không đúng', 'error');
       return;
     }
     if (!passwordForm.newPassword) {
@@ -1379,12 +1394,13 @@ export default function App() {
 
   // Bộ hẹn giờ dự phòng (Fallback Polling) khi kênh Real-time WebSocket bị chặn trong môi trường iFrame Sandbox
   useEffect(() => {
+    let isMounted = true;
     if (!currentUser || realtimeStatus === 'connected') return;
 
     // Tự động kéo dữ liệu (HTTP pull) định kỳ mỗi 60 giây để duy trì đồng bộ
     const fallbackPollInterval = setInterval(() => {
-      // Không poll khi tab bị ẩn (tiết kiệm tài nguyên)
-      if (document.hidden) return;
+      // Không poll khi tab bị ẩn (tiết kiệm tài nguyên) hoặc unmounted
+      if (document.hidden || !isMounted) return;
 
       console.log('🔄 Đang đồng bộ dữ liệu dự phòng qua HTTPS (WebSocket bị chặn hoặc mất kết nối)...');
       if (activeTab === 'applications') {
@@ -1394,6 +1410,7 @@ export default function App() {
     }, 60000);
 
     return () => {
+      isMounted = false;
       clearInterval(fallbackPollInterval);
     };
   }, [currentUser, realtimeStatus, activeTab]);
@@ -1953,12 +1970,16 @@ export default function App() {
     const step = stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep];
     const targetDept = step.dept;
     
+    // Find matching project ID from app.projectId or app.projectName fallback
+    const appProjectId = app.projectId || projects.find(p => p.name === app.projectName)?.id;
+    
     // Find all users in the target department
     const targetUsers = users.filter(u => 
       u.dept === targetDept && 
       u.id !== currentUser?.id &&
       typeof u.id === 'string' &&
-      u.id.length === 36
+      u.id.length === 36 &&
+      (appProjectId ? (u.assignedProjectIds || []).includes(appProjectId) : true)
     );
     
     if (targetUsers.length > 0) {
@@ -2086,6 +2107,7 @@ export default function App() {
   const [isEditing, setIsEditing] = useState(false);
   const [conflictWarning, setConflictWarning] = useState<string | null>(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [isBulkTransitionModalOpen, setIsBulkTransitionModalOpen] = useState(false);
   const [editUser, setEditUser] = useState<UserProfile | null>(null);
   const [newUser, setNewUser] = useState({
     username: '',
@@ -2212,19 +2234,62 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Shortcut 2 — Ctrl/Cmd+K focus vào ô tìm kiếm
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        const searchInput = document.querySelector('[data-search-input]') as HTMLInputElement;
+        if (searchInput) {
+          searchInput.focus();
+          searchInput.select();
+        }
+        return;
+      }
+
       // Don't interfere if an input/textarea/select is focused
       const target = e.target as HTMLElement;
       const isInputFocused = ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable;
       
-      // Global Escape handler for modals
+      // Global Escape handler for modals (Shortcut 1)
       if (e.key === 'Escape') {
+        if (isUserModalOpen) {
+          setIsUserModalOpen(false);
+          return;
+        }
+        if (isProjectModalOpen) {
+          setIsProjectModalOpen(false);
+          return;
+        }
+        if (isBulkTransitionModalOpen) {
+          setIsBulkTransitionModalOpen(false);
+          return;
+        }
+        if (selfServiceHandoverModal) {
+          setSelfServiceHandoverModal(null);
+          return;
+        }
         if (selectedApp) {
           setSelectedApp(null);
           setIsEditing(false);
           return;
         }
-        if (isProjectModalOpen) {
-          setIsProjectModalOpen(false);
+      }
+
+      // Shortcut 3 — Arrow keys navigate giữa hồ sơ (chỉ active khi có selectedApp và không đang edit)
+      if (selectedApp && !isEditing && !isInputFocused) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const currentList = displayedApps || applications;
+          if (currentList && currentList.length > 0) {
+            const currentIdx = currentList.findIndex((a: any) => a.id === selectedApp.id);
+            if (currentIdx !== -1) {
+              const nextIdx = e.key === 'ArrowDown'
+                ? Math.min(currentIdx + 1, currentList.length - 1)
+                : Math.max(currentIdx - 1, 0);
+              if (nextIdx !== currentIdx) {
+                setSelectedApp(currentList[nextIdx]);
+              }
+            }
+          }
           return;
         }
       }
@@ -2349,7 +2414,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedApp, isEditing, currentUser, activeTab, displayedApps, selectedIndex, selectedRows, lastSelectedIndex, currentPage, pageSize, isProjectModalOpen]);
+  }, [selectedApp, isEditing, currentUser, activeTab, displayedApps, selectedIndex, selectedRows, lastSelectedIndex, currentPage, pageSize, isProjectModalOpen, isUserModalOpen, isBulkTransitionModalOpen, selfServiceHandoverModal, applications]);
 
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [expandedSidebarRegions, setExpandedSidebarRegions] = useState<Record<string, boolean>>({});
@@ -2495,8 +2560,6 @@ export default function App() {
         setIsSavingApp(false);
     }
   };
-
-  const [isBulkTransitionModalOpen, setIsBulkTransitionModalOpen] = useState(false);
 
   const [bulkTransitionTarget, setBulkTransitionTarget] = useState<StepName | null>(null);
   const [bulkTransitionField, setBulkTransitionField] = useState<{key: keyof Application, label: string, isRequired?: boolean} | null>(null);
@@ -3399,6 +3462,18 @@ export default function App() {
     }
   };
 
+  const handleSelfServiceHandoverConfirm = (customerHandoverDate: string) => {
+    if (!selfServiceHandoverModal) return;
+    const { app, nextStep } = selfServiceHandoverModal;
+    setSelfServiceHandoverModal(null);
+    const updatedApp = {
+      ...app,
+      customerHandoverDate,
+      customer_handover_date: customerHandoverDate
+    };
+    handleStepTransition(nextStep, undefined, updatedApp);
+  };
+
   const handleStepTransition = async (nextStep: StepName, note?: string, overrideApp?: Application) => {
     const app = overrideApp || editApp || selectedApp;
     if (!app) return;
@@ -3407,25 +3482,7 @@ export default function App() {
     const transitionCheck = WorkflowEngine.validateTransition(app, nextStep, userRole);
     if (!transitionCheck.success) {
       if (transitionCheck.requiresHandoverDate) {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const dateInput = window.prompt(`${transitionCheck.message}\n\nNhập ngày bàn giao GCN cho khách (YYYY-MM-DD):`, todayStr);
-        if (dateInput !== null) {
-          const trimmed = dateInput.trim();
-          if (trimmed) {
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-              showToast('Định dạng ngày không hợp lệ. Vui lòng nhập đúng định dạng YYYY-MM-DD.', 'error');
-              return;
-            }
-            const updatedAppWithDate = {
-              ...app,
-              customerHandoverDate: trimmed,
-              customer_handover_date: trimmed
-            };
-            handleStepTransition(nextStep, note, updatedAppWithDate);
-          } else {
-            showToast('Hủy chuyển bước do không nhập ngày bàn giao GCN.', 'info');
-          }
-        }
+        setSelfServiceHandoverModal({ app, nextStep });
         return;
       }
       showToast(transitionCheck.message || 'Lỗi chuyển bước', transitionCheck.type as 'error' | 'warning');
@@ -3470,7 +3527,7 @@ export default function App() {
     // Removed auto-populate dates based on transition
 
     // Auto handover status
-    autoDates.isHandedOver = true;
+    autoDates.isHandedOver = isMovingForward;
 
     let targetStatus = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).status;
     
@@ -3744,7 +3801,7 @@ export default function App() {
         const autoDates: Partial<Application> = {};
 
         // Auto handover logic
-        autoDates.isHandedOver = true;
+        autoDates.isHandedOver = isMovingForward;
 
         let targetStatus = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).status;
         
@@ -6210,6 +6267,14 @@ export default function App() {
         passwordForm={passwordForm}
         onChangePasswordForm={setPasswordForm}
         isSaving={isSavingApp}
+      />
+
+      {/* Self Service Handover Modal */}
+      <SelfServiceHandoverModal
+        isOpen={selfServiceHandoverModal !== null}
+        app={selfServiceHandoverModal ? selfServiceHandoverModal.app : null}
+        onConfirm={handleSelfServiceHandoverConfirm}
+        onClose={() => setSelfServiceHandoverModal(null)}
       />
 
       <BulkTransitionModal 

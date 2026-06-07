@@ -86,6 +86,19 @@ export default function FieldModeView({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        const confirmBtn = document.querySelector('[data-confirm-transition]') as HTMLButtonElement | null;
+        if (confirmBtn && !confirmBtn.disabled) {
+          confirmBtn.click();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Simulated high-tech QR barcode scanner action
   const handleStartQrScan = () => {
     setShowQrScanModal(true);
@@ -981,6 +994,7 @@ export default function FieldModeView({
                                        </div>
 
                                        <button 
+                                          data-confirm-transition
                                           onClick={handleMoveForward}
                                           disabled={isTransitioning}
                                           className="w-full mt-3 py-3 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black uppercase text-[10px] tracking-widest rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5"

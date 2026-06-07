@@ -25,18 +25,18 @@ export function calculateDaysDiff(dateStr: string) {
 // component với dependency rõ ràng thay vì cache tại engine layer.
 
 export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
-  if (!app) return { isOverdue: false, daysLate: 0 };
+  if (!app) return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
 
   try {
     const currentStep = app.currentStep || app.current_step;
-    if (!currentStep) return { isOverdue: false, daysLate: 0 };
+    if (!currentStep) return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
 
     const finalStepConfig = stepConfig || (typeof window !== 'undefined' && (window as any).__STEP_CONFIG__) || DEFAULT_STEP_CONFIG;
     const finalSlaConfig = slaConfig || (typeof window !== 'undefined' && (window as any).__SLA_CONFIG__) || DEFAULT_SLA_CONFIG;
 
     const config = finalStepConfig[currentStep];
     if (!config || !config.label || currentStep === 'Hoan_Tat' || currentStep === 'HOAN_TAT') {
-      return { isOverdue: false, daysLate: 0 };
+      return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
     }
 
     const sla = finalSlaConfig[config.label] || config.slaDays || 10;
@@ -50,7 +50,7 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
     // Check if the current step is completed in system logs
     if (matchedHistory && matchedHistory.completedDate) {
       // Step already completed: hide active warning from UI immediately
-      return { isOverdue: false, daysLate: 0 };
+      return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
     }
 
     if (matchedHistory) {
@@ -147,15 +147,21 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
     // Minute-precise duration elapsed
     const elapsedDays = Math.max(0, now - stepStartTime) / (1000 * 60 * 60 * 24);
 
+    const daysLeft = Math.max(0, parseFloat((sla - elapsedDays).toFixed(1)));
+    const urgency: 'overdue' | 'urgent' | 'warning' | 'normal' =
+      elapsedDays > sla ? 'overdue' :
+      daysLeft <= 1 ? 'urgent' :
+      daysLeft <= 3 ? 'warning' : 'normal';
+
     if (elapsedDays > sla) {
       // Calculate float days late precisely
       const daysLate = parseFloat((elapsedDays - sla).toFixed(1));
-      return { isOverdue: true, daysLate, label: `Trễ ${config.label}` };
+      return { isOverdue: true, daysLate, label: `Trễ ${config.label}`, daysLeft: 0, urgency: 'overdue' as const };
     }
 
-    return { isOverdue: false, daysLate: 0 };
+    return { isOverdue: false, daysLate: 0, daysLeft, urgency };
   } catch (error) {
-    return { isOverdue: false, daysLate: 0 };
+    return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
   }
 }
 

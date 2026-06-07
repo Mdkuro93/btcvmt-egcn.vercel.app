@@ -64,9 +64,19 @@ export default function LoginScreen({
         return;
       }
 
-      const mockUser = MOCK_USERS.find(u => (u.username === username || u.email === username) && (u.password === password || password === '123456'));
-      const ENABLE_DEV_LOGIN = import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true' || true;
+      // Nếu Supabase trả null (không tìm thấy) -> báo lỗi luôn, không fallback mock
+      if (!error) {
+        alert('Tên đăng nhập hoặc mật khẩu không chính xác!');
+        return;
+      }
+
+      // Chỉ fallback mock khi có lỗi kết nối/Supabase
+      throw error;
+
+    } catch (err) {
+      console.error('System login error:', err);
       
+      const ENABLE_DEV_LOGIN = import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true';
       if (ENABLE_DEV_LOGIN && username === 'admin' && password === '123456') {
         const defaultAdmin: UserProfile = {
           id: '550e8400-e29b-41d4-a716-446655440000',
@@ -83,14 +93,15 @@ export default function LoginScreen({
         return;
       }
 
+      // Fallback mock chỉ khi Supabase lỗi
+      const mockUser = MOCK_USERS.find(u => 
+        (u.username === username || u.email === username) && 
+        u.password === password
+      );
       if (mockUser) {
         onLogin(mockUser);
         return;
       }
-
-      alert('Tên đăng nhập hoặc mật khẩu không chính xác!');
-    } catch (err) {
-      console.error('System login error:', err);
       showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
     } finally {
       setIsLoading(false);

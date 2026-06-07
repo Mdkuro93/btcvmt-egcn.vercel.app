@@ -108,6 +108,7 @@ export type Application = {
   updatedAt?: string;
   unitCode: string; // Mã lô/căn
   projectName: string;
+  projectId?: string;
   workflowType?: WorkflowType; // Thêm loại quy trình
   customerName: string;
   contractSignerType?: string; // Đối tượng ký HĐCN

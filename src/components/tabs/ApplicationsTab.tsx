@@ -5,6 +5,7 @@ import { StatusBadge } from '../AppSubComponents';
 import { Application } from '../../types';
 import { formatDate } from '../../utils/dateUtils';
 import { getNextStep } from '../../constants';
+import { calculateSLA } from '../../utils/statusEngine';
 import { 
   Building, Clock, FileText, CheckCircle, AlertTriangle, Play, FastForward, Inbox, ChevronDown, Check, Target, Activity, Zap,
   Search, Printer, Filter, X, FileSpreadsheet, Trash2, MessageSquare, GitMerge, RotateCcw, User, ArrowUp, ArrowDown, RefreshCcw,
@@ -171,18 +172,20 @@ export const ApplicationsTab = ({
                         </div>
 
                         {/* Search Input inline on mobile/desktop */}
-                        <div className="relative group w-full sm:w-48">
+                        <div className="relative group w-full sm:w-48" title="Ctrl+K để focus nhanh">
                           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
                           <input 
                             type="text" 
+                            data-search-input
                             placeholder="Tìm kiếm nhanh..." 
                             className={cn(
-                              "pl-8 pr-3 py-1 sm:py-1.5 rounded-full text-[10px] font-bold transition-all w-full outline-none border tracking-tight",
+                              "pl-8 pr-12 py-1 sm:py-1.5 rounded-full text-[10px] font-bold transition-all w-full outline-none border tracking-tight",
                               theme === 'light' ? "bg-white border-slate-200 text-slate-800 focus:border-indigo-500/50 shadow-sm" : "bg-slate-950/40 border-slate-800 text-slate-200 focus:border-festive-gold/50"
                             )}
                             value={search}
                             onChange={(e) => { setSearch(e.target.value); setCurrentPage(0); }}
                           />
+                          <kbd className={cn("absolute right-2 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center gap-0.5 pointer-events-none select-none rounded px-1.5 py-0.5 text-[8px] font-mono leading-none border font-bold shadow-sm", theme === 'light' ? "bg-slate-50 text-slate-400 border-slate-200" : "bg-slate-800 text-slate-500 border-slate-700")}>Ctrl K</kbd>
                         </div>
                       </div>
 
@@ -858,18 +861,37 @@ export const ApplicationsTab = ({
                                       )}
                                     </div>
                                   )}
-                                  <span className="text-[9px] text-slate-500 font-medium uppercase mt-0.5">
-                                    SLA: {(stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.slaDays || 0}d
-                                  </span>
-                                  {overdue.isOverdue && (
-                                    <span className={cn(
-                                      "text-[9px] font-semibold uppercase tracking-tight flex items-center gap-1 mt-0.5",
-                                      overdue.daysLate > 5 ? "text-red-500" :
-                                      overdue.daysLate >= 3 ? "text-yellow-500" : "text-green-500"
-                                    )}>
-                                      <AlertTriangle size={9} /> TRỄ {overdue.daysLate} NGÀY
-                                    </span>
-                                  )}
+                                  {(() => {
+                                    const slaResult = calculateSLA(app, stepConfig);
+                                    if (app.currentStep === 'Hoan_Tat' || app.status === 'Completed') return null;
+                                    
+                                    if (slaResult.urgency === 'overdue') {
+                                      return (
+                                        <span className="text-[9px] font-black inline-flex items-center gap-0.5 px-1 py-0.2 rounded-md bg-red-500/10 text-red-500 uppercase tracking-tighter mt-1">
+                                          <AlertTriangle size={9} /> Trễ {slaResult.daysLate} ngày
+                                        </span>
+                                      );
+                                    }
+                                    if (slaResult.urgency === 'urgent') {
+                                      return (
+                                        <span className="text-[9px] font-black inline-flex items-center gap-0.5 px-1 py-0.2 rounded-md bg-amber-500/10 text-amber-500 uppercase tracking-tighter mt-1 animate-pulse">
+                                          <Clock size={9} className="animate-spin" style={{ animationDuration: '3s' }} /> Còn {slaResult.daysLeft} ngày
+                                        </span>
+                                      );
+                                    }
+                                    if (slaResult.urgency === 'warning') {
+                                      return (
+                                        <span className="text-[9px] font-semibold inline-flex items-center gap-0.5 px-1 py-0.2 rounded-md bg-yellow-500/10 text-yellow-500 uppercase tracking-tighter mt-1">
+                                          <Clock size={9} /> Còn {slaResult.daysLeft} ngày
+                                        </span>
+                                      );
+                                    }
+                                    return (
+                                      <span className="text-[9px] text-slate-500 font-medium uppercase mt-0.5">
+                                        SLA: {(stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.slaDays || 0}d
+                                      </span>
+                                    );
+                                  })()}
                                 </div>
                               </td>
                               <td className="px-2 py-0">

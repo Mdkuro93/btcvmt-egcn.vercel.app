@@ -62,7 +62,10 @@ export const WorkflowEngine = {
   validateTransition(app: Application, requestedNextStep: StepName, userRole: string): TransitionResult {
     // Đảm bảo nhận chính xác tham số workflowType từ app (hỗ trợ cả camelCase và snake_case)
     const storedType = app.workflowType || (app as any).workflow_type;
-    const workflowType = storedType || (app.projectName && app.projectName.includes('Quy trình 2') ? 'Quy_trinh_2' : 'Quy_trinh_1');
+    if (!storedType) {
+      console.warn(`[validateTransition] Missing workflowType for record ${app.unitCode || app.id}. Falling back to Quy_trinh_1.`);
+    }
+    const workflowType = storedType || 'Quy_trinh_1';
     const workflowSteps = workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
 
     // Fallback if currentStep is not found in the selected workflow steps (e.g. data mismatch)
@@ -147,9 +150,20 @@ export const WorkflowEngine = {
           if (!app.submissionDate) return { success: false, type: 'warning', message: 'Yêu cầu: Ngày nộp VPĐK phải được cập nhật.' };
         }
 
+        if (app.currentStep === 'GD3_Nop_VPDK' && finalStep === 'GD4_Cho_Nop_NVTC') {
+          if (!app.taxNotificationDate && !app.taxNotificationReceivedDate) {
+            return {
+              success: false,
+              type: 'warning',
+              message: 'Bắt buộc nhập Ngày Thông báo thuế trước khi chuyển.'
+            };
+          }
+        }
+
         // Validate milestone cuối Quy trình 1
         if (finalStep === 'GD5_Cho_Ky_In_GCN' || finalStep === 'GD5_Cho_GCN') {
           if (!app.taxReceiptDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày nộp thuế/NVTC trước khi chuyển sang bước GCN.' };
+          if (!app.gcnSignedDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày trình ký/In GCN trước khi chuyển sang bước GCN.' };
         }
         if (app.currentStep === 'GD5_Cho_GCN' && finalStep === 'GD5_Cho_PTT_TiepNhan_BG') {
           if (!app.gcnSignedDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày trình ký/In GCN trước khi chuyển.' };

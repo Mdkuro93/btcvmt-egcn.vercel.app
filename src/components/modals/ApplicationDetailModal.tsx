@@ -98,6 +98,19 @@ export const ApplicationDetailModal = ({
   const detailBackdropRef = React.useRef<HTMLDivElement>(null);
   const mousedownOnDetailBackdrop = React.useRef(false);
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        const confirmBtn = document.querySelector('[data-confirm-transition]') as HTMLButtonElement | null;
+        if (confirmBtn && !confirmBtn.disabled) {
+          confirmBtn.click();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const isStep2OrLater = currentApp ? (
     currentApp.workflowType === 'Quy_trinh_2'
       ? ['S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK', 'S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach', 'Hoan_Tat'].includes(currentApp.currentStep)
@@ -1292,6 +1305,7 @@ export const ApplicationDetailModal = ({
                                                     handleStepTransition(nextStep);
                                                   }
                                                }}
+                                               data-confirm-transition
                                                className="w-full py-4 bg-indigo-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] hover:bg-indigo-500 shadow-2xl shadow-indigo-900/40 transition-all flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 border-b-4 border-indigo-800"
                                              >
                                                {app.isSelfService ? (
