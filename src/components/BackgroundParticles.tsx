@@ -51,7 +51,7 @@ export const BackgroundParticles: React.FC<BackgroundParticlesProps> = ({ theme 
         this.y = Math.random() * canvas!.height;
         this.vx = (Math.random() - 0.5) * 0.5;
         this.vy = (Math.random() - 0.5) * 0.5;
-        this.size = Math.random() * 2 + 1;
+        this.size = Math.random() * 4.5 + 2;
       }
 
       update() {
@@ -66,7 +66,7 @@ export const BackgroundParticles: React.FC<BackgroundParticlesProps> = ({ theme 
         if (!ctx) return;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fillStyle = isDark ? 'rgba(245, 158, 11, 0.4)' : 'rgba(245, 158, 11, 0.2)';
+        ctx.fillStyle = isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.12)';
         ctx.fill();
       }
     }

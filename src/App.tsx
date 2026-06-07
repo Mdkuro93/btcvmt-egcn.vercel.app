@@ -5407,9 +5407,18 @@ export default function App() {
   }
 
   if (!currentUser) {
-    return <LoginScreen theme={theme} onThemeToggle={handleThemeToggle} onLogin={(user) => {
-      setCurrentUser(user);
-    }} supabase={supabase} />;
+    return (
+      <LoginScreen 
+        theme={theme} 
+        onThemeToggle={handleThemeToggle} 
+        onLogin={(user) => {
+          setCurrentUser(user);
+        }} 
+        supabase={supabase} 
+        totalApplicationsCount={applications.length}
+        totalProjectsCount={projects.length}
+      />
+    );
   }
 
   if (isFieldMode) {
