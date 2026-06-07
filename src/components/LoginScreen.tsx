@@ -145,134 +145,134 @@ export default function LoginScreen({
               GCN Tracker
             </h1>
             <p className="text-[9px] font-black tracking-[0.2em] text-amber-500 uppercase mt-1">
-              Hệ THỐNG QUẢN LÝ GCN
+              HỆ THỐNG QUẢN LÝ GCN
             </p>
           </div>
         </div>
 
         {/* Mid layout splitting Features + Grounded Mockkup */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-end mt-12 lg:mt-6 flex-1">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-end mt-8 lg:mt-4 flex-1">
           
           {/* Main Copywriting & Features */}
-          <div className="lg:col-span-7 flex flex-col justify-center h-full text-left space-y-8 py-6">
+          <div className="lg:col-span-7 flex flex-col justify-center h-full text-left space-y-4 py-2">
             
             {/* Title Block */}
-            <div className="space-y-3">
-              <span className={`inline-block text-[11px] font-extrabold uppercase tracking-[0.2em] px-3 py-1 rounded-full border ${
+            <div className="space-y-2.5">
+              <span className={`inline-block text-[10px] font-extrabold uppercase tracking-[0.2em] px-2.5 py-0.5 rounded-full border ${
                 isDark 
                   ? 'text-amber-500 bg-amber-500/5 border-amber-500/15' 
-                  : 'text-amber-600 bg-amber-500/8 border-amber-500/20'
+                  : 'text-amber-605 bg-amber-500/8 border-amber-500/15'
               }`}>
                 NỀN TẢNG SỐ HÓA
               </span>
-              <h2 className={`text-3xl sm:text-4xl lg:text-[2.6rem] font-bold leading-[1.12] tracking-tight ${
+              <h2 className={`text-2xl sm:text-3xl lg:text-[2.2rem] font-bold leading-[1.12] tracking-tight ${
                 isDark ? 'text-white' : 'text-slate-900'
               }`}>
                 Quản lý hồ sơ<br />
                 GCN QSDĐ<br />
                 thông minh
               </h2>
-              <p className={`text-[13px] leading-relaxed max-w-md ${
-                isDark ? 'text-slate-400' : 'text-slate-600'
+              <p className={`text-[12.5px] leading-relaxed max-w-md ${
+                isDark ? 'text-slate-400' : 'text-slate-550'
               }`}>
                 Theo dõi tiến độ, tra cứu trạng thái và xử lý hồ sơ cấp GCN mọi lúc, mọi nơi. Tối ưu hóa hiệu suất làm việc số giữa các bộ phận.
               </p>
             </div>
 
             {/* Pristine Real Feature Cards */}
-            <div className="space-y-4 max-w-md">
+            <div className="space-y-2.5 max-w-md">
               {/* Feature 1 */}
-              <div className={`flex items-start gap-4 p-4 rounded-2xl border transition-all duration-300 ${
+              <div className={`flex items-start gap-3 p-3 rounded-xl border transition-all duration-300 ${
                 isDark 
-                  ? 'bg-[#121319]/45 border-white/[0.04] text-slate-100 hover:bg-[#121319]/70' 
-                  : 'bg-white border-slate-200/60 shadow-[0_4px_16px_rgba(15,23,42,0.02)] text-slate-900 hover:shadow-md'
+                  ? 'bg-[#121319]/45 border-white/[0.04] text-slate-100' 
+                  : 'bg-white border-slate-200/55 shadow-[0_2px_8px_rgba(15,23,42,0.015)] text-slate-900'
               }`}>
-                <div className="p-3 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0 border border-amber-500/10">
-                  <FileText className="w-5 h-5" />
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0 border border-amber-500/10">
+                  <FileText className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold tracking-tight">Quản lý hồ sơ tập trung</h4>
-                  <p className={`text-[11px] mt-1 leading-normal ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Toàn bộ quy trình cấp GCN giữa các bộ phận/phòng ban được theo dõi trên một nền tảng duy nhất.
+                  <h4 className="text-xs font-bold tracking-tight">Quản lý hồ sơ tập trung</h4>
+                  <p className={`text-[10.5px] mt-0.5 leading-normal ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Toàn bộ quy trình cấp GCN giữa các phòng ban được theo dõi trên một nền tảng duy nhất.
                   </p>
                 </div>
               </div>
 
               {/* Feature 2 */}
-              <div className={`flex items-start gap-4 p-4 rounded-2xl border transition-all duration-300 ${
+              <div className={`flex items-start gap-3 p-3 rounded-xl border transition-all duration-300 ${
                 isDark 
-                  ? 'bg-[#121319]/45 border-white/[0.04] text-slate-100 hover:bg-[#121319]/70' 
-                  : 'bg-white border-slate-200/60 shadow-[0_4px_16px_rgba(15,23,42,0.02)] text-slate-900 hover:shadow-md'
+                  ? 'bg-[#121319]/45 border-white/[0.04] text-slate-100' 
+                  : 'bg-white border-slate-200/55 shadow-[0_2px_8px_rgba(15,23,42,0.015)] text-slate-900'
               }`}>
-                <div className="p-3 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0 border border-amber-500/10">
-                  <Bell className="w-5 h-5" />
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0 border border-amber-500/10">
+                  <Bell className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold tracking-tight">Cảnh báo tiến độ thông minh</h4>
-                  <p className={`text-[11px] mt-1 leading-normal ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Nhận thông báo khi hồ sơ cần bổ sung hoặc trễ hạn.
+                  <h4 className="text-xs font-bold tracking-tight">Cảnh báo tiến độ thông minh</h4>
+                  <p className={`text-[10.5px] mt-0.5 leading-normal ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Nhận thông báo tự động khi hồ sơ cần bổ sung hoặc có nguy cơ chậm trễ.
                   </p>
                 </div>
               </div>
 
               {/* Feature 3 */}
-              <div className={`flex items-start gap-4 p-4 rounded-2xl border transition-all duration-300 ${
+              <div className={`flex items-start gap-3 p-3 rounded-xl border transition-all duration-300 ${
                 isDark 
-                  ? 'bg-[#121319]/45 border-white/[0.04] text-slate-100 hover:bg-[#121319]/70' 
-                  : 'bg-white border-slate-200/60 shadow-[0_4px_16px_rgba(15,23,42,0.02)] text-slate-900 hover:shadow-md'
+                  ? 'bg-[#121319]/45 border-white/[0.04] text-slate-100' 
+                  : 'bg-white border-slate-200/55 shadow-[0_2px_8px_rgba(15,23,42,0.015)] text-slate-900'
               }`}>
-                <div className="p-3 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0 border border-amber-500/10">
-                  <BarChart3 className="w-5 h-5" />
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0 border border-amber-500/10">
+                  <BarChart3 className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold tracking-tight">Báo cáo tự động</h4>
-                  <p className={`text-[11px] mt-1 leading-normal ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                    Hệ thống hóa dữ liệu và xuất báo cáo thông minh.
+                  <h4 className="text-xs font-bold tracking-tight">Báo cáo tự động hóa</h4>
+                  <p className={`text-[10.5px] mt-0.5 leading-normal ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Số hóa chỉ số hiệu suất làm việc của các bộ phận, xuất dữ liệu biểu đồ thông minh.
                   </p>
                 </div>
               </div>
             </div>
 
             {/* Bottom Real System Stats */}
-            <div className={`border-t pt-6 grid grid-cols-3 gap-4 max-w-md ${
-              isDark ? 'border-white/[0.08]' : 'border-slate-200'
+            <div className={`border-t pt-4 grid grid-cols-3 gap-3 max-w-md ${
+              isDark ? 'border-white/[0.06]' : 'border-slate-200'
             }`}>
               <div>
-                <div className={`text-2xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                <div className={`text-xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   {totalApplicationsCount !== undefined && totalApplicationsCount > 0 ? `${totalApplicationsCount}+` : "65+"}
                 </div>
-                <p className={`text-[10px] uppercase font-bold tracking-wider mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                <p className={`text-[9.5px] uppercase font-bold tracking-wider mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-440'}`}>
                   Hồ sơ đã xử lý
                 </p>
               </div>
               <div>
-                <div className={`text-2xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                <div className={`text-xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
                   {totalProjectsCount !== undefined && totalProjectsCount > 0 ? totalProjectsCount : "6"}
                 </div>
-                <p className={`text-[10px] uppercase font-bold tracking-wider mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                <p className={`text-[9.5px] uppercase font-bold tracking-wider mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-440'}`}>
                   Dự án đang theo dõi
                 </p>
               </div>
               <div>
-                <div className={`text-2xl font-black text-amber-500`}>
+                <div className={`text-xl font-black text-amber-500`}>
                   ~50%
                 </div>
-                <p className={`text-[10px] uppercase font-bold tracking-wider mt-1 ${isDark ? 'text-slate-505' : 'text-slate-400'}`}>
-                  TIẾT KIỆM THỜI GIAN VẬN HÀNH
+                <p className={`text-[9.5px] uppercase font-bold tracking-wider mt-0.5 ${isDark ? 'text-slate-505' : 'text-slate-440'}`}>
+                  TIẾT KIỆM THỜI GIAN
                 </p>
               </div>
             </div>
           </div>
 
           {/* COLUMN 2: Grounded / Under-Aligned Phone Mockup (Exactly mirroring reference image) */}
-          <div className="lg:col-span-5 flex justify-center items-end self-end h-[500px] overflow-hidden relative w-full">
+          <div className="lg:col-span-12 xl:col-span-5 flex justify-center items-end self-end h-[480px] overflow-hidden relative w-full">
             
             {/* BACK PHONE - Rotated and shifted to the left background */}
             <motion.div 
               initial={{ opacity: 0, y: 180, rotate: -2 }}
-              animate={{ opacity: 0.45, y: 30, rotate: -8 }}
+              animate={{ opacity: 0.35, y: 55, rotate: -8 }}
               transition={{ duration: 0.9, delay: 0.25, ease: [0.16, 1, 0.3, 1] }}
-              className={`absolute left-[10%] lg:left-[5%] bottom-0 rounded-t-[2.8rem] h-[510px] w-[240px] flex flex-col overflow-hidden select-none pointer-events-none ${
+              className={`absolute left-[10%] lg:left-[5%] bottom-0 rounded-t-[2.8rem] h-[490px] w-[240px] flex flex-col overflow-hidden select-none pointer-events-none ${
                 isDark 
                   ? 'bg-[#06070a]/90 border-[#14151b]' 
                   : 'bg-white border-slate-300/80'
@@ -281,31 +281,32 @@ export default function LoginScreen({
               {/* Dynamic Island */}
               <div className="h-[16px] w-[80px] bg-black absolute top-0.5 left-1/2 transform -translate-x-1/2 rounded-full z-30" />
               
-              {/* BACK PHONE SCREEN: Progress bar charts always looking technical */}
+              {/* BACK PHONE SCREEN: Technical Folder records representation */}
               <div className={`flex-1 p-3 text-[10px] flex flex-col justify-start overflow-hidden text-left ${
                 isDark ? 'bg-[#0c0d12]' : 'bg-[#f8fafc]'
               }`}>
                 {/* Header widget */}
-                <div className={`mb-2.5 pb-2 border-b ${isDark ? 'border-white/[0.04]' : 'border-slate-100'}`}>
-                  <span className={`text-[9.5px] font-black tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
-                    THỐNG KÊ TIẾN ĐỘ
+                <div className={`mb-2 pb-1.5 border-b ${isDark ? 'border-white/[0.04]' : 'border-slate-100'}`}>
+                  <span className={`text-[9px] font-black tracking-tight ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                    HOẠT ĐỘNG KHU VỰC
                   </span>
-                  <p className="text-[6px] text-slate-400 font-extrabold uppercase mt-0.5 font-sans">PHÂN BỔ THEO GIAI ĐOẠN</p>
+                  <p className="text-[5.5px] text-slate-400 font-extrabold uppercase mt-0.5 font-sans">TIẾN ĐỘ THỜI GIAN THỰC</p>
                 </div>
                 
-                {/* Visual miniature progress lines */}
-                <div className="space-y-2">
-                  {stepStats.slice(0, 5).map((step, idx) => (
-                    <div key={idx} className="space-y-0.5">
-                      <div className="flex justify-between items-center text-[6.5px]">
-                        <span className={`font-bold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{step.label}</span>
-                        <span className="font-mono text-amber-500 font-bold">{step.value}</span>
-                      </div>
-                      <div className={`w-full h-1 rounded-full overflow-hidden ${isDark ? 'bg-white/[0.03]' : 'bg-slate-150'}`}>
-                        <div className={`h-full rounded-full ${step.colorClass}`} style={{ width: step.width }} />
-                      </div>
-                    </div>
-                  ))}
+                {/* Visual miniature logs */}
+                <div className="space-y-1.5 text-[7px]">
+                  <div className={`p-1.5 rounded bg-white/[0.015] border ${isDark ? 'border-white/[0.03]' : 'border-slate-200/40'}`}>
+                    <p className="font-extrabold text-amber-500">A1-2405 · Nộp bổ sung</p>
+                    <span className="text-slate-505 font-medium">Phòng Tài Nguyên Môi Trường</span>
+                  </div>
+                  <div className={`p-1.5 rounded bg-white/[0.015] border ${isDark ? 'border-white/[0.03]' : 'border-slate-200/40'}`}>
+                    <p className="font-extrabold text-indigo-500">B2-1205 · Đã ký GCN</p>
+                    <span className="text-slate-505 font-medium">Văn phòng Đăng ký Đất đai</span>
+                  </div>
+                  <div className={`p-1.5 rounded bg-white/[0.015] border ${isDark ? 'border-white/[0.03]' : 'border-slate-200/40'}`}>
+                    <p className="font-extrabold text-emerald-500">T3-4012 · Đã bàn giao KH</p>
+                    <span className="text-slate-505 font-medium font-sans">Hệ thống bàn giao GCN</span>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -313,9 +314,9 @@ export default function LoginScreen({
             {/* FRONT PHONE - Centered, sharp, high-depth primary mockup, grounded off-screen at bottom */}
             <motion.div 
               initial={{ opacity: 0, y: 150 }}
-              animate={{ opacity: 1, y: 40 }}
+              animate={{ opacity: 1, y: 45 }}
               transition={{ duration: 0.9, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
-              className={`relative rounded-t-[2.8rem] h-[540px] w-[265px] flex flex-col overflow-hidden z-10 ${
+              className={`relative rounded-t-[2.8rem] h-[520px] w-[265px] flex flex-col overflow-hidden z-10 ${
                 isDark 
                   ? 'bg-[#0a0a0e] border-[#16171c]' 
                   : 'bg-[#ffffff] border-slate-200/90'
@@ -346,38 +347,62 @@ export default function LoginScreen({
 
               {/* Nền DARK: Nguyễn Hoà Dashboard / Nền LIGHT: Danh sách hồ sơ table (using both images reference!) */}
               {isDark ? (
-                /* NỀN TỐI: NGUYỄN HOÀ DASHBOARD */
+                /* NỀN TỐI: NGUYỄN HOÀ DASHBOARD WITH PROGRESS AT THE TOP */
                 <div className="flex-1 bg-[#101116] p-3 text-xs select-none flex flex-col justify-start relative overflow-hidden text-left font-sans">
                   {/* User Profile Block */}
-                  <div className="flex items-center justify-between mb-4 mt-1 bg-white/[0.02] border border-white/[0.04] p-2.5 rounded-xl font-sans">
+                  <div className="flex items-center justify-between mb-3 mt-1 bg-white/[0.02] border border-white/[0.04] p-2 rounded-xl font-sans shrink-0">
                     <div className="text-left">
-                      <h4 className="text-[11px] font-black text-white leading-none">Nguyễn Hoà</h4>
-                      <p className="text-[6.5px] font-bold text-slate-500 tracking-wider mt-1 font-sans">QUẢNG TRỊ · ADMIN</p>
+                      <h4 className="text-[10px] font-black text-white leading-none">Nguyễn Hoà</h4>
+                      <p className="text-[6px] font-bold text-slate-500 tracking-wider mt-1 font-sans">QUẢNG TRỊ · ADMIN</p>
                     </div>
-                    <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center text-[8px] font-black text-black">
+                    <div className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center text-[7px] font-black text-black">
                       NH
                     </div>
                   </div>
 
+                  {/* THỐNG KÊ TIẾN ĐỘ WIDGET - BROUGHT TO THE VERY TOP */}
+                  <div className="mb-3 bg-[#171821] border border-white/[0.04] p-2.5 rounded-xl font-sans shrink-0">
+                    <div className="flex justify-between items-center pb-1.5 border-b border-white/[0.03] mb-1.5">
+                      <span className="text-[8.5px] font-black text-slate-100 tracking-tight flex items-center gap-1">
+                        <BarChart3 size={9} className="text-amber-500" /> THỐNG KÊ TIẾN ĐỘ
+                      </span>
+                      <span className="text-[6px] font-black text-emerald-450 bg-emerald-500/10 px-1 py-0.2 rounded-xs">65 CĂN</span>
+                    </div>
+                    {/* Visual miniature progress lines (Compact layout mapping key levels) */}
+                    <div className="space-y-1.5">
+                      {stepStats.slice(0, 3).map((step, idx) => (
+                        <div key={idx} className="space-y-0.5 font-sans">
+                          <div className="flex justify-between items-center text-[6px]">
+                            <span className="font-bold text-[#94a3b8] truncate max-w-[70%]">{step.label}</span>
+                            <span className="font-mono text-amber-500 font-extrabold">{step.value}</span>
+                          </div>
+                          <div className="w-full h-1 bg-white/[0.03] rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full ${step.colorClass}`} style={{ width: step.width }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Dịch vụ nhanh widget */}
-                  <div className="mb-4">
-                    <h5 className="text-[8px] font-bold text-slate-500 tracking-widest uppercase mb-2 font-sans">DỊCH VỤ NHANH</h5>
-                    <div className="grid grid-cols-4 gap-1.5">
-                      <div className="bg-[#181a22] border border-white/[0.03] p-1.5 rounded-lg flex flex-col items-center justify-center text-center">
-                        <FileText size={11} className="text-amber-500 mb-1" />
-                        <span className="text-[6px] font-bold text-slate-400 font-sans">Hồ sơ</span>
+                  <div className="mb-3 shrink-0">
+                    <h5 className="text-[8px] font-bold text-[#64748b] tracking-widest uppercase mb-1.5 font-sans">DỊCH VỤ NHANH</h5>
+                    <div className="grid grid-cols-4 gap-1.5 font-sans">
+                      <div className="bg-[#181a22] border border-white/[0.02] p-1.5 rounded-lg flex flex-col items-center justify-center text-center">
+                        <FileText size={10} className="text-amber-500 mb-0.5" />
+                        <span className="text-[5.5px] font-bold text-slate-400 font-sans">Hồ sơ</span>
                       </div>
-                      <div className="bg-[#181a22] border border-white/[0.03] p-1.5 rounded-lg flex flex-col items-center justify-center text-center font-sans">
-                        <User size={11} className="text-amber-500 mb-1" />
-                        <span className="text-[6px] font-bold text-slate-400 font-sans">Thu thập</span>
+                      <div className="bg-[#181a22] border border-white/[0.02] p-1.5 rounded-lg flex flex-col items-center justify-center text-center font-sans">
+                        <User size={10} className="text-amber-500 mb-0.5" />
+                        <span className="text-[5.5px] font-bold text-slate-400 font-sans">Thu thập</span>
                       </div>
-                      <div className="bg-[#181a22] border border-white/[0.03] p-1.5 rounded-lg flex flex-col items-center justify-center text-center">
-                        <BarChart3 size={11} className="text-amber-500 mb-1" />
-                        <span className="text-[6px] font-bold text-slate-400 font-sans">Báo cáo</span>
+                      <div className="bg-[#181a22] border border-white/[0.02] p-1.5 rounded-lg flex flex-col items-center justify-center text-center">
+                        <BarChart3 size={10} className="text-amber-500 mb-0.5" />
+                        <span className="text-[5.5px] font-bold text-slate-400 font-sans">Báo cáo</span>
                       </div>
-                      <div className="bg-[#181a22] border border-white/[0.03] p-1.5 rounded-lg flex flex-col items-center justify-center text-center">
-                        <Bell size={11} className="text-amber-500 mb-1" />
-                        <span className="text-[6px] font-bold text-slate-400 font-sans">Thông báo</span>
+                      <div className="bg-[#181a22] border border-white/[0.02] p-1.5 rounded-lg flex flex-col items-center justify-center text-center">
+                        <Bell size={10} className="text-amber-500 mb-0.5" />
+                        <span className="text-[5.5px] font-bold text-slate-400 font-sans">Nhắc nhở</span>
                       </div>
                     </div>
                   </div>
@@ -385,37 +410,22 @@ export default function LoginScreen({
                   {/* Hồ sơ gần đây widget */}
                   <div className="flex-1 flex flex-col min-h-0">
                     <div className="flex justify-between items-center mb-1.5 shrink-0">
-                      <h5 className="text-[8px] font-bold text-slate-500 tracking-widest uppercase font-sans">HỒ SƠ GẦN ĐÂY</h5>
-                      <span className="text-[6.5px] text-amber-500 font-bold font-sans">Xem tất cả</span>
+                      <h5 className="text-[8px] font-bold text-[#64748b] tracking-widest uppercase font-sans">HỒ SƠ MỚI</h5>
+                      <span className="text-[6.5px] text-amber-500 font-bold font-sans">Xem hết</span>
                     </div>
 
-                    <div className="space-y-1.5 overflow-hidden flex-1">
+                    <div className="space-y-1.5 overflow-hidden flex-1 scrollbar-none">
                       {/* Card 1 */}
-                      <div className="bg-[#16171f] border border-white/[0.03] p-2 rounded-xl flex flex-col gap-1">
+                      <div className="bg-[#16171f] border border-white/[0.03] p-2 rounded-xl flex flex-col gap-1 shrink-0">
                         <div className="flex justify-between items-center">
-                          <span className="text-[7.5px] font-black text-amber-500">GCN-2401</span>
-                          <span className="text-[6px] text-slate-500">12/03/2024</span>
+                          <span className="text-[7px] font-black text-amber-500">GCN-2401</span>
+                          <span className="text-[5.5px] text-slate-500">Hôm nay</span>
                         </div>
                         <p className="text-[8px] font-bold text-slate-300 leading-none">Nguyễn Văn An</p>
                         <div className="flex justify-between items-center mt-1">
-                          <span className="text-[6.5px] text-slate-550">Lô T1-12A05</span>
-                          <span className="text-[6px] font-extrabold text-emerald-450 bg-emerald-500/10 px-1.5 py-0.2 rounded-full font-sans">
+                          <span className="text-[6.5px] text-[#5c6978]">Lô T1-12A05</span>
+                          <span className="text-[5.5px] font-bold text-emerald-450 bg-emerald-500/10 px-1.5 py-0.2 rounded-full font-sans">
                             Hoàn thành
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Card 2 */}
-                      <div className="bg-[#16171f] border border-white/[0.03] p-2 rounded-xl flex flex-col gap-1">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[7.5px] font-black text-amber-500">GCN-1464</span>
-                          <span className="text-[6px] text-slate-500">Hôm nay</span>
-                        </div>
-                        <p className="text-[8px] font-bold text-slate-300 leading-none">Trần Thị Vinh Hải</p>
-                        <div className="flex justify-between items-center mt-1">
-                          <span className="text-[6.5px] text-slate-450">B1-146-42</span>
-                          <span className="text-[6px] font-extrabold text-amber-450 bg-amber-500/10 px-1.5 py-0.2 rounded-full font-sans">
-                            Chờ nộp VPĐK
                           </span>
                         </div>
                       </div>
@@ -423,46 +433,61 @@ export default function LoginScreen({
                   </div>
                 </div>
               ) : (
-                /* NỀN SÁNG: DANH SÁCH HỒ SƠ TABLE (Clean white UI with real columns!) */
+                /* NỀN SÁNG: DANH SÁCH HỒ SƠ WITH INTERACTIVE PROGRESS METRICS AT THE TOP OF THE CONTAINER */
                 <div className="flex-1 bg-[#f8fafc] p-2.5 text-xs select-none flex flex-col justify-start relative overflow-hidden text-left font-sans">
                   {/* Top Bar with Search */}
-                  <div className="mb-2 shrink-0">
-                    <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">QUẢN LÝ TIẾN ĐỘ GCN</span>
-                    <h4 className="text-[11px] font-black text-slate-900 leading-none mt-0.5">DANH SÁCH HỒ SƠ</h4>
+                  <div className="mb-1.5 shrink-0">
+                    <span className="text-[7.5px] font-black uppercase tracking-wider text-slate-400">QUẢN LÝ TIỀN ĐỘ GCN</span>
+                    <h4 className="text-[10px] font-black text-slate-900 leading-none mt-0.5">DANH SÁCH HỒ SƠ</h4>
                     
-                    {/* Simulated elegant search input */}
-                    <div className="relative mt-2 font-sans">
-                      <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">
-                        <span className="text-[7px]">🔍</span>
+                    {/* PROGRESS STATS TILES INSERTED ON TOP AS REQUESTED */}
+                    <div className="grid grid-cols-3 gap-1 my-2">
+                      <div className="bg-emerald-50 border border-emerald-100 p-1 rounded-lg text-center">
+                        <p className="text-[5px] text-emerald-600 font-black uppercase">HOÀN TẤT</p>
+                        <p className="text-[8px] font-black text-emerald-700 font-mono">18 căn</p>
                       </div>
-                      <div className="w-full bg-white border border-slate-200 rounded-lg pl-6 pr-2 py-1 text-[7px] text-slate-400 font-bold shadow-2xs font-sans">
+                      <div className="bg-amber-50 border border-amber-100 p-1 rounded-lg text-center">
+                        <p className="text-[5px] text-amber-600 font-black uppercase">CHỜ NỘP</p>
+                        <p className="text-[8px] font-black text-amber-700 font-mono">10 căn</p>
+                      </div>
+                      <div className="bg-indigo-50 border border-indigo-100 p-1 rounded-lg text-center">
+                        <p className="text-[5px] text-indigo-600 font-black uppercase">CHỜ GIAO</p>
+                        <p className="text-[8px] font-black text-indigo-700 font-mono">11 căn</p>
+                      </div>
+                    </div>
+
+                    {/* Simulated elegant search input */}
+                    <div className="relative mt-1.5 font-sans">
+                      <div className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400">
+                        <span className="text-[6.5px]">🔍</span>
+                      </div>
+                      <div className="w-full bg-white border border-slate-200 rounded-lg pl-5 pr-2 py-0.5 text-[6.5px] text-slate-450 font-semibold shadow-3xs font-sans">
                         Tìm mã căn, tên chủ nhà...
                       </div>
                     </div>
                   </div>
 
                   {/* Interactive Tab headers */}
-                  <div className="flex gap-1 mb-2 shrink-0 font-sans">
-                    <span className="bg-slate-200 text-slate-800 font-extrabold text-[6.5px] px-1.5 py-0.5 rounded">Tất cả (65)</span>
-                    <span className="bg-white border border-slate-200 text-slate-550 font-bold text-[6.5px] px-1.5 py-0.5 rounded">Đã bán</span>
-                    <span className="bg-white border border-slate-200 text-slate-550 font-bold text-[6.5px] px-1.5 py-0.5 rounded">Vay vốn</span>
+                  <div className="flex gap-1 mb-1.5 shrink-0 font-sans">
+                    <span className="bg-slate-200 text-slate-800 font-extrabold text-[6px] px-1.5 py-0.3 rounded">Tất cả (65)</span>
+                    <span className="bg-white border border-slate-200 text-slate-550 font-bold text-[6px] px-1.5 py-0.3 rounded">Vay vốn</span>
                   </div>
 
                   {/* Micro list mapping the user's uploaded Table Screen */}
-                  <div className="flex-1 space-y-1.5 overflow-hidden font-sans">
+                  <div className="flex-1 space-y-1 overflow-hidden font-sans">
                     {/* Header Row */}
-                    <div className="grid grid-cols-12 gap-1.5 text-[6.5px] font-extrabold text-slate-400 uppercase py-0.5 border-b border-slate-200 font-sans">
+                    <div className="grid grid-cols-12 gap-1.5 text-[6px] font-extrabold text-slate-400 uppercase py-0.5 border-b border-slate-200 font-sans">
                       <span className="col-span-3">Mã căn</span>
-                      <span className="col-span-5">Chủ nhà</span>
-                      <span className="col-span-4 text-right">Trạng thái</span>
+                      <span className="col-span-4">Chủ nhà</span>
+                      <span className="col-span-5 text-right font-sans">Trạng thái</span>
                     </div>
 
                     {/* Table Row 1 (Real item modeled from screenshot) */}
                     <div className="grid grid-cols-12 gap-1.5 items-center p-1 bg-white border border-slate-200 rounded-lg shadow-3xs">
-                      <span className="col-span-3 text-[7px] font-black text-slate-800">B1-146-42</span>
-                      <span className="col-span-4 text-[7px] font-bold text-slate-600 truncate">Trần Thị Vinh Hải</span>
+                      <span className="col-span-3 text-[6.5px] font-black text-slate-800 font-sans">B1-146-42</span>
+                      <span className="col-span-4 text-[6.5px] font-bold text-slate-600 truncate font-sans">Trần Thị Vinh Hải</span>
                       <div className="col-span-5 text-right font-sans">
-                        <span className="text-[6px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 px-1 py-0.2 rounded-xs font-sans">
+                        <span className="text-[5.5px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 px-1 py-0.2 rounded-xs font-sans">
                           Hoàn thành
                         </span>
                       </div>
@@ -470,42 +495,20 @@ export default function LoginScreen({
 
                     {/* Table Row 2 */}
                     <div className="grid grid-cols-12 gap-1.5 items-center p-1 bg-white border border-slate-200 rounded-lg shadow-3xs">
-                      <span className="col-span-3 text-[7px] font-black text-slate-800">B1-139-28</span>
-                      <span className="col-span-4 text-[7px] font-bold text-slate-600 truncate">Lê Cao Cường</span>
+                      <span className="col-span-3 text-[6.5px] font-black text-slate-800 font-sans">B1-139-28</span>
+                      <span className="col-span-4 text-[6.5px] font-bold text-slate-600 truncate font-sans">Lê Cao Cường</span>
                       <div className="col-span-5 text-right font-sans">
-                        <span className="text-[6px] font-black bg-amber-50 text-amber-600 border border-amber-100 px-1 py-0.2 rounded-xs font-sans">
+                        <span className="text-[5.5px] font-black bg-amber-50 text-amber-600 border border-amber-100 px-1 py-0.2 rounded-xs font-sans">
                           Chờ nộp VPĐK
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Table Row 3 */}
-                    <div className="grid grid-cols-12 gap-1.5 items-center p-1 bg-white border border-slate-200 rounded-lg shadow-3xs">
-                      <span className="col-span-3 text-[7px] font-black text-slate-800">A2-02-15</span>
-                      <span className="col-span-4 text-[7px] font-bold text-slate-600 truncate">Nguyễn Thị Bé</span>
-                      <div className="col-span-5 text-right font-sans">
-                        <span className="text-[6px] font-black bg-[#f1f5f9] text-[#475569] border border-slate-200 px-1 py-0.2 rounded-xs font-sans">
-                          Đang chuẩn bị
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Table Row 4 */}
-                    <div className="grid grid-cols-12 gap-1.5 items-center p-1 bg-white border border-slate-200 rounded-lg shadow-3xs font-sans">
-                      <span className="col-span-3 text-[7px] font-black text-slate-800">B3-12A-01</span>
-                      <span className="col-span-4 text-[7px] font-bold text-slate-600 truncate">Phạm Minh Đức</span>
-                      <div className="col-span-5 text-right font-sans">
-                        <span className="text-[6px] font-black bg-indigo-50 text-indigo-600 border border-indigo-100 px-1 py-0.2 rounded-xs font-sans">
-                          Chờ bàn giao
                         </span>
                       </div>
                     </div>
                   </div>
 
                   {/* Micro Live footer */}
-                  <div className="p-1 px-2 bg-slate-100 border border-slate-200 rounded-lg flex items-center gap-1 mt-1.5 shrink-0">
+                  <div className="p-1 px-2 bg-slate-100 border border-slate-200 rounded-lg flex items-center gap-1 mt-1 shrink-0">
                     <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                    <span className="text-[6px] text-slate-500 font-bold truncate">Đã đồng bộ thời gian thực</span>
+                    <span className="text-[5.5px] text-slate-500 font-bold truncate">Đã đồng bộ thời gian thực</span>
                   </div>
                 </div>
               )}
@@ -636,24 +639,6 @@ export default function LoginScreen({
               )}
             </motion.button>
           </form>
-
-          {/* Secure certification horizontally aligned like model with minimalist emojis */}
-          <div className={`flex items-center justify-between gap-1 mt-8 pt-6 border-t border-dashed ${
-            isDark ? 'border-white/[0.04] text-slate-550' : 'border-slate-200 text-slate-400'
-          }`}>
-            <div className="flex items-center gap-1.5 text-[8.5px] font-black tracking-tight shrink-0">
-              <span className="text-sm">🔒</span>
-              <span>BẢO MẬT SSL</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-[8.5px] font-black tracking-tight shrink-0">
-              <span className="text-sm">🔄</span>
-              <span>XÁC THỰC 2 LỚP</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-[8.5px] font-black tracking-tight shrink-0">
-              <span className="text-sm">👁️</span>
-              <span>MÃ HOÁ DỮ LIỆU</span>
-            </div>
-          </div>
 
         </div>
 
