@@ -21,6 +21,7 @@ export interface BulkTransitionModalProps {
   theme: 'light' | 'dark';
   showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void;
   dateError?: string | null;
+  isSelfService?: boolean;
 }
 
 export default function BulkTransitionModal({
@@ -41,8 +42,12 @@ export default function BulkTransitionModal({
   theme,
   showToast,
   dateError,
+  isSelfService,
 }: BulkTransitionModalProps) {
   if (!isOpen) return null;
+
+  const backdropRef = React.useRef<HTMLDivElement>(null);
+  const mousedownOnBackdrop = React.useRef(false);
 
   const isDateWarning = dateError?.startsWith('⚠️');
 
@@ -51,10 +56,23 @@ export default function BulkTransitionModal({
   return (
     <AnimatePresence>
       <motion.div
+        ref={backdropRef}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        onClick={onClose}
+        onMouseDown={(e) => {
+          if (e.target === backdropRef.current) {
+            mousedownOnBackdrop.current = true;
+          } else {
+            mousedownOnBackdrop.current = false;
+          }
+        }}
+        onMouseUp={(e) => {
+          if (e.target === backdropRef.current && mousedownOnBackdrop.current) {
+            onClose();
+          }
+          mousedownOnBackdrop.current = false;
+        }}
         className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60]"
       />
       <motion.div
@@ -87,12 +105,16 @@ export default function BulkTransitionModal({
 
         <div className="space-y-6">
           <div className="p-5 rounded-3xl bg-indigo-500/5 border border-indigo-500/10">
-            <label className="block text-xs font-bold uppercase tracking-wider text-indigo-500 mb-2">Chuyển sang giai đoạn</label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-indigo-500 mb-2">
+              {isSelfService ? "Hình thức nhảy bước" : "Chuyển sang giai đoạn"}
+            </label>
             <div className="flex items-center gap-3">
               <div className="p-2 bg-indigo-500 text-white rounded-lg">
                 <ChevronRight size={16} />
               </div>
-              <span className="font-bold text-sm uppercase">{targetStepLabel}</span>
+              <span className="font-bold text-sm uppercase">
+                {isSelfService ? "Chuyển thẳng đến Chờ bàn giao" : targetStepLabel}
+              </span>
             </div>
           </div>
 
@@ -175,7 +197,7 @@ export default function BulkTransitionModal({
                   </label>
                   <input
                     type="text"
-                    value={refCode}
+                    value={refCode || ''}
                     onChange={(e) => onChangeRefCode?.(e.target.value)}
                     placeholder="Nhập mã hồ sơ / số phiếu hẹn..."
                     className={cn(
@@ -218,7 +240,11 @@ export default function BulkTransitionModal({
                 : "bg-indigo-600 text-white hover:bg-indigo-500 shadow-xl shadow-indigo-900/40"
             )}
           >
-            Xác nhận & Chuyển <ArrowRight size={14} />
+            {isSelfService ? (
+              <>Chuyển thẳng đến Chờ bàn giao <ArrowRight size={14} /></>
+            ) : (
+              <>Xác nhận & Chuyển <ArrowRight size={14} /></>
+            )}
           </button>
         </div>
       </motion.div>

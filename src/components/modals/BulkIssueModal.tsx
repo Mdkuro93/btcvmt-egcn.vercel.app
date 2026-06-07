@@ -35,13 +35,29 @@ export default function BulkIssueModal({
 }: BulkIssueModalProps) {
   if (!isOpen) return null;
 
+  const backdropRef = React.useRef<HTMLDivElement>(null);
+  const mousedownOnBackdrop = React.useRef(false);
+
   return (
     <AnimatePresence>
       <motion.div
+        ref={backdropRef}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        onClick={onClose}
+        onMouseDown={(e) => {
+          if (e.target === backdropRef.current) {
+            mousedownOnBackdrop.current = true;
+          } else {
+            mousedownOnBackdrop.current = false;
+          }
+        }}
+        onMouseUp={(e) => {
+          if (e.target === backdropRef.current && mousedownOnBackdrop.current) {
+            onClose();
+          }
+          mousedownOnBackdrop.current = false;
+        }}
         className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60]"
       />
       <motion.div

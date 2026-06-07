@@ -3406,6 +3406,28 @@ export default function App() {
     // Sử dụng WorkflowEngine tập trung
     const transitionCheck = WorkflowEngine.validateTransition(app, nextStep, userRole);
     if (!transitionCheck.success) {
+      if (transitionCheck.requiresHandoverDate) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const dateInput = window.prompt(`${transitionCheck.message}\n\nNhập ngày bàn giao GCN cho khách (YYYY-MM-DD):`, todayStr);
+        if (dateInput !== null) {
+          const trimmed = dateInput.trim();
+          if (trimmed) {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+              showToast('Định dạng ngày không hợp lệ. Vui lòng nhập đúng định dạng YYYY-MM-DD.', 'error');
+              return;
+            }
+            const updatedAppWithDate = {
+              ...app,
+              customerHandoverDate: trimmed,
+              customer_handover_date: trimmed
+            };
+            handleStepTransition(nextStep, note, updatedAppWithDate);
+          } else {
+            showToast('Hủy chuyển bước do không nhập ngày bàn giao GCN.', 'info');
+          }
+        }
+        return;
+      }
       showToast(transitionCheck.message || 'Lỗi chuyển bước', transitionCheck.type as 'error' | 'warning');
       return;
     }
@@ -3488,6 +3510,7 @@ export default function App() {
       ]
     };
 
+    const originalApp = app;
     try {
       const finalApp = await localSyncRecord(updatedApp);
       await notifyNextDepartment(finalApp, targetStep);
@@ -3505,7 +3528,10 @@ export default function App() {
       showToast(`Đã chuyển hồ sơ sang bước: ${(stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label} (Đã đồng bộ Supabase)`, 'success');
     } catch (error) {
       console.error('Supabase transition error:', error);
-     showToast('Lỗi khi cập nhật trạng thái lên Supabase.', 'error');
+      setSelectedApp(originalApp);
+      setEditApp(null);
+      setIsEditing(false);
+      showToast('Lỗi đồng bộ Supabase. Hồ sơ chưa được chuyển bước — vui lòng thử lại.', 'error');
     }
   };
 
@@ -3610,23 +3636,24 @@ export default function App() {
         const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
         const currentIdx = workflowSteps.indexOf(app.currentStep);
         
+        // Use the centralized determineTargetStep logic to match runtime step resolution perfectly
         let recordNextStep = nextStep;
-        const currentStepCfg = stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep];
-        const currentDept = currentStepCfg?.dept;
-        const isSelfServiceJumpEligible = app.isSelfService && ['PTT', 'PTDA', 'KT'].includes(currentDept as any);
-        if (isSelfServiceJumpEligible) recordNextStep = 'Hoan_Tat';
+        const { finalStep, isJump } = WorkflowEngine.determineTargetStep(app, nextStep);
+        if (isJump) {
+          recordNextStep = finalStep;
+        }
         
         const nextIdx = workflowSteps.indexOf(recordNextStep);
         if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
-          if (nextIdx !== currentIdx + 1 && !isSelfServiceJumpEligible) continue;
+          if (nextIdx !== currentIdx + 1 && !isJump) continue;
         }
         
-        let appWithDate = { ...app };
+        let appWithDateForCheck = { ...app };
         if (bulkTransitionField && dateValue) {
-          (appWithDate as any)[bulkTransitionField.key] = dateValue;
+          (appWithDateForCheck as any)[bulkTransitionField.key] = dateValue;
         }
 
-        const chronoError = validateDateSequence(appWithDate);
+        const chronoError = validateDateSequence(appWithDateForCheck);
         if (chronoError) {
           if (chronoError.startsWith('⚠️')) {
             chronoWarnings.push(`Căn ${app.unitCode}: ${chronoError}`);
@@ -3653,31 +3680,29 @@ export default function App() {
         const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
         const currentIdx = workflowSteps.indexOf(app.currentStep);
         
+        // Apply bulk date update if provided FIRST so transition check works with the updated date
+        let appWithDate = { ...app };
+        if (bulkTransitionField && dateValue) {
+          (appWithDate as any)[bulkTransitionField.key] = dateValue;
+        }
+
         // --- PRIORITIZED SELF-SERVICE JUMP LOGIC (Bulk) ---
         let recordNextStep = nextStep;
-        const currentStepCfg = stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep];
-        const currentDept = currentStepCfg?.dept;
-        const isSelfServiceJumpEligible = app.isSelfService && ['PTT', 'PTDA', 'KT'].includes(currentDept as any);
-
-        if (isSelfServiceJumpEligible) {
-          recordNextStep = 'Hoan_Tat';
+        const transitionCheck = WorkflowEngine.validateTransition(appWithDate, nextStep, userRole);
+        if (transitionCheck.success && transitionCheck.nextStep) {
+          recordNextStep = transitionCheck.nextStep;
         }
-        
+
         const nextIdx = workflowSteps.indexOf(recordNextStep);
+        const isMovingForward = nextIdx > currentIdx;
         
         if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
-          if (nextIdx !== currentIdx + 1 && !isSelfServiceJumpEligible) {
+          if (nextIdx !== currentIdx + 1 && recordNextStep !== transitionCheck.nextStep) {
             return app;
           }
         }
 
         actuallyUpdatedCount++;
-
-        // Apply bulk date update if provided
-        let appWithDate = { ...app };
-        if (bulkTransitionField && dateValue) {
-          (appWithDate as any)[bulkTransitionField.key] = dateValue;
-        }
 
         // Save location and refCode if provided in the bulk transition (usually for nộp VPĐK steps)
         const vpdKSteps = [
@@ -3742,7 +3767,7 @@ export default function App() {
           ...autoDates,
           currentStep: targetStep,
           status: targetStep === 'S1_ChuanBi' ? 'Error' : targetStatus,
-          isRejected: false,
+          isRejected: !isMovingForward,
           rejectionReason: targetStep === 'S1_ChuanBi' ? appWithDate.rejectionReason : '',
           history: newHistory,
           auditTrail: [
@@ -6200,6 +6225,7 @@ export default function App() {
         theme={theme}
         showToast={showToast}
         dateError={bulkTransitionChronoError}
+        isSelfService={applications.filter(a => selectedAppIds.includes(a.id)).some(a => a.isSelfService)}
       />
 
       <BulkIssueModal

@@ -40,7 +40,7 @@ export const StatusBadge = ({ status, app, variant = 'default' }: { status: Unit
     if (app.status === 'WaitingHandover' || app.status === 'Completed') {
       effectiveStatus = app.customerHandoverDate ? 'Completed' : 'WaitingHandover';
     } else if (app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK') {
-      const isActuallySubmitted = (app.vpdkCode && app.submissionLocation && app.submissionDate);
+      const isActuallySubmitted = !!app.submissionDate;
       if (app.currentStep === 'S3_Nop_VPDK') {
         effectiveStatus = isActuallySubmitted ? 'Submitted' : 'WaitingVPDK_Step3';
       } else {
@@ -61,7 +61,7 @@ export const StatusBadge = ({ status, app, variant = 'default' }: { status: Unit
         const daysDiff = (new Date().getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
         effectiveStatus = daysDiff > 7 ? 'TaxPending' : 'Submitted';
       } else {
-        effectiveStatus = 'WaitingVPDK';
+        effectiveStatus = 'WaitingVPDK_Step3';
       }
     } else if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' || app.currentStep === 'GD4_Cho_Nop_NVTC' || app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') {
       if (app.taxReceiptDate) {

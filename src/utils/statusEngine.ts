@@ -167,13 +167,12 @@ export function getSLAStatus(app: any, stepConfig?: any, slaConfig?: any): 'OVER
 export function getFinalStatus(app: any) {
   if (app.customerHandoverDate || app.customer_handover_date) return 'Completed';
 
-  if (app.isSelfService) {
-    return 'Processing';
-  }
-
-  if (app.gcnSignedDate) return 'GCN_Issued';
-  if (app.taxReceiptDate) return 'TaxPaid';
-  if (app.submissionDate) return 'Submitted';
+  // Check milestone dates in reverse order of the workflow to find the most advanced stage
+  if (app.gcnReceivedDate || app.gcn_received_date) return 'WaitingHandover';
+  if (app.gcnSignedDate || app.gcn_signed_date) return 'GCN_Issued';
+  if (app.taxReceiptDate || app.tax_receipt_date) return 'TaxPaid';
+  if (app.submissionDate || app.submission_date) return 'Submitted';
+  if (app.accountingHandoverDate || app.accounting_handover_date || app.contractSigningDate || app.contract_signing_date) return 'WaitingVPDK';
 
   if (app.status === 'WAITING_HANDOVER' || app.current_step === 'CHỜ BÀN GIAO' || app.status === 'CHỜ BÀN GIAO' || app.currentStep === 'CHỜ BÀN GIAO') return 'WaitingHandover';
   if (app.status === 'AWAITING_FINANCE' || app.current_step === 'CHỜ HOÀN THÀNH NVTC' || app.status === 'CHỜ HOÀN THÀNH NVTC' || app.currentStep === 'CHỜ HOÀN THÀNH NVTC') return 'TaxPending';

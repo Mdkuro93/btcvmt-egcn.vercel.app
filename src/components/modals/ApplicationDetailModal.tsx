@@ -95,6 +95,9 @@ export const ApplicationDetailModal = ({
 
   const currentApp = editApp || selectedApp;
   
+  const detailBackdropRef = React.useRef<HTMLDivElement>(null);
+  const mousedownOnDetailBackdrop = React.useRef(false);
+
   const isStep2OrLater = currentApp ? (
     currentApp.workflowType === 'Quy_trinh_2'
       ? ['S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao', 'S3_Nop_VPDK', 'S5_Tai_Chinh_Khach_Hang', 'S5_1_PTDA_TiepNhan', 'S6_Nhan_So_GCN', 'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach', 'Hoan_Tat'].includes(currentApp.currentStep)
@@ -131,10 +134,23 @@ export const ApplicationDetailModal = ({
         {selectedApp && (
           <>
             <motion.div 
+              ref={detailBackdropRef}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setSelectedApp(null)}
+              onMouseDown={(e) => {
+                if (e.target === detailBackdropRef.current) {
+                  mousedownOnDetailBackdrop.current = true;
+                } else {
+                  mousedownOnDetailBackdrop.current = false;
+                }
+              }}
+              onMouseUp={(e) => {
+                if (e.target === detailBackdropRef.current && mousedownOnDetailBackdrop.current) {
+                  setSelectedApp(null);
+                }
+                mousedownOnDetailBackdrop.current = false;
+              }}
               className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50"
             />
             <motion.div 
@@ -1260,7 +1276,9 @@ export const ApplicationDetailModal = ({
                                           (role === 'MANAGER_KT' && effectiveDept === 'KT') ||
                                           (role === 'MANAGER_PTDA' && effectiveDept === 'PTDA') ||
                                           effectiveDept === role;
-                                       const nextStep = getNextStep(app.currentStep, app.workflowType || 'Quy_trinh_1');
+                                       const nextStep = app.isSelfService 
+                                          ? (app.currentStep === 'Hoan_Tat' ? null : 'Hoan_Tat' as StepName)
+                                          : getNextStep(app.currentStep, app.workflowType || 'Quy_trinh_1');
                                        
                                        if (canAction && nextStep) {
                                          const nextLabel = (stepConfig[nextStep] || INITIAL_STEP_CONFIG[nextStep])?.label;
@@ -1276,7 +1294,11 @@ export const ApplicationDetailModal = ({
                                                }}
                                                className="w-full py-4 bg-indigo-600 text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] hover:bg-indigo-500 shadow-2xl shadow-indigo-900/40 transition-all flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 border-b-4 border-indigo-800"
                                              >
-                                               <span className="opacity-70">Chuyển tới:</span> {nextLabel} <ChevronRight size={20} />
+                                               {app.isSelfService ? (
+                                                 <>Chuyển thẳng đến Chờ bàn giao <ChevronRight size={20} /></>
+                                               ) : (
+                                                 <><span className="opacity-70">Chuyển tới:</span> {nextLabel} <ChevronRight size={20} /></>
+                                               )}
                                              </button>
                                          );
                                        }

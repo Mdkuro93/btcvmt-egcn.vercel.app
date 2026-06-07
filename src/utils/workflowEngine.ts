@@ -14,6 +14,7 @@ export interface TransitionResult {
   type?: 'error' | 'warning' | 'info';
   nextStep?: StepName;
   updates?: Partial<Application>;
+  requiresHandoverDate?: boolean;
 }
 
 export const WorkflowEngine = {
@@ -25,14 +26,28 @@ export const WorkflowEngine = {
     let finalStep = requestedNextStep;
     let isJump = false;
 
+    // Đảm bảo nhận chính xác tham số workflowType từ app (hỗ trợ cả camelCase và snake_case)
+    const storedType = app.workflowType || (app as any).workflow_type;
+    const workflowType = storedType || (app.projectName && app.projectName.includes('Quy trình 2') ? 'Quy_trinh_2' : 'Quy_trinh_1');
+
     const currStepCfg = STEP_CONFIG[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep];
     const currentStepDept = currStepCfg?.dept;
+
+    const steps = workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+    const currentIdx = steps.indexOf(app.currentStep);
+    const reqNextIdx = steps.indexOf(requestedNextStep);
 
     // Logic ưu tiên tuyệt đối: Hồ sơ "Khách tự làm sổ" bỏ qua các đoạn nội bộ
     const isSelfServiceJumpEligible = app.isSelfService && ['PTT', 'PTDA', 'KT'].includes(currentStepDept as any);
     if (isSelfServiceJumpEligible) {
-      finalStep = 'Hoan_Tat';
-      isJump = true;
+      const handoverStep: StepName = workflowType === 'Quy_trinh_2' ? 'S7_2_Ban_Giao_Khach' : 'GD6_Cho_BG_Khach';
+      const handoverIdx = steps.indexOf(handoverStep);
+      
+      // Nếu hiện tại chưa tới bước handover và đang yêu cầu tiến lên, thì mới nhảy thẳng đến đó
+      if (currentIdx < handoverIdx && reqNextIdx > currentIdx && reqNextIdx < handoverIdx) {
+        finalStep = handoverStep;
+        isJump = true;
+      }
     }
 
     // Logic đặc thù: PTT đôn đốc xong có thể bypass S4 để đẩy thẳng sang Khách nộp thuế (S5) trong Quy trình 2
@@ -96,7 +111,8 @@ export const WorkflowEngine = {
           return {
             success: false,
             type: 'warning',
-            message: 'Bắt buộc nhập Ngày BG GCN cho khách trước khi Hoàn Tất (kể cả hồ sơ Khách tự làm sổ).'
+            requiresHandoverDate: true,
+            message: 'Vui lòng nhập Ngày bàn giao GCN cho khách để hoàn tất hồ sơ tự làm sổ.'
           };
         }
       }

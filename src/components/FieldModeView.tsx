@@ -311,8 +311,10 @@ export default function FieldModeView({
   // Next step calculation
   const nextStepName = useMemo(() => {
     if (currentStepIndex === -1 || currentStepIndex >= appWorkflowSteps.length - 1) return null;
+    // Self-service: luôn nhảy về Hoan_Tat
+    if (editAppInstance?.isSelfService) return 'Hoan_Tat' as StepName;
     return appWorkflowSteps[currentStepIndex + 1];
-  }, [currentStepIndex, appWorkflowSteps]);
+  }, [currentStepIndex, appWorkflowSteps, editAppInstance?.isSelfService]);
 
   // Backward steps mapping (preceding steps)
   const backwardSteps = useMemo(() => {
@@ -959,11 +961,11 @@ export default function FieldModeView({
                                  {/* CHUYỂN TIẾP TRƯỚC (MOVE FORWARD) SECTION */}
                                  {nextStepName ? (
                                     <div className="bg-indigo-950/20 p-4 rounded-2xl border border-indigo-900/30 text-left">
-                                       <span className="text-[9px] px-2 py-0.5 bg-indigo-500/10 text-indigo-400 rounded-md font-black uppercase border border-indigo-500/20">Chuyển tiếp giai đoạn</span>
+                                       <span className="text-[9px] px-2 py-0.5 bg-indigo-500/10 text-indigo-400 rounded-md font-black uppercase border border-indigo-500/20">{editAppInstance?.isSelfService ? "Hình thức nhảy bước" : "Chuyển tiếp giai đoạn"}</span>
                                        
                                        <div className="flex items-center gap-2 mt-2 py-1.5 px-2 bg-slate-950/70 rounded-xl border border-slate-900">
                                          <p className="text-[10px] font-bold text-indigo-300 truncate">
-                                            Bước tiếp: <span className="text-white font-extrabold italic">{(STEP_CONFIG[nextStepName] || { label: nextStepName }).label}</span>
+                                            Bước tiếp: <span className="text-white font-extrabold italic">{editAppInstance?.isSelfService ? "Chuyển thẳng đến Chờ bàn giao" : (STEP_CONFIG[nextStepName] || { label: nextStepName }).label}</span>
                                          </p>
                                        </div>
 
@@ -989,7 +991,7 @@ export default function FieldModeView({
                                              </>
                                           ) : (
                                              <>
-                                               <CheckCircle size={14} /> Xác nhận chuyển bước <ArrowRight size={12} />
+                                               <CheckCircle size={14} /> {editAppInstance?.isSelfService ? "Chuyển thẳng đến Chờ bàn giao" : "Xác nhận chuyển bước"} <ArrowRight size={12} />
                                              </>
                                           )}
                                        </button>

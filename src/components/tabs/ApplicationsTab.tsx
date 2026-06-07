@@ -581,7 +581,7 @@ export const ApplicationsTab = ({
                                     }}
                                     className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
                                   >
-                                    Chuyển tiếp {(stepConfig[nextStep] || INITIAL_STEP_CONFIG[nextStep])?.label} &rarr;
+                                    {firstApp.isSelfService ? "Chuyển thẳng đến Chờ bàn giao" : `Chuyển tiếp ${(stepConfig[nextStep] || INITIAL_STEP_CONFIG[nextStep])?.label}`} &rarr;
                                   </button>
                                 );
                               }
@@ -713,7 +713,7 @@ export const ApplicationsTab = ({
                             <>
                               <th className="px-2 py-2 border-b border-slate-800/10">Loại lô</th>
                               <th className="px-2 py-2 border-b border-slate-800/10">Trạng thái</th>
-                              <th className="px-2 py-2 text-center border-b border-slate-800/10">Cơ quan</th>
+                              <th className="px-2 py-2 text-center border-b border-slate-800/10">Bộ phận</th>
                               {(userRole === 'PTT' || isManagement) && (
                                 <th className="px-2 py-2 text-center border-b border-slate-800/10">Nộp VPĐK</th>
                               )}
