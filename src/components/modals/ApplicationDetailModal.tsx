@@ -605,6 +605,16 @@ export const ApplicationDetailModal = ({
                                       onChange={(val: string) => handleFieldChange('bankCommitmentDeadline', val)}
                                     />
                                   )}
+                                  {((editApp || selectedApp).propertyType === 'Can_Ho' || (editApp || selectedApp).property_type === 'Can_Ho') && (
+                                    <DetailCard theme={theme}
+                                      label="Ngày bàn giao căn hộ thực tế" 
+                                      value={(editApp || selectedApp).handoverApartmentDate} 
+                                      type="date"
+                                      editable={isFieldEditable('handoverApartmentDate')}
+                                      isEditing={isEditing}
+                                      onChange={(val: string) => handleFieldChange('handoverApartmentDate', val)}
+                                    />
+                                  )}
                                 </div>
                                </section>
 

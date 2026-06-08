@@ -55,22 +55,24 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
 
     const isDateValid = (d: any) => d && d !== '---' && d !== 'None' && String(d).trim() !== '';
 
+    // Fix SLA for GCN Receiving Steps
+    const isGCNStep = currentStep === 'S6_Nhan_So_GCN' || currentStep === 'GD5_Cho_GCN' || currentStep === 'GD5_Cho_PTT_TiepNhan_BG';
+    if (isGCNStep) {
+      const gcnReceived = app.gcnReceivedDate || app.gcn_received_date;
+      const gcnSigned = app.gcnSignedDate || app.gcn_signed_date;
+      
+      if (isDateValid(gcnReceived) || isDateValid(gcnSigned)) {
+        return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
+      }
+    }
+
     // Step-specific custom SLA logic (GD1_ChuanBi / S1_ChuanBi / GD1_Cho_KT_TiepNhan)
     const isGD1ChuanBi = currentStep === 'GD1_ChuanBi' || currentStep === 'GĐ1_ChuanBi' || currentStep === 'S1_ChuanBi';
     const isGDKTTiepNhan = currentStep === 'GD1_Cho_KT_TiepNhan';
 
     if (isGD1ChuanBi || isGDKTTiepNhan) {
-      // Priority 1: History (if has receivedDate or similar)
-      if (matchedHistory) {
-        const idMatch = String(matchedHistory.id).match(/^hist-(\d+)-/);
-        if (idMatch) {
-          stepStartTime = parseInt(idMatch[1], 10);
-        } else if (isDateValid(matchedHistory.receivedDate)) {
-          stepStartTime = new Date(matchedHistory.receivedDate).getTime();
-        }
-      }
-
       let activeSla = sla;
+      let targetStartDateStr: string | undefined;
 
       if (isGD1ChuanBi) {
         const propType = app.propertyType || app.property_type;
@@ -78,42 +80,38 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
 
         if (isCanHo) {
           activeSla = 45;
-          if (!stepStartTime) {
-            const handoverDate = app.handoverApartmentDate || app.handover_apartment_date;
-            if (isDateValid(handoverDate)) {
-              stepStartTime = new Date(handoverDate).getTime();
-            } else {
-              // No handover date -> Do not compute SLA, return normal
-              return { isOverdue: false, daysLate: 0, daysLeft: 45, urgency: 'normal' as const };
-            }
+          const handoverDate = app.handoverApartmentDate || app.handover_apartment_date;
+          if (isDateValid(handoverDate)) {
+            targetStartDateStr = handoverDate;
+          } else {
+            // No handover date -> Do not compute SLA, return normal
+            return { isOverdue: false, daysLate: 0, daysLeft: 45, urgency: 'normal' as const };
           }
         } else {
-          // Dat_Nen or other fallback
+          // Dat_Nen
           activeSla = 25;
-          if (!stepStartTime) {
-            const rDate = app.receivedDate || app.received_date;
-            if (isDateValid(rDate)) {
-              stepStartTime = new Date(rDate).getTime();
-            } else {
-              // No received date -> Do not compute SLA, return normal
-              return { isOverdue: false, daysLate: 0, daysLeft: 25, urgency: 'normal' as const };
-            }
+          const rDate = app.receivedDate || app.received_date;
+          if (isDateValid(rDate)) {
+            targetStartDateStr = rDate;
+          } else {
+            // No received date -> Do not compute SLA, return normal
+            return { isOverdue: false, daysLate: 0, daysLeft: 25, urgency: 'normal' as const };
           }
         }
       } else if (isGDKTTiepNhan) {
         activeSla = 3;
-        if (!stepStartTime) {
-          const accHandoverDate = app.accountingHandoverDate || app.accounting_handover_date;
-          if (isDateValid(accHandoverDate)) {
-            stepStartTime = new Date(accHandoverDate).getTime();
-          } else {
-            // No accounting handover date -> Do not compute SLA, return normal
-            return { isOverdue: false, daysLate: 0, daysLeft: 3, urgency: 'normal' as const };
-          }
+        const accHandoverDate = app.accountingHandoverDate || app.accounting_handover_date;
+        if (isDateValid(accHandoverDate)) {
+          targetStartDateStr = accHandoverDate;
+        } else {
+          // No accounting handover date -> Do not compute SLA, return normal
+          return { isOverdue: false, daysLate: 0, daysLeft: 3, urgency: 'normal' as const };
         }
       }
 
-      if (stepStartTime) {
+      if (targetStartDateStr) {
+        stepStartTime = new Date(targetStartDateStr).getTime();
+
         const now = new Date().getTime();
         const elapsedDays = Math.max(0, now - stepStartTime) / (1000 * 60 * 60 * 24);
         const daysLeft = Math.max(0, parseFloat((activeSla - elapsedDays).toFixed(1)));
@@ -148,26 +146,26 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
       const mapping: Record<string, string> = {
         // Workflow 2
         S1_ChuanBi: 'contractSigningDate',
-        S2_KT_Tiep_Nhan: 'receivedDate',
-        S2_KT_Ban_giao: 'receivedDate',
+        S2_KT_Tiep_Nhan: 'accountingHandoverDate',
+        S2_KT_Ban_giao: 'accountingHandoverDate',
         S3_Nop_VPDK: 'accountingHandoverDate',
         S5_Tai_Chinh_Khach_Hang: 'taxNotificationDate',
         S5_1_PTDA_TiepNhan: 'taxReceiptDate',
-        S6_Nhan_So_GCN: 'taxReceiptDate',
+        S6_Nhan_So_GCN: app.gcnReceivedDate ? 'gcnReceivedDate' : (app.gcnSignedDate ? 'gcnSignedDate' : 'taxReceiptDate'),
         S7_PTDA_Ban_Giao: 'gcnReceivedDate',
         S7_1_PTT_Tiep_Nhan: 'gcnReceivedDate',
         S7_2_Ban_Giao_Khach: 'customerHandoverDate',
 
         // Workflow 1
         GD1_ChuanBi: 'contractSigningDate',
-        GD1_Cho_KT_TiepNhan: 'contractSigningDate',
+        GD1_Cho_KT_TiepNhan: 'accountingHandoverDate',
         GD2_Cho_Nop_VPDK: 'accountingHandoverDate',
         GD3_Nop_VPDK: 'accountingHandoverDate',
         GD4_Cho_Nop_NVTC: 'submissionDate',
         GD4_Cho_KT_TiepNhan_LaySo: 'taxNotificationDate',
         GD5_Cho_Ky_In_GCN: 'taxReceiptDate',
-        GD5_Cho_GCN: 'gcnSignedDate',
-        GD5_Cho_PTT_TiepNhan_BG: 'gcnReceivedDate',
+        GD5_Cho_GCN: app.gcnSignedDate ? 'gcnSignedDate' : 'taxReceiptDate',
+        GD5_Cho_PTT_TiepNhan_BG: app.gcnReceivedDate ? 'gcnReceivedDate' : 'gcnSignedDate',
         GD6_Cho_BG_Khach: 'ptdaHandoverDate',
         Hoan_Tat: 'customerHandoverDate'
       };
@@ -207,7 +205,20 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
 
       // Nếu vẫn không tìm thấy mốc nào trong sequence, dùng fallback cuối cùng
       if (!comparisonDate) {
-        comparisonDate = (app.receivedDate || app.received_date) as string | undefined;
+        if (
+          currentStep === 'GD1_Cho_KT_TiepNhan' ||
+          currentStep === 'GD1_ChuanBi' ||
+          currentStep === 'S1_ChuanBi'
+        ) {
+          return {
+            isOverdue: false,
+            daysLate: 0,
+            daysLeft: sla,
+            urgency: 'normal'
+          };
+        }
+
+        comparisonDate = app.receivedDate || app.received_date;
       }
 
       if (comparisonDate) {

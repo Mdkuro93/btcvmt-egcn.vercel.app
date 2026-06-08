@@ -3221,7 +3221,8 @@ export default function App() {
     submissionLocation: undefined as 'PHUONG' | 'TP_DANANG' | undefined,
     currentStep: 'S1_ChuanBi' as StepName,
     isSelfService: false,
-    commitmentDate: ''
+    commitmentDate: '',
+    handoverApartmentDate: ''
   });
 
   // Ensure newApp.projectName is set to a valid project the user has access to
@@ -3339,10 +3340,36 @@ export default function App() {
     let data: any[][] = [];
     const sourceApps = selectedProjectId ? dashboardApps : applications;
 
+    const getColumnLetter = (index: number): string => {
+      let temp = index;
+      let letter = '';
+      while (temp >= 0) {
+        letter = String.fromCharCode((temp % 26) + 65) + letter;
+        temp = Math.floor(temp / 26) - 1;
+      }
+      return letter;
+    };
+
+    const normalizeStr = (str: any) => {
+      if (!str) return '';
+      return str.toString()
+        .trim()
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/đ/g, "d")
+        .replace(/[^a-z0-9/()_-\s]/g, "");
+    };
+
+    const getHeaderColLetter = (headerName: string): string => {
+      const normTarget = normalizeStr(headerName);
+      const idx = headers.findIndex(h => normalizeStr(h).includes(normTarget));
+      return idx !== -1 ? getColumnLetter(idx) : '';
+    };
+
     if (isManagementEdit) {
       headers = [
         "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)", 
-        "Hạn GCN cam kết", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT",
+        "Hạn GCN cam kết", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT",
         "Nơi nộp", "Mã VPĐK", "Ngày nộp hồ sơ", "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", 
         "Ngày GCN đã ký", "Ngày GCN đã nhận", "Ngày BG KT", "Ngày BG GCN Khách"
       ];
@@ -3354,9 +3381,10 @@ export default function App() {
         app.phoneNumber || '',
         app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
         app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
-        formatExcelDate(app.bankCommitmentDeadline),
+        formatExcelDate(app.commitmentDate),
         formatExcelDate(app.receivedDate),
         formatExcelDate(app.contractSigningDate),
+        formatExcelDate(app.handoverApartmentDate),
         app.isSelfService ? 'Có' : 'Không',
         formatExcelDate(app.accountingHandoverDate),
         app.submissionLocation || '',
@@ -3373,7 +3401,7 @@ export default function App() {
     } else if (userRole === 'PTT' || userRole === 'MANAGER_PTT') {
       headers = [
         "Dự án", "Mã lô/căn", "Tên khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản", 
-        "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Hạn cam kết Ngân hàng", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT", "Ngày nhận GCN", "Ngày BG GCN Khách",
+        "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Hạn cam kết Ngân hàng", "Ngày bàn giao căn hộ", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT", "Ngày nhận GCN", "Ngày BG GCN Khách",
         "Phân loại sai sót", "Mức độ sai sót", "Ghi chú sai sót"
       ];
       data = sourceApps.map(app => {
@@ -3388,6 +3416,7 @@ export default function App() {
           formatExcelDate(app.receivedDate),
           formatExcelDate(app.contractSigningDate),
           formatExcelDate(app.bankCommitmentDeadline),
+          formatExcelDate(app.handoverApartmentDate),
           app.isSelfService ? 'Có' : 'Không',
           formatExcelDate(app.accountingHandoverDate),
           formatExcelDate(app.gcnReceivedDate),
@@ -3447,7 +3476,7 @@ export default function App() {
       // Default / Admin: Full Template for complete control
       headers = [
         "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng", "Loại tài sản", 
-        "Hạn cam kết vay", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Tự làm sổ", "Ngày bàn giao sang KT",
+        "Hạn cam kết vay", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Tự làm sổ", "Ngày bàn giao sang KT",
         "Nơi nộp", "Mã HS VPĐK", "Ngày nộp VPĐK", "Ngày TB Thuế", "Ngày nhận TB Thuế", 
         "Ngày nhận NVTC", "Ngày trình ký GCN", "Ngày nhận GCN thực tế", "Ngày BG Pkt", "Ngày BG Khách"
       ];
@@ -3462,6 +3491,7 @@ export default function App() {
         formatExcelDate(app.bankCommitmentDeadline),
         formatExcelDate(app.receivedDate),
         formatExcelDate(app.contractSigningDate),
+        formatExcelDate(app.handoverApartmentDate),
         app.isSelfService ? 'Có' : 'Không',
         formatExcelDate(app.accountingHandoverDate),
         app.submissionLocation === 'PHUONG' ? 'Phường/Xã' : app.submissionLocation === 'TINH' ? 'Tỉnh/Thành phố' : '',
@@ -3480,49 +3510,19 @@ export default function App() {
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data]);
     const dataEndRow = data.length + 1;
 
-    // ADMIN/MANAGER/DIRECTOR
-    if (['ADMIN', 'MANAGER', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole)) {
-      addDropdownValidation(worksheet, 'E', 2, dataEndRow, 
-        ['Có', 'Không']);                    // Vay ngân hàng
-      addDropdownValidation(worksheet, 'F', 2, dataEndRow, 
-        ['Căn hộ', 'Đất nền']);             // Loại tài sản
-      addDropdownValidation(worksheet, 'J', 2, dataEndRow, 
-        ['Có', 'Không']);                    // Tự làm sổ
-      addDropdownValidation(worksheet, 'K', 2, dataEndRow, 
-        ['Phường/Xã', 'TP Đà Nẵng']);      // Nơi nộp
-    }
+    const addDropdownByHeaderName = (headerName: string, allowedValues: string[]) => {
+      const colLetter = getHeaderColLetter(headerName);
+      if (colLetter) {
+        addDropdownValidation(worksheet, colLetter, 2, dataEndRow, allowedValues);
+      }
+    };
 
-    // PTT
-    if (userRole === 'PTT' || userRole === 'MANAGER_PTT') {
-      addDropdownValidation(worksheet, 'F', 2, dataEndRow,
-        ['Có', 'Không']);                    // Vay ngân hàng
-      addDropdownValidation(worksheet, 'G', 2, dataEndRow,
-        ['Căn hộ', 'Đất nền']);             // Loại tài sản
-      addDropdownValidation(worksheet, 'K', 2, dataEndRow,
-        ['Có', 'Không']);                    // Tự làm sổ
-      addDropdownValidation(worksheet, 'N', 2, dataEndRow,
-        [...VALID_ISSUE_TYPES]);
-      addDropdownValidation(worksheet, 'O', 2, dataEndRow,
-        [...VALID_SEVERITIES]);
-    }
-
-    // KT
-    if (userRole === 'KT' || userRole === 'MANAGER_KT') {
-      addDropdownValidation(worksheet, 'D', 2, dataEndRow,
-        ['Phường/Xã', 'TP Đà Nẵng']);      // Nơi nộp
-      addDropdownValidation(worksheet, 'L', 2, dataEndRow,
-        [...VALID_ISSUE_TYPES]);
-      addDropdownValidation(worksheet, 'M', 2, dataEndRow,
-        [...VALID_SEVERITIES]);
-    }
-
-    // PTDA
-    if (userRole === 'PTDA' || userRole === 'MANAGER_PTDA') {
-      addDropdownValidation(worksheet, 'H', 2, dataEndRow,
-        [...VALID_ISSUE_TYPES]);
-      addDropdownValidation(worksheet, 'I', 2, dataEndRow,
-        [...VALID_SEVERITIES]);
-    }
+    addDropdownByHeaderName('Vay ngân hàng', ['Có', 'Không']);
+    addDropdownByHeaderName('Loại tài sản', ['Căn hộ', 'Đất nền']);
+    addDropdownByHeaderName('Tự làm sổ', ['Có', 'Không']);
+    addDropdownByHeaderName('Nơi nộp', ['Phường/Xã', 'TP Đà Nẵng']);
+    addDropdownByHeaderName('Phân loại sai sót', [...VALID_ISSUE_TYPES]);
+    addDropdownByHeaderName('Mức độ sai sót', [...VALID_SEVERITIES]);
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "HoSo");
@@ -4634,7 +4634,7 @@ export default function App() {
     const pttFields = [
       'customerName', 'contractSignerType', 'phoneNumber', 'loanStatus', 'bankCommitmentDeadline', 'propertyType', 
       'contractSigningDate', 'receivedDate', 'isSelfService', 'customerHandoverDate', 'taxNotificationReceivedDate', 'accountingHandoverDate', 'staffName',
-      'gcnReceivedDate', 'taxReceiptDate'
+      'gcnReceivedDate', 'taxReceiptDate', 'handoverApartmentDate'
     ];
 
     // Financial & Tax & Authority Submission: KT responsible for processing according to function (Tax/Accounting)
@@ -4888,11 +4888,15 @@ export default function App() {
     const errors: Record<string, string> = {};
     if (!newApp.unitCode) errors.unitCode = 'Vui lòng nhập mã căn';
     if (!newApp.customerName) errors.customerName = 'Vui lòng nhập tên khách hàng';
+    if (newApp.propertyType === 'Can_Ho' && !newApp.handoverApartmentDate) {
+      errors.handoverApartmentDate = 'Vui lòng chọn ngày bàn giao căn hộ thực tế';
+    }
 
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
       return;
     }
+    setFormErrors({});
 
     const isDuplicate = applications.some(a => 
       String(a.unitCode || '').toLowerCase() === String(newApp.unitCode || '').toLowerCase() && 
@@ -4924,6 +4928,7 @@ export default function App() {
         submissionLocation: newApp.submissionLocation,
         isSelfService: newApp.isSelfService,
         commitmentDate: newApp.commitmentDate,
+        handoverApartmentDate: newApp.propertyType === 'Can_Ho' ? newApp.handoverApartmentDate : undefined,
         currentStep: initialStep,
         status: initialStatus,
         receivedDate: new Date().toISOString().split('T')[0],
@@ -4977,7 +4982,8 @@ export default function App() {
         submissionLocation: undefined,
         currentStep: 'S1_ChuanBi',
         isSelfService: false,
-        commitmentDate: ''
+        commitmentDate: '',
+        handoverApartmentDate: ''
       });
       setFormErrors({});
       showToast(`Hồ sơ ${appToAdd.unitCode} đã được khởi tạo và đồng bộ Supabase!`, 'success');

@@ -128,7 +128,7 @@ export function useExcelImport({
     if (isManagementEdit || ['PTT', 'KT', 'PTDA', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA', 'MANAGER_ALL', 'ADMIN'].includes(userRole)) {
       headers = [
         "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)", 
-        "Hạn GCN cam kết", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT",
+        "Hạn GCN cam kết", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT",
         "Nơi nộp", "Mã VPĐK", "Ngày nộp hồ sơ", "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", 
         "Ngày GCN đã ký", "Ngày GCN đã nhận", "Ngày BG KT", "Ngày BG GCN Khách"
       ];
@@ -143,6 +143,7 @@ export function useExcelImport({
         app.commitmentDate ? (formatDate(app.commitmentDate) === '---' ? '' : formatDate(app.commitmentDate)) : '',
         app.receivedDate ? (formatDate(app.receivedDate) === '---' ? '' : formatDate(app.receivedDate)) : '',
         app.contractSigningDate ? (formatDate(app.contractSigningDate) === '---' ? '' : formatDate(app.contractSigningDate)) : '',
+        app.handoverApartmentDate ? (formatDate(app.handoverApartmentDate) === '---' ? '' : formatDate(app.handoverApartmentDate)) : '',
         app.isSelfService ? 'Có' : 'Không',
         app.accountingHandoverDate ? (formatDate(app.accountingHandoverDate) === '---' ? '' : formatDate(app.accountingHandoverDate)) : '',
         app.submissionLocation || '',
@@ -159,7 +160,7 @@ export function useExcelImport({
     } else {
       headers = [
         "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)",
-        "Hạn GCN cam kết", "Tự làm sổ (Có/Không)", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao sang KT"
+        "Hạn GCN cam kết", "Tự làm sổ (Có/Không)", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Ngày bàn giao sang KT"
       ];
       data = sourceApps.map((app: Application) => [
         app.projectName || '',
@@ -173,6 +174,7 @@ export function useExcelImport({
         app.isSelfService ? 'Có' : 'Không',
         app.receivedDate ? (formatDate(app.receivedDate) === '---' ? '' : formatDate(app.receivedDate)) : '',
         app.contractSigningDate ? (formatDate(app.contractSigningDate) === '---' ? '' : formatDate(app.contractSigningDate)) : '',
+        app.handoverApartmentDate ? (formatDate(app.handoverApartmentDate) === '---' ? '' : formatDate(app.handoverApartmentDate)) : '',
         app.accountingHandoverDate ? (formatDate(app.accountingHandoverDate) === '---' ? '' : formatDate(app.accountingHandoverDate)) : '',
       ]);
     }
@@ -332,6 +334,7 @@ export function useExcelImport({
           bankCommitmentDeadline: findCol(['han cam ket ngan hang', 'han cam ket vay'], ['cam ket ngan hang', 'cam ket vay']),
           receivedDate: findCol(['ngay nhan ho so', 'nhan ho so'], ['nhan ho so']),
           contractSigningDate: findCol(['ngay ky hdcn', 'ky hdcn'], ['ky hdcn']),
+          handoverApartmentDate: findCol(['ngay ban giao can ho thuc te', 'ngay ban giao can ho', 'ban giao can ho', 'bg can ho'], ['ban giao can ho', 'bg can ho']),
           isSelfService: findCol(['tu lam so (co/khong)', 'tu lam so'], ['tu lam so']),
           accountingHandoverDate: findCol(['ngay ban giao sang kt', 'ngay ban giao kt', 'ban giao kt', 'bg kt'], ['ban giao sang kt', 'ban giao kt', 'bg kt']),
           submissionLocation: findCol(['noi nop (phuong/tp)', 'noi nop'], ['noi nop']),
@@ -448,6 +451,11 @@ export function useExcelImport({
              }
 
              const recDate = getRowDate(row, 'receivedDate');
+              const handoverApDate = getRowDate(row, 'handoverApartmentDate');
+              if (handoverApDate !== undefined && handoverApDate !== existingApp.handoverApartmentDate) {
+                 updatedApp.handoverApartmentDate = handoverApDate;
+                 changes.push(`Bàn giao căn hộ: ${existingApp.handoverApartmentDate || 'Trống'} -> ${handoverApDate || 'Trống'}`);
+              }
              if (recDate && recDate !== existingApp.receivedDate) {
                 updatedApp.receivedDate = recDate;
                 changes.push(`Ngày nhận HS: ${existingApp.receivedDate || 'Trống'} -> ${recDate}`);
@@ -667,6 +675,11 @@ export function useExcelImport({
                 }
              }
 
+             const parentProject = projects.find(p => p.name.toLowerCase() === parsedProjectName.toLowerCase());
+             const inheritedWorkflowType = parentProject?.workflowType || 'Quy_trinh_1';
+             const initialStep = inheritedWorkflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
+             const initialStepLabel = inheritedWorkflowType === 'Quy_trinh_2' ? 'B1: Chuẩn bị hồ sơ (PTT)' : 'GĐ1: Chuẩn bị (PTT)';
+
              const newApp: any = {
                projectName: parsedProjectName,
                unitCode: unitCode,
@@ -679,17 +692,18 @@ export function useExcelImport({
                bankCommitmentDeadline: getRowDate(row, 'bankCommitmentDeadline') || undefined,
                receivedDate: getRowDate(row, 'receivedDate') || undefined,
                contractSigningDate: getRowDate(row, 'contractSigningDate') || undefined,
+                handoverApartmentDate: getRowDate(row, 'handoverApartmentDate') || undefined,
                isSelfService: isSelfService,
                accountingHandoverDate: parsedNewAccountingDate,
                createdAt: new Date().toISOString(),
                updatedAt: new Date().toISOString(),
                status: 'Processing',
-               currentStep: 'S1_ChuanBi',
-               workflowType: 'Quy_trinh_2',
+               currentStep: initialStep,
+               workflowType: inheritedWorkflowType,
                 history: [
                   {
                     id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                    stepName: 'B1: Chuẩn bị hồ sơ (PTT)',
+                    stepName: initialStepLabel,
                     dept: 'PTT',
                     receivedDate: new Date().toISOString(),
                     note: 'Khởi tạo hồ sơ mới từ Import Excel'

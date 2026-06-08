@@ -163,6 +163,7 @@ export const CreateApplicationModal = ({
                          theme === 'light' ? "bg-slate-100 border-slate-200" : "bg-slate-950 border-slate-800"
                        )}>
                          <button 
+                           type="button" 
                            onClick={() => setNewApp({...newApp, propertyType: 'Dat_Nen'})}
                            className={cn(
                              "flex-1 py-2 text-[9px] font-black uppercase rounded-xl transition-all",
@@ -172,6 +173,7 @@ export const CreateApplicationModal = ({
                            )}
                          >Đất nền</button>
                          <button 
+                           type="button" 
                            onClick={() => setNewApp({...newApp, propertyType: 'Can_Ho'})}
                            className={cn(
                              "flex-1 py-2 text-[9px] font-black uppercase rounded-xl transition-all",
@@ -190,6 +192,7 @@ export const CreateApplicationModal = ({
                          theme === 'light' ? "bg-slate-100 border-slate-200" : "bg-slate-950 border-slate-800"
                        )}>
                          <button 
+                           type="button" 
                            onClick={() => setNewApp({...newApp, loanStatus: 'Co_Vay'})}
                            className={cn(
                              "flex-1 py-2 text-[9px] font-black uppercase rounded-xl transition-all",
@@ -197,6 +200,7 @@ export const CreateApplicationModal = ({
                            )}
                          >Có vay</button>
                          <button 
+                           type="button" 
                            onClick={() => setNewApp({...newApp, loanStatus: 'Khong_Vay'})}
                            className={cn(
                              "flex-1 py-2 text-[9px] font-black uppercase rounded-xl transition-all",
@@ -205,6 +209,30 @@ export const CreateApplicationModal = ({
                          >Không vay</button>
                        </div>
                     </div>
+
+                    {newApp.propertyType === 'Can_Ho' && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="space-y-1.5 flex-1 col-span-2 pt-2 overflow-hidden"
+                      >
+                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Ngày bàn giao căn hộ thực tế (Bắt buộc đối với Căn hộ)</label>
+                        <div className="relative group">
+                          <Clock size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-indigo-500 transition-colors" />
+                          <input 
+                            type="date" 
+                            className={cn(
+                              "w-full pl-10 pr-4 py-3 border rounded-2xl text-sm focus:ring-2 transition-all outline-none",
+                              theme === 'light' ? "bg-white border-slate-200 text-slate-900" : "bg-slate-900 border-slate-800 text-slate-200",
+                              formErrors.handoverApartmentDate ? "border-rose-500 ring-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.1)]" : "focus:ring-indigo-500/20"
+                            )}
+                            value={newApp.handoverApartmentDate || ''}
+                            onChange={(e) => setNewApp({...newApp, handoverApartmentDate: e.target.value})}
+                          />
+                        </div>
+                        {formErrors.handoverApartmentDate && <p className="text-[10px] text-rose-500 font-bold pl-1 italic">{formErrors.handoverApartmentDate}</p>}
+                      </motion.div>
+                    )}
 
                     {newApp.loanStatus === 'Co_Vay' && (
                       <motion.div 

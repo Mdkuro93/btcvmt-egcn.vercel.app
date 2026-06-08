@@ -130,6 +130,7 @@ export type Application = {
   currentStep: StepName;
   status: UnitStatus;
   receivedDate: string; // Ngày tiếp nhận hồ sơ từ khách
+  handoverApartmentDate?: string; // Ngày bàn giao căn hộ thực tế
   taxNotificationDate?: string; // Ngày ban hành thông báo thuế
   taxNotificationReceivedDate?: string; // Ngày nhận thông báo thuế
   taxReceiptDate?: string; // Ngày nhận GNT
