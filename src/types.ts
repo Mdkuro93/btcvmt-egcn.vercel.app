@@ -174,6 +174,8 @@ export type Application = {
   has_error?: boolean;
   errors?: any[];
   _sla?: any;
+  assignedToId?: string;   // ID nhân viên phụ trách
+  assignedToName?: string; // Tên hiển thị nhân viên phụ trách
 };
 
 export type AppNotification = {

@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { Application, IssueType, IssueSeverity } from '../types';
+import React, { useState, useCallback, useMemo } from 'react';
+import { Application, IssueType, IssueSeverity, UserProfile } from '../types';
 
 export interface UseBulkActionsProps {
   applications: Application[];
@@ -8,6 +8,8 @@ export interface UseBulkActionsProps {
   updateAppIssue: (app: Application, note: string, type: IssueType, severity: IssueSeverity) => Application;
   showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   setIsSavingApp: (saving: boolean) => void;
+  users: UserProfile[];
+  currentUser: UserProfile | null;
 }
 
 export function useBulkActions({
@@ -17,6 +19,8 @@ export function useBulkActions({
   updateAppIssue,
   showToast,
   setIsSavingApp,
+  users,
+  currentUser,
 }: UseBulkActionsProps) {
   const [selectedAppIds, setSelectedAppIds] = useState<(string | number)[]>([]);
   
@@ -29,6 +33,10 @@ export function useBulkActions({
   const [bulkIssueNote, setBulkIssueNote] = useState('');
   const [bulkIssueType, setBulkIssueType] = useState<IssueType>('Sai sót Khác');
   const [bulkIssueSeverity, setBulkIssueSeverity] = useState<IssueSeverity>('Moderate');
+
+  // Bulk assign owner states
+  const [isBulkAssignOpen, setIsBulkAssignOpen] = useState(false);
+  const [bulkAssignUserId, setBulkAssignUserId] = useState('');
 
   const handleBulkUpdateNote = useCallback(async () => {
     if (selectedAppIds.length === 0 || !bulkNoteText.trim()) return;
@@ -86,6 +94,59 @@ export function useBulkActions({
     }
   }, [selectedAppIds, bulkIssueNote, bulkIssueType, bulkIssueSeverity, applications, setApplications, updateAppIssue, bulkSyncRecordsToSupabase, showToast, setIsSavingApp]);
 
+  const handleBulkAssign = useCallback(async () => {
+    if (selectedAppIds.length === 0 || !bulkAssignUserId) return;
+    setIsSavingApp(true);
+    try {
+      const assignedUser = users.find(u => u.id === bulkAssignUserId);
+      if (!assignedUser) return;
+      
+      const updatedApps = applications.map(app => {
+        if (!selectedAppIds.includes(app.id)) return app;
+        return {
+          ...app,
+          assignedToId: assignedUser.id,
+          assignedToName: assignedUser.name,
+        };
+      });
+      
+      const appsToSync = updatedApps.filter(app => selectedAppIds.includes(app.id));
+      const finalApps = await bulkSyncRecordsToSupabase(appsToSync, updatedApps);
+      setApplications(finalApps);
+      showToast(`Đã gán ${selectedAppIds.length} hồ sơ cho ${assignedUser.name}`, 'success');
+      setIsBulkAssignOpen(false);
+      setBulkAssignUserId('');
+      setSelectedAppIds([]);
+    } catch (error) {
+      showToast('Lỗi khi gán nhân viên phụ trách', 'error');
+    } finally {
+      setIsSavingApp(false);
+    }
+  }, [selectedAppIds, bulkAssignUserId, applications, users, bulkSyncRecordsToSupabase, setApplications, showToast, setIsSavingApp]);
+
+  const canBulkAssign = useMemo(() => {
+    const role = currentUser?.dept;
+    return ['ADMIN', 'MANAGER_ALL', 'DIRECTOR', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'].includes(role || '');
+  }, [currentUser?.dept]);
+
+  const assignableUsers = useMemo(() => {
+    const role = currentUser?.dept;
+    const allActive = users.filter(u => u.status === 'Active');
+    
+    // ADMIN / MANAGER_ALL / DIRECTOR → thấy tất cả
+    if (['ADMIN', 'MANAGER_ALL', 'DIRECTOR'].includes(role || '')) {
+      return allActive.filter(u => ['PTT', 'KT', 'PTDA'].includes(u.dept)); // chỉ nhân viên, không bao gồm manager/admin
+    }
+    // MANAGER_PTT → chỉ PTT
+    if (role === 'MANAGER_PTT') return allActive.filter(u => u.dept === 'PTT');
+    // MANAGER_KT → chỉ KT
+    if (role === 'MANAGER_KT') return allActive.filter(u => u.dept === 'KT');
+    // MANAGER_PTDA → chỉ PTDA
+    if (role === 'MANAGER_PTDA') return allActive.filter(u => u.dept === 'PTDA');
+    
+    return []; // Không có quyền
+  }, [currentUser?.dept, users]);
+
   return {
     selectedAppIds,
     setSelectedAppIds,
@@ -103,5 +164,12 @@ export function useBulkActions({
     setBulkIssueSeverity,
     handleBulkUpdateNote,
     handleBulkReportIssue,
+    isBulkAssignOpen,
+    setIsBulkAssignOpen,
+    bulkAssignUserId,
+    setBulkAssignUserId,
+    handleBulkAssign,
+    canBulkAssign,
+    assignableUsers,
   };
 }

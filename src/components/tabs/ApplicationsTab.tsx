@@ -9,7 +9,7 @@ import { calculateSLA } from '../../utils/statusEngine';
 import { 
   Building, Clock, FileText, CheckCircle, AlertTriangle, Play, FastForward, Inbox, ChevronDown, Check, Target, Activity, Zap,
   Search, Printer, Filter, X, FileSpreadsheet, Trash2, MessageSquare, GitMerge, RotateCcw, User, ArrowUp, ArrowDown, RefreshCcw,
-  Files, ChevronRight, AlertCircle
+  Files, ChevronRight, AlertCircle, UserCheck
 } from 'lucide-react';
 
 export const ApplicationsTab = ({
@@ -106,6 +106,14 @@ export const ApplicationsTab = ({
   setIsBulkNoteOpen,
   setIsBulkDocumentOpen,
   setIsBulkIssueOpen,
+  users,
+  isBulkAssignOpen,
+  setIsBulkAssignOpen,
+  bulkAssignUserId,
+  setBulkAssignUserId,
+  handleBulkAssign,
+  canBulkAssign,
+  assignableUsers,
   selectedAppIds,
   setSelectedAppIds,
   isSavingApp,
@@ -660,6 +668,22 @@ export const ApplicationsTab = ({
                             </button>
                           )}
 
+                          {canBulkAssign && (
+                            <button 
+                              onClick={() => setIsBulkAssignOpen(true)}
+                              className={cn(
+                                "flex items-center gap-1.5 px-3 rounded-full text-[10px] font-black uppercase tracking-wider border transition-all h-10",
+                                theme === 'light' 
+                                  ? "bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border-indigo-200" 
+                                  : "bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border-indigo-500/20"
+                              )}
+                              title={`Gán phụ trách cho ${selectedAppIds.length} hồ sơ`}
+                            >
+                              <UserCheck size={14} />
+                              <span className="hidden sm:inline">Gán phụ trách</span>
+                            </button>
+                          )}
+
                           <button 
                             onClick={() => {
                               setSelectedAppIds([]);
@@ -937,10 +961,15 @@ export const ApplicationsTab = ({
                                     ) : (
                                       <span className={cn("text-xs font-medium truncate", theme === 'light' ? "text-slate-600" : "text-slate-300")}>{app.customerName}</span>
                                     )}
-                                    <div className="flex gap-2 mt-0.5 items-center">
+                                    <div className="flex flex-wrap gap-1.5 mt-1 items-center">
                                       <span className="text-[10px] text-slate-400 dark:text-slate-500 italic">{formatDate(app.receivedDate)}</span>
                                       {app.loanStatus === 'Co_Vay' && <span className="text-[9px] bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 px-1.5 py-0.5 rounded font-medium uppercase">Có vay</span>}
                                       {app.isSelfService && <span className="text-[9px] bg-amber-500/10 text-amber-500 dark:text-amber-400 px-1.5 py-0.5 rounded font-medium uppercase">Tự làm</span>}
+                                      {app.assignedToName && (
+                                        <span className="text-[9px] bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                          👤 {app.assignedToName}
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -1312,6 +1341,103 @@ export const ApplicationsTab = ({
                 </div>
               </motion.div>
             )}
+
+      <AnimatePresence>
+        {isBulkAssignOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={cn(
+                "w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border",
+                theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900 border-slate-800"
+              )}
+            >
+              <div className={cn(
+                "px-6 py-4 border-b flex justify-between items-center",
+                theme === 'light' ? "border-slate-100 bg-slate-50" : "border-slate-800 bg-slate-950/20"
+              )}>
+                <h3 className={cn(
+                  "text-sm font-black uppercase tracking-wider",
+                  theme === 'light' ? "text-slate-800" : "text-slate-200"
+                )}>
+                  Gán nhân viên phụ trách ({selectedAppIds.length})
+                </h3>
+                <button
+                  onClick={() => setIsBulkAssignOpen(false)}
+                  className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
+                    theme === 'light' ? "text-slate-400 hover:bg-slate-100" : "text-slate-500 hover:bg-slate-800"
+                  )}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="p-6">
+                <p className="text-[10px] text-slate-500 font-bold uppercase mb-3 tracking-widest pl-1">
+                  Chọn nhân viên phụ trách nhận {selectedAppIds.length} hồ sơ
+                </p>
+                
+                {currentUser && !['ADMIN', 'MANAGER_ALL', 'DIRECTOR'].includes(currentUser.dept) && (
+                  <div className="text-[10px] text-amber-500 font-bold uppercase mb-3 tracking-wider pl-1">
+                    Chỉ hiển thị nhân viên phòng ban {currentUser.dept.replace('MANAGER_', '')}
+                  </div>
+                )}
+                
+                <select
+                  value={bulkAssignUserId}
+                  onChange={(e) => setBulkAssignUserId(e.target.value)}
+                  className={cn(
+                    "w-full px-4 py-3 rounded-2xl border text-sm outline-none transition-all focus:ring-2 focus:ring-indigo-500/20 mb-4",
+                    theme === 'light' 
+                      ? "bg-slate-50 border-slate-200 text-slate-800 focus:border-indigo-500/50" 
+                      : "bg-slate-950 border-slate-800 text-slate-200 focus:border-indigo-500/50"
+                  )}
+                >
+                  <option value="" className={theme === 'light' ? "bg-white text-slate-800" : "bg-slate-950 text-slate-200"}>-- Chọn nhân viên --</option>
+                  {assignableUsers && assignableUsers.length > 0 ? (
+                    assignableUsers.map((u: any, index: number) => (
+                      <option 
+                        key={`assign-usr-${u.id}-${index}`} 
+                        value={u.id}
+                        className={theme === 'light' ? "bg-white text-slate-800" : "bg-slate-900 text-slate-200"}
+                      >
+                        {u.name} ({u.dept})
+                      </option>
+                    ))
+                  ) : (
+                    <option disabled className={theme === 'light' ? "bg-white text-slate-800" : "bg-slate-900 text-slate-200"}>
+                      Không có nhân viên trong phòng ban
+                    </option>
+                  )}
+                </select>
+
+                <div className="mt-6 flex gap-3">
+                  <button
+                    onClick={() => setIsBulkAssignOpen(false)}
+                    className={cn(
+                      "flex-1 py-3 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border",
+                      theme === 'light' 
+                        ? "text-slate-500 hover:bg-slate-100 border-slate-200" 
+                        : "text-slate-400 hover:bg-slate-800 border-slate-800"
+                    )}
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    onClick={handleBulkAssign}
+                    disabled={!bulkAssignUserId}
+                    className="flex-[2] py-3 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20"
+                  >
+                    Xác nhận gán
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
 </>
   );

@@ -970,9 +970,10 @@ export const ApplicationDetailModal = ({
                                         </thead>
                                         <tbody>
                                           {(() => {
-                                             const app = editApp || selectedApp;
+                                             const app = selectedApp || editApp;
                                              if (!app) return null;
-                                             const h = (app.history || []).map(entry => ({
+                                             const rawHistory = (app.history && app.history.length > 0) ? app.history : (editApp?.history || []);
+                                             const h = rawHistory.map(entry => ({
                                                type: 'history',
                                                id: entry.id,
                                                time: entry.receivedDate, 
@@ -980,7 +981,8 @@ export const ApplicationDetailModal = ({
                                                action: `[Tiến độ] ${entry.stepName}`,
                                                content: entry.note || 'Cập nhật bước xử lý',
                                              }));
-                                             const a = (app.auditTrail || []).map(entry => ({
+                                             const rawAudit = (app.auditTrail && app.auditTrail.length > 0) ? app.auditTrail : (editApp?.auditTrail || []);
+                                             const a = rawAudit.map(entry => ({
                                                type: 'audit',
                                                id: entry.id,
                                                time: entry.timestamp,
@@ -1204,7 +1206,7 @@ export const ApplicationDetailModal = ({
                                             disabled={!['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL'].includes(userRole)}
                                             onClick={() => {
                                               if (!['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL'].includes(userRole)) return;
-                                              const app = editApp || selectedApp;
+                                              const app = selectedApp || editApp;
                                               let returnStep = '';
                                               const workflowType = app.workflowType || 'Quy_trinh_1';
                                               const steps = workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;

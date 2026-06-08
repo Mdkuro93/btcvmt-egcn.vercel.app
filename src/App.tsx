@@ -291,15 +291,191 @@ const mapNotificationToSnakeCase = (noti: Partial<AppNotification>) => {
   };
 };
 
-const syncRecordToSupabase = async (app: Application) => {
+async function syncRecordToSupabase(app: Application) {
   const snakeData = mapToSnakeCase(app);
   const { data, error } = await supabase.from('records').upsert(snakeData).select();
   if (error) throw error;
+  let savedApp = app;
   if (data && data.length > 0) {
-    return mapFromSnakeCase(data[0]);
+    savedApp = mapFromSnakeCase(data[0]);
   }
-  return app;
-};
+
+  // Ghi history mới nhất vào bảng riêng
+  if (app.history && app.history.length > 0) {
+    const historyPromises = app.history.map(h => {
+      if (!h.id) return Promise.resolve();
+      return supabase.from('record_history').upsert({
+        id: h.id,
+        record_id: String(savedApp.id),
+        step_name: h.stepName,
+        dept: h.dept,
+        received_date: h.receivedDate,
+        completed_date: h.completedDate || null,
+        note: h.note || '',
+        performed_by: h.performedBy || null,
+        performed_by_name: h.performedByName || null,
+      }, { onConflict: 'id' });
+    });
+    await Promise.all(historyPromises);
+  }
+
+  // Ghi audit entry mới nhất vào bảng riêng
+  if (app.auditTrail && app.auditTrail.length > 0) {
+    const auditPromises = app.auditTrail.map(a => {
+      if (!a.id) return Promise.resolve();
+      return supabase.from('record_audit_trail').upsert({
+        id: a.id,
+        record_id: String(savedApp.id),
+        user_id: a.userId,
+        user_name: a.userName,
+        action: a.action,
+        changes: a.changes || '',
+        timestamp: a.timestamp,
+      }, { onConflict: 'id' });
+    });
+    await Promise.all(auditPromises);
+  }
+
+  // Fetch detailed history and auditTrail to enrich savedApp
+  if (savedApp.id) {
+    try {
+      const detail = await fetchRecordDetail(savedApp.id);
+      // Ensure we don't overwrite with empty if detail fetch failed but in-memory has data
+      savedApp.history = (detail.history && detail.history.length > 0) ? detail.history : (app.history || []);
+      savedApp.auditTrail = (detail.auditTrail && detail.auditTrail.length > 0) ? detail.auditTrail : (app.auditTrail || []);
+    } catch (err) {
+      console.warn('Could not fetch record details in sync, using in-memory values:', err);
+      savedApp.history = app.history || [];
+      savedApp.auditTrail = app.auditTrail || [];
+    }
+  } else {
+    savedApp.history = app.history || [];
+    savedApp.auditTrail = app.auditTrail || [];
+  }
+
+  return savedApp;
+}
+
+async function fetchRecordDetail(recordId: string | number): Promise<{
+  history: ApplicationStepHistory[];
+  auditTrail: AuditTrailEntry[];
+  fullApp?: Partial<Application>;
+}> {
+  const result: {
+    history: ApplicationStepHistory[];
+    auditTrail: AuditTrailEntry[];
+    fullApp?: Partial<Application>;
+  } = { history: [], auditTrail: [] };
+
+  const stringId = String(recordId);
+  const parsedIdForInt = isNaN(Number(recordId)) ? null : Number(recordId);
+  
+  // 1. Fetch record_history
+  try {
+    const { data: historyData, error: historyError } = await supabase
+      .from('record_history')
+      .select('*')
+      .eq('record_id', stringId)
+      .order('created_at', { ascending: true });
+    
+    if (!historyError && historyData && historyData.length > 0) {
+      result.history = historyData.map((h: any) => ({
+        id: h.id,
+        stepName: h.step_name,
+        dept: h.dept,
+        receivedDate: h.received_date,
+        completedDate: h.completed_date,
+        note: h.note,
+        performedBy: h.performed_by,
+        performedByName: h.performed_by_name,
+      }));
+    } else if (parsedIdForInt !== null) {
+      // Second try with Number if string failed to find rows
+      const { data: hData } = await supabase
+        .from('record_history')
+        .select('*')
+        .eq('record_id', parsedIdForInt)
+        .order('created_at', { ascending: true });
+      if (hData && hData.length > 0) {
+        result.history = hData.map((h: any) => ({
+          id: h.id,
+          stepName: h.step_name,
+          dept: h.dept,
+          receivedDate: h.received_date,
+          completedDate: h.completed_date,
+          note: h.note,
+          performedBy: h.performed_by,
+          performedByName: h.performed_by_name,
+        }));
+      }
+    }
+  } catch (err) {
+    console.error('Full failure fetching history:', err);
+  }
+
+  // 2. Fetch record_audit_trail
+  try {
+    const { data: auditData, error: auditError } = await supabase
+      .from('record_audit_trail')
+      .select('*')
+      .eq('record_id', stringId)
+      .order('timestamp', { ascending: false });
+    
+    if (!auditError && auditData && auditData.length > 0) {
+      result.auditTrail = auditData.map((a: any) => ({
+        id: a.id,
+        userId: a.user_id,
+        userName: a.user_name,
+        action: a.action,
+        changes: a.changes,
+        timestamp: a.timestamp,
+      }));
+    } else if (parsedIdForInt !== null) {
+      const { data: aData } = await supabase
+        .from('record_audit_trail')
+        .select('*')
+        .eq('record_id', parsedIdForInt)
+        .order('timestamp', { ascending: false });
+      if (aData && aData.length > 0) {
+        result.auditTrail = aData.map((a: any) => ({
+          id: a.id,
+          userId: a.user_id,
+          userName: a.user_name,
+          action: a.action,
+          changes: a.changes,
+          timestamp: a.timestamp,
+        }));
+      }
+    }
+  } catch (err) {
+    console.error('Full failure fetching auditTrail:', err);
+  }
+
+  // 3. Fetch fullApp from records
+  try {
+    let res = await supabase
+      .from('records')
+      .select('*')
+      .eq('id', stringId)
+      .maybeSingle();
+    
+    if (!res.data && parsedIdForInt !== null) {
+      res = await supabase
+        .from('records')
+        .select('*')
+        .eq('id', parsedIdForInt)
+        .maybeSingle();
+    }
+    
+    if (res.data) {
+      result.fullApp = mapFromSnakeCase(res.data);
+    }
+  } catch (err) {
+    console.error('Failed to fetch fullApp:', err);
+  }
+
+  return result;
+}
 
 const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplications: Application[], showToast?: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void) => {
   if (appsToSync.length === 0) return allApplications;
@@ -328,7 +504,7 @@ const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplicati
       'phone_number','received_date','bank_commitment_deadline',
       'submission_location','issue_type','issue_severity',
       'issue_notes','is_rejected','created_at',
-      'history', 'audit_trail', 'scanned_files'
+      'scanned_files'
     ].join(',');
 
     let insertedData: any[] = [];
@@ -357,10 +533,23 @@ const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplicati
     if (allReturnedData.length > 0) {
       allReturnedData.forEach(item => {
         const returnedApp = mapFromSnakeCase(item);
+        
         // Find existing app by unitCode if it was a new record
+        const originalInput = appsToSync.find(a => 
+          (a.id?.toString() === returnedApp.id?.toString()) || 
+          (a.unitCode === returnedApp.unitCode && a.projectName === returnedApp.projectName)
+        );
+
+        // Preserve history and auditTrail from in-memory state if DB returned empty
+        // Since we don't select them in LIGHT_SELECT and they are separate tables anyway
+        if (originalInput) {
+           returnedApp.history = (returnedApp.history && returnedApp.history.length > 0) ? returnedApp.history : (originalInput.history || []);
+           returnedApp.auditTrail = (returnedApp.auditTrail && returnedApp.auditTrail.length > 0) ? returnedApp.auditTrail : (originalInput.auditTrail || []);
+        }
+
         const idx = updatedAppsLocal.findIndex(a => 
           (a.id === returnedApp.id) || 
-          (a.unitCode === returnedApp.unitCode && a.projectName === returnedApp.projectName && a.id.toString().includes('-imp-'))
+          (a.unitCode === returnedApp.unitCode && a.projectName === returnedApp.projectName && a.id?.toString().includes('-imp-'))
         );
         
         if (idx !== -1) {
@@ -2138,27 +2327,33 @@ export default function App() {
       setSelectedApp(null);
       return;
     }
-    setSelectedApp(app);
-    try {
-      const { data, error } = await supabase
-        .from('records')
-        .select('scanned_files, history, audit_trail')
-        .eq('id', app.id)
-        .single();
-      if (error) throw error;
-      if (data) {
-        setSelectedApp(prev => prev && prev.id === app.id ? {
-          ...prev,
-          scannedFiles: safeParse(data.scanned_files, []),
-          history: safeParse(data.history, []),
-          audit_trail: safeParse(data.audit_trail, []),
-          auditTrail: safeParse(data.audit_trail, [])
-        } : prev);
+    // Mở modal ngay với data hiện có (không chờ)
+    setSelectedApp({ ...app, history: app.history || [], auditTrail: app.auditTrail || [] });
+    // Fetch history + audit + full record bất đồng bộ
+    const detail = await fetchRecordDetail(app.id!);
+    setSelectedApp(prev => {
+      if (prev?.id !== app.id) return prev;
+      
+      const merged = { ...prev };
+      
+      // Merge fullApp trước (nếu có)
+      if (detail.fullApp) {
+        Object.entries(detail.fullApp).forEach(([key, val]) => {
+          if (val !== undefined && val !== null && val !== '') {
+            (merged as any)[key] = val;
+          } else if ((merged as any)[key] === undefined || (merged as any)[key] === null) {
+            (merged as any)[key] = val;
+          }
+        });
       }
-    } catch (err) {
-      console.error('Error fetching detail background:', err);
-    }
-  }, [supabase]);
+      
+      // Merge history và auditTrail
+      merged.history = detail.history && detail.history.length > 0 ? detail.history : merged.history;
+      merged.auditTrail = detail.auditTrail && detail.auditTrail.length > 0 ? detail.auditTrail : merged.auditTrail;
+      
+      return merged;
+    });
+  }, []);
   
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
 
@@ -2207,6 +2402,13 @@ export default function App() {
     setBulkIssueSeverity,
     handleBulkUpdateNote,
     handleBulkReportIssue,
+    isBulkAssignOpen,
+    setIsBulkAssignOpen,
+    bulkAssignUserId,
+    setBulkAssignUserId,
+    handleBulkAssign,
+    canBulkAssign,
+    assignableUsers,
   } = useBulkActions({
     applications,
     setApplications,
@@ -2214,6 +2416,8 @@ export default function App() {
     updateAppIssue,
     showToast,
     setIsSavingApp,
+    users,
+    currentUser,
   });
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const tableRowRefs = useRef<(HTMLTableRowElement | null)[]>([]);
@@ -2286,7 +2490,7 @@ export default function App() {
                 ? Math.min(currentIdx + 1, currentList.length - 1)
                 : Math.max(currentIdx - 1, 0);
               if (nextIdx !== currentIdx) {
-                setSelectedApp(currentList[nextIdx]);
+                handleSelectApp(currentList[nextIdx]);
               }
             }
           }
@@ -2367,7 +2571,7 @@ export default function App() {
           }
         } else if (e.key === 'Enter' && selectedIndex !== null) {
           e.preventDefault();
-          setSelectedApp(visibleApps[selectedIndex]);
+          handleSelectApp(visibleApps[selectedIndex]);
         } else if (e.key === ' ' && selectedIndex !== null) {
           e.preventDefault();
           const appId = visibleApps[selectedIndex].id;
@@ -5923,6 +6127,14 @@ export default function App() {
                 setIsBulkNoteOpen={setIsBulkNoteOpen}
                 setIsBulkDocumentOpen={setIsBulkDocumentModalOpen}
                 setIsBulkIssueOpen={setIsBulkIssueOpen}
+                users={users}
+                isBulkAssignOpen={isBulkAssignOpen}
+                setIsBulkAssignOpen={setIsBulkAssignOpen}
+                bulkAssignUserId={bulkAssignUserId}
+                setBulkAssignUserId={setBulkAssignUserId}
+                handleBulkAssign={handleBulkAssign}
+                canBulkAssign={canBulkAssign}
+                assignableUsers={assignableUsers}
                 selectedAppIds={selectedAppIds}
                 setSelectedAppIds={setSelectedAppIds}
                 isSavingApp={isSavingApp}
