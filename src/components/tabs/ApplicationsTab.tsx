@@ -1199,20 +1199,27 @@ export const ApplicationsTab = ({
                                     <td className="px-2 py-0 text-center">
                                       {(() => {
                                         const isEarly = ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => (app.currentStep as string).startsWith(prefix));
-                                        const hasGCN = app.gcnReceivedDate && app.gcnReceivedDate !== '---' && app.gcnReceivedDate !== 'None' && String(app.gcnReceivedDate).trim() !== '';
+                                        const hasGCNReceived = app.gcnReceivedDate && app.gcnReceivedDate !== '---' && app.gcnReceivedDate !== 'None' && String(app.gcnReceivedDate).trim() !== '';
+                                        const hasGCNSigned = app.gcnSignedDate && app.gcnSignedDate !== '---' && app.gcnSignedDate !== 'None' && String(app.gcnSignedDate).trim() !== '';
+                                        
+                                        const finalGCNDate = hasGCNReceived ? app.gcnReceivedDate : (hasGCNSigned ? app.gcnSignedDate : null);
+                                        const hasGCN = !!finalGCNDate;
                                         const showWarning = hasGCN && isEarly;
                                         
                                         return (
                                           <div className={cn(
-                                            "flex items-center justify-center gap-1 w-full relative group/warning",
+                                            "flex flex-col items-center justify-center gap-0.5 w-full relative group/warning",
                                             showWarning ? "bg-orange-100 dark:bg-orange-900/30 px-1 py-0.5 rounded" : ""
                                           )}>
                                             <span className={cn(
                                               "text-[10px] leading-tight font-mono", 
                                               showWarning ? "text-orange-600 dark:text-orange-400 font-bold" : (theme === 'light' ? "text-slate-500" : "text-slate-400")
                                             )}>
-                                              {formatDate(app.gcnReceivedDate)}
+                                              {finalGCNDate ? formatDate(finalGCNDate) : '---'}
                                             </span>
+                                            {hasGCN && !showWarning && (
+                                              <span className="text-[8px] px-1 py-[1px] bg-emerald-500/10 text-emerald-500 rounded font-bold uppercase border border-emerald-500/20">Hoàn thành</span>
+                                            )}
                                             {showWarning && (
                                               <div className="relative flex items-center justify-center">
                                                 <AlertTriangle size={10} className="text-orange-500 dark:text-orange-400" />
