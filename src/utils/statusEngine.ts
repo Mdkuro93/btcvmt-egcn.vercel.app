@@ -53,6 +53,85 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
       return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
     }
 
+    const isDateValid = (d: any) => d && d !== '---' && d !== 'None' && String(d).trim() !== '';
+
+    // Step-specific custom SLA logic (GD1_ChuanBi / S1_ChuanBi / GD1_Cho_KT_TiepNhan)
+    const isGD1ChuanBi = currentStep === 'GD1_ChuanBi' || currentStep === 'GĐ1_ChuanBi' || currentStep === 'S1_ChuanBi';
+    const isGDKTTiepNhan = currentStep === 'GD1_Cho_KT_TiepNhan';
+
+    if (isGD1ChuanBi || isGDKTTiepNhan) {
+      // Priority 1: History (if has receivedDate or similar)
+      if (matchedHistory) {
+        const idMatch = String(matchedHistory.id).match(/^hist-(\d+)-/);
+        if (idMatch) {
+          stepStartTime = parseInt(idMatch[1], 10);
+        } else if (isDateValid(matchedHistory.receivedDate)) {
+          stepStartTime = new Date(matchedHistory.receivedDate).getTime();
+        }
+      }
+
+      let activeSla = sla;
+
+      if (isGD1ChuanBi) {
+        const propType = app.propertyType || app.property_type;
+        const isCanHo = propType === 'Can_Ho';
+
+        if (isCanHo) {
+          activeSla = 45;
+          if (!stepStartTime) {
+            const handoverDate = app.handoverApartmentDate || app.handover_apartment_date;
+            if (isDateValid(handoverDate)) {
+              stepStartTime = new Date(handoverDate).getTime();
+            } else {
+              // No handover date -> Do not compute SLA, return normal
+              return { isOverdue: false, daysLate: 0, daysLeft: 45, urgency: 'normal' as const };
+            }
+          }
+        } else {
+          // Dat_Nen or other fallback
+          activeSla = 25;
+          if (!stepStartTime) {
+            const rDate = app.receivedDate || app.received_date;
+            if (isDateValid(rDate)) {
+              stepStartTime = new Date(rDate).getTime();
+            } else {
+              // No received date -> Do not compute SLA, return normal
+              return { isOverdue: false, daysLate: 0, daysLeft: 25, urgency: 'normal' as const };
+            }
+          }
+        }
+      } else if (isGDKTTiepNhan) {
+        activeSla = 3;
+        if (!stepStartTime) {
+          const accHandoverDate = app.accountingHandoverDate || app.accounting_handover_date;
+          if (isDateValid(accHandoverDate)) {
+            stepStartTime = new Date(accHandoverDate).getTime();
+          } else {
+            // No accounting handover date -> Do not compute SLA, return normal
+            return { isOverdue: false, daysLate: 0, daysLeft: 3, urgency: 'normal' as const };
+          }
+        }
+      }
+
+      if (stepStartTime) {
+        const now = new Date().getTime();
+        const elapsedDays = Math.max(0, now - stepStartTime) / (1000 * 60 * 60 * 24);
+        const daysLeft = Math.max(0, parseFloat((activeSla - elapsedDays).toFixed(1)));
+        
+        const urgency: 'overdue' | 'urgent' | 'warning' | 'normal' =
+          elapsedDays > activeSla ? 'overdue' :
+          daysLeft <= 1 ? 'urgent' :
+          daysLeft <= 3 ? 'warning' : 'normal';
+
+        if (elapsedDays > activeSla) {
+          const daysLate = parseFloat((elapsedDays - activeSla).toFixed(1));
+          return { isOverdue: true, daysLate, label: `Trễ ${config.label}`, daysLeft: 0, urgency: 'overdue' as const };
+        }
+
+        return { isOverdue: false, daysLate: 0, daysLeft, urgency };
+      }
+    }
+
     if (matchedHistory) {
       // Attempt to extract the absolute precise timestamp from record log ID to support minute-precise calculations
       const idMatch = String(matchedHistory.id).match(/^hist-(\d+)-/);

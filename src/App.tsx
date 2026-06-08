@@ -1978,8 +1978,8 @@ export default function App() {
         id, status, current_step, project_name,
         workflow_type, submission_date,
         tax_notification_date, tax_receipt_date,
-        gcn_signed_date, customer_handover_date,
-        accounting_handover_date, is_self_service,
+        gcn_signed_date, gcn_received_date, customer_handover_date,
+        accounting_handover_date, ptda_handover_date, is_self_service,
         loan_status, issue_type, is_rejected,
         property_type, customer_name, unit_code,
         received_date, contract_signer_type, phone_number,
@@ -2826,8 +2826,8 @@ export default function App() {
       { key: 'taxNotificationDate', label: 'Ngày TB Thuế' },
       { key: 'taxReceiptDate', label: 'Ngày nộp thuế/NVTC' },
       { key: 'gcnSignedDate', label: 'Ngày ký GCN' },
-      { key: 'gcnReceivedDate', label: 'Ngày nhận GCN' },
       { key: 'ptdaHandoverDate', label: 'Ngày PTDA bàn giao' },
+      { key: 'gcnReceivedDate', label: 'Ngày nhận GCN' },
       { key: 'customerHandoverDate', label: 'Ngày BG Khách' }
     ];
 
@@ -2838,8 +2838,8 @@ export default function App() {
       { key: 'taxNotificationDate', label: 'Ngày TB Thuế' },
       { key: 'taxReceiptDate', label: 'Ngày nộp thuế/NVTC' },
       { key: 'gcnSignedDate', label: 'Ngày ký GCN' },
-      { key: 'gcnReceivedDate', label: 'Ngày nhận GCN' },
       { key: 'ptdaHandoverDate', label: 'Ngày PTDA bàn giao' },
+      { key: 'gcnReceivedDate', label: 'Ngày nhận GCN' },
       { key: 'customerHandoverDate', label: 'Ngày BG Khách' }
     ];
 
@@ -3774,7 +3774,8 @@ export default function App() {
     const originalApp = app;
     try {
       const finalApp = await localSyncRecord(updatedApp);
-      await notifyNextDepartment(finalApp, targetStep);
+      // Notification tự động qua Supabase DB Trigger + Edge Function notify-step-change
+      // Không cần gọi từ client nữa để tránh duplicate
 
       // Cleanup notifications if complete
       if (targetStep === 'Hoan_Tat') {

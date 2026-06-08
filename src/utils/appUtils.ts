@@ -203,8 +203,8 @@ export function validateDateSequence(app: Partial<Application>): string | null {
     { key: 'taxNotificationDate', label: 'Ngày TB Thuế' },
     { key: 'taxReceiptDate', label: 'Ngày nộp thuế/NVTC' },
     { key: 'gcnSignedDate', label: 'Ngày ký GCN' },
-    { key: 'gcnReceivedDate', label: 'Ngày nhận GCN' },
     { key: 'ptdaHandoverDate', label: 'Ngày PTDA bàn giao' },
+    { key: 'gcnReceivedDate', label: 'Ngày nhận GCN' },
     { key: 'customerHandoverDate', label: 'Ngày BG Khách' }
   ];
 
