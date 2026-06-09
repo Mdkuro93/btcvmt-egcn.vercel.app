@@ -200,12 +200,14 @@ export const mapToSnakeCase = (app: Application): Record<string, any> => {
     commitment_date: app.commitmentDate,
     has_error: app.hasError,
     tax_payment_status: app.taxPaymentStatus,
-    history: app.history || [],
-    checklist: app.checklist || {},
-    scanned_files: app.scannedFiles || [],
-    audit_trail: app.auditTrail || [],
     updated_at: new Date().toISOString()
   };
+
+  // Only include heavy/JSON fields if they are explicitly present and non-empty to avoid overwriting rich data with empty snapshots during lazy loading updates
+  if (app.history && app.history.length > 0) data.history = app.history;
+  if (app.checklist && Object.keys(app.checklist).length > 0) data.checklist = app.checklist;
+  if (app.scannedFiles && app.scannedFiles.length > 0) data.scanned_files = app.scannedFiles;
+  if (app.auditTrail && app.auditTrail.length > 0) data.audit_trail = app.auditTrail;
 
   Object.keys(data).forEach(key => {
     const isDateField = key.endsWith('_date') || 

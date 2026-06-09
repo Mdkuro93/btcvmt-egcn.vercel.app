@@ -138,6 +138,8 @@ import { cn } from './lib/utils';
 import { formatDate } from './utils/dateUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { createClient, RealtimeChannel } from '@supabase/supabase-js';
+
+const RECORD_LIGHT_SELECT = 'id, unit_code, project_name, customer_name, contract_signer_type, phone_number, property_type, loan_status, is_self_service, current_step, status, received_date, contract_signing_date, submission_date, tax_notification_date, tax_receipt_date, gcn_signed_date, gcn_received_date, customer_handover_date, accounting_handover_date, ptda_handover_date, bank_commitment_deadline, submission_location, vpdk_code, issue_type, issue_severity, issue_notes, is_rejected, workflow_type, created_at, assigned_to, tax_payment_status, scanned_files';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
@@ -293,7 +295,7 @@ const mapNotificationToSnakeCase = (noti: Partial<AppNotification>) => {
 
 async function syncRecordToSupabase(app: Application) {
   const snakeData = mapToSnakeCase(app);
-  const { data, error } = await supabase.from('records').upsert(snakeData).select();
+  const { data, error } = await supabase.from('records').upsert(snakeData).select(RECORD_LIGHT_SELECT);
   if (error) throw error;
   let savedApp = app;
   if (data && data.length > 0) {
@@ -492,27 +494,12 @@ const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplicati
       .filter(a => a.id && !a.id.toString().includes('-imp-'))
       .map(app => mapToSnakeCase(app));
 
-    const LIGHT_SELECT = [
-      'id','unit_code','project_name','customer_name',
-      'current_step','status','workflow_type',
-      'contract_signing_date','submission_date',
-      'tax_notification_date','tax_receipt_date',
-      'gcn_signed_date','gcn_received_date',
-      'customer_handover_date','accounting_handover_date',
-      'ptda_handover_date','vpdk_code','loan_status',
-      'is_self_service','property_type','contract_signer_type',
-      'phone_number','received_date','bank_commitment_deadline',
-      'submission_location','issue_type','issue_severity',
-      'issue_notes','is_rejected','created_at',
-      'scanned_files'
-    ].join(',');
-
     let insertedData: any[] = [];
     if (recordsToInsert.length > 0) {
       const { data: insertResult, error: insertError } = await supabase
         .from('records')
         .insert(recordsToInsert)
-        .select(LIGHT_SELECT);
+        .select(RECORD_LIGHT_SELECT);
       if (insertError) throw insertError;
       insertedData = insertResult || [];
     }
@@ -522,7 +509,7 @@ const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplicati
       const { data: upsertResult, error: updateError } = await supabase
         .from('records')
         .upsert(recordsToUpdate, { onConflict: 'id' })
-        .select(LIGHT_SELECT);
+        .select(RECORD_LIGHT_SELECT);
       if (updateError) throw updateError;
       updatedData = upsertResult || recordsToUpdate; // fallback về local nếu select không trả data
     }
@@ -1607,22 +1594,7 @@ export default function App() {
   const fetchApplications = async () => {
     setIsLoadingApps(true);
     try {
-      let query = supabase.from('records').select(`
-        id, unit_code, project_name, customer_name,
-        contract_signer_type, phone_number,
-        property_type, loan_status, is_self_service,
-        current_step, status, received_date,
-        contract_signing_date, submission_date,
-        tax_notification_date, tax_receipt_date,
-        gcn_signed_date, gcn_received_date,
-        customer_handover_date, accounting_handover_date,
-        ptda_handover_date, bank_commitment_deadline,
-        submission_location, vpdk_code,
-        issue_type, issue_severity, issue_notes,
-        is_rejected, workflow_type, created_at,
-        assigned_to, tax_payment_status,
-        history, audit_trail, scanned_files
-      `, { count: 'exact' });
+      let query = supabase.from('records').select(RECORD_LIGHT_SELECT, { count: 'exact' });
       
       if (search) {
         query = query.or(`unit_code.ilike.%${search}%,customer_name.ilike.%${search}%,project_name.ilike.%${search}%,phone_number.ilike.%${search}%`);
@@ -5110,7 +5082,7 @@ export default function App() {
       const dataToInsert = mapToSnakeCase(appToAddTemp);
       delete dataToInsert.id;
 
-      const { data, error } = await supabase.from('records').insert(dataToInsert).select();
+      const { data, error } = await supabase.from('records').insert(dataToInsert).select(RECORD_LIGHT_SELECT);
 
       if (error) throw error;
       
