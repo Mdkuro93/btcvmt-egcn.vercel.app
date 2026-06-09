@@ -3,7 +3,7 @@ export const buildErrorSummary = (apps: any[]) => {
   const result: Record<string, number> = {};
 
   apps.forEach(a => {
-    const type = a.issue_type || 'Khác';
+    const type = a.issueType || 'Khác';
     result[type] = (result[type] || 0) + 1;
   });
 
@@ -14,7 +14,7 @@ export const buildSeverityStats = (apps: any[]) => {
   const res: Record<string, number> = { Low: 0, Medium: 0, High: 0 };
 
   apps.forEach(a => {
-    const s = a.issue_severity || 'Low';
+    const s = a.issueSeverity || 'Low';
     if (res[s] !== undefined) {
       res[s]++;
     } else {
@@ -29,8 +29,8 @@ export const buildMatrix = (apps: any[]) => {
   const res: Record<string, Record<string, number>> = {};
 
   apps.forEach(a => {
-    const type = a.issue_type || 'Khác';
-    const severity = a.issue_severity || 'Low';
+    const type = a.issueType || 'Khác';
+    const severity = a.issueSeverity || 'Low';
 
     if (!res[type]) res[type] = {};
     res[type][severity] = (res[type][severity] || 0) + 1;
@@ -43,7 +43,7 @@ export const buildStepStats = (apps: any[]) => {
   const res: Record<string, number> = {};
 
   apps.forEach(a => {
-    const step = (a.current_step || '').toUpperCase();
+    const step = (a.currentStep || '').toUpperCase();
 
     let stepType = 'OTHER';
     if (step.includes('KT')) stepType = 'KT';
@@ -59,14 +59,14 @@ export const buildStepStats = (apps: any[]) => {
 
 export const getActiveErrors = (apps: any[]) => {
   return apps.filter(a => {
-    const status = a.issue_status || a.issueStatus;
+    const status = a.issueStatus;
     return status === 'OPEN';
   });
 };
 
 export const getAllErrors = (apps: any[]) => {
   return apps.filter(a => {
-    const type = a.issue_type || a.issueType;
+    const type = a.issueType;
     return type && type !== 'None';
   });
 };

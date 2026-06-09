@@ -566,7 +566,7 @@ export default function ReportsView({
         <div className="flex flex-wrap gap-2">
           {(Object.keys(reportConfig) as Array<keyof typeof reportConfig>).map((type, idx) => (
             <button
-              key={`nav-err-sw-${type}-${idx}`}
+              key={`report-nav-err-${type}-${idx}`}
               onClick={() => { setReportType(type); setSelectedItem(null); }}
               className={cn(
                 "px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all tracking-[0.15em] border flex items-center gap-2 group",
@@ -630,7 +630,7 @@ export default function ReportsView({
         <div className="flex flex-wrap gap-2">
           {(Object.keys(reportConfig) as Array<keyof typeof reportConfig>).map((type, idx) => (
             <button
-              key={`nav-main-sw-${type}-${idx}`}
+              key={`report-nav-main-${type}-${idx}`}
               onClick={() => { setReportType(type); setSelectedItem(null); }}
             className={cn(
               "px-6 py-3 rounded-2xl text-[10px] font-black uppercase transition-all tracking-[0.15em] border flex items-center gap-2 group",
@@ -686,7 +686,7 @@ export default function ReportsView({
         >
           <option value="ALL">📊 Tất cả dự án</option>
           {projects.map((p, pIdx) => (
-            <option key={`export-proj-opt-${p.id}-${pIdx}`} value={p.id}>
+            <option key={`report-export-proj-opt-${p.id}-${pIdx}`} value={p.id}>
               {p.name}
             </option>
           ))}
@@ -748,16 +748,16 @@ export default function ReportsView({
               <div className="text-right">
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Roles:</span>
                 <div className="flex gap-1 justify-end">
-                  {reportConfig[reportType].roles.map((r, idx) => (
-                    <span key={`${r}-${idx}`} className="px-2 py-0.5 bg-indigo-500/10 text-indigo-500 text-[8px] font-black rounded-lg border border-indigo-500/20">{r}</span>
+                  {reportConfig[reportType].roles.map((roleText, idx) => (
+                    <span key={`report-role-badge-${roleText || 'r'}-${idx}`} className="px-2 py-0.5 bg-indigo-500/10 text-indigo-500 text-[8px] font-black rounded-lg border border-indigo-500/20">{roleText}</span>
                   ))}
                 </div>
               </div>
             </div>
             <div className="grid grid-cols-3 gap-8 mt-6">
-               {reportConfig[reportType].kpis.map((kpi, i) => (
-                 <div key={`kpi-${kpi}-${i}`} className="space-y-1">
-                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">{kpi}</p>
+               {reportConfig[reportType].kpis.map((kpiText, i) => (
+                 <div key={`report-kpi-bar-${kpiText || 'k'}-${i}`} className="space-y-1">
+                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em]">{kpiText}</p>
                     <div className="h-1 w-full bg-slate-800 rounded-full mt-2 overflow-hidden">
                       <div className="h-full bg-indigo-500" style={{ width: `${80 - i * 15}%` }} />
                     </div>
@@ -819,7 +819,7 @@ export default function ReportsView({
                       const isSelected = selectedLoanProjectIds.includes(p.id);
                       return (
                         <button
-                          key={`loan-proj-filter-${p.id}-${pIdx}`}
+                          key={`report-loan-proj-btn-${p.id}-${pIdx}`}
                           onClick={() => {
                             if (isSelected) {
                               setSelectedLoanProjectIds(selectedLoanProjectIds.filter(id => id !== p.id));
@@ -896,7 +896,7 @@ export default function ReportsView({
                                  stroke="none"
                                >
                                  {loanPieData.map((entry: any, index: number) => (
-                                   <Cell key={`loan-pie-cell-${index}-${entry.name}`} fill={entry.color} />
+                                   <Cell key={`report-loan-pie-cell-${index}-${entry.name || 'e'}`} fill={entry.color} />
                                  ))}
                                  <Label 
                                    value={loanApps.length} 
@@ -952,7 +952,7 @@ export default function ReportsView({
                                 />
                                <Bar dataKey="value" fill="#4f46e5" barSize={20} radius={[0, 4, 4, 0]}>
                                  {loanPieData.map((entry: any, index: number) => (
-                                   <Cell key={`loan-bar-cell-${index}-${entry.name}`} fill={entry.color} />
+                                   <Cell key={`report-loan-bar-cell-${index}-${entry.name || 'e'}`} fill={entry.color} />
                                  ))}
                                  <LabelList 
                                    dataKey="value" 
@@ -1000,7 +1000,7 @@ export default function ReportsView({
 
                         return (
                           <tr 
-                            key={`${app.id}-${index}`} 
+                            key={`report-loan-row-${app.id || 'new'}-${index}`} 
                             className={cn(
                               "transition-all cursor-pointer group",
                               theme === 'light' ? "hover:bg-slate-50" : "hover:bg-slate-800/30"
@@ -1119,7 +1119,7 @@ export default function ReportsView({
                       <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Thống kê chi tiết Nhân viên</p>
                       <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
                          {stats.length > 0 ? stats.slice().sort((a:any, b:any) => b.total - a.total).map((user: any, i: number) => (
-                           <div key={`usr-perf-stat-${user.id || 'u'}-${i}`} className={cn(
+                           <div key={`report-perf-usr-card-${user.id || 'u'}-${i}`} className={cn(
                              "p-4 rounded-3xl border flex items-center justify-between transition-all group",
                              theme === 'light' ? "bg-white border-slate-200" : "bg-slate-950/40 border-slate-800 hover:border-indigo-500/30"
                            )}>
@@ -1150,7 +1150,7 @@ export default function ReportsView({
 
                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     {stats.slice(0, 4).map((user: any, index: number) => (
-                      <div key={`top-user-card-${user.id || 'n'}-${index}`} className={cn(
+                      <div key={`report-top-user-kpi-${user.id || 'n'}-${index}`} className={cn(
                         "p-5 rounded-[2rem] border relative overflow-hidden group",
                         theme === 'light' ? "bg-slate-50" : "bg-slate-950/20 border-slate-800"
                       )}>
@@ -1191,7 +1191,7 @@ export default function ReportsView({
                           />
                           <Bar dataKey="avgDays" name="Số ngày tb" radius={[0, 6, 6, 0]} barSize={20}>
                             {slaStats.map((entry, index) => (
-                              <Cell key={`sla-chart-cell-${index}`} fill={entry.isCritical ? '#f43f5e' : entry.avgDays > 5 ? '#f59e0b' : '#6366f1'} />
+                              <Cell key={`report-sla-chart-bar-${entry.stepKey || entry.step}-${index}`} fill={entry.isCritical ? '#f43f5e' : entry.avgDays > 5 ? '#f59e0b' : '#6366f1'} />
                             ))}
                           </Bar>
                         </BarChart>

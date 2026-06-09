@@ -1,0 +1,188 @@
+src/components/tabs/ResourcesTab.tsx:54:                      {DOC_CHECKLIST_ITEMS.map((item, idx) => (
+src/components/tabs/ResourcesTab.tsx:121:                        ].map((doc, idx) => (
+src/components/tabs/DashboardTab.tsx:351:                              {progressChartData.map((entry: any, index: number) => (
+src/components/tabs/DashboardTab.tsx:463:                                {overallPieData.map((entry: any, index: number) => (
+src/components/tabs/DashboardTab.tsx:520:                                             {roleKpis.loanRatioStats.map((entry: any, index: number) => (
+src/components/tabs/DashboardTab.tsx:559:                                             {loanPieData.map((entry: any, index: number) => (
+src/components/tabs/DashboardTab.tsx:628:                        {roleKpis.admin.deptStats.map((dept: any, idx: number) => (
+src/components/tabs/DashboardTab.tsx:683:                          {REGION_ORDER.map((r: string, index: number) => (
+src/components/tabs/DashboardTab.tsx:704:                          .map((p: any, index: number) => {
+src/components/tabs/ApplicationsTab.tsx:216:                          ] as const).map(({ field, label }, idx) => (
+src/components/tabs/ApplicationsTab.tsx:305:                                  ].map((item, idx) => {
+src/components/tabs/ApplicationsTab.tsx:461:                              {activeFilters.map((act, idx) => (
+src/components/tabs/ApplicationsTab.tsx:749:                                  const allIds = filteredApps.map(a => a.id);
+src/components/tabs/ApplicationsTab.tsx:763:                            EDITABLE_DATE_FIELDS.map((f, index) => (
+src/components/tabs/ApplicationsTab.tsx:809:                        ) : displayedApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map((app, index) => {
+src/components/tabs/ApplicationsTab.tsx:1005:                                EDITABLE_DATE_FIELDS.map((f, fIdx) => {
+src/components/tabs/ApplicationsTab.tsx:1417:                    assignableUsers.map((u: any, index: number) => (
+src/components/Sidebar.tsx:370:            .map(([region, regionProjects], regIndex) => (
+src/components/Sidebar.tsx:416:                      {regionProjects.map((p, pIndex) => (
+src/components/modals/BulkIssueModal.tsx:119:              ] as const).map(({ value, label }) => (
+src/components/modals/UserManagementModal.tsx:63:                      ].map(p => (
+src/components/modals/UserManagementModal.tsx:160:                    {projects.map((project, index) => {
+src/components/modals/ApplicationDetailModal.tsx:426:                      {['01', '02', '03', '04', '05', '06', '07'].map((label, idx) => {
+src/components/modals/ApplicationDetailModal.tsx:628:                                     {['HĐMB/HĐCN Gốc', 'Văn bản chuyển nhượng', 'Lệ phí trước bạ', 'Sổ hộ khẩu/CCCD', 'Giấy xác nhận tình trạng hôn nhân'].map((item, idx) => {
+src/components/modals/ApplicationDetailModal.tsx:986:                                             const h = rawHistory.map(entry => ({
+src/components/modals/ApplicationDetailModal.tsx:995:                                             const a = rawAudit.map(entry => ({
+src/components/modals/ApplicationDetailModal.tsx:1018:                                             return merged.map((log, index) => (
+src/components/modals/ApplicationDetailModal.tsx:1073:                                       {(editApp || selectedApp).scannedFiles?.map((file, index) => (
+src/components/modals/ProjectModal.tsx:149:                  {(formData.originalDocumentChecklist || []).map((item, idx) => (
+src/components/modals/ImportPreviewModal.tsx:98:                {errors.map((e, i) => (
+src/components/modals/ImportPreviewModal.tsx:111:                {duplicateFileWarnings.map((w, i) => (
+src/components/modals/ImportPreviewModal.tsx:124:                {crossProjectWarnings.map((w, i) => (
+src/components/modals/ImportPreviewModal.tsx:137:                {otherWarnings.map((w, i) => (
+src/components/modals/CreateApplicationModal.tsx:103:                          {visibleProjects.map((p, pIdx) => (
+src/components/ReportsView.tsx:133:  const [selectedLoanProjectIds, setSelectedLoanProjectIds] = useState<string[]>(projects.map(p => p.id));
+src/components/ReportsView.tsx:189:        ).map(p => {
+src/components/ReportsView.tsx:237:        ...filteredApps.map(app => {
+src/components/ReportsView.tsx:277:        ...filteredApps.map((app, i) => [
+src/components/ReportsView.tsx:300:    const colWidths = (rows[3] || []).map((_: any, i: number) => ({
+src/components/ReportsView.tsx:303:        ...rows.slice(3).map((r: any) => 
+src/components/ReportsView.tsx:366:      return projects.map(p => {
+src/components/ReportsView.tsx:379:      return REGION_ORDER.map(reg => {
+src/components/ReportsView.tsx:394:      return projects.filter(p => selectedLoanProjectIds.includes(p.id)).map(p => {
+src/components/ReportsView.tsx:409:      return depts.map(dept => {
+src/components/ReportsView.tsx:416:           const overdue = applications.filter(app => app.id === a.id).map(app => {
+src/components/ReportsView.tsx:456:       return Object.entries(userStats).map(([id, s]) => ({
+src/components/ReportsView.tsx:471:    return steps.map(step => {
+src/components/ReportsView.tsx:567:          {(Object.keys(reportConfig) as Array<keyof typeof reportConfig>).map((type, idx) => (
+src/components/ReportsView.tsx:631:          {(Object.keys(reportConfig) as Array<keyof typeof reportConfig>).map((type, idx) => (
+src/components/ReportsView.tsx:688:          {projects.map((p, pIdx) => (
+src/components/ReportsView.tsx:751:                  {reportConfig[reportType].roles.map((roleText, idx) => (
+src/components/ReportsView.tsx:758:               {reportConfig[reportType].kpis.map((kpiText, i) => (
+src/components/ReportsView.tsx:807:                         onClick={() => setSelectedLoanProjectIds(projects.map(p => p.id))}
+src/components/ReportsView.tsx:818:                    {projects.map((p, pIdx) => {
+src/components/ReportsView.tsx:898:                                 {loanPieData.map((entry: any, index: number) => (
+src/components/ReportsView.tsx:954:                                 {loanPieData.map((entry: any, index: number) => (
+src/components/ReportsView.tsx:996:                      {loanApps.map((app, index) => {
+src/components/ReportsView.tsx:1121:                         {stats.length > 0 ? stats.slice().sort((a:any, b:any) => b.total - a.total).map((user: any, i: number) => (
+src/components/ReportsView.tsx:1152:                    {stats.slice(0, 4).map((user: any, index: number) => (
+src/components/ReportsView.tsx:1193:                            {slaStats.map((entry, index) => (
+src/components/ReportsView.tsx:1204:                         {slaStats.slice().sort((a,b) => b.avgDays - a.avgDays).map((item, i) => (
+src/components/ReportsView.tsx:1316:                {stats.slice(0, 4).sort((a,b) => b.completed - a.completed).map((p, i) => (
+src/components/LoginScreen.tsx:88:          assignedProjectIds: PROJECTS.map(p => p.id),
+src/components/LoginScreen.tsx:384:                      {stepStats.slice(0, 3).map((step, idx) => (
+src/components/ResourcesCenter.tsx:29:         {categories.map(cat => (
+src/components/ResourcesCenter.tsx:66:           {[1, 2, 3, 4, 5].map(i => (
+src/components/ThemeToggle.tsx:70:           {[...Array(6)].map((_, i) => (
+src/components/HandoverRecord.tsx:52:            {apps.map((app, idx) => (
+src/components/HandoverRecord.tsx:64:                        {app.scannedFiles.map((f, fIdx) => (
+src/components/HandoverRecord.tsx:75:                      {app.scannedFiles.map((f, fIdx) => (
+src/components/HandoverRecord.tsx:91:            {apps.length === 0 && Array.from({length: 5}).map((_, i) => (
+src/components/UserManagementView.tsx:147:                {filteredUsers.map((user, idx) => (
+src/components/NotificationPanel.tsx:108:              {taskReminders.map((rem, index) => (
+src/components/NotificationPanel.tsx:147:            displayedNotifications.map((n, idx) => (
+src/components/FieldModeView.tsx:142:    return allowedProjects.map(p => p.name);
+src/components/FieldModeView.tsx:463:          {allowedProjects.map((p, index) => (
+src/components/FieldModeView.tsx:543:            filteredApps.map((app, index) => {
+src/components/FieldModeView.tsx:845:                               ].map((st) => {
+src/components/FieldModeView.tsx:1043:                                               {backwardSteps.map((st, idx) => (
+src/components/FieldModeView.tsx:1099:                                  {appWorkflowSteps.map((stepKey, idx) => {
+src/components/FieldModeView.tsx:1190:                                {editAppInstance.scannedFiles.map((file, i) => (
+src/components/AppSubComponents.tsx:150:                  options.map((opt, idx) => <option key={`${opt}-${idx}`} value={opt}>{opt}</option>)
+src/components/AppSubComponents.tsx:190:    {[1, 2, 3, 4, 5, 6].map((i) => (
+src/components/SettingsView.tsx:168:                  .map(([step, days], idx) => (
+src/components/SettingsView.tsx:212:                  .map(([step, days], idx) => (
+src/components/SettingsView.tsx:284:              {checklistTemplates.map((item, idx) => (
+src/components/SettingsView.tsx:612:                {workflowSequences[workflowTab].map((key, index) => {
+src/components/DashboardCharts.tsx:127:                  {chartData.map((entry, index) => (
+src/components/DashboardCharts.tsx:137:                  {chartData.map((entry, index) => (
+src/components/DashboardCharts.tsx:195:                  {pieData.map((entry, index) => (
+src/components/DashboardCharts.tsx:229:            {pieData.map((entry, index) => (
+src/components/ProjectManagementView.tsx:100:          .map(([region, regionProjects], idx) => (
+src/components/ProjectManagementView.tsx:145:                    {regionProjects.map((project, pIdx) => (
+src/components/ErrorReportView.tsx:34:    return applications.map(app => {
+src/components/ErrorReportView.tsx:60:      .map(app => {
+src/components/ErrorReportView.tsx:101:    return Object.entries(errorSummary).map(([key, value]) => ({
+src/components/ErrorReportView.tsx:115:    return Object.entries(stepStats).map(([key, value]) => ({
+src/components/ErrorReportView.tsx:263:                    {severityChartData.map((entry, index) => (
+src/components/ErrorReportView.tsx:325:                    {typeChartData.map((entry, index) => (
+src/components/ErrorReportView.tsx:363:                Object.keys(errorSummary).map((type, idx) => {
+src/components/ErrorReportView.tsx:431:                  {stepChartData.map((entry, index) => (
+src/components/ErrorReportView.tsx:482:                mappedAppsForIssues.map((app, index) => (
+src/App.tsx:305:    const historyPromises = app.history.map(h => {
+src/App.tsx:324:    const auditPromises = app.auditTrail.map(a => {
+src/App.tsx:382:      result.history = historyData.map((h: any) => ({
+src/App.tsx:400:        result.history = hData.map((h: any) => ({
+src/App.tsx:425:      result.auditTrail = auditData.map((a: any) => ({
+src/App.tsx:440:        result.auditTrail = aData.map((a: any) => ({
+src/App.tsx:485:      .map(app => {
+src/App.tsx:493:      .map(app => mapToSnakeCase(app));
+src/App.tsx:670:      .map(fa => fa.id);
+src/App.tsx:1039:    return (dashboardApps || []).map(a => ({
+src/App.tsx:1309:        if (usersData) setUsers(usersData.map(mapUserFromSnakeCase));
+src/App.tsx:1336:      .map(p => p.name);
+src/App.tsx:1450:              handleSetApplications(prev => prev.map(a => 
+src/App.tsx:1453:              handleSetDashboardApps(prev => prev.map(a => 
+src/App.tsx:1636:        const assignedNames = projects.filter(p => currentUser.assignedProjectIds?.includes(p.id)).map(p => p.name);
+src/App.tsx:1923:      const fetchedApps = (data || []).map(mapFromSnakeCase);
+src/App.tsx:2001:          const assignedNames = projects.filter(p => currentUser.assignedProjectIds.includes(p.id)).map(p => p.name);
+src/App.tsx:2010:      const fetched = (data || []).map(mapFromSnakeCase);
+src/App.tsx:2102:        .map(file => file.name);
+src/App.tsx:2136:        setNotifications(data.map(mapNotificationFromSnakeCase));
+src/App.tsx:2178:        targetUsers.map(u => createNotification({
+src/App.tsx:2197:      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+src/App.tsx:2214:      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+src/App.tsx:2591:          const allIds = displayedApps.map(a => a.id);
+src/App.tsx:2604:            const dataRows = rowsToCopy.map(r => [
+src/App.tsx:2689:      handleSetApplications(prev => prev.map(a => a.id === id ? finalApp : a));
+src/App.tsx:2690:      handleSetDashboardApps(prev => prev.map(a => a.id === id ? finalApp : a));
+src/App.tsx:2719:        const updatedApps = apps.map(app => {
+src/App.tsx:2746:        const syncedApps = await Promise.all(updatedApps.map(app => localSyncRecord(app)));
+src/App.tsx:2748:        handleSetApplications(prev => prev.map(a => {
+src/App.tsx:2753:        handleSetDashboardApps(prev => prev.map(a => {
+src/App.tsx:2885:          .map(d => ({ ...d, value: app[d.key as keyof Application] }))
+src/App.tsx:3168:        const finalUpdatedApps = await bulkSyncRecordsToSupabase(updatePayloads.map(p => mapFromSnakeCase(p)), updatedAppsLocal);
+src/App.tsx:3375:      data = sourceApps.map(app => [
+src/App.tsx:3406:      data = sourceApps.map(app => {
+src/App.tsx:3434:      data = sourceApps.map(app => [
+src/App.tsx:3462:      data = sourceApps.map(app => [
+src/App.tsx:3482:      data = sourceApps.map(app => [
+src/App.tsx:3576:      handleSetApplications(prev => prev.map(app => app.id === oldId ? finalApp : app));
+src/App.tsx:3577:      handleSetDashboardApps(prev => prev.map(app => app.id === oldId ? finalApp : app));
+src/App.tsx:3784:      handleSetApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
+src/App.tsx:3785:      handleSetDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
+src/App.tsx:3936:      const updatedApps = applications.map(app => {
+src/App.tsx:4083:      await Promise.all(appsToSync.map(app => notifyNextDepartment(app, nextStep)));
+src/App.tsx:4087:        await Promise.all(selectedAppIds.map(id => deleteAllNotificationsForRecord(id)));
+src/App.tsx:4235:      handleSetApplications(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
+src/App.tsx:4236:      handleSetDashboardApps(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
+src/App.tsx:4285:      handleSetApplications(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
+src/App.tsx:4286:      handleSetDashboardApps(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
+src/App.tsx:4336:        .map(app => ({
+src/App.tsx:4352:      handleSetDashboardApps(prev => prev.map(a => {
+src/App.tsx:4431:      handleSetApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
+src/App.tsx:4477:      handleSetApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
+src/App.tsx:4527:      handleSetApplications(prev => prev.map(a => a.id === appId ? finalApp : a));
+src/App.tsx:4528:      handleSetDashboardApps(prev => prev.map(a => a.id === appId ? finalApp : a));
+src/App.tsx:4581:      const promises = targetUsers.map(u => 
+src/App.tsx:4595:      handleSetApplications(prev => prev.map(a => a.id === oldId ? finalApp : a));
+src/App.tsx:4596:      handleSetDashboardApps(prev => prev.map(a => a.id === oldId ? finalApp : a));
+src/App.tsx:4625:      const updatedApps = appsToReject.map(app => {
+src/App.tsx:4666:        return targetUsers.map(u => 
+src/App.tsx:4680:        const validIds = new Set(finalApps.map(a => a.id));
+src/App.tsx:4681:        return prev.map(a => validIds.has(a.id) ? finalApps.find(f => f.id === a.id) || a : a);
+src/App.tsx:4860:      handleSetApplications(prev => prev.map(app => {
+src/App.tsx:5095:      setUsers(prev => prev.map(u => u.id === editUser.id ? editUser : u));
+src/App.tsx:5130:      setUsers(prev => prev.map(usr => usr.id === u.id ? updatedUser : usr));
+src/App.tsx:5195:        .map(a => ({ ...a, overdue: getOverdueInfo(a, stepConfig, slaConfig) }))
+src/App.tsx:5263:    const deptStats = depts.map(dept => {
+src/App.tsx:5294:    const adminSlaStats = adminSlaStages.map(stage => {
+src/App.tsx:5481:            setSelectedAppIds(displayedApps.map(a => a.id));
+src/App.tsx:5665:    return chartData.map(d => {
+src/App.tsx:5680:    return chartData.map(d => ({
+src/App.tsx:5761:          handleSetApplications(prev => prev.map(a => a.id === updated.id ? updated : a));
+src/App.tsx:6092:                {(currentUser?.name || 'User').split(' ').map(n => n[0]).join('').slice(0, 2)}
+src/App.tsx:6502:                updatedProjects = projects.map(proj => proj.id === editingProject.id ? updated as Project : proj);
+src/App.tsx:6569:        unitCodes={applications.filter(a => selectedAppIds.includes(a.id)).map(a => a.unitCode)}
+src/App.tsx:6590:        unitCodes={applications.filter(a => selectedAppIds.includes(a.id)).map(a => a.unitCode)}
+src/App.tsx:6703:                        {visibleProjects.map((p, index) => (
+src/utils/appUtils.ts:217:    .map(d => ({ ...d, value: app[d.key as keyof Application] }))
+src/hooks/useBulkActions.ts:46:      const updatedApps = applications.map(app => {
+src/hooks/useBulkActions.ts:77:      const updatedApps = appsToUpdate.map(app => 
+src/hooks/useBulkActions.ts:104:      const updatedApps = applications.map(app => {
+src/hooks/useExcelImport.ts:134:      data = sourceApps.map((app: Application) => [
+src/hooks/useExcelImport.ts:164:      data = sourceApps.map((app: Application) => [
+src/hooks/useExcelImport.ts:185:    worksheet['!cols'] = headers.map(() => ({ wch: 20 }));
+src/hooks/useExcelImport.ts:831:        ...importPreviewData.toUpdate.map(t => t.app),
+src/hooks/useExcelImport.ts:832:        ...importPreviewData.toCreate.map(t => t.app)

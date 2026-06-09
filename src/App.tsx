@@ -3111,12 +3111,9 @@ export default function App() {
             updated.issueNotes = (updated.issueNotes ? updated.issueNotes + '\n' : '') + 'Cảnh báo: Lệch tiến độ thực tế (Có ngày nhận GCN nhưng chưa tới bước bàn giao)';
             updated.issueSeverity = 'High';
             updated.status = 'Error';
-            updated.issue_type = updated.issueType;
-            updated.issue_notes = updated.issueNotes;
-            updated.issue_severity = updated.issueSeverity;
-            updated.issue_status = 'OPEN';
-            updated.issue_resolved_at = null;
-            if (!updated.issue_created_at) updated.issue_created_at = new Date().toISOString();
+            updated.issueStatus = 'OPEN';
+            updated.issueResolvedAt = null;
+            if (!updated.issueCreatedAt) updated.issueCreatedAt = new Date().toISOString();
           }
         }
 
@@ -4403,11 +4400,8 @@ export default function App() {
       issueNotes: note,
       issueType: type,
       issueSeverity: severity,
-      issue_status: 'OPEN',
-      issue_created_at: new Date().toISOString(),
-      issue_type: type,
-      issue_severity: severity,
-      issue_notes: note,
+      issueStatus: 'OPEN',
+      issueCreatedAt: new Date().toISOString(),
       auditTrail: [auditEntry, ...(app.auditTrail || [])]
     };
   }
@@ -4422,7 +4416,7 @@ export default function App() {
     if (!app) return;
 
     // Restriction: Only authorized depts can report errors/supplement requests
-    const allowedDepts: string[] = ['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL'];
+    const allowedDepts: string[] = ['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'];
     if (!allowedDepts.includes(userRole)) {
       showToast('Bạn không có quyền thực hiện chức năng Báo lỗi / Yêu cầu bổ sung.', 'error');
       return;
@@ -4471,10 +4465,7 @@ export default function App() {
       issueType: 'None' as const,
       issueSeverity: 'Minor' as const,
       issueNotes: '',
-      issue_status: 'RESOLVED' as const,
-      issue_type: 'None',
-      issue_severity: 'Minor',
-      issue_notes: '',
+      issueStatus: 'RESOLVED' as const,
       isRejected: false,
       history: newHistory
     };
@@ -4521,10 +4512,7 @@ export default function App() {
         issueType: 'None' as const,
         issueSeverity: 'Minor' as const,
         issueNotes: '',
-        issue_status: 'RESOLVED' as const,
-        issue_type: 'None',
-        issue_severity: 'Minor',
-        issue_notes: '',
+        issueStatus: 'RESOLVED' as const,
         history: newHistory
       };
 
@@ -4551,7 +4539,7 @@ export default function App() {
     if (!app) return;
 
     // Restriction: Only authorized depts can reject apps
-    const allowedDepts: string[] = ['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL'];
+    const allowedDepts: string[] = ['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'];
     if (!allowedDepts.includes(userRole)) {
       showToast('Bạn không có quyền Trả về / Yêu cầu bổ sung hồ sơ.', 'error');
       return;
@@ -4614,6 +4602,90 @@ export default function App() {
     } catch (error) {
       console.error('Supabase reject error:', error);
      showToast('Lỗi khi lưu yêu cầu bổ sung lên Supabase.', 'error');
+    } finally {
+      setIsSavingApp(false);
+    }
+  };
+
+  const handleBulkRejectApps = async (reason: string) => {
+    if (selectedAppIds.length === 0) return;
+
+    // Restriction: Only authorized depts can reject apps
+    const allowedDepts: string[] = ['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'];
+    if (!allowedDepts.includes(userRole)) {
+      showToast('Bạn không có quyền Trả về / Yêu cầu bổ sung hồ sơ.', 'error');
+      return;
+    }
+
+    const appsToReject = applications.filter(app => selectedAppIds.includes(app.id));
+    if (appsToReject.length === 0) return;
+
+    setIsSavingApp(true);
+    try {
+      const updatedApps = appsToReject.map(app => {
+        const stepKeys = Object.keys(stepConfig);
+        const currentIndex = stepKeys.indexOf(app.currentStep);
+        const prevStep = currentIndex > 0 ? stepKeys[currentIndex - 1] as StepName : app.currentStep;
+
+        const auditEntry = createAuditEntry('Yêu cầu chỉnh sửa / Bổ sung', true, 1, app.unitCode, `Hồ sơ sai sót/cần bổ sung: ${reason}`);
+
+        return {
+          ...updateAppIssue(app, reason, 'Sai sót Khác'),
+          currentStep: prevStep,
+          rejectionCount: (app.rejectionCount || 0) + 1,
+          isRejected: true,
+          rejectionReason: reason,
+          auditTrail: [auditEntry, ...(app.auditTrail || [])],
+          history: [
+            {
+              id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              stepName: 'Yêu cầu chỉnh sửa / Bổ sung',
+              dept: userRole as Dept,
+              receivedDate: new Date().toISOString(),
+              note: `Hồ sơ bị trả về hàng loạt: ${reason}`,
+              performedBy: currentUser?.id,
+              performedByName: currentUser?.name
+            },
+            ...app.history
+          ]
+        };
+      });
+
+      const finalApps = await bulkSyncRecordsToSupabase(updatedApps, applications);
+
+      // Create notifications
+      const promises = updatedApps.flatMap(app => {
+        const stepKeys = Object.keys(stepConfig);
+        const currentIndex = stepKeys.indexOf(applications.find(a => a.id === app.id)?.currentStep || '');
+        const prevStep = currentIndex > 0 ? stepKeys[currentIndex - 1] as StepName : app.currentStep;
+        
+        const prevStepConfig = stepConfig[prevStep] || INITIAL_STEP_CONFIG[prevStep];
+        const targetDept = prevStepConfig.dept;
+        const targetUsers = users.filter(u => u.dept === targetDept && u.id !== currentUser?.id);
+        
+        return targetUsers.map(u => 
+          createNotification({
+            recipientId: u.id,
+            title: 'Hồ sơ bị trả về hàng loạt',
+            message: `Hồ sơ lô ${app.unitCode} bị trả về: ${reason}`,
+            type: 'Urgent',
+            appId: app.id
+          })
+        );
+      });
+      await Promise.all(promises);
+
+      handleSetApplications(finalApps);
+      handleSetDashboardApps(prev => {
+        const validIds = new Set(finalApps.map(a => a.id));
+        return prev.map(a => validIds.has(a.id) ? finalApps.find(f => f.id === a.id) || a : a);
+      });
+      
+      setSelectedAppIds([]);
+      showToast(`Đã trả về ${updatedApps.length} hồ sơ thành công.`, 'warning');
+    } catch (error) {
+      console.error('Bulk reject error:', error);
+      showToast('Lỗi khi trả hồ sơ hàng loạt.', 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -4720,12 +4792,9 @@ export default function App() {
           nextApp.issueNotes = (nextApp.issueNotes ? nextApp.issueNotes + '\n' : '') + 'Cảnh báo: Lệch tiến độ thực tế (Có ngày nhận GCN nhưng chưa tới bước bàn giao)';
           nextApp.issueSeverity = 'High';
           nextApp.status = 'Error';
-          nextApp.issue_type = nextApp.issueType;
-          nextApp.issue_notes = nextApp.issueNotes;
-          nextApp.issue_severity = nextApp.issueSeverity;
-          nextApp.issue_status = 'OPEN';
-          nextApp.issue_resolved_at = null;
-          if (!nextApp.issue_created_at) nextApp.issue_created_at = new Date().toISOString();
+          nextApp.issueStatus = 'OPEN';
+          nextApp.issueResolvedAt = null;
+          if (!nextApp.issueCreatedAt) nextApp.issueCreatedAt = new Date().toISOString();
         }
       }
 
@@ -4752,32 +4821,28 @@ export default function App() {
           nextApp.issueType = 'Sai sót Khác';
         }
         nextApp.status = 'Error';
-        nextApp.issue_type = nextApp.issueType;
-        nextApp.issue_notes = value;
-        nextApp.issue_severity = nextApp.issueSeverity || 'Moderate';
-        nextApp.issue_status = 'OPEN';
-        nextApp.issue_resolved_at = null;
-        if (!nextApp.issue_created_at) {
-          nextApp.issue_created_at = new Date().toISOString();
+        nextApp.issueStatus = 'OPEN';
+        nextApp.issueResolvedAt = null;
+        if (!nextApp.issueCreatedAt) {
+          nextApp.issueCreatedAt = new Date().toISOString();
         }
       }
 
       if (field === 'issueType') {
         if (value && value !== 'None') {
-          nextApp.issue_type = value;
-          nextApp.issue_status = 'OPEN';
-          nextApp.issue_resolved_at = null;
-          if (!nextApp.issue_created_at) {
-            nextApp.issue_created_at = new Date().toISOString();
+          nextApp.issueStatus = 'OPEN';
+          nextApp.issueResolvedAt = null;
+          if (!nextApp.issueCreatedAt) {
+            nextApp.issueCreatedAt = new Date().toISOString();
           }
         } else {
-          nextApp.issue_status = 'RESOLVED';
-          nextApp.issue_resolved_at = new Date().toISOString();
+          nextApp.issueStatus = 'RESOLVED';
+          nextApp.issueResolvedAt = new Date().toISOString();
         }
       }
 
       if (field === 'issueSeverity') {
-        nextApp.issue_severity = value;
+        // issueSeverity is updated automatically via handleFieldChange above
       }
       
       if (field === 'currentStep') {
@@ -4809,12 +4874,9 @@ export default function App() {
               nextApp.issueNotes = (nextApp.issueNotes ? nextApp.issueNotes + '\n' : '') + 'Cảnh báo: Lệch tiến độ thực tế (Có ngày nhận GCN nhưng chưa tới bước bàn giao)';
               nextApp.issueSeverity = 'High';
               nextApp.status = 'Error';
-              nextApp.issue_type = nextApp.issueType;
-              nextApp.issue_notes = nextApp.issueNotes;
-              nextApp.issue_severity = nextApp.issueSeverity;
-              nextApp.issue_status = 'OPEN';
-              nextApp.issue_resolved_at = null;
-              if (!nextApp.issue_created_at) nextApp.issue_created_at = new Date().toISOString();
+            nextApp.issueStatus = 'OPEN';
+            nextApp.issueResolvedAt = null;
+            if (!nextApp.issueCreatedAt) nextApp.issueCreatedAt = new Date().toISOString();
             }
           }
 
@@ -4838,32 +4900,28 @@ export default function App() {
               nextApp.issueType = 'Sai sót Khác';
             }
             nextApp.status = 'Error';
-            nextApp.issue_type = nextApp.issueType;
-            nextApp.issue_notes = value;
-            nextApp.issue_severity = nextApp.issueSeverity || 'Moderate';
-            nextApp.issue_status = 'OPEN';
-            nextApp.issue_resolved_at = null;
-            if (!nextApp.issue_created_at) {
-              nextApp.issue_created_at = new Date().toISOString();
+            nextApp.issueStatus = 'OPEN';
+            nextApp.issueResolvedAt = null;
+            if (!nextApp.issueCreatedAt) {
+              nextApp.issueCreatedAt = new Date().toISOString();
             }
           }
 
           if (field === 'issueType') {
             if (value && value !== 'None') {
-              nextApp.issue_type = value;
-              nextApp.issue_status = 'OPEN';
-              nextApp.issue_resolved_at = null;
-              if (!nextApp.issue_created_at) {
-                nextApp.issue_created_at = new Date().toISOString();
+              nextApp.issueStatus = 'OPEN';
+              nextApp.issueResolvedAt = null;
+              if (!nextApp.issueCreatedAt) {
+                nextApp.issueCreatedAt = new Date().toISOString();
               }
             } else {
-              nextApp.issue_status = 'RESOLVED';
-              nextApp.issue_resolved_at = new Date().toISOString();
+              nextApp.issueStatus = 'RESOLVED';
+              nextApp.issueResolvedAt = new Date().toISOString();
             }
           }
 
           if (field === 'issueSeverity') {
-            nextApp.issue_severity = value;
+            // Updated via generic handler
           }
 
           setSelectedApp(nextApp);
@@ -5512,12 +5570,12 @@ export default function App() {
         stages.GCN_READY.push(r);
       }
       // Ưu tiên 4: TaxCompleted / TaxPaid
-      else if (r.status === 'TaxPaid' || r.status === 'TaxCompleted' ||
-               r.currentStep === 'S5_1_PTDA_TiepNhan') {
+      else if ((r.status === 'TaxPaid' || r.status === 'TaxCompleted' ||
+               r.currentStep === 'S5_1_PTDA_TiepNhan') && !r.isRejected) {
         stages.TAX_PAID.push(r);
       }
       // Ưu tiên 5: AWAITING_FINANCE (CHỜ HOÀN THÀNH NVTC)
-      else if (r.taxNotificationDate || r.taxNotificationReceivedDate) {
+      else if ((r.taxNotificationDate || r.taxNotificationReceivedDate) && !r.isRejected) {
         stages.AWAITING_FINANCE.push(r);
       }
       else if ([
@@ -5527,8 +5585,8 @@ export default function App() {
         stages.AWAITING_FINANCE.push(r);
       }
       // Ưu tiên 6: SUBMITTED / TAX_WARNING (phân loại theo SLA)
-      else if (r.status === 'Submitted' || r.status === 'TaxPending' ||
-               r.submissionDate) {
+      else if ((r.status === 'Submitted' || r.status === 'TaxPending' ||
+               r.submissionDate) && !r.isRejected) {
         if (r.submissionDate && !r.taxNotificationDate && !r.taxNotificationReceivedDate) {
           const daysDiff = (today.getTime() - 
             new Date(r.submissionDate).getTime()) / (1000*60*60*24);
@@ -5549,7 +5607,7 @@ export default function App() {
         (r.currentStep as string) === 'S2_KT_Ban_giao' ||
         (r.currentStep as string) === 'S2_KT_Tiep_Nhan' ||
         (r.currentStep as string) === 'GD1_Cho_KT_TiepNhan' ||
-        (r.accountingHandoverDate && !r.submissionDate)
+        (r.accountingHandoverDate && !r.submissionDate && !r.isRejected)
       ) {
         stages.AWAITING_SUBMISSION.push(r);
       }
@@ -6225,6 +6283,7 @@ export default function App() {
                 isQuickFilterOpen={isQuickFilterOpen}
                 setDashboardFilter={setDashboardFilter}
                 handleBulkStepTransition={handleBulkStepTransition}
+                handleBulkRejectApps={handleBulkRejectApps}
               />
             )}
             {activeTab === 'users' && (

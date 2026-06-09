@@ -107,7 +107,7 @@ export default function NotificationPanel({
             <div className="space-y-1">
               {taskReminders.map((rem, index) => (
                 <div 
-                  key={`${rem.id}-${index}`}
+                  key={`${rem.id || 'rem'}-${index}`}
                   onClick={() => onAction(rem.appId)}
                   className={cn(
                     "p-4 rounded-3xl transition-all cursor-pointer group border mx-2 mb-1",

@@ -34,16 +34,13 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
     return applications.map(app => {
       const hasActiveError = app.status === 'Error' || (app.issueType && app.issueType !== 'None');
       const status = hasActiveError ? 'OPEN' : 'RESOLVED';
-      const type = app.issue_type || app.issueType || 'None';
-      const severity = app.issue_severity || app.issueSeverity || 'Thấp';
-      const notes = app.issue_notes || app.issueNotes || '';
       
       return {
         ...app,
-        issue_status: status as 'OPEN' | 'RESOLVED',
-        issue_type: type,
-        issue_severity: severity,
-        issue_notes: notes,
+        issueStatus: app.issueStatus || status as 'OPEN' | 'RESOLVED',
+        issueType: app.issueType || 'None',
+        issueSeverity: app.issueSeverity || 'Minor',
+        issueNotes: app.issueNotes || '',
       };
     });
   }, [applications]);
@@ -61,23 +58,23 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
   const mappedAppsForIssues = useMemo(() => {
     return filteredReportApps
       .map(app => {
-        let severityEng = 'Low';
-        const sev = app.issue_severity || app.issueSeverity || 'Minor';
-        if (sev === 'Critical' || sev === 'High' || sev === 'Nghiêm trọng' || sev === 'Cao') {
+        let severityEng: 'High' | 'Medium' | 'Low' = 'Low';
+        const sev = app.issueSeverity || 'Minor';
+        if (sev === 'Critical' || (sev as any) === 'High' || (sev as any) === 'Nghiêm trọng' || (sev as any) === 'Cao') {
           severityEng = 'High';
-        } else if (sev === 'Moderate' || sev === 'Medium' || sev === 'Trung bình') {
+        } else if (sev === 'Moderate' || (sev as any) === 'Medium' || (sev as any) === 'Trung bình') {
           severityEng = 'Medium';
         } else {
           severityEng = 'Low';
         }
         return {
           ...app,
-          issue_type: app.issue_type || app.issueType || 'Khác',
-          issue_severity: severityEng,
-          current_step: app.currentStep || '',
+          issueType: app.issueType || 'Khác',
+          issueSeverity: severityEng as any,
+          currentStep: app.currentStep || '',
         };
       });
-  }, [normalizedApps, mode]);
+  }, [filteredReportApps]);
 
   // Compute stats using reportUtils helpers
   const errorSummary = useMemo(() => buildErrorSummary(mappedAppsForIssues), [mappedAppsForIssues]);
@@ -87,9 +84,9 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
 
   // Total statistics
   const totalIssuesCount = mappedAppsForIssues.length;
-  const highSeverityCount = mappedAppsForIssues.filter(app => app.issue_severity === 'High').length;
-  const mediumSeverityCount = mappedAppsForIssues.filter(app => app.issue_severity === 'Medium').length;
-  const lowSeverityCount = mappedAppsForIssues.filter(app => app.issue_severity === 'Low').length;
+  const highSeverityCount = mappedAppsForIssues.filter(app => (app.issueSeverity as any) === 'High').length;
+  const mediumSeverityCount = mappedAppsForIssues.filter(app => (app.issueSeverity as any) === 'Medium').length;
+  const lowSeverityCount = mappedAppsForIssues.filter(app => (app.issueSeverity as any) === 'Low').length;
 
   // Format data for Recharts
   const severityChartData = useMemo(() => {
@@ -264,7 +261,7 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
                     stroke="none"
                   >
                     {severityChartData.map((entry, index) => (
-                      <Cell key={`err-severity-cell-${index}`} fill={entry.color} />
+                      <Cell key={`err-severity-cell-item-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
                   <ReTooltip 
@@ -326,7 +323,7 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
                   />
                   <Bar dataKey="value" name="Số hồ sơ" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={16}>
                     {typeChartData.map((entry, index) => (
-                      <Cell key={`err-type-cell-${index}`} fill={index === 0 ? '#ef4444' : index === 1 ? '#f59e0b' : '#6366f1'} />
+                      <Cell key={`err-type-cell-item-${index}`} fill={index === 0 ? '#ef4444' : index === 1 ? '#f59e0b' : '#6366f1'} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -432,7 +429,7 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
                 <ReTooltip cursor={{ fill: 'rgba(99,102,241,0.02)' }} />
                 <Bar dataKey="value" name="Sai sót chặng" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={28}>
                   {stepChartData.map((entry, index) => (
-                    <Cell key={`err-step-cell-${index}`} fill={index % 2 === 0 ? '#8b5cf6' : '#6366f1'} />
+                    <Cell key={`err-step-cell-item-${index}`} fill={index % 2 === 0 ? '#8b5cf6' : '#6366f1'} />
                   ))}
                 </Bar>
               </BarChart>
@@ -484,7 +481,7 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
               {mappedAppsForIssues.length > 0 ? (
                 mappedAppsForIssues.map((app, index) => (
                   <tr 
-                    key={`${app.id}-${index}`} 
+                    key={`${app.id || 'issue-row'}-${index}`} 
                     className="hover:bg-indigo-50/10 transition-colors"
                   >
                     <td className="px-5 py-4">
@@ -495,33 +492,33 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
                       <p className={cn("text-xs font-bold", theme === 'light' ? "text-slate-800" : "text-slate-200")}>{app.customerName}</p>
                     </td>
                     <td className="px-5 py-4">
-                      <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">{app.issue_type || app.issueType}</span>
+                      <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">{app.issueType}</span>
                     </td>
                     <td className="px-5 py-4 text-center">
                       <span className={cn(
                         "px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border",
-                        app.issue_status === 'OPEN' 
+                        app.issueStatus === 'OPEN' 
                           ? "bg-rose-500/10 text-rose-500 border-rose-500/20" 
                           : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
                       )}>
-                        {app.issue_status === 'OPEN' ? 'Đang mở' : 'Đã xử lý'}
+                        {app.issueStatus === 'OPEN' ? 'Đang mở' : 'Đã xử lý'}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-center">
                       <span className={cn(
                         "px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider",
-                        app.issue_severity === 'High'
+                        (app.issueSeverity as any) === 'High'
                           ? "bg-rose-500/10 text-rose-500" 
-                          : app.issue_severity === 'Medium'
+                          : (app.issueSeverity as any) === 'Medium'
                             ? "bg-amber-500/10 text-amber-500" 
                             : "bg-emerald-500/10 text-emerald-500"
                       )}>
-                        {app.issue_severity === 'High' ? 'Nghiêm trọng' : app.issue_severity === 'Medium' ? 'Trung bình' : 'Nhẹ'}
+                        {(app.issueSeverity as any) === 'High' ? 'Nghiêm trọng' : (app.issueSeverity as any) === 'Medium' ? 'Trung bình' : 'Nhẹ'}
                       </span>
                     </td>
                     <td className="px-5 py-4">
-                      <p className="text-[11px] text-slate-500 max-w-[280px] truncate-2-lines line-clamp-2" title={app.issue_notes || app.issueNotes}>
-                        {app.issue_notes || app.issueNotes || <span className="opacity-30 italic">Chưa cập nhật ghi chú vụ việc</span>}
+                      <p className="text-[11px] text-slate-500 max-w-[280px] truncate-2-lines line-clamp-2" title={app.issueNotes}>
+                        {app.issueNotes || <span className="opacity-30 italic">Chưa cập nhật ghi chú vụ việc</span>}
                       </p>
                     </td>
                   </tr>

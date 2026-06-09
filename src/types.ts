@@ -151,12 +151,9 @@ export type Application = {
   issueType?: IssueType;
   issueSeverity?: IssueSeverity;
   issueNotes?: string;
-  issue_status?: 'OPEN' | 'RESOLVED';
-  issue_created_at?: string;
-  issue_resolved_at?: string | null;
-  issue_type?: IssueType;
-  issue_severity?: string;
-  issue_notes?: string;
+  issueStatus?: 'OPEN' | 'RESOLVED';
+  issueCreatedAt?: string;
+  issueResolvedAt?: string | null;
   estimatedCompletionDate?: string;
   rejectionCount?: number; // Số lần hồ sơ bị trả về
   isRejected?: boolean; // Trạng thái đang bị trả về chờ sửa
@@ -172,7 +169,6 @@ export type Application = {
   auditTrail?: AuditTrailEntry[];
   flags?: string[];
   hasError?: boolean;
-  has_error?: boolean;
   errors?: any[];
   _sla?: any;
   assignedToId?: string;   // ID nhân viên phụ trách

@@ -141,8 +141,24 @@ export const ApplicationsTab = ({
   setIsQuickFilterOpen,
   isQuickFilterOpen,
   setDashboardFilter,
-  handleBulkStepTransition
+  handleBulkStepTransition,
+  handleBulkRejectApps
 }: any) => {
+
+  const currentVisibleApps = React.useMemo(() => 
+    displayedApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize),
+    [displayedApps, currentPage, pageSize]
+  );
+
+  const masterCheckboxRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (masterCheckboxRef.current) {
+      const allOnPageSelected = currentVisibleApps.length > 0 && currentVisibleApps.every(app => selectedRows.has(app.id));
+      const someOnPageSelected = currentVisibleApps.some(app => selectedRows.has(app.id));
+      masterCheckboxRef.current.indeterminate = !allOnPageSelected && someOnPageSelected;
+    }
+  }, [currentVisibleApps, selectedRows]);
 
   return (
 <>
@@ -214,7 +230,7 @@ export const ApplicationsTab = ({
                             { field: 'customerName', label: '👤 Tên KH' },
                           ] as const).map(({ field, label }, idx) => (
                             <button
-                              key={`sort-${field}-${idx}`}
+                              key={`sort-btn-${field}-${idx}`}
                               onClick={() => setSortConfig(prev => ({
                                 field,
                                 direction: prev.field === field && 
@@ -305,7 +321,7 @@ export const ApplicationsTab = ({
                                     const isSelected = selectedFlags.includes(item.key);
                                     return (
                                       <button
-                                        key={`flag-${item.key}-${idx}`}
+                                        key={`flag-badge-${item.key}-${idx}`}
                                         onClick={() => {
                                           if (isSelected) {
                                             setSelectedFlags(selectedFlags.filter(f => f !== item.key));
@@ -459,7 +475,7 @@ export const ApplicationsTab = ({
                             <div className="flex flex-wrap gap-2 items-center flex-1">
                               {activeFilters.map((act, idx) => (
                                 <span 
-                                  key={`filter-tag-${idx}-${act.label}`}
+                                  key={`filter-tag-item-${idx}-${act.label}`}
                                   className={cn(
                                     "inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-bold border transition-all shadow-sm",
                                     theme === 'light' ? "bg-white border-slate-300/40 text-slate-800" : "bg-slate-900/60 border-slate-800 text-slate-200"
@@ -584,16 +600,39 @@ export const ApplicationsTab = ({
                                 (isTaxStep && (userRole === 'PTT' || userRole === 'PTDA'));
                               if (nextStep && isAllowedNext) {
                                 return (
-                                  <button 
-                                    disabled={!isAllowedNext}
-                                    onClick={() => {
-                                      if (!isAllowedNext) return;
-                                      handleBulkStepTransition(nextStep);
-                                    }}
-                                    className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all"
-                                  >
-                                    {firstApp.isSelfService ? "Chuyển thẳng đến Chờ bàn giao" : `Chuyển tiếp ${(stepConfig[nextStep] || INITIAL_STEP_CONFIG[nextStep])?.label}`} &rarr;
-                                  </button>
+                                  <>
+                                    <button 
+                                      disabled={!isAllowedNext}
+                                      onClick={() => {
+                                        if (!isAllowedNext) return;
+                                        handleBulkStepTransition(nextStep);
+                                      }}
+                                      className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all shrink-0"
+                                    >
+                                      {firstApp.isSelfService ? "Chuyển thẳng đến Chờ bàn giao" : `Chuyển tiếp ${(stepConfig[nextStep] || INITIAL_STEP_CONFIG[nextStep])?.label}`} &rarr;
+                                    </button>
+                                     
+                                    {/* Trả về hàng loạt */}
+                                    { firstApp.currentStep !== 'S1_ChuanBi' && firstApp.currentStep !== 'GD1_ChuanBi' && (
+                                        <button 
+                                            disabled={!['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'].includes(userRole)}
+                                            onClick={() => {
+                                              if (!['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'].includes(userRole)) return;
+                                              const reason = prompt("Lý do trả hồ sơ hàng loạt:");
+                                              if (reason) {
+                                                handleBulkRejectApps(reason);
+                                              }
+                                            }}
+                                            className={cn(
+                                              "w-10 h-10 rounded-full transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed border text-[10px] font-black uppercase tracking-widest shrink-0",
+                                              theme === 'light' ? "bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200 hover:text-slate-700" : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700"
+                                            )}
+                                            title="Trả về hàng loạt"
+                                        >
+                                            <RotateCcw size={16} />
+                                        </button>
+                                    )}
+                                  </>
                                 );
                               }
                             } else {
@@ -621,16 +660,18 @@ export const ApplicationsTab = ({
                             <GitMerge size={16} />
                           </button>
 
-                          <button 
-                            onClick={() => setIsBulkIssueOpen(true)}
-                            className={cn(
-                              "w-10 h-10 rounded-full transition-all flex items-center justify-center border",
-                              theme === 'light' ? "bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border-rose-200" : "bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white border-rose-500/20"
-                            )}
-                            title="Báo lỗi / Sai sót hàng loạt"
-                          >
-                            <AlertTriangle size={16} />
-                          </button>
+                          {['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'].includes(userRole) && (
+                            <button 
+                              onClick={() => setIsBulkIssueOpen(true)}
+                              className={cn(
+                                "w-10 h-10 rounded-full transition-all flex items-center justify-center border",
+                                theme === 'light' ? "bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border-rose-200" : "bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white border-rose-500/20"
+                              )}
+                              title="Báo lỗi / Sai sót hàng loạt"
+                            >
+                              <AlertTriangle size={16} />
+                            </button>
+                          )}
 
                           {selectedAppIds.some(id => {
                             const a = applications.find(x => String(x.id) === String(id));
@@ -672,15 +713,14 @@ export const ApplicationsTab = ({
                             <button 
                               onClick={() => setIsBulkAssignOpen(true)}
                               className={cn(
-                                "flex items-center gap-1.5 px-3 rounded-full text-[10px] font-black uppercase tracking-wider border transition-all h-10",
+                                "w-10 h-10 rounded-full flex items-center justify-center text-[10px] font-black uppercase tracking-wider border transition-all shrink-0",
                                 theme === 'light' 
                                   ? "bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border-indigo-200" 
                                   : "bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border-indigo-500/20"
                               )}
                               title={`Gán phụ trách cho ${selectedAppIds.length} hồ sơ`}
                             >
-                              <UserCheck size={14} />
-                              <span className="hidden sm:inline">Gán phụ trách</span>
+                              <UserCheck size={16} />
                             </button>
                           )}
 
@@ -714,18 +754,19 @@ export const ApplicationsTab = ({
                         )}>
                           <th className="px-2 py-2 w-10 border-b border-slate-800/10">
                             <input 
+                              ref={masterCheckboxRef}
                               type="checkbox" 
                               className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-900 accent-festive-gold"
-                              checked={selectedRows.size === filteredApps.length && filteredApps.length > 0}
+                              checked={currentVisibleApps.length > 0 && currentVisibleApps.every(app => selectedRows.has(app.id))}
                               onChange={(e) => {
+                                const newSelection = new Set(selectedRows);
                                 if (e.target.checked) {
-                                  const allIds = filteredApps.map(a => a.id);
-                                  setSelectedAppIds(allIds);
-                                  setSelectedRows(new Set(allIds));
+                                  currentVisibleApps.forEach(app => newSelection.add(app.id));
                                 } else {
-                                  setSelectedAppIds([]);
-                                  setSelectedRows(new Set());
+                                  currentVisibleApps.forEach(app => newSelection.delete(app.id));
                                 }
+                                setSelectedRows(newSelection);
+                                setSelectedAppIds(Array.from(newSelection));
                               }}
                             />
                           </th>
@@ -779,7 +820,7 @@ export const ApplicationsTab = ({
                                </div>
                             </td>
                           </tr>
-                        ) : displayedApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize).map((app, index) => {
+                        ) : currentVisibleApps.map((app, index) => {
                           const overdue = getOverdueInfo(app, stepConfig, slaConfig);
                           const isEven = index % 2 === 1;
                           const isFocused = selectedIndex === index;
@@ -788,7 +829,7 @@ export const ApplicationsTab = ({
                           return (
                             <tr 
                               id={`app-row-${app.id || 'new'}-${index}`}
-                              key={`app-row-${app.id || 'new'}-${app.unitCode || 'none'}-${index}`} 
+                              key={`app-table-row-${app.id || 'new'}-${app.unitCode || 'none'}-${index}`} 
                               ref={el => tableRowRefs.current[index] = el}
                               className={cn(
                                 "transition-all cursor-pointer group border-b relative h-[32px]",
@@ -806,7 +847,7 @@ export const ApplicationsTab = ({
                               onClick={(e) => {
                                 setSelectedIndex(index);
                                 if (e.shiftKey && lastSelectedIndex !== null) {
-                                  const visibleApps = displayedApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+                                  const visibleApps = currentVisibleApps;
                                   const start = Math.min(lastSelectedIndex, index);
                                   const end = Math.max(lastSelectedIndex, index);
                                   const newSelection = new Set(selectedRows);
@@ -988,7 +1029,7 @@ export const ApplicationsTab = ({
 
                                   return (
                                     <td 
-                                      key={`cell-${app.id}-${f.key}-${fIdx}`} 
+                                      key={`cell-field-${app.id || index}-${f.key}-${fIdx}`} 
                                       className={cn(
                                         "px-3 py-1.5 text-xs leading-tight border-x transition-all relative group/cell",
                                         theme === 'light' ? "border-slate-50" : "border-slate-800/20",
@@ -1198,33 +1239,19 @@ export const ApplicationsTab = ({
                                   {(userRole === 'PTDA' || isManagement) && (
                                     <td className="px-2 py-0 text-center">
                                       {(() => {
-                                        const isEarly = ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => (app.currentStep as string).startsWith(prefix));
                                         const hasGCNReceived = app.gcnReceivedDate && app.gcnReceivedDate !== '---' && app.gcnReceivedDate !== 'None' && String(app.gcnReceivedDate).trim() !== '';
                                         const hasGCNSigned = app.gcnSignedDate && app.gcnSignedDate !== '---' && app.gcnSignedDate !== 'None' && String(app.gcnSignedDate).trim() !== '';
                                         
                                         const finalGCNDate = hasGCNReceived ? app.gcnReceivedDate : (hasGCNSigned ? app.gcnSignedDate : null);
-                                        const hasGCN = !!finalGCNDate;
-                                        const showWarning = hasGCN && isEarly;
                                         
                                         return (
-                                          <div className={cn(
-                                            "flex flex-col items-center justify-center gap-0.5 w-full relative group/warning",
-                                            showWarning ? "bg-orange-100 dark:bg-orange-900/30 px-1 py-0.5 rounded" : ""
-                                          )}>
+                                          <div className="flex flex-col items-center justify-center w-full">
                                             <span className={cn(
                                               "text-[10px] leading-tight font-mono", 
-                                              showWarning ? "text-orange-600 dark:text-orange-400 font-bold" : (theme === 'light' ? "text-slate-500" : "text-slate-400")
+                                              theme === 'light' ? "text-slate-500" : "text-slate-400"
                                             )}>
                                               {finalGCNDate ? formatDate(finalGCNDate) : '--'}
                                             </span>
-                                            {showWarning && (
-                                              <div className="relative flex items-center justify-center">
-                                                <AlertTriangle size={10} className="text-orange-500 dark:text-orange-400" />
-                                                <div className="pointer-events-none absolute bottom-full mb-1 left-1/2 -translate-x-1/2 hidden group-hover/warning:block w-48 bg-orange-500 text-white text-[9px] px-2 py-1.5 rounded shadow-lg z-50 whitespace-normal text-left leading-tight">
-                                                  Cảnh báo: Lô đất có ngày nhận sổ nhưng tiến độ thực tế chưa tới bước bàn giao. Vui lòng kiểm tra lại xem có import nhầm dòng hoặc nhầm mã lô hay không!
-                                                </div>
-                                              </div>
-                                            )}
                                           </div>
                                         );
                                       })()}
@@ -1403,7 +1430,7 @@ export const ApplicationsTab = ({
                   {assignableUsers && assignableUsers.length > 0 ? (
                     assignableUsers.map((u: any, index: number) => (
                       <option 
-                        key={`assign-usr-${u.id}-${index}`} 
+                        key={`bulk-assign-usr-${u.id || index}-${index}`} 
                         value={u.id}
                         className={theme === 'light' ? "bg-white text-slate-800" : "bg-slate-900 text-slate-200"}
                       >

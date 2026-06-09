@@ -348,8 +348,8 @@ export const DashboardTab = ({
                               minPointSize={5}
                               radius={[0, 0, 0, 0]} 
                             >
-                              {progressChartData.map((entry, index) => (
-                                <Cell key={`cell-chart-normal-${entry.name || index}-${index}`} fill={entry.color} />
+                              {progressChartData.map((entry: any, index: number) => (
+                                <Cell key={`dashboard-progress-normal-cell-${entry.name || 'unnamed'}-${index}`} fill={entry.color} />
                               ))}
                               <LabelList 
                                 dataKey="normal" 
@@ -460,9 +460,9 @@ export const DashboardTab = ({
                                 dataKey="value"
                                 stroke="none"
                               >
-                                {overallPieData.map((entry, index) => (
+                                {overallPieData.map((entry: any, index: number) => (
                                   <Cell 
-                                    key={`pie-overall-cell-${entry.name || index}-${index}`} 
+                                    key={`dashboard-overall-pie-cell-${entry.name || 'unnamed'}-${index}`} 
                                     fill={entry.color} 
                                     className="hover:opacity-80 transition-opacity cursor-pointer outline-none" 
                                   />
@@ -518,7 +518,7 @@ export const DashboardTab = ({
                                          <PieChart>
                                            <Pie data={roleKpis.loanRatioStats} cx="50%" cy="50%" innerRadius={40} outerRadius={50} paddingAngle={2} dataKey="value" stroke="none">
                                              {roleKpis.loanRatioStats.map((entry: any, index: number) => (
-                                               <Cell key={`pie-loan-ratio-cell-${entry.name || index}-${index}`} fill={entry.color} />
+                                               <Cell key={`dashboard-loan-ratio-cell-${entry.name || 'unnamed'}-${index}`} fill={entry.color} />
                                              ))}
                                            </Pie>
                                            <ReTooltip 
@@ -556,9 +556,9 @@ export const DashboardTab = ({
                                               dataKey="value" 
                                               stroke="none"
                                            >
-                                             {loanPieData.map((entry, index) => (
+                                             {loanPieData.map((entry: any, index: number) => (
                                                <Cell 
-                                                 key={`pie-loan-status-cell-${entry.name || index}-${index}`} 
+                                                 key={`dashboard-loan-status-cell-${entry.name || 'unnamed'}-${index}`} 
                                                  fill={entry.color} 
                                                  className="hover:opacity-80 transition-opacity cursor-pointer outline-none" 
                                                />
@@ -625,8 +625,8 @@ export const DashboardTab = ({
                     </div>
                     <div className="p-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {roleKpis.admin.deptStats.map((dept, idx) => (
-                          <div key={`dept-${dept.dept}-${idx}`} className={cn(
+                        {roleKpis.admin.deptStats.map((dept: any, idx: number) => (
+                          <div key={`dashboard-admin-dept-card-${dept.dept || dept.label}-${idx}`} className={cn(
                             "p-4 rounded-[2rem] border transition-all hover:bg-slate-800/10 duration-300",
                             theme === 'light' ? "bg-slate-50 border-slate-100 shadow-sm" : "bg-slate-800/40 border-slate-700/30 shadow-xl"
                           )}>
@@ -681,7 +681,7 @@ export const DashboardTab = ({
                         >
                           <option value="ALL">Tất cả khu vực</option>
                           {REGION_ORDER.map((r: string, index: number) => (
-                            <option key={`region-opt-${index}`} value={r}>{r}</option>
+                            <option key={`dashboard-region-option-${r}-${index}`} value={r}>{r}</option>
                           ))}
                         </select>
                       </div>
@@ -701,7 +701,7 @@ export const DashboardTab = ({
                       <tbody className={cn("divide-y", theme === 'light' ? "divide-slate-50" : "divide-slate-800/50")}>
                         {visibleProjects
                           .filter(p => projectRegionFilter === 'ALL' || p.region === projectRegionFilter)
-                          .map((p, index) => {
+                          .map((p: any, index: number) => {
                             const projectApps = dashboardApps.filter(a => a.projectName === p.name);
                             const completed = projectApps.filter(a => a.currentStep === 'Hoan_Tat' || a.customerHandoverDate || a.status === 'Completed').length;
                             const processing = projectApps.filter(a => a.status === 'Processing' || a.status === 'Submitted' || a.status === 'TaxPending').length;
@@ -713,7 +713,7 @@ export const DashboardTab = ({
 
                             return (
                               <tr 
-                                key={`project-row-${p.id || p.name}-${index}`} 
+                                key={`dashboard-project-row-${p.id || p.name || 'proj'}-${index}`} 
                                 onClick={() => setSelectedProjectId(p.id)}
                                 className={cn(
                                   "transition-colors cursor-pointer group border-b",

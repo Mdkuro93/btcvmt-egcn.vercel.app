@@ -57,8 +57,7 @@ export function useExcelImport({
           if (targetStatus !== app.status) statusMismatch = true;
         }
         const hasLegacySeverity = app.issueSeverity && severityMap[app.issueSeverity as string];
-        const hasLegacySeverityDb = (app as any).issue_severity && severityMap[(app as any).issue_severity as string];
-        return statusMismatch || hasLegacySeverity || hasLegacySeverityDb;
+        return statusMismatch || hasLegacySeverity;
       });
 
       if (appsToFix.length === 0) {
@@ -80,9 +79,9 @@ export function useExcelImport({
           }
         }
 
-        const sevVal = app.issueSeverity || (app as any).issue_severity;
+        const sevVal = app.issueSeverity;
         if (sevVal && severityMap[sevVal]) {
-          updatePayload.issue_severity = severityMap[sevVal];
+          updatePayload.issueSeverity = severityMap[sevVal];
         }
 
         const { error } = await supabase
@@ -567,7 +566,7 @@ export function useExcelImport({
                   updatedApp.issueType = 'Sai sót Khác';
                   updatedApp.issueNotes = (updatedApp.issueNotes ? updatedApp.issueNotes + '\n' : '') + 'Cảnh báo: Lệch tiến độ thực tế (Có ngày nhận GCN nhưng chưa tới bước bàn giao)';
                   updatedApp.issueSeverity = 'High';
-                  updatedApp.issue_status = 'OPEN';
+                  updatedApp.issueStatus = 'OPEN';
                   updatedApp.status = 'Error';
                   changes.push(`>> LỆCH TIẾN ĐỘ THỰC TẾ: Đã có ngày nhận sổ khi đang ở bước ${updatedApp.currentStep}`);
                 }

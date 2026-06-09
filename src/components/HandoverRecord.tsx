@@ -50,7 +50,7 @@ const HandoverRecord = ({ apps, user, template }: HandoverRecordProps) => {
           </thead>
           <tbody>
             {apps.map((app, idx) => (
-              <React.Fragment key={`${app.id}-${idx}`}>
+              <React.Fragment key={`${app.id || 'handover-app'}-${idx}`}>
                 <tr className="border-b border-black">
                   <td className="border border-black px-2 py-2 text-center">{idx + 1}</td>
                   <td className="border border-black px-2 py-2 font-bold">{app.unitCode}</td>

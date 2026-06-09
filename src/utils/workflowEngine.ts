@@ -142,8 +142,11 @@ export const WorkflowEngine = {
         }
       } else {
         // --- FIX #8: Bổ sung validation đầy đủ cho Quy_trinh_1 ở các milestone cuối ---
-        const ktSteps = ['S2_KT_Tiep_Nhan', 'GD1_KT_HoanThien'];
-        if (ktSteps.concat(['S3_Nop_VPDK', 'GD2_Cho_Nop_VPDK'] as any[]).includes(finalStep) && ktSteps.includes(app.currentStep as string) && finalStep !== app.currentStep) {
+        if (
+          (app.currentStep === 'GD1_Cho_KT_TiepNhan' && finalStep === 'GD2_Cho_Nop_VPDK') ||
+          (app.currentStep === 'GD2_Cho_Nop_VPDK' && finalStep === 'GD3_Nop_VPDK') ||
+          (app.currentStep === 'GD1_Cho_KT_TiepNhan' && finalStep === 'GD3_Nop_VPDK')
+        ) {
           if (!app.contractSigningDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày ký HĐ trước khi chuyển.' };
         }
         if ((app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK') && (finalStep === 'S5_Tai_Chinh_Khach_Hang' || finalStep === 'GD3_Nop_VPDK')) {
@@ -161,7 +164,10 @@ export const WorkflowEngine = {
         }
 
         // Validate milestone cuối Quy trình 1
-        if (finalStep === 'GD5_Cho_Ky_In_GCN' || finalStep === 'GD5_Cho_GCN') {
+        if (finalStep === 'GD5_Cho_Ky_In_GCN') {
+          if (!app.taxReceiptDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày nộp thuế/NVTC trước khi chuyển sang bước GCN.' };
+        }
+        if (finalStep === 'GD5_Cho_GCN') {
           if (!app.taxReceiptDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày nộp thuế/NVTC trước khi chuyển sang bước GCN.' };
           if (!app.gcnSignedDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày trình ký/In GCN trước khi chuyển sang bước GCN.' };
         }

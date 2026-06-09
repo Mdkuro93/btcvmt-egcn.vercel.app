@@ -1072,7 +1072,7 @@ export const ApplicationDetailModal = ({
                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
                                        {(editApp || selectedApp).scannedFiles?.map((file, index) => (
                                          <div 
-                                           key={`${file.id}-${index}`}
+                                           key={`${file.id || 'scanned-file'}-${index}`}
                                            className={cn(
                                              "p-4 rounded-2xl border transition-all flex items-center justify-between group",
                                              theme === 'dark' ? "bg-slate-800/40 border-slate-700 hover:border-indigo-500/50" : "bg-slate-50 border-slate-200 hover:border-indigo-300"
@@ -1143,13 +1143,13 @@ export const ApplicationDetailModal = ({
                             <>
                                 <div className="flex items-center gap-2">
                                      {/* Báo lỗi / Sai sót */}
-                                     {['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL'].includes(userRole) && (
+                                     {['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'].includes(userRole) && (
                                         <div className="relative">
                                             {!isReportIssueFormOpen ? (
                                                 <button 
-                                                    disabled={!( ['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'].includes(userRole) || ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole) )}
+                                                    disabled={!( ['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'].includes(userRole) )}
                                                     onClick={() => {
-                                                       if (!(['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'].includes(userRole) || ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole))) return;
+                                                       if (!(['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'].includes(userRole))) return;
                                                        setIsReportIssueFormOpen(true);
                                                     }}
                                                     className="p-4 border border-rose-500/30 text-rose-500 rounded-2xl hover:bg-rose-500 hover:text-white transition-all shadow-lg shadow-rose-900/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1196,9 +1196,9 @@ export const ApplicationDetailModal = ({
                                                         className={cn("w-full p-4 rounded-2xl border text-xs font-bold min-h-[100px] outline-none focus:ring-2 focus:ring-rose-500/20", theme === 'dark' ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200 text-slate-900")}
                                                     />
                                                     <button 
-                                                        disabled={!( ['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'].includes(userRole) || ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole) )}
+                                                        disabled={!( ['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'].includes(userRole) )}
                                                         onClick={() => {
-                                                            if (!(['KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN'].includes(userRole) || ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole))) return;
+                                                            if (!(['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'].includes(userRole))) return;
                                                             handleSingleOrBulkReportIssue([editApp || selectedApp].filter(Boolean) as Application[]);
                                                         }}
                                                         className="w-full py-4 bg-rose-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500 transition-all shadow-lg shadow-rose-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1213,9 +1213,9 @@ export const ApplicationDetailModal = ({
                                      {/* Trả về */}
                                      { (editApp || selectedApp).currentStep !== 'S1_ChuanBi' && (editApp || selectedApp).currentStep !== 'GD1_ChuanBi' && (
                                         <button 
-                                            disabled={!['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL'].includes(userRole)}
+                                            disabled={!['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'].includes(userRole)}
                                             onClick={() => {
-                                              if (!['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL'].includes(userRole)) return;
+                                              if (!['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'].includes(userRole)) return;
                                               const app = selectedApp || editApp;
                                               let returnStep = '';
                                               const workflowType = app.workflowType || 'Quy_trinh_1';

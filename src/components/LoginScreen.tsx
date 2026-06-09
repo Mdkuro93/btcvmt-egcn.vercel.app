@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
   Lock, 
@@ -41,6 +41,43 @@ export default function LoginScreen({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [liveAppsCount, setLiveAppsCount] = useState<number | null>(null);
+  const [liveProjectsCount, setLiveProjectsCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        // Fetch Apps Count from 'records'
+        const { count: appsCount, error: appsError } = await supabase
+          .from('records')
+          .select('*', { count: 'exact', head: true });
+        
+        if (!appsError && appsCount !== null) {
+          setLiveAppsCount(appsCount);
+        }
+
+        // Fetch Projects Count from unique project_name in 'records'
+        const { data: projData, error: projError } = await supabase
+          .from('records')
+          .select('project_name');
+
+        if (!projError && projData) {
+          const uniqueProjects = new Set(
+            projData
+              .map((r: any) => r.project_name)
+              .filter((name: string | null) => name && name.trim() !== '')
+          );
+          setLiveProjectsCount(uniqueProjects.size);
+        }
+      } catch (err) {
+        console.error('Error fetching live counts:', err);
+      }
+    };
+
+    if (supabase) {
+      fetchCounts();
+    }
+  }, [supabase]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,7 +287,7 @@ export default function LoginScreen({
             }`}>
               <div>
                 <div className={`text-xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  {totalApplicationsCount !== undefined && totalApplicationsCount > 0 ? `${totalApplicationsCount}+` : "65+"}
+                  {liveAppsCount !== null ? `${liveAppsCount}+` : (totalApplicationsCount > 0 ? `${totalApplicationsCount}+` : "65+")}
                 </div>
                 <p className={`text-[9.5px] uppercase font-bold tracking-wider mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-440'}`}>
                   Hồ sơ đã xử lý
@@ -258,7 +295,7 @@ export default function LoginScreen({
               </div>
               <div>
                 <div className={`text-xl font-black ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                  {totalProjectsCount !== undefined && totalProjectsCount > 0 ? totalProjectsCount : "6"}
+                  {liveProjectsCount !== null ? liveProjectsCount : (totalProjectsCount > 0 ? totalProjectsCount : "6")}
                 </div>
                 <p className={`text-[9.5px] uppercase font-bold tracking-wider mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-440'}`}>
                   Dự án đang theo dõi
@@ -377,12 +414,14 @@ export default function LoginScreen({
                       <span className="text-[8.5px] font-black text-slate-100 tracking-tight flex items-center gap-1">
                         <BarChart3 size={9} className="text-amber-500" /> THỐNG KÊ TIẾN ĐỘ
                       </span>
-                      <span className="text-[6px] font-black text-emerald-450 bg-emerald-500/10 px-1 py-0.2 rounded-xs">65 CĂN</span>
+                      <span className="text-[6px] font-black text-emerald-450 bg-emerald-500/10 px-1.5 py-0.2 rounded-xs">
+                        {liveAppsCount !== null ? `${liveAppsCount} CĂN` : (totalApplicationsCount > 0 ? `${totalApplicationsCount} CĂN` : "65 CĂN")}
+                      </span>
                     </div>
                     {/* Visual miniature progress lines (Compact layout mapping key levels) */}
                     <div className="space-y-1.5">
                       {stepStats.slice(0, 3).map((step, idx) => (
-                        <div key={idx} className="space-y-0.5 font-sans">
+                        <div key={`step-stat-${step.label || 'st'}-${idx}`} className="space-y-0.5 font-sans">
                           <div className="flex justify-between items-center text-[6px]">
                             <span className="font-bold text-[#94a3b8] truncate max-w-[70%]">{step.label}</span>
                             <span className="font-mono text-amber-500 font-extrabold">{step.value}</span>
@@ -480,7 +519,9 @@ export default function LoginScreen({
 
                   {/* Interactive Tab headers */}
                   <div className="flex gap-1 mb-1.5 shrink-0 font-sans">
-                    <span className="bg-slate-200 text-slate-800 font-extrabold text-[6px] px-1.5 py-0.3 rounded">Tất cả (65)</span>
+                    <span className="bg-slate-200 text-slate-800 font-extrabold text-[6px] px-1.5 py-0.3 rounded">
+                      Tất cả ({liveAppsCount !== null ? liveAppsCount : (totalApplicationsCount > 0 ? totalApplicationsCount : 65)})
+                    </span>
                     <span className="bg-white border border-slate-200 text-slate-550 font-bold text-[6px] px-1.5 py-0.3 rounded">Vay vốn</span>
                   </div>
 

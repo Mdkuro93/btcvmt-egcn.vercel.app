@@ -144,7 +144,7 @@ export default function ProjectManagementView({
                   <div className="px-8 pb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-top-4">
                     {regionProjects.map((project, pIdx) => (
                       <div 
-                        key={`${project.id}-${pIdx}`}
+                        key={`${project.id || 'project'}-${pIdx}`}
                         className={cn(
                           "p-6 rounded-[2rem] border transition-all group relative overflow-hidden",
                           theme === 'light' ? "bg-slate-50/50 border-slate-200" : "bg-slate-900/60 border-slate-700/50"

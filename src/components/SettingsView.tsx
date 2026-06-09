@@ -165,8 +165,8 @@ export default function SettingsView({
                     };
                     return getNum(labelA) - getNum(labelB);
                   })
-                  .map(([step, days]) => (
-                    <div key={step} className={cn(
+                  .map(([step, days], idx) => (
+                    <div key={`settings-sla-step1-${step}-${idx}`} className={cn(
                       "flex items-center justify-between p-4 rounded-2xl border group/item hover:border-amber-500/30 transition-all",
                       theme === 'light' ? "bg-white border-slate-100 shadow-sm" : "bg-slate-950 border-slate-800"
                     )}>
@@ -209,8 +209,8 @@ export default function SettingsView({
                     };
                     return getNum(labelA) - getNum(labelB);
                   })
-                  .map(([step, days]) => (
-                    <div key={step} className={cn(
+                  .map(([step, days], idx) => (
+                    <div key={`settings-sla-step2-${step}-${idx}`} className={cn(
                       "flex items-center justify-between p-4 rounded-2xl border group/item hover:border-emerald-500/30 transition-all",
                       theme === 'light' ? "bg-white border-slate-100 shadow-sm" : "bg-slate-950 border-slate-800"
                     )}>

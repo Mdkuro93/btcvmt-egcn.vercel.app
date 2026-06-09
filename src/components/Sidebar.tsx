@@ -415,12 +415,12 @@ export const Sidebar = ({
                     >
                       {regionProjects.map((p, pIndex) => (
                         <button 
-                          key={`sidebar-proj-${region}-${p.id}-${pIndex}`} 
+                          key={`sidebar-proj-${region}-${p.id || 'proj'}-${pIndex}`} 
                           title={p.name}
                           onClick={() => handleProjectClick(p.id)}
                           className={cn(
                             "w-full flex items-center gap-2.5 py-2.5 rounded-xl transition-all text-[12px] font-black group relative overflow-hidden",
-                            isSidebarCollapsed ? "justify-center px-0 ml-[-12px]" : "px-2.5",
+                            isSidebarCollapsed ? "justify-center px-0 ml-[-12px]" : "px-2",
                             selectedProjectId === p.id 
                               ? (theme === 'light' ? "bg-amber-600 text-white shadow-lg shadow-amber-600/20" : "bg-slate-800/80 text-festive-gold ring-1 ring-slate-700") 
                               : (theme === 'light' ? "text-slate-500 hover:bg-white hover:shadow-sm" : "text-slate-400 hover:bg-slate-800/50")
@@ -438,7 +438,7 @@ export const Sidebar = ({
                                 initial={{ opacity: 0, width: 0 }} 
                                 animate={{ opacity: 1, width: 'auto' }} 
                                 exit={{ opacity: 0, width: 0 }} 
-                                className="break-words leading-tight uppercase tracking-tight"
+                                className="break-words leading-tight uppercase tracking-tight text-left block flex-1"
                               >
                                 {p.name}
                               </motion.span>

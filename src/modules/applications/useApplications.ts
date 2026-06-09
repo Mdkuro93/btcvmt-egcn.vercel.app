@@ -61,12 +61,12 @@ export function useApplications(
       const result = applications.filter(a => {
         if (!a) return false;
 
-        // Extract values with camelCase & snake_case support
-        const submissionDate = getVal(a, 'submissionDate', 'submission_date');
-        const taxNotificationDate = getVal(a, 'taxNotificationDate', 'tax_notification_date');
-        const taxReceiptDate = getVal(a, 'taxReceiptDate', 'tax_receipt_date');
-        const currentStep = getVal(a, 'currentStep', 'current_step');
-        const accountingHandoverDate = getVal(a, 'accountingHandoverDate', 'accounting_handover_date');
+        // Extract values
+        const submissionDate = a.submissionDate;
+        const taxNotificationDate = a.taxNotificationDate;
+        const taxReceiptDate = a.taxReceiptDate;
+        const currentStep = a.currentStep;
+        const accountingHandoverDate = a.accountingHandoverDate;
 
         // Standardize currentStep
         const step = (currentStep || '').toUpperCase();
@@ -108,14 +108,13 @@ export function useApplications(
         }
 
         // ================= 5. ISSUE =================
-        const issueType = getVal(a, 'issueType', 'issue_type') || 'None';
+        const issueType = a.issueType || 'None';
         
         if (activeIssue === 'ERROR') {
           const hasIssue =
             a.status === 'Error' ||
             !!a.isRejected ||
             !!a.hasError ||
-            !!a.has_error ||
             (Array.isArray(a.errors) && a.errors.length > 0) ||
             (issueType !== 'None');
 

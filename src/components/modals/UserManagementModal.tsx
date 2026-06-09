@@ -163,7 +163,7 @@ export const UserManagementModal = ({
                         : newUser.assignedProjectIds.includes(project.id);
                       
                       return (
-                        <label key={`project-assign-${project.id}-${index}`} className="flex items-center gap-2 p-2 hover:bg-slate-800/50 rounded-lg cursor-pointer transition-colors">
+                        <label key={`project-assign-${project.id || 'proj'}-${index}`} className="flex items-center gap-2 p-2 hover:bg-slate-800/50 rounded-lg cursor-pointer transition-colors">
                           <input 
                             type="checkbox"
                             className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500/20"

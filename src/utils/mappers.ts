@@ -1,5 +1,4 @@
 import { Application, UserProfile, UnitStatus, StepName } from '../types';
-import { STEP_CONFIG as INITIAL_STEP_CONFIG } from '../constants';
 import { buildFlags } from './flagUtils';
 
 export const safeParse = (val: string | any, fallback: any) => {
@@ -10,11 +9,6 @@ export const safeParse = (val: string | any, fallback: any) => {
   }
 };
 
-/**
- * Maps a database record (snake_case) to an Application object (camelCase).
- * @param item Record from Supabase.
- * @returns Application object.
- */
 export const mapFromSnakeCase = (item: Record<string, any>): Application => {
   if (!item) return {} as Application;
 
@@ -60,7 +54,7 @@ export const mapFromSnakeCase = (item: Record<string, any>): Application => {
   })();
 
   const mappedApp: Application = {
-    id: str(val('id', 'id')),
+    id: val('id', 'id') !== undefined && val('id', 'id') !== null && val('id', 'id') !== '' ? val('id', 'id') : undefined,
     updatedAt: str(val('updated_at', 'updatedAt')),
     unitCode: str(val('unit_code', 'unitCode')),
     projectName: str(val('project_name', 'projectName')),
@@ -68,10 +62,9 @@ export const mapFromSnakeCase = (item: Record<string, any>): Application => {
       const dbVal = val('workflow_type', 'workflowType');
       if (dbVal === 'Quy_trinh_1' || dbVal === 'Quy_trinh_2') 
         return dbVal;
-      // Suy ra từ currentStep nếu DB không có
       if (currentStep?.startsWith('GD')) return 'Quy_trinh_1';
       if (currentStep?.startsWith('S')) return 'Quy_trinh_2';
-      return 'Quy_trinh_1'; // Fallback
+      return 'Quy_trinh_1';
     })() as 'Quy_trinh_1' | 'Quy_trinh_2',
     customerName: str(val('customer_name', 'customerName')),
     contractSignerType: str(val('contract_signer_type', 'contractSignerType')),
@@ -102,9 +95,15 @@ export const mapFromSnakeCase = (item: Record<string, any>): Application => {
     handoverDate: str(val('handover_date', 'handoverDate')),
     taxNoticeProvisionDate: str(val('tax_notice_provision_date', 'taxNoticeProvisionDate')),
     gcnSignedDate: str(val('gcn_signed_date', 'gcnSignedDate')),
+    
+    // Ánh xạ chính xác cụm báo lỗi từ snake_case của DB về camelCase của App
     issueType: val('issue_type', 'issueType'),
     issueSeverity: val('issue_severity', 'issueSeverity'),
     issueNotes: str(val('issue_notes', 'issueNotes')),
+    issueStatus: val('issue_status', 'issueStatus'),
+    issueCreatedAt: str(val('issue_created_at', 'issueCreatedAt')),
+    issueResolvedAt: str(val('issue_resolved_at', 'issueResolvedAt')),
+    
     estimatedCompletionDate: str(val('estimated_completion_date', 'estimatedCompletionDate')),
     rejectionCount: num(val('rejection_count', 'rejectionCount')) ?? 0,
     isRejected: bool(val('is_rejected', 'isRejected')),
@@ -114,17 +113,13 @@ export const mapFromSnakeCase = (item: Record<string, any>): Application => {
     history: safeParse(val('history', 'history'), []),
     checklist: safeParse(val('checklist', 'checklist'), {}),
     scannedFiles: safeParse(val('scanned_files', 'scannedFiles'), []),
-    auditTrail: safeParse(val('audit_trail', 'auditTrail'), [])
+    auditTrail: safeParse(val('audit_trail', 'auditTrail'), []),
+    hasError: bool(val('has_error', 'hasError')) || bool(val('hasError', 'hasError'))
   };
   mappedApp.flags = buildFlags(mappedApp);
   return mappedApp;
 };
 
-/**
- * Maps a database record (snake_case) to a UserProfile object (camelCase).
- * @param item User record from Supabase.
- * @returns UserProfile object.
- */
 export const mapUserFromSnakeCase = (item: Record<string, any>): UserProfile => {
   return {
     id: item.id,
@@ -155,11 +150,6 @@ const STATUS_TO_ID_MAP: Record<string, number> = {
   Draft: 11,
 };
 
-/**
- * Maps an Application object (camelCase) to a database record (snake_case).
- * @param app Application object.
- * @returns Record for Supabase.
- */
 export const mapToSnakeCase = (app: Application): Record<string, any> => {
   const data: Record<string, any> = {
     unit_code: app.unitCode,
@@ -194,14 +184,21 @@ export const mapToSnakeCase = (app: Application): Record<string, any> => {
     handover_date: app.handoverDate,
     tax_notice_provision_date: app.taxNoticeProvisionDate,
     gcn_signed_date: app.gcnSignedDate,
+    
+    // Ánh xạ chính xác từ biến camelCase của App sang tên cột snake_case của DB khi lưu
     issue_type: app.issueType,
     issue_severity: app.issueSeverity,
     issue_notes: app.issueNotes,
+    issue_status: app.issueStatus,
+    issue_created_at: app.issueCreatedAt,
+    issue_resolved_at: app.issueResolvedAt,
+    
     estimated_completion_date: app.estimatedCompletionDate,
     rejection_count: app.rejectionCount,
     is_rejected: app.isRejected,
     rejection_reason: app.rejectionReason,
     commitment_date: app.commitmentDate,
+    has_error: app.hasError,
     tax_payment_status: app.taxPaymentStatus,
     history: app.history || [],
     checklist: app.checklist || {},
@@ -228,11 +225,6 @@ export const mapToSnakeCase = (app: Application): Record<string, any> => {
   return data;
 };
 
-/**
- * Maps a UserProfile object (camelCase) to a database record (snake_case).
- * @param user UserProfile object.
- * @returns Record for Supabase.
- */
 export const mapUserToSnakeCase = (user: UserProfile): Record<string, any> => {
   return {
     username: user.username,

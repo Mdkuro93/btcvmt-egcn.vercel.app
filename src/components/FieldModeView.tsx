@@ -300,9 +300,7 @@ export default function FieldModeView({
       finalApp.issueType = 'None';
       finalApp.issueNotes = '';
       finalApp.issueSeverity = 'Minor';
-      finalApp.issue_type = 'None';
-      finalApp.issue_notes = '';
-      finalApp.issue_severity = 'Minor';
+      finalApp.issueStatus = 'RESOLVED';
     }
 
     onUpdateApp(finalApp);
@@ -338,10 +336,24 @@ export default function FieldModeView({
   // Authorized user checkpoint
   const isUserAuthorizedToTransition = useMemo(() => {
     if (!editAppInstance || !currentUser) return false;
-    if (currentUser.dept === 'ADMIN' || currentUser.dept === 'MANAGER') return true;
     
-    const currStepDetail = STEP_CONFIG[editAppInstance.currentStep];
-    return currStepDetail?.dept === currentUser.dept;
+    const roleDept = STEP_CONFIG[editAppInstance.currentStep]?.dept;
+    const isSupportSpecial = (editAppInstance.projectName?.includes('hỗ trợ')) && (editAppInstance.currentStep === 'GD2_Cho_Nop_VPDK' || editAppInstance.currentStep === 'S3_Nop_VPDK');
+    const effectiveDept = isSupportSpecial ? 'KT' : roleDept;
+
+    if (
+      currentUser.dept === 'ADMIN' || 
+      currentUser.dept === 'DIRECTOR' || 
+      currentUser.dept === 'MANAGER' || 
+      currentUser.dept === 'MANAGER_ALL' ||
+      (currentUser.dept === 'MANAGER_PTT' && effectiveDept === 'PTT') ||
+      (currentUser.dept === 'MANAGER_KT' && effectiveDept === 'KT') ||
+      (currentUser.dept === 'MANAGER_PTDA' && effectiveDept === 'PTDA')
+    ) {
+      return true;
+    }
+    
+    return effectiveDept === currentUser.dept;
   }, [editAppInstance, currentUser]);
 
   // Execute Step Transition Forward
@@ -537,7 +549,7 @@ export default function FieldModeView({
 
               return (
                 <div 
-                  key={`field-app-${app.id}-${index}`} 
+                  key={`field-app-${app.id || app.unitCode || index}-${index}`} 
                   onClick={() => handleOpenDetailModal(app)}
                   className={cn(
                     "bg-slate-900/60 p-5 rounded-3xl border border-separate transition-all relative overflow-hidden flex flex-col gap-3 cursor-pointer select-none active:bg-slate-900 border-l-4",
@@ -603,11 +615,11 @@ export default function FieldModeView({
                             </p>
                           </div>
                         )}
-                        {app.status === 'Error' && !app.isRejected && (app.issueNotes || app.issue_notes) && (
+                        {app.status === 'Error' && !app.isRejected && app.issueNotes && (
                           <div className="flex items-start gap-2 pt-1 border-t border-slate-800/20 mt-1">
                             <AlertTriangle size={12} className="text-rose-500 mt-0.5 shrink-0" />
                             <p className="text-[10px] text-rose-400 font-semibold line-clamp-2">
-                              Vướng mắc: <span className="text-rose-300 italic">{(app.issueNotes || app.issue_notes)}</span>
+                              Vướng mắc: <span className="text-rose-300 italic">{app.issueNotes}</span>
                             </p>
                           </div>
                         )}
@@ -875,12 +887,11 @@ export default function FieldModeView({
                                 <div className="space-y-1.5 text-left">
                                   <label className="text-[9px] font-black uppercase tracking-widest text-rose-300 ml-1">Phân loại vướng mắc</label>
                                   <select
-                                    value={editAppInstance.issueType || editAppInstance.issue_type || 'Sai sót Khác'}
+                                    value={editAppInstance.issueType || 'Sai sót Khác'}
                                     onChange={(e) => {
                                       setEditAppInstance(prev => prev ? {
                                         ...prev,
-                                        issueType: e.target.value as any,
-                                        issue_type: e.target.value as any
+                                        issueType: e.target.value as any
                                       } : null);
                                     }}
                                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs font-bold text-white focus:border-rose-500 outline-none"
@@ -897,12 +908,11 @@ export default function FieldModeView({
                                 <div className="space-y-1.5 text-left">
                                   <label className="text-[9px] font-black uppercase tracking-widest text-rose-300 ml-1">Mức độ nghiêm trọng</label>
                                   <select
-                                    value={editAppInstance.issueSeverity || editAppInstance.issue_severity || 'Moderate'}
+                                    value={editAppInstance.issueSeverity || 'Moderate'}
                                     onChange={(e) => {
                                       setEditAppInstance(prev => prev ? {
                                         ...prev,
-                                        issueSeverity: e.target.value as any,
-                                        issue_severity: e.target.value as any
+                                        issueSeverity: e.target.value as any
                                       } : null);
                                     }}
                                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs font-bold text-white focus:border-rose-500 outline-none"
@@ -916,12 +926,11 @@ export default function FieldModeView({
                                 <div className="space-y-1.5 text-left">
                                   <label className="text-[9px] font-black uppercase tracking-widest text-rose-300 ml-1">Ghi chú & Nội dung vướng mắc</label>
                                   <textarea
-                                    value={editAppInstance.issueNotes || editAppInstance.issue_notes || ''}
+                                    value={editAppInstance.issueNotes || ''}
                                     onChange={(e) => {
                                       setEditAppInstance(prev => prev ? {
                                         ...prev,
-                                        issueNotes: e.target.value,
-                                        issue_notes: e.target.value
+                                        issueNotes: e.target.value
                                       } : null);
                                     }}
                                     placeholder="Mô tả chi tiết vướng mắc, lỗi nghiệp vụ..."
