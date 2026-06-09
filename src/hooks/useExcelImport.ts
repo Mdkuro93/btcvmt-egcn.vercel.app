@@ -308,12 +308,13 @@ export function useExcelImport({
           }
         });
 
-        const findCol = (exacts: string[], subs: string[]): number => {
+        const findCol = (exacts: string[], subs: string[], forceExact: boolean = false): number => {
           for (const key of Object.keys(headerIndexMap)) {
             if (exacts.some(ex => key === ex)) {
               return headerIndexMap[key];
             }
           }
+          if (forceExact) return -1;
           for (const key of Object.keys(headerIndexMap)) {
             if (subs.some(sub => key.includes(sub))) {
               return headerIndexMap[key];
@@ -330,24 +331,24 @@ export function useExcelImport({
           phoneNumber: findCol(['so dien thoai', 'sdt', 'dien thoai'], ['dien thoai', 'sdt']),
           loanStatus: findCol(['vay ngan hang (co/khong)', 'vay ngan hang', 'vay nh'], ['vay ngan hang', 'vay nh']),
           propertyType: findCol(['loai tai san', 'loai ts'], ['loai tai san', 'loai ts']),
-          commitmentDate: findCol(['han gcn cam ket', 'han gcn', 'han cam ket'], ['han gcn', 'han cam ket']),
+          commitmentDate: findCol(['han gcn cam ket', 'han gcn'], ['han gcn']),
           bankCommitmentDeadline: findCol(['han cam ket ngan hang', 'han cam ket vay'], ['cam ket ngan hang', 'cam ket vay']),
           receivedDate: findCol(['ngay nhan ho so', 'nhan ho so'], ['nhan ho so']),
           contractSigningDate: findCol(['ngay ky hdcn', 'ky hdcn'], ['ky hdcn']),
-          handoverApartmentDate: findCol(['ngay ban giao can ho thuc te', 'ngay ban giao can ho', 'ban giao can ho', 'bg can ho'], ['ban giao can ho', 'bg can ho']),
+          handoverApartmentDate: findCol(['ngay ban giao can ho thuc te', 'ngay ban giao can ho', 'ban giao can ho', 'bg can ho'], ['ban giao can ho'], false),
           isSelfService: findCol(['tu lam so (co/khong)', 'tu lam so'], ['tu lam so']),
-          accountingHandoverDate: findCol(['ngay ban giao sang kt', 'ngay ban giao kt', 'ban giao kt', 'bg kt'], ['ban giao sang kt', 'ban giao kt', 'bg kt']),
+          accountingHandoverDate: findCol(['ngay ban giao sang kt', 'ngay ban giao kt', 'ban giao kt', 'bg kt'], ['bg kt'], false),
           submissionLocation: findCol(['noi nop (phuong/tp)', 'noi nop'], ['noi nop']),
           vpdkCode: findCol(['ma hs/so phieu hen vpdk', 'ma hs vpdk', 'ma vpdk', 'so phieu hen', 'ma phieu hen'], ['ma vpdk', 'phieu hen']),
           submissionDate: findCol(['ngay nop vpdk', 'nop vpdk'], ['nop vpdk']),
-          taxNotificationDate: findCol(['ngay tb thue', 'tb thue'], ['tb thue']),
-          taxNotificationReceivedDate: findCol(['ngay nhan tb thue', 'nhan tb thue'], ['nhan tb thue']),
+          taxNotificationDate: findCol(['ngay tb thue', 'tb thue'], [], true),
+          taxNotificationReceivedDate: findCol(['ngay nhan tb thue', 'nhan tb thue'], [], true),
           taxNoticeProvisionDate: findCol(['ngay cap tb thue', 'cung cap tb thue', 'ngay cung cap tb thue'], ['cap tb thue', 'cung cap tb thue']),
           taxReceiptDate: findCol(['ngay dong thue', 'dong thue'], ['dong thue']),
-          gcnSignedDate: findCol(['ngay trinh ky gcn', 'trinh ky gcn', 'gcn da ky', 'ngay gcn da ky'], ['trinh ky', 'gcn da ky']),
-          gcnReceivedDate: findCol(['ngay nhan gcn thuc te', 'ngay gcn da nhan', 'ngay nhan gcn', 'nhan gcn'], ['gcn thuc te', 'nhan gcn', 'gcn da nhan']),
+          gcnSignedDate: findCol(['ngay trinh ky gcn', 'trinh ky gcn', 'gcn da ky', 'ngay gcn da ky'], [], true),
+          gcnReceivedDate: findCol(['ngay nhan gcn thuc te', 'ngay gcn da nhan', 'ngay nhan gcn', 'nhan gcn'], [], true),
           ptdaHandoverDate: findCol(['ngay bg p.tda', 'bg p.tda', 'bg p_tda', 'ban giao p.tda'], ['bg p.tda', 'bg ptda']),
-          customerHandoverDate: findCol(['ngay bg gcn khach', 'bg gcn khach', 'bg gcn cho khach', 'ban giao khach'], ['bg khach', 'bg gcn khach', 'ban giao khach']),
+          customerHandoverDate: findCol(['ngay bg gcn khach', 'bg gcn khach', 'bg gcn cho khach', 'ban giao khach'], [], true),
           issueType: findCol(['phan loai sai sot'], ['phan loai sai sot']),
           issueSeverity: findCol(['muc do sai sot'], ['muc do sai sot']),
           issueNotes: findCol(['ghi chu sai sot'], ['ghi chu sai sot']),
@@ -375,12 +376,27 @@ export function useExcelImport({
           const projectName = getRowStr(row, 'projectName') || '';
           const unitCode = getRowStr(row, 'unitCode') || '';
           if (!unitCode) return;
+
+          // Attempt to map projectName to official projects list for consistency
+          let matchedProject = projects.find(p => 
+            p.name.toLowerCase().trim() === projectName.toLowerCase().trim()
+          );
+
+          if (!matchedProject && projectName) {
+            // Try fuzzy match if exact match fails
+            matchedProject = projects.find(p => 
+              p.name.toLowerCase().includes(projectName.toLowerCase()) || 
+              projectName.toLowerCase().includes(p.name.toLowerCase())
+            );
+          }
+
+          const officialProjectName = matchedProject ? matchedProject.name : projectName;
           
-          const key = `${projectName.toLowerCase()}_${unitCode}`;
+          const key = `${officialProjectName.toLowerCase()}_${unitCode}`;
           if (seenInFile.has(key)) {
             warnings.push(
               `⚠️ File Excel có mã lô trùng: ${unitCode} ` +
-              `(${projectName}) xuất hiện ở dòng ` +
+              `(${officialProjectName}) xuất hiện ở dòng ` +
               `${seenInFile.get(key)! + 2} và dòng ${idx + 2}. ` +
               `Hệ thống chỉ xử lý dòng đầu tiên.`
             );
@@ -390,10 +406,10 @@ export function useExcelImport({
 
           const existingApp = applications.find(
             a => a.unitCode === unitCode && 
-                (!projectName || a.projectName?.toLowerCase() === projectName.toLowerCase())
+                (!officialProjectName || a.projectName?.toLowerCase() === officialProjectName.toLowerCase())
           );
           
-          const parsedProjectName = projectName || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
+          const parsedProjectName = officialProjectName || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);
 
           if (existingApp) {
              const changes: string[] = [];

@@ -1215,11 +1215,8 @@ export const ApplicationsTab = ({
                                               "text-[10px] leading-tight font-mono", 
                                               showWarning ? "text-orange-600 dark:text-orange-400 font-bold" : (theme === 'light' ? "text-slate-500" : "text-slate-400")
                                             )}>
-                                              {finalGCNDate ? formatDate(finalGCNDate) : '---'}
+                                              {finalGCNDate ? formatDate(finalGCNDate) : '--'}
                                             </span>
-                                            {hasGCN && !showWarning && (
-                                              <span className="text-[8px] px-1 py-[1px] bg-emerald-500/10 text-emerald-500 rounded font-bold uppercase border border-emerald-500/20">Hoàn thành</span>
-                                            )}
                                             {showWarning && (
                                               <div className="relative flex items-center justify-center">
                                                 <AlertTriangle size={10} className="text-orange-500 dark:text-orange-400" />

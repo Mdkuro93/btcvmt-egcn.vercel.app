@@ -110,6 +110,14 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
       }
 
       if (targetStartDateStr) {
+        // Early exit for completion milestones: If user provided a completion date for current step, stop the clock.
+        const isS6NhanSo = app.currentStep === 'S6_Nhan_So_GCN' || app.currentStep === 'GD5_Cho_GCN' || app.currentStep === 'GD5_Cho_PTT_TiepNhan_BG';
+        if (isS6NhanSo) {
+          if (isDateValid(app.gcnReceivedDate) || isDateValid(app.gcnSignedDate)) {
+             return { isOverdue: false, daysLate: 0, urgency: 'normal' as const };
+          }
+        }
+
         stepStartTime = new Date(targetStartDateStr).getTime();
 
         const now = new Date().getTime();

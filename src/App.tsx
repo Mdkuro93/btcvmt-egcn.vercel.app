@@ -1978,6 +1978,7 @@ export default function App() {
         id, status, current_step, project_name,
         workflow_type, submission_date,
         tax_notification_date, tax_receipt_date,
+        contract_signing_date,
         gcn_signed_date, gcn_received_date, customer_handover_date,
         accounting_handover_date, ptda_handover_date, is_self_service,
         loan_status, issue_type, is_rejected,
@@ -2810,6 +2811,7 @@ export default function App() {
 
   const EDITABLE_DATE_FIELDS = [
     { key: 'receivedDate', label: 'Ngày nhận HS' },
+    { key: 'contractSigningDate', label: 'Ngày ký HĐCN' },
     { key: 'submissionDate', label: 'Ngày nộp VPĐK' },
     { key: 'taxNotificationDate', label: 'Ngày TB Thuế' },
     { key: 'taxReceiptDate', label: 'Ngày nộp tiền' },

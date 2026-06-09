@@ -329,7 +329,7 @@ export const Sidebar = ({
               title="Tất cả dự án"
               className={cn(
                 "w-full flex items-center gap-3 py-2.5 rounded-xl transition-all text-sm font-black uppercase tracking-tight overflow-hidden",
-                isSidebarCollapsed ? "justify-center px-0" : "px-4",
+                isSidebarCollapsed ? "justify-center px-0" : "px-2.5",
                 selectedProjectId === null 
                   ? (theme === 'light' ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200" : "bg-slate-800/80 text-festive-gold ring-1 ring-slate-700")
                   : (theme === 'light' ? "text-slate-500 hover:bg-slate-50" : "text-slate-400 hover:bg-slate-800/50")
@@ -338,7 +338,7 @@ export const Sidebar = ({
               <MapIcon size={16} className={cn("shrink-0", selectedProjectId === null ? (theme === 'light' ? "text-amber-600" : "text-festive-gold") : "text-slate-500")} />
               <AnimatePresence>
                 {!isSidebarCollapsed && (
-                  <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="truncate whitespace-nowrap overflow-hidden">
+                  <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="break-words leading-tight overflow-hidden">
                     Tất cả dự án
                   </motion.span>
                 )}
@@ -419,8 +419,8 @@ export const Sidebar = ({
                           title={p.name}
                           onClick={() => handleProjectClick(p.id)}
                           className={cn(
-                            "w-full flex items-center gap-3 py-2.5 rounded-xl transition-all text-sm font-black group relative overflow-hidden",
-                            isSidebarCollapsed ? "justify-center px-0 ml-[-12px]" : "px-4",
+                            "w-full flex items-center gap-2.5 py-2.5 rounded-xl transition-all text-[12px] font-black group relative overflow-hidden",
+                            isSidebarCollapsed ? "justify-center px-0 ml-[-12px]" : "px-2.5",
                             selectedProjectId === p.id 
                               ? (theme === 'light' ? "bg-amber-600 text-white shadow-lg shadow-amber-600/20" : "bg-slate-800/80 text-festive-gold ring-1 ring-slate-700") 
                               : (theme === 'light' ? "text-slate-500 hover:bg-white hover:shadow-sm" : "text-slate-400 hover:bg-slate-800/50")
@@ -434,7 +434,12 @@ export const Sidebar = ({
                           )} />
                           <AnimatePresence>
                             {!isSidebarCollapsed && (
-                              <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="truncate max-w-[140px] uppercase tracking-tight whitespace-nowrap">
+                              <motion.span 
+                                initial={{ opacity: 0, width: 0 }} 
+                                animate={{ opacity: 1, width: 'auto' }} 
+                                exit={{ opacity: 0, width: 0 }} 
+                                className="break-words leading-tight uppercase tracking-tight"
+                              >
                                 {p.name}
                               </motion.span>
                             )}
