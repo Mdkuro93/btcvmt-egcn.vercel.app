@@ -2045,6 +2045,20 @@ export default function App() {
      }
   };
 
+  const bulkDeleteNotificationsForRecords = async (recordIds: (string | number)[]) => {
+    if (recordIds.length === 0) return;
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .in('record_id', recordIds);
+      if (error) throw error;
+      setNotifications(prev => prev.filter(n => n.appId ? !recordIds.includes(n.appId) : true));
+    } catch (error) {
+      console.error('Error deleting bulk notifications:', error);
+    }
+  };
+
   const deleteNotification = async (id: string) => {
     try {
       const { error } = await supabase
@@ -2183,6 +2197,47 @@ export default function App() {
           appId: app.id
         }))
       );
+    }
+  };
+
+  const bulkNotifyNextDepartment = async (appsToSync: Application[], targetStep: StepName) => {
+    const step = stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep];
+    const targetDept = step.dept;
+    
+    const notificationsToInsert: any[] = [];
+    
+    appsToSync.forEach(app => {
+      const appProjectId = app.projectId || projects.find(p => p.name === app.projectName)?.id;
+      const targetUsers = users.filter(u => 
+        u.dept === targetDept && 
+        u.id !== currentUser?.id &&
+        typeof u.id === 'string' &&
+        u.id.length === 36 &&
+        (appProjectId ? (u.assignedProjectIds || []).includes(appProjectId) : true)
+      );
+      
+      targetUsers.forEach(u => {
+        const noti = {
+          recipientId: u.id,
+          title: 'Bàn giao hồ sơ mới',
+          message: `Hồ sơ ${app.unitCode} đã được chuyển đến bộ phận của bạn từ ${currentUser?.name}.`,
+          type: 'Info' as const,
+          appId: app.id
+        };
+        const snake = mapNotificationToSnakeCase(noti as any);
+        // Remove id if present to let DB handle it
+        if ((snake as any).id) delete (snake as any).id;
+        notificationsToInsert.push(snake);
+      });
+    });
+
+    if (notificationsToInsert.length > 0) {
+      try {
+        const { error } = await supabase.from('notifications').insert(notificationsToInsert);
+        if (error) console.error('Bulk next dept notification error:', error);
+      } catch (err) {
+        console.error('Bulk next dept notification catch error:', err);
+      }
     }
   };
 
@@ -2743,7 +2798,7 @@ export default function App() {
             };
         });
 
-        const syncedApps = await Promise.all(updatedApps.map(app => localSyncRecord(app)));
+        const syncedApps = await bulkSyncRecordsToSupabase(updatedApps, applications);
         
         handleSetApplications(prev => prev.map(a => {
             const updated = syncedApps.find(sa => sa.id === a.id);
@@ -4080,11 +4135,11 @@ export default function App() {
       }
 
       // Notifications for bulk transition
-      await Promise.all(appsToSync.map(app => notifyNextDepartment(app, nextStep)));
+      await bulkNotifyNextDepartment(appsToSync, nextStep);
 
       // Cleanup notifications for finished apps
       if (nextStep === 'Hoan_Tat') {
-        await Promise.all(selectedAppIds.map(id => deleteAllNotificationsForRecord(id)));
+        await bulkDeleteNotificationsForRecords(selectedAppIds);
       }
 
       setSelectedAppIds([]);
@@ -4145,6 +4200,9 @@ export default function App() {
         );
       }
 
+      // Cleanup notifications for deleted records
+      await bulkDeleteNotificationsForRecords(selectedAppIds);
+
       handleSetApplications(prev => prev.filter(app => !selectedAppIds.includes(app.id)));
       setSelectedAppIds([]);
       showToast(`Đã xóa hàng loạt ${count} hồ sơ và tài liệu đính kèm thành công.`, 'success');
@@ -4158,27 +4216,58 @@ export default function App() {
 
   const handleBulkResolveIssues = async () => {
     const appsToResolve = applications.filter(a => 
-      selectedRows.includes(String(a.id)) && 
+      selectedRows.has(a.id) && 
       (a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None'))
     );
     if (appsToResolve.length === 0) return;
     
     setIsSavingApp(true);
-    let successCount = 0;
-    for (const app of appsToResolve) {
-      try {
-        await handleResolveIssue(app.id);
-        successCount++;
-      } catch (e) {
-        console.error(`Resolve error ${app.unitCode}:`, e);
-      }
+    try {
+      const updatedApps = appsToResolve.map(app => {
+        const stepCfg = stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep];
+        
+        const newHistory = [
+          {
+            id: `resolve-${Date.now()}-${app.id}`,
+            stepName: stepCfg.label,
+            dept: userRole as Dept,
+            receivedDate: new Date().toISOString(),
+            note: 'Đã khắc phục xong sai sót/vướng mắc. Sẵn sàng chuyển bước tiếp theo.',
+            performedBy: currentUser?.id,
+            performedByName: currentUser?.name
+          },
+          ...app.history
+        ];
+
+        const auditEntry = createAuditEntry('Khắc phục vướng mắc', false, 1, app.unitCode, 'Đã xác nhận hoàn tất khắc phục sai sót/vướng mắc');
+        
+        return {
+          ...app,
+          status: stepCfg.status,
+          isRejected: false,
+          issueType: 'None' as const,
+          issueSeverity: 'Minor' as const,
+          issueNotes: '',
+          issueStatus: 'RESOLVED' as const,
+          history: newHistory,
+          auditTrail: [auditEntry, ...(app.auditTrail || [])]
+        };
+      });
+
+      const finalApps = await bulkSyncRecordsToSupabase(updatedApps, applications);
+      handleSetApplications(finalApps);
+      handleSetDashboardApps(prev => {
+        const validIds = new Set(finalApps.map(a => a.id));
+        return prev.map(a => validIds.has(a.id) ? finalApps.find(f => f.id === a.id) || a : a);
+      });
+
+      showToast(`Đã xác nhận khắc phục thành công cho ${updatedApps.length} hồ sơ.`, 'success');
+    } catch (e) {
+      console.error(`Bulk resolve error:`, e);
+      showToast('Lỗi khi cập nhật trạng thái hàng loạt.', 'error');
+    } finally {
+      setIsSavingApp(false);
     }
-    showToast(
-      `Đã xác nhận khắc phục ${successCount}/` +
-      `${appsToResolve.length} hồ sơ`,
-      'success'
-    );
-    setIsSavingApp(false);
   };
 
 
@@ -4653,27 +4742,39 @@ export default function App() {
 
       const finalApps = await bulkSyncRecordsToSupabase(updatedApps, applications);
 
-      // Create notifications
-      const promises = updatedApps.flatMap(app => {
+      // Create notifications in bulk
+      const notificationsToInsert = updatedApps.flatMap(app => {
         const stepKeys = Object.keys(stepConfig);
-        const currentIndex = stepKeys.indexOf(applications.find(a => a.id === app.id)?.currentStep || '');
+        const originalApp = applications.find(a => a.id === app.id);
+        const currentIndex = stepKeys.indexOf(originalApp?.currentStep || '');
         const prevStep = currentIndex > 0 ? stepKeys[currentIndex - 1] as StepName : app.currentStep;
         
         const prevStepConfig = stepConfig[prevStep] || INITIAL_STEP_CONFIG[prevStep];
         const targetDept = prevStepConfig.dept;
         const targetUsers = users.filter(u => u.dept === targetDept && u.id !== currentUser?.id);
         
-        return targetUsers.map(u => 
-          createNotification({
-            recipientId: u.id,
-            title: 'Hồ sơ bị trả về hàng loạt',
-            message: `Hồ sơ lô ${app.unitCode} bị trả về: ${reason}`,
-            type: 'Urgent',
-            appId: app.id
-          })
-        );
+        return targetUsers.map(u => ({
+          recipientId: u.id,
+          title: 'Hồ sơ bị trả về hàng loạt',
+          message: `Hồ sơ lô ${app.unitCode} bị trả về: ${reason}`,
+          type: 'Urgent',
+          appId: app.id
+        }));
       });
-      await Promise.all(promises);
+
+      if (notificationsToInsert.length > 0) {
+        try {
+          const snakeNotis = notificationsToInsert.map(n => {
+            const s = mapNotificationToSnakeCase(n as any);
+            if ((s as any).id) delete (s as any).id;
+            return s;
+          });
+          const { error: notiError } = await supabase.from('notifications').insert(snakeNotis);
+          if (notiError) console.error('Bulk notification error:', notiError);
+        } catch (err) {
+          console.error('Catch error in bulk notification:', err);
+        }
+      }
 
       handleSetApplications(finalApps);
       handleSetDashboardApps(prev => {
