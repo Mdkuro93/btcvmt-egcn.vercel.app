@@ -6433,6 +6433,7 @@ export default function App() {
                   slaConfig={slaConfig}
                   reportType={reportType}
                   setReportType={setReportType}
+                  userRole={userRole}
                 />
               </motion.div>
             )}

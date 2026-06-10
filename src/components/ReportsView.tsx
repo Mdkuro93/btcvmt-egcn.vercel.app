@@ -26,7 +26,7 @@ import { motion } from 'motion/react';
 import { calculateSLA } from '../utils/statusEngine';
 import { REGION_ORDER } from '../constants';
 import ErrorReportView from './ErrorReportView';
-
+import SLAReportView from './SLAReportView';
 const calculateDaysDiff = (dateStr: string) => {
   if (!dateStr) return 0;
   const date = new Date(dateStr);
@@ -112,6 +112,7 @@ interface ReportsViewProps {
   slaConfig: Record<string, number>;
   reportType: 'PROJECT' | 'REGION' | 'LOAN' | 'SLA' | 'PERFORMANCE' | 'ERROR';
   setReportType: (type: 'PROJECT' | 'REGION' | 'LOAN' | 'SLA' | 'PERFORMANCE' | 'ERROR') => void;
+  userRole?: string;
   onExportExcel?: (type: string, month?: string, projectId?: string) => void;
 }
 
@@ -127,6 +128,7 @@ export default function ReportsView({
   slaConfig,
   reportType,
   setReportType,
+  userRole = 'ADMIN',
   onExportExcel
 }: ReportsViewProps) {
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
@@ -1167,71 +1169,14 @@ export default function ReportsView({
                  </div>
               </div>
             ) : reportType === 'SLA' ? (
-              <div className="space-y-8">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className={cn("text-sm font-black uppercase tracking-widest", theme === 'light' ? "text-slate-800" : "text-slate-200")}>Phân tích Bottleneck & Hiệu suất Bộ phận</h3>
-                    <p className="text-[10px] text-slate-500 mt-1 italic">Các bước có thời gian trung bình (Avg TAT) cao nhất là điểm nghẽn của quy trình.</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                   <div className="h-[400px] w-full">
-                      <ResponsiveContainer width="100%" height={400}>
-                        <BarChart data={slaStats} layout="vertical" margin={{ left: 20 }}>
-                          <XAxis type="number" hide />
-                          <YAxis dataKey="step" type="category" stroke="#94a3b8" fontSize={10} width={100} axisLine={false} tickLine={false} />
-                          <ReTooltip 
-                            cursor={{ fill: 'rgba(99,102,241,0.05)' }}
-                            contentStyle={{ 
-                              backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
-                              border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #1e293b', 
-                              borderRadius: '16px' 
-                            }}
-                          />
-                          <Bar dataKey="avgDays" name="Số ngày tb" radius={[0, 6, 6, 0]} barSize={20}>
-                            {slaStats.map((entry, index) => (
-                              <Cell key={`report-sla-chart-bar-${entry.stepKey || entry.step}-${index}`} fill={entry.isCritical ? '#f43f5e' : entry.avgDays > 5 ? '#f59e0b' : '#6366f1'} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
-                   </div>
-                   
-                   <div className="space-y-4">
-                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Trách nhiệm Phòng ban & TAT</p>
-                      <div className="space-y-3">
-                         {slaStats.slice().sort((a,b) => b.avgDays - a.avgDays).map((item, i) => (
-                           <div key={`${item.step}-${i}`} className={cn(
-                             "p-4 rounded-2xl border flex items-center justify-between transition-all group",
-                             item.isCritical ? "bg-rose-500/5 border-rose-500/20" : "bg-slate-950/20 border-slate-800"
-                           )}>
-                              <div className="flex items-center gap-4">
-                                 <div className={cn(
-                                   "w-2 h-2 rounded-full",
-                                   item.isCritical ? "bg-rose-500" : "bg-indigo-500"
-                                 )} />
-                                 <div>
-                                   <p className={cn("text-xs font-black", theme === 'light' ? "text-slate-900" : "text-white group-hover:text-indigo-400 transition-colors")}>{item.step}</p>
-                                   <div className="flex items-center gap-2 mt-0.5">
-                                      <span className="text-[9px] font-black text-slate-500 uppercase">Phụ trách:</span>
-                                      <span className="px-2 py-0.5 bg-slate-800 text-slate-300 text-[8px] font-black rounded-lg">{item.dept}</span>
-                                   </div>
-                                 </div>
-                              </div>
-                              <div className="text-right">
-                                 <p className={cn(
-                                   "text-sm font-black italic",
-                                   item.isCritical ? "text-rose-500" : "text-slate-300"
-                                 )}>{item.avgDays} Ngày</p>
-                                 <p className="text-[8px] font-black text-slate-600 uppercase">Avg. TAT</p>
-                              </div>
-                           </div>
-                         ))}
-                      </div>
-                   </div>
-                </div>
-              </div>
+              <SLAReportView
+                applications={applications}
+                projects={projects}
+                theme={theme}
+                stepConfig={stepConfig}
+                slaConfig={slaConfig}
+                userRole={userRole}
+              />
             ) : (
               <div className="h-[400px] w-full">
                 <ResponsiveContainer width="100%" height={400}>
@@ -1239,13 +1184,13 @@ export default function ReportsView({
                     <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? "#e2e8f0" : "#ffffff10"} vertical={false} />
                     <XAxis dataKey="name" stroke="#475569" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
                     <YAxis stroke="#475569" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
-                    <ReTooltip 
+                    <ReTooltip
                       cursor={{ fill: theme === 'light' ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.02)' }}
-                      contentStyle={{ 
-                        backgroundColor: theme === 'light' ? '#fff' : '#0f172a', 
-                        border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #1e293b', 
-                        borderRadius: '16px', 
-                        boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)' 
+                      contentStyle={{
+                        backgroundColor: theme === 'light' ? '#fff' : '#0f172a',
+                        border: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #1e293b',
+                        borderRadius: '16px',
+                        boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)'
                       }}
                       itemStyle={{ fontSize: '12px', fontWeight: 'bold', color: theme === 'light' ? '#334155' : '#fff' }}
                     />
