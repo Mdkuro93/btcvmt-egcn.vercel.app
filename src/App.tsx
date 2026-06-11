@@ -1140,22 +1140,9 @@ export default function App() {
   };
 
   const fetchRefs = useRef<any>({});
+  const fetchRequestIds = useRef({ applications: 0, dashboard: 0 });
 
-  // Reliability: Using Polling instead of WebSocket (due to sandbox constraints)
-  useEffect(() => {
-    if (!currentUser?.id) return;
-
-    // Setup Polling Interval (every 30 seconds)
-    const pollInterval = setInterval(() => {
-      try {
-        if (fetchRefs.current.fetchDashboardApps) fetchRefs.current.fetchDashboardApps();
-      } catch (err) {
-        console.error("Polling fetch failed silently:", err);
-      }
-    }, 30000);
-
-    return () => clearInterval(pollInterval);
-  }, [currentUser?.id]);
+  // Moved down to fix realtimeStatus reference error
 
   const fetchStorageUsage = async () => {
     setIsFetchingStorage(true);
@@ -1575,31 +1562,33 @@ export default function App() {
     return () => window.removeEventListener("reconnect-realtime", handleReconnect);
   }, []);
 
-  // Bộ hẹn giờ dự phòng (Fallback Polling) khi kênh Real-time WebSocket bị chặn trong môi trường iFrame Sandbox
+  // Unified background polling to prevent race conditions and flashing
   useEffect(() => {
-    let isMounted = true;
-    if (!currentUser || realtimeStatus === 'connected') return;
+    if (!currentUser?.id) return;
 
-    // Tự động kéo dữ liệu (HTTP pull) định kỳ mỗi 60 giây để duy trì đồng bộ
-    const fallbackPollInterval = setInterval(() => {
-      // Không poll khi tab bị ẩn (tiết kiệm tài nguyên) hoặc unmounted
-      if (document.hidden || !isMounted) return;
+    const pollInterval = setInterval(() => {
+      // Bỏ qua nếu tab bị ẩn hoặc websocket real-time đang hoạt động tốt
+      if (document.hidden || realtimeStatus === 'connected') return;
 
-      console.log('🔄 Đang đồng bộ dữ liệu dự phòng qua HTTPS (WebSocket bị chặn hoặc mất kết nối)...');
-      if (activeTab === 'applications') {
-        fetchApplications();
+      try {
+        if (fetchRefs.current.fetchDashboardApps) fetchRefs.current.fetchDashboardApps(true);
+        if (fetchRefs.current.fetchApplications && activeTab === 'applications') {
+          fetchRefs.current.fetchApplications(true);
+        }
+      } catch (err) {
+        console.error("Polling fetch failed silently:", err);
       }
-      fetchDashboardApps();
-    }, 60000);
+    }, 30000);
 
-    return () => {
-      isMounted = false;
-      clearInterval(fallbackPollInterval);
-    };
-  }, [currentUser, realtimeStatus, activeTab]);
+    return () => clearInterval(pollInterval);
+  }, [currentUser?.id, activeTab, realtimeStatus]);
 
-  const fetchApplications = async () => {
-    setIsLoadingApps(true);
+  const fetchApplications = async (isBackground = false) => {
+    if (!isBackground) {
+      setIsLoadingApps(true);
+    }
+    const currentRequestId = ++fetchRequestIds.current.applications;
+
     try {
       let query = supabase.from('records').select(RECORD_LIGHT_SELECT, { count: 'exact' });
       
@@ -1899,17 +1888,23 @@ export default function App() {
         
       if (error) throw error;
       
+      // Chống Race Condition: nếu có request mới hơn thì bỏ qua data từ request cũ này
+      if (currentRequestId !== fetchRequestIds.current.applications) return;
+
       const fetchedApps = (data || []).map(mapFromSnakeCase);
       handleSetApplications(fetchedApps);
       setTotalCount(count || 0);
     } catch (error) {
+      if (currentRequestId !== fetchRequestIds.current.applications) return;
       console.error('Error fetching paginated records:', error);
      showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      handleSetApplications([]);
       setTotalCount(0);
       // Suppress UI error to keep dashboard smooth
     } finally {
-      setIsLoadingApps(false);
+      if (currentRequestId === fetchRequestIds.current.applications) {
+        setIsLoadingApps(false);
+      }
     }
   };
 
@@ -1949,8 +1944,12 @@ export default function App() {
     }
   }, [activeTab, currentUser]);
 
-  const fetchDashboardApps = async () => {
-    setIsLoadingDashboard(true);
+  const fetchDashboardApps = async (isBackground = false) => {
+    if (!isBackground) {
+      setIsLoadingDashboard(true);
+    }
+    const currentRequestId = ++fetchRequestIds.current.dashboard;
+
     try {
       // Fetch ONLY necessary columns for dashboard stats, ignoring pagination and filters to optimize bandwidth
       let query = supabase.from('records').select(`
@@ -1986,14 +1985,20 @@ export default function App() {
 
       const { data, error } = await query;
       if (error) throw error;
+      
+      if (currentRequestId !== fetchRequestIds.current.dashboard) return;
+      
       const fetched = (data || []).map(mapFromSnakeCase);
       handleSetDashboardApps(fetched);
     } catch (error) {
+      if (currentRequestId !== fetchRequestIds.current.dashboard) return;
       console.error('Error fetching dashboard records:', error);
      showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
      handleSetDashboardApps([]);
     } finally {
-      setIsLoadingDashboard(false);
+      if (currentRequestId === fetchRequestIds.current.dashboard) {
+        setIsLoadingDashboard(false);
+      }
     }
   };
 

@@ -55,57 +55,107 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
 
     const isDateValid = (d: any) => d && d !== '---' && d !== 'None' && String(d).trim() !== '';
 
-    // Fix SLA for GCN Receiving Steps
-    const isGCNStep = currentStep === 'S6_Nhan_So_GCN' || currentStep === 'GD5_Cho_GCN' || currentStep === 'GD5_Cho_PTT_TiepNhan_BG';
-    if (isGCNStep) {
-      const gcnReceived = app.gcnReceivedDate || app.gcn_received_date;
-      const gcnSigned = app.gcnSignedDate || app.gcn_signed_date;
-      
-      if (isDateValid(gcnReceived) || isDateValid(gcnSigned)) {
-        return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
-      }
-    }
+    // STEP COMPLETION GUARDS: Stop the clock if a destination milestone for the current step is already reached
+    const handoverDate = app.ktHandoverToPtdaDate || app.kt_handover_to_ptda_date;
+    const gcnReceived = app.gcnReceivedDate || app.gcn_received_date;
+    const gcnSigned = app.gcnSignedDate || app.gcn_signed_date;
+    const submissionDate = app.submissionDate || app.submission_date;
+    const taxNotiDate = app.taxNotificationDate || app.tax_notification_date;
+    const taxReceiptDate = app.taxNoticeProvisionDate || app.tax_notice_provision_date || app.taxReceiptDate || app.tax_receipt_date;
 
-    // Step-specific custom SLA logic (GD1_ChuanBi / S1_ChuanBi / GD1_Cho_KT_TiepNhan)
-    const isGD1ChuanBi = currentStep === 'GD1_ChuanBi' || currentStep === 'GĐ1_ChuanBi' || currentStep === 'S1_ChuanBi';
-    const isGDKTTiepNhan = currentStep === 'GD1_Cho_KT_TiepNhan';
+    const isKTHandoverStep = currentStep === 'S2_KT_Tiep_Nhan' || currentStep === 'S2_KT_Ban_giao' || currentStep === 'GD2_Cho_Nop_VPDK' || currentStep === 'GD1_Cho_KT_TiepNhan';
+    const isSubmissionStep = currentStep === 'S3_Nop_VPDK' || currentStep === 'GD3_Nop_VPDK';
+    const isTaxStep = currentStep === 'S5_Tai_Chinh_Khach_Hang' || currentStep === 'GD4_Cho_Nop_NVTC' || currentStep === 'GD4_Cho_KT_TiepNhan_LaySo';
+    const isGCNIssuanceStep = currentStep === 'S6_Nhan_So_GCN' || currentStep === 'GD5_Cho_Ky_In_GCN' || currentStep === 'GD5_Cho_GCN' || currentStep === 'GD5_Cho_PTT_TiepNhan_BG';
 
-    if (isGD1ChuanBi || isGDKTTiepNhan) {
-      let activeSla = sla;
+    // SPECIAL LOGIC FOR STEP 2 (CHỜ NỘP VPĐK) - AS REQUESTED BY USER
+    if (isKTHandoverStep) {
+      const ktPtdaDate = app.ktHandoverToPtdaDate || app.kt_handover_to_ptda_date;
+      let activeSla = sla || 3;
       let targetStartDateStr: string | undefined;
 
-      if (isGD1ChuanBi) {
+      if (isDateValid(ktPtdaDate)) {
+        // Giai đoạn 2: Đã bàn giao sang PTDA cho giai đoạn nộp hồ sơ
+        targetStartDateStr = ktPtdaDate;
+      } else {
+        // Giai đoạn 1: Chưa bàn giao, tính theo loại hình sản phẩm
         const propType = app.propertyType || app.property_type;
-        const isCanHo = propType === 'Can_Ho';
+        const loaiCH = app.productType || app.loaiCanHo || app.product_type;
+        const isCanHo = propType === 'Can_Ho' || loaiCH === 'Căn hộ' || loaiCH === 'Can_Ho';
 
         if (isCanHo) {
           activeSla = 45;
-          const handoverDate = app.handoverApartmentDate || app.handover_apartment_date;
-          if (isDateValid(handoverDate)) {
-            targetStartDateStr = handoverDate;
+          const handoverAptDate = app.handoverApartmentDate || app.handover_apartment_date;
+          if (isDateValid(handoverAptDate)) {
+            targetStartDateStr = handoverAptDate;
           } else {
-            // No handover date -> Do not compute SLA, return normal
+            // Không trễ nếu chưa có ngày nghiệm thu
             return { isOverdue: false, daysLate: 0, daysLeft: 45, urgency: 'normal' as const };
           }
         } else {
-          // Dat_Nen
+          // Đất nền
           activeSla = 25;
-          const rDate = app.receivedDate || app.received_date;
-          if (isDateValid(rDate)) {
-            targetStartDateStr = rDate;
+          const signingDate = app.contractSigningDate || app.contract_signing_date;
+          if (isDateValid(signingDate)) {
+            targetStartDateStr = signingDate;
           } else {
-            // No received date -> Do not compute SLA, return normal
+            // Không trễ nếu chưa có ngày HĐMB
             return { isOverdue: false, daysLate: 0, daysLeft: 25, urgency: 'normal' as const };
           }
         }
-      } else if (isGDKTTiepNhan) {
-        activeSla = 3;
-        const accHandoverDate = app.accountingHandoverDate || app.accounting_handover_date;
-        if (isDateValid(accHandoverDate)) {
-          targetStartDateStr = accHandoverDate;
+      }
+
+      if (targetStartDateStr) {
+        const startTime = new Date(targetStartDateStr).getTime();
+        const now = new Date().getTime();
+        const elapsedDays = Math.max(0, now - startTime) / (1000 * 60 * 60 * 24);
+        const daysLeft = Math.max(0, parseFloat((activeSla - elapsedDays).toFixed(1)));
+        
+        const urgency: 'overdue' | 'urgent' | 'warning' | 'normal' =
+          elapsedDays > activeSla ? 'overdue' :
+          daysLeft <= 1 ? 'urgent' :
+          daysLeft <= 3 ? 'warning' : 'normal';
+
+        if (elapsedDays > activeSla) {
+          const daysLate = parseFloat((elapsedDays - activeSla).toFixed(1));
+          return { isOverdue: true, daysLate, label: `Trễ ${config.label}`, daysLeft: 0, urgency: 'overdue' as const };
+        }
+        return { isOverdue: false, daysLate: 0, daysLeft, urgency };
+      }
+    }
+
+    if (isSubmissionStep && isDateValid(submissionDate)) return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
+    if (isTaxStep && isDateValid(taxReceiptDate)) return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
+    if (isGCNIssuanceStep && (isDateValid(gcnReceived) || isDateValid(gcnSigned))) return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
+
+    // Step-specific custom SLA logic (GD1_ChuanBi / S1_ChuanBi)
+    const isGD1ChuanBi = currentStep === 'GD1_ChuanBi' || currentStep === 'GĐ1_ChuanBi' || currentStep === 'S1_ChuanBi';
+    
+    if (isGD1ChuanBi) {
+      let activeSla = sla;
+      let targetStartDateStr: string | undefined;
+
+      const propType = app.propertyType || app.property_type;
+      const isCanHo = propType === 'Can_Ho';
+
+      if (isCanHo) {
+        activeSla = 45;
+        const handoverAptDate = app.handoverApartmentDate || app.handover_apartment_date;
+        if (isDateValid(handoverAptDate)) {
+          targetStartDateStr = handoverAptDate;
         } else {
-          // No accounting handover date -> Do not compute SLA, return normal
-          return { isOverdue: false, daysLate: 0, daysLeft: 3, urgency: 'normal' as const };
+          // No handover date -> Do not compute SLA, return normal
+          return { isOverdue: false, daysLate: 0, daysLeft: 45, urgency: 'normal' as const };
+        }
+      } else {
+        // Dat_Nen
+        activeSla = 25;
+        const rDate = app.receivedDate || app.received_date;
+        if (isDateValid(rDate)) {
+          targetStartDateStr = rDate;
+        } else {
+          // No received date -> Do not compute SLA, return normal
+          return { isOverdue: false, daysLate: 0, daysLeft: 25, urgency: 'normal' as const };
         }
       }
 
@@ -201,40 +251,33 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
 
       const fieldKey = mapping[currentStep] || 'receivedDate';
       
-      // FIX #2: Smart Waterfall Fallback
-      // Thay vì nhảy thẳng về receivedDate nếu fieldKey trống, ta sẽ rà ngược danh sách
-      // milestone để tìm mốc thời gian gần nhất đã được ghi nhận.
+      // FIX: Improved Waterfall Logic
+      // If we are past Step 1 but have no milestone date, DO NOT jump back to receivedDate.
+      // This jump is what causes the "415 days late" error.
       let comparisonDate: string | undefined;
       const startIdx = milestoneOrder.indexOf(fieldKey);
       
       if (startIdx !== -1) {
-        // Rà ngược từ mốc của step hiện tại về đầu
+        // Search backwards from the current step's milestone
         for (let i = startIdx; i >= 0; i--) {
           const k = milestoneOrder[i];
           const snakeK = k.replace(/([A-Z])/g, "_$1").toLowerCase();
           const val = (app[k] || app[snakeK]) as string | undefined;
-          if (val && val !== '---' && val !== 'None' && String(val).trim() !== '') {
+          if (isDateValid(val)) {
             comparisonDate = val;
             break;
           }
         }
       }
 
-      // Nếu vẫn không tìm thấy mốc nào trong sequence, dùng fallback cuối cùng
-      if (!comparisonDate) {
-        if (
-          currentStep === 'GD1_Cho_KT_TiepNhan' ||
-          currentStep === 'GD1_ChuanBi' ||
-          currentStep === 'S1_ChuanBi'
-        ) {
-          return {
-            isOverdue: false,
-            daysLate: 0,
-            daysLeft: sla,
-            urgency: 'normal'
-          };
-        }
+      // Final Guard: If Step is > Step 1, and we only found receivedDate, 
+      // but the step requires a later milestone that is missing, treat as normal (not overdue).
+      if (comparisonDate === (app.receivedDate || app.received_date) && startIdx >= 1) {
+        return { isOverdue: false, daysLate: 0, daysLeft: sla, urgency: 'normal' as const };
+      }
 
+      // If still no date found, use receivedDate as last resort
+      if (!comparisonDate) {
         comparisonDate = app.receivedDate || app.received_date;
       }
 
