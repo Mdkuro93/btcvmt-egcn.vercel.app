@@ -137,9 +137,6 @@ export const ApplicationsTab = ({
   setSearch,
   setIsShowFilters,
   isShowFilters,
-  quickFilterRef,
-  setIsQuickFilterOpen,
-  isQuickFilterOpen,
   setDashboardFilter,
   handleBulkStepTransition,
   handleBulkRejectApps,
@@ -312,82 +309,6 @@ export const ApplicationsTab = ({
                           Bộ lọc
                         </button>
 
-                        <div className="relative inline-block text-left" ref={quickFilterRef}>
-                          <button 
-                            onClick={() => setIsQuickFilterOpen(!isQuickFilterOpen)}
-                            className={cn(
-                              "flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all hover:scale-[1.02]",
-                              isQuickFilterOpen || selectedFlags.length > 0
-                                ? "bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-600/20" 
-                                : (theme === 'light' ? "bg-white text-slate-600 border-slate-200 shadow-sm hover:bg-slate-50" : "bg-slate-950/40 text-slate-400 border-slate-800 hover:border-indigo-550/30")
-                            )}
-                          >
-                            <span>Lọc nhanh {selectedFlags.length > 0 ? `(${selectedFlags.length})` : ''} 🔽</span>
-                          </button>
-                          
-                          <AnimatePresence>
-                            {isQuickFilterOpen && (
-                              <motion.div 
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: 10 }}
-                                className={cn(
-                                  "absolute right-0 mt-2 w-72 rounded-2xl shadow-xl border p-4 z-50 transition-all",
-                                  theme === 'light' ? "bg-white border-slate-200 shadow-slate-900/5 text-slate-900" : "bg-slate-950 border-slate-800 text-white"
-                                )}
-                              >
-                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Flags/Tags của hồ sơ</label>
-                                <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                                  {[
-                                    { key: 'CO_VAY', label: 'Có vay', queryLabel: '#CO_VAY' },
-                                    { key: 'KHONG_VAY', label: 'Vốn tự có', queryLabel: '#KHONG_VAY' },
-                                    { key: 'CO_LOI', label: 'Có vướng mắc', queryLabel: '#CO_LOI' },
-                                    { key: 'PROCESSING', label: 'Đang chuẩn bị hồ sơ', queryLabel: '#PROCESSING' },
-                                    { key: 'TAX_PENDING', label: 'Chờ NVTC', queryLabel: '#TAX_PENDING' },
-                                    { key: 'WAITING_HANDOVER', label: 'Chờ bàn giao', queryLabel: '#WAITING_HANDOVER' },
-                                    { key: 'COMPLETED', label: 'Đã hoàn tất', queryLabel: '#COMPLETED' }
-                                  ].map((item, idx) => {
-                                    const isSelected = selectedFlags.includes(item.key);
-                                    return (
-                                      <button
-                                        key={`flag-badge-${item.key}-${idx}`}
-                                        onClick={() => {
-                                          if (isSelected) {
-                                            setSelectedFlags(selectedFlags.filter(f => f !== item.key));
-                                          } else {
-                                            setSelectedFlags([...selectedFlags, item.key]);
-                                          }
-                                          setCurrentPage(0);
-                                        }}
-                                        className={cn(
-                                          "w-full text-left px-3 py-2 rounded-xl text-xs font-medium border flex items-center justify-between transition-all",
-                                          isSelected 
-                                            ? "border-festive-gold text-festive-gold bg-festive-gold/10 font-bold" 
-                                            : (theme === 'light' ? "border-slate-100 text-slate-700 bg-slate-50 hover:bg-slate-100" : "border-slate-800/50 text-slate-400 bg-slate-900/35 hover:bg-slate-900")
-                                        )}
-                                      >
-                                        <span>{item.label} ({item.queryLabel})</span>
-                                        {isSelected && <Check size={14} className="text-festive-gold" />}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                                {selectedFlags.length > 0 && (
-                                  <button
-                                    onClick={() => {
-                                      setSelectedFlags([]);
-                                      setCurrentPage(0);
-                                    }}
-                                    className="w-full mt-3 py-1.5 text-center text-[10px] uppercase font-bold tracking-wider text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"
-                                  >
-                                    Xóa các tag
-                                  </button>
-                                )}
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-
                         <button 
                           onClick={() => setIsSpreadsheetMode(!isSpreadsheetMode)}
                           className={cn(
@@ -476,22 +397,6 @@ export const ApplicationsTab = ({
                             onClear: () => { setDashboardFilter('ALL'); setCurrentPage(0); }
                           });
                         }
-                        
-                        selectedFlags.forEach(flag => {
-                          const labels: Record<string, string> = {
-                            CO_VAY: 'Có vay',
-                            KHONG_VAY: 'Vốn tự có',
-                            CO_LOI: 'Có vướng mắc',
-                            PROCESSING: 'Đang chuẩn bị hồ sơ',
-                            TAX_PENDING: 'Chờ NVTC',
-                            WAITING_HANDOVER: 'Chờ bàn giao',
-                            COMPLETED: 'Đã hoàn tất'
-                          };
-                          activeFilters.push({
-                            label: labels[flag] || flag,
-                            onClear: () => { setSelectedFlags(selectedFlags.filter(f => f !== flag)); setCurrentPage(0); }
-                          });
-                        });
                         
                         if (search !== '') {
                           activeFilters.push({
@@ -926,7 +831,7 @@ export const ApplicationsTab = ({
                                 />
                               </td>
                               <td 
-                                className="px-2 py-0 text-[11px] font-mono tracking-tighter" 
+                                className="px-2 py-0 text-[11px] tracking-tighter" 
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
                                   setQuickEditId(app.id);
@@ -938,7 +843,7 @@ export const ApplicationsTab = ({
                                     <input 
                                       autoFocus
                                       className={cn(
-                                        "px-2 py-0 h-6 text-[11px] font-black font-mono rounded border outline-none focus:ring-1 focus:ring-festive-gold/50 w-full",
+                                        "px-2 py-0 h-6 text-[11px] font-medium rounded border outline-none focus:ring-1 focus:ring-festive-gold/50 w-full",
                                         theme === 'light' ? "bg-white border-slate-300 text-slate-900" : "bg-slate-900 border-slate-700 text-festive-gold"
                                       )}
                                       value={quickEditData.unitCode ?? app.unitCode}
@@ -955,9 +860,9 @@ export const ApplicationsTab = ({
                                     />
                                   ) : (
                                     <div className="flex items-center gap-1">
-                                      <span className={cn("text-[13px] font-bold font-unit", theme === 'light' ? "text-slate-900" : "text-white")}>{app.unitCode}</span>
+                                      <span className={cn("text-[13px] font-medium", theme === 'light' ? "text-slate-900" : "text-white")}>{app.unitCode}</span>
                                       {app.isRejected && app.currentStep === 'S1_ChuanBi' && (
-                                        <span className="animate-pulse flex items-center gap-1 text-[9px] bg-rose-500 text-white px-1 py-0.5 rounded-full font-bold uppercase tracking-tight">
+                                        <span className="animate-pulse flex items-center gap-1 text-[9px] bg-rose-500 text-white px-1 py-0.5 rounded-full font-medium uppercase tracking-tight">
                                           <RotateCcw size={8} /> Trả về
                                         </span>
                                       )}
@@ -969,21 +874,21 @@ export const ApplicationsTab = ({
                                     
                                     if (slaResult.urgency === 'overdue') {
                                       return (
-                                        <span className="text-[9px] font-black inline-flex items-center gap-0.5 px-1 py-0.2 rounded-md bg-red-500/10 text-red-500 uppercase tracking-tighter mt-1">
+                                        <span className="text-[9px] font-medium inline-flex items-center gap-0.5 text-red-500 uppercase tracking-tighter mt-1">
                                           <AlertTriangle size={9} /> Trễ {slaResult.daysLate} ngày
                                         </span>
                                       );
                                     }
                                     if (slaResult.urgency === 'urgent') {
                                       return (
-                                        <span className="text-[9px] font-black inline-flex items-center gap-0.5 px-1 py-0.2 rounded-md bg-amber-500/10 text-amber-500 uppercase tracking-tighter mt-1 animate-pulse">
+                                        <span className="text-[9px] font-medium inline-flex items-center gap-0.5 text-amber-500 uppercase tracking-tighter mt-1 animate-pulse">
                                           <Clock size={9} className="animate-spin" style={{ animationDuration: '3s' }} /> Còn {slaResult.daysLeft} ngày
                                         </span>
                                       );
                                     }
                                     if (slaResult.urgency === 'warning') {
                                       return (
-                                        <span className="text-[9px] font-semibold inline-flex items-center gap-0.5 px-1 py-0.2 rounded-md bg-yellow-500/10 text-yellow-500 uppercase tracking-tighter mt-1">
+                                        <span className="text-[9px] font-medium inline-flex items-center gap-0.5 text-yellow-500 uppercase tracking-tighter mt-1">
                                           <Clock size={9} /> Còn {slaResult.daysLeft} ngày
                                         </span>
                                       );
@@ -1095,10 +1000,10 @@ export const ApplicationsTab = ({
                                           placeholder={isCellEditable ? "dd/mm/yyyy" : "Khóa"}
                                           disabled={!isCellEditable}
                                           className={cn(
-                                            "w-full bg-transparent border-none outline-none text-xs leading-tight font-mono text-center placeholder:opacity-30",
+                                            "w-full bg-transparent border-none outline-none text-xs leading-tight font-medium text-center placeholder:opacity-30",
                                             theme === 'light' ? "text-slate-600" : "text-slate-300",
-                                            isActive && isCellEditable ? "font-bold" : "",
-                                            hasError ? "text-rose-500" : (isGcnWarning ? "text-orange-600 dark:text-orange-400 font-bold" : (isChanged ? "text-emerald-400 font-black" : "")),
+                                            isActive && isCellEditable ? "font-medium" : "",
+                                            hasError ? "text-rose-500" : (isGcnWarning ? "text-orange-600 dark:text-orange-400 font-medium" : (isChanged ? "text-emerald-400 font-medium" : "")),
                                             !isCellEditable ? "opacity-45 cursor-not-allowed select-none" : ""
                                           )}
                                           value={val}
@@ -1258,16 +1163,16 @@ export const ApplicationsTab = ({
                                   </td>
                                   {(userRole === 'PTT' || isManagement) && (
                                     <td className="px-2 py-0 text-center">
-                                      <span className={cn("text-[10px] leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.submissionDate)}</span>
+                                      <span className={cn("text-[10px] leading-tight font-medium", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.submissionDate)}</span>
                                     </td>
                                   )}
                                   {(userRole === 'PTT' || userRole === 'KT' || isManagement) && (
                                     <td className="px-2 py-0 text-center">
                                       <div className="flex flex-col items-center">
-                                        <span className={cn("text-[10px] leading-tight font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>
+                                        <span className={cn("text-[10px] leading-tight font-medium", theme === 'light' ? "text-slate-500" : "text-slate-400")}>
                                           {app.taxReceiptDate ? formatDate(app.taxReceiptDate) : (app.taxNotificationReceivedDate ? 'Chờ nộp' : '---')}
                                         </span>
-                                        <span className={cn("text-[8px] px-1 py-[1px] mt-[1px] rounded font-bold uppercase", getTaxStatus(app).color)}>
+                                        <span className={cn("text-[8px] px-1 py-[1px] mt-[1px] rounded font-medium uppercase", getTaxStatus(app).color)}>
                                           {getTaxStatus(app).label}
                                         </span>
                                       </div>
@@ -1284,7 +1189,7 @@ export const ApplicationsTab = ({
                                         return (
                                           <div className="flex flex-col items-center justify-center w-full">
                                             <span className={cn(
-                                              "text-[10px] leading-tight font-mono", 
+                                              "text-[10px] leading-tight font-medium", 
                                               theme === 'light' ? "text-slate-500" : "text-slate-400"
                                             )}>
                                               {finalGCNDate ? formatDate(finalGCNDate) : '--'}
@@ -1295,7 +1200,7 @@ export const ApplicationsTab = ({
                                     </td>
                                   )}
                                   <td className="px-2 py-0 text-center">
-                                    <span className={cn("text-[10px] font-mono", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.customerHandoverDate)}</span>
+                                    <span className={cn("text-[10px] font-medium", theme === 'light' ? "text-slate-500" : "text-slate-400")}>{formatDate(app.customerHandoverDate)}</span>
                                   </td>
                                 </>
                               )}

@@ -140,7 +140,6 @@ export function useApplicationFilters(
   filterIssue?: string,
   userDept?: string,
   filterSLAStatus?: string,
-  selectedFlags?: string[],
   filterDept?: string, // Added
   stepConfig?: any // Added
 ) {
@@ -170,12 +169,6 @@ export function useApplicationFilters(
       // Standardize currentStep
       const step = (currentStep || '').toUpperCase();
       const stepType = getStepType(currentStep);
-
-      // ================= 0. FLAG FILTER =================
-      if (Array.isArray(selectedFlags) && selectedFlags.length > 0) {
-        const itemFlags = Array.isArray(a.flags) ? a.flags : [];
-        if (!selectedFlags.every(flag => itemFlags.includes(flag))) return false;
-      }
 
       // ================= 1. DEPT FILTER (NEW) =================
       if (activeDept) {
@@ -361,5 +354,5 @@ export function useApplicationFilters(
 
       return true;
     });
-  }, [applications, dashboardFilter, search, filterStatus, filterLoanStatus, filterSelfService, filterIssue, filterSLAStatus, selectedFlags, filterDept, stepConfig]);
+  }, [applications, dashboardFilter, search, filterStatus, filterLoanStatus, filterSelfService, filterIssue, filterSLAStatus, filterDept, stepConfig]);
 }

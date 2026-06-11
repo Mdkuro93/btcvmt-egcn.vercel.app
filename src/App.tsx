@@ -974,7 +974,6 @@ export default function App() {
   const [filterIssue, setFilterIssue] = useState<'ALL' | 'ERROR'>('ALL');
   const [filterSLAStatus, setFilterSLAStatus] = useState<'ALL' | 'OVERDUE'>('ALL');
   const [filterDept, setFilterDept] = useState<'ALL' | 'PTT' | 'PTDA' | 'KT'>('ALL');
-  const [selectedFlags, setSelectedFlags] = useState<string[]>([]);
   const [dashboardFilter, setDashboardFilter] = useState<string>('ALL');
 
   useEffect(() => {
@@ -1006,7 +1005,6 @@ export default function App() {
       setFilterSelfService('ALL');
       setFilterLoanStatus('ALL');
     }
-    setSelectedFlags([]);
     setSearch('');
   };
 
@@ -1045,7 +1043,6 @@ export default function App() {
     filterIssue,
     currentUser?.dept,
     filterSLAStatus,
-    selectedFlags,
     filterDept,
     stepConfig
   );
@@ -1926,7 +1923,7 @@ export default function App() {
 
   useEffect(() => {
     setCurrentPage(0);
-  }, [search, selectedProjectId, filterStatus, filterLoanStatus, filterSelfService, filterIssue, dashboardFilter, filterSLAStatus, selectedFlags]);
+  }, [search, selectedProjectId, filterStatus, filterLoanStatus, filterSelfService, filterIssue, dashboardFilter, filterSLAStatus]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -3237,20 +3234,6 @@ export default function App() {
   };
 
   const [isShowFilters, setIsShowFilters] = useState(false);
-  const [isQuickFilterOpen, setIsQuickFilterOpen] = useState(false);
-  const quickFilterRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (quickFilterRef.current && !quickFilterRef.current.contains(event.target as Node)) {
-        setIsQuickFilterOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newApp, setNewApp] = useState({
@@ -6346,8 +6329,6 @@ export default function App() {
                 setFilterIssue={setFilterIssue}
                 filterSLAStatus={filterSLAStatus}
                 setFilterSLAStatus={setFilterSLAStatus}
-                selectedFlags={selectedFlags}
-                setSelectedFlags={setSelectedFlags}
                 sortConfig={sortConfig}
                 setSortConfig={setSortConfig}
                 currentPage={currentPage}
@@ -6376,9 +6357,6 @@ export default function App() {
                 setSearch={setSearch}
                 setIsShowFilters={setIsShowFilters}
                 isShowFilters={isShowFilters}
-                quickFilterRef={quickFilterRef}
-                setIsQuickFilterOpen={setIsQuickFilterOpen}
-                isQuickFilterOpen={isQuickFilterOpen}
                 setDashboardFilter={setDashboardFilter}
                 handleBulkStepTransition={handleBulkStepTransition}
                 handleBulkRejectApps={handleBulkRejectApps}
@@ -6931,7 +6909,6 @@ export default function App() {
                       setFilterSelfService('ALL');
                       setFilterSLAStatus('ALL');
                       setFilterIssue('ALL');
-                      setSelectedFlags([]);
                       setSearch('');
                       setDashboardFilter('ALL');
                       setCurrentPage(0);

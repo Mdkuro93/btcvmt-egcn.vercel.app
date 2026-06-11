@@ -847,7 +847,7 @@ export default function ReportsView({
                 </div>
 
                 {/* Progress Summary for Loan Customers */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                   <div className={cn("p-6 rounded-3xl border flex items-center gap-4 transition-all shadow-xl", theme === 'light' ? "bg-white border-slate-200" : "bg-slate-950/40 border-slate-800/50")}>
                     <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center">
                       <TrendingUp className="text-indigo-500" size={24} />
@@ -863,7 +863,7 @@ export default function ReportsView({
                     </div>
                     <div>
                       <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Đã ra sổ / Hoàn tất</p>
-                      <p className={cn("text-2xl font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>{loanApps.filter(a => a.status === 'Completed').length}</p>
+                      <p className={cn("text-2xl font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>{loanApps.filter(a => a.status === 'Completed' || a.currentStep === 'Hoan_Tat' || !!a.customerHandoverDate).length}</p>
                     </div>
                   </div>
                   <div className={cn("p-6 rounded-3xl border flex items-center gap-4 transition-all shadow-xl", theme === 'light' ? "bg-white border-slate-200" : "bg-slate-950/40 border-slate-800/50")}>
@@ -872,7 +872,16 @@ export default function ReportsView({
                     </div>
                     <div>
                       <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Đang xử lý đúng hạn</p>
-                      <p className={cn("text-2xl font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>{loanApps.filter(a => a.status !== 'Completed' && !getOverdueInfo(a, stepConfig, slaConfig).isOverdue).length}</p>
+                      <p className={cn("text-2xl font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>{loanApps.filter(a => !(a.status === 'Completed' || a.currentStep === 'Hoan_Tat' || !!a.customerHandoverDate) && !getOverdueInfo(a, stepConfig, slaConfig).isOverdue).length}</p>
+                    </div>
+                  </div>
+                  <div className={cn("p-6 rounded-3xl border flex items-center gap-4 transition-all shadow-xl", theme === 'light' ? "bg-white border-slate-200" : "bg-slate-950/40 border-slate-800/50")}>
+                    <div className="w-12 h-12 rounded-2xl bg-rose-500/10 flex items-center justify-center">
+                      <AlertTriangle className="text-rose-500" size={24} />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Trễ cam kết</p>
+                      <p className={cn("text-2xl font-black italic", theme === 'light' ? "text-slate-900" : "text-white")}>{loanApps.filter(a => !(a.status === 'Completed' || a.currentStep === 'Hoan_Tat' || !!a.customerHandoverDate) && getOverdueInfo(a, stepConfig, slaConfig).isOverdue).length}</p>
                     </div>
                   </div>
                 </div>
@@ -993,9 +1002,11 @@ export default function ReportsView({
                     </thead>
                     <tbody className={cn("divide-y", theme === 'light' ? "divide-slate-100" : "divide-slate-800/50")}>
                       {loanApps.map((app, index) => {
-                        const days = calculateDaysDiff(app.receivedDate);
-                        const isHighRisk = days > 10;
-                        const isMediumRisk = days > 5 && days <= 10;
+                        const overdueInfo = getOverdueInfo(app, stepConfig, slaConfig);
+                        const isCompleted = app.status === 'Completed' || app.currentStep === 'Hoan_Tat' || !!app.customerHandoverDate;
+                        const daysLate = isCompleted ? 0 : overdueInfo.daysLate;
+                        const isHighRisk = !isCompleted && overdueInfo.isOverdue;
+                        const isMediumRisk = !isCompleted && !overdueInfo.isOverdue && overdueInfo.urgency === 'urgent';
 
                         return (
                           <tr 
@@ -1022,23 +1033,30 @@ export default function ReportsView({
                             <td className="px-6 py-5 text-center">
                                <span className={cn(
                                  "text-xs font-black p-2 rounded-xl transition-all",
+                                 isCompleted ? "text-slate-400" :
                                  isHighRisk ? "bg-rose-500/10 text-rose-500 shadow-[inset_0_0_10px_rgba(244,63,94,0.1)]" : isMediumRisk ? "bg-amber-500/10 text-amber-500" : theme === 'light' ? "bg-slate-100 text-slate-500" : "bg-slate-900 text-slate-600"
                                )}>
-                                 {days} Ngày {isHighRisk && "!!"}
+                                 {isCompleted ? "-" : `${daysLate} Ngày ${isHighRisk ? "!!" : ""}`}
                                </span>
                             </td>
                             <td className="px-6 py-5">
                                <div className="flex items-center justify-center">
-                                 {isHighRisk ? (
+                                 {isCompleted ? (
+                                   <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-full text-[9px] font-black uppercase tracking-tighter">
+                                     <CheckCircle2 size={10} /> An Toàn
+                                   </div>
+                                 ) : isHighRisk ? (
                                    <div className="flex items-center gap-1.5 px-3 py-1 bg-rose-500 text-white rounded-full text-[9px] font-black uppercase tracking-tighter animate-pulse">
-                                     <AlertTriangle size={10} /> Trễ cam kết tín dụng
+                                     <AlertTriangle size={10} /> Trễ cam kết
                                    </div>
                                  ) : isMediumRisk ? (
                                    <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-full text-[9px] font-black uppercase tracking-tighter">
                                      Gần hạn chót
                                    </div>
                                  ) : (
-                                   <CheckCircle2 size={16} className="text-emerald-500" />
+                                   <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-500/10 text-slate-500 rounded-full text-[9px] font-black uppercase tracking-tighter">
+                                     Bình thường
+                                   </div>
                                  )}
                                </div>
                             </td>
