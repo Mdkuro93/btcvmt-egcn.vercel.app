@@ -1229,23 +1229,32 @@ export const ApplicationDetailModal = ({
                                     : "GĐ1: BÀN GIAO & TIẾP NHẬN"}
                                 </h4>
                               </div>
-                              {(editApp || selectedApp).workflowType === "Quy_trinh_2" && (editApp || selectedApp).ktHandoverToPtdaDate && (
-                                <div className={cn(
-                                  "mx-1 mb-4 p-3 rounded-xl border border-dashed flex items-center gap-3",
-                                  theme === 'dark' ? "bg-indigo-500/5 border-indigo-500/20" : "bg-indigo-50 border-indigo-200"
-                                )}>
-                                  <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-500 shrink-0">
-                                    <Clock size={16} />
-                                  </div>
-                                  <div>
-                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider uppercase mb-0.5">Ngày Kế toán bàn giao hồ sơ cho PTDA</p>
-                                    <p className={cn("text-xs font-black", theme === 'dark' ? "text-indigo-400" : "text-indigo-600")}>
-                                      {formatLogTime((editApp || selectedApp).ktHandoverToPtdaDate)}
-                                    </p>
-                                  </div>
-                                </div>
-                              )}
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {(editApp || selectedApp).workflowType === "Quy_trinh_2" && (
+                                  <DetailCard
+                                    theme={theme}
+                                    label={
+                                      isStep3OrLater
+                                        ? "(*) Ngày Kế toán bàn giao cho PTDA"
+                                        : "Ngày Kế toán bàn giao cho PTDA"
+                                    }
+                                    value={
+                                      (editApp || selectedApp)
+                                        .ktHandoverToPtdaDate
+                                    }
+                                    type="date"
+                                    editable={isFieldEditable(
+                                      "ktHandoverToPtdaDate",
+                                    )}
+                                    isEditing={isEditing}
+                                    onChange={(val) =>
+                                      handleFieldChange(
+                                        "ktHandoverToPtdaDate",
+                                        val,
+                                      )
+                                    }
+                                  />
+                                )}
                                 <DetailCard
                                   theme={theme}
                                   label={
@@ -1351,32 +1360,6 @@ export const ApplicationDetailModal = ({
                                     handleFieldChange("submissionDate", val)
                                   }
                                 />
-                                {(editApp || selectedApp).workflowType ===
-                                  "Quy_trinh_2" && (
-                                  <DetailCard
-                                    theme={theme}
-                                    label={
-                                      isStep3OrLater
-                                        ? "(*) Ngày KT bàn giao PTDA"
-                                        : "Ngày KT bàn giao PTDA"
-                                    }
-                                    value={
-                                      (editApp || selectedApp)
-                                        .ktHandoverToPtdaDate
-                                    }
-                                    type="date"
-                                    editable={isFieldEditable(
-                                      "ktHandoverToPtdaDate",
-                                    )}
-                                    isEditing={isEditing}
-                                    onChange={(val) =>
-                                      handleFieldChange(
-                                        "ktHandoverToPtdaDate",
-                                        val,
-                                      )
-                                    }
-                                  />
-                                )}
                               </div>
                             </section>
 

@@ -142,7 +142,9 @@ export const ApplicationsTab = ({
   isQuickFilterOpen,
   setDashboardFilter,
   handleBulkStepTransition,
-  handleBulkRejectApps
+  handleBulkRejectApps,
+  filterDept,
+  setFilterDept
 }: any) => {
 
   const currentVisibleApps = React.useMemo(() => 
@@ -256,6 +258,33 @@ export const ApplicationsTab = ({
                               )}
                             </button>
                           ))}
+                        </div>
+
+                        <div className="h-4 w-px bg-slate-700/30 mx-1 shrink-0 lg:block hidden" />
+
+                        {/* Department Filter (New) */}
+                        <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
+                          <span className={cn(
+                            "text-[9px] font-black uppercase tracking-wider whitespace-nowrap",
+                            theme === 'dark' ? "text-slate-500" : "text-slate-400"
+                          )}>
+                            Bộ phận:
+                          </span>
+                          <select
+                            value={filterDept || 'ALL'}
+                            onChange={(e) => { setFilterDept(e.target.value); setCurrentPage(0); }}
+                            className={cn(
+                              "px-2.5 py-1 rounded-lg border text-[9px] font-black outline-none transition-all uppercase tracking-wider",
+                              filterDept !== 'ALL'
+                                ? theme === 'dark' ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-400" : "bg-indigo-50 border-indigo-200 text-indigo-600"
+                                : theme === 'dark' ? "bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                            )}
+                          >
+                            <option value="ALL">Tất cả bộ phận</option>
+                            <option value="PTT">PTT</option>
+                            <option value="PTDA">PTDA</option>
+                            <option value="KT">KT</option>
+                          </select>
                         </div>
 
                         <div className="h-4 w-px bg-slate-700/30 mx-1 shrink-0 lg:block hidden" />
@@ -434,6 +463,13 @@ export const ApplicationsTab = ({
                           });
                         }
                         
+                        if (filterDept && filterDept !== 'ALL') {
+                          activeFilters.push({
+                            label: `Bộ phận: ${filterDept}`,
+                            onClear: () => { setFilterDept('ALL'); setCurrentPage(0); }
+                          });
+                        }
+                        
                         if (dashboardFilter !== 'ALL') {
                           activeFilters.push({
                             label: `Dashboard: ${dashboardFilter}`,
@@ -500,6 +536,7 @@ export const ApplicationsTab = ({
                                   setFilterSelfService('ALL');
                                   setFilterSLAStatus('ALL');
                                   setFilterIssue('ALL');
+                                  setFilterDept('ALL');
                                   setSelectedFlags([]);
                                   setSearch('');
                                   setDashboardFilter('ALL');

@@ -973,6 +973,7 @@ export default function App() {
   const [filterSelfService, setFilterSelfService] = useState<'YES' | 'NO' | 'ALL'>('ALL');
   const [filterIssue, setFilterIssue] = useState<'ALL' | 'ERROR'>('ALL');
   const [filterSLAStatus, setFilterSLAStatus] = useState<'ALL' | 'OVERDUE'>('ALL');
+  const [filterDept, setFilterDept] = useState<'ALL' | 'PTT' | 'PTDA' | 'KT'>('ALL');
   const [selectedFlags, setSelectedFlags] = useState<string[]>([]);
   const [dashboardFilter, setDashboardFilter] = useState<string>('ALL');
 
@@ -994,6 +995,7 @@ export default function App() {
     setFilterStatus('ALL');
     setFilterIssue('ALL');
     setFilterSLAStatus('ALL');
+    setFilterDept('ALL');
     if (dashboardTab === 'SELF_SERVICE') {
       setFilterSelfService('YES');
       setFilterLoanStatus('ALL');
@@ -1043,7 +1045,9 @@ export default function App() {
     filterIssue,
     currentUser?.dept,
     filterSLAStatus,
-    selectedFlags
+    selectedFlags,
+    filterDept,
+    stepConfig
   );
 
   const displayedApps = useMemo(() => {
@@ -6373,6 +6377,8 @@ export default function App() {
                 setDashboardFilter={setDashboardFilter}
                 handleBulkStepTransition={handleBulkStepTransition}
                 handleBulkRejectApps={handleBulkRejectApps}
+                filterDept={filterDept}
+                setFilterDept={setFilterDept}
               />
             )}
             {activeTab === 'users' && (

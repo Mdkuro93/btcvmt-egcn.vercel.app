@@ -140,7 +140,9 @@ export function useApplicationFilters(
   filterIssue?: string,
   userDept?: string,
   filterSLAStatus?: string,
-  selectedFlags?: string[]
+  selectedFlags?: string[],
+  filterDept?: string, // Added
+  stepConfig?: any // Added
 ) {
   return useMemo(() => {
     if (!Array.isArray(applications)) {
@@ -153,6 +155,7 @@ export function useApplicationFilters(
     const activeLoanStatus = filterLoanStatus && filterLoanStatus !== 'ALL' ? filterLoanStatus.trim() : null;
     const activeSLAStatus = filterSLAStatus && filterSLAStatus !== 'ALL' ? filterSLAStatus.trim() : null;
     const activeIssue = filterIssue && filterIssue !== 'ALL' ? filterIssue.trim() : null;
+    const activeDept = filterDept && filterDept !== 'ALL' ? filterDept : null;
 
     return applications.filter(a => {
       if (!a) return false;
@@ -174,7 +177,15 @@ export function useApplicationFilters(
         if (!selectedFlags.every(flag => itemFlags.includes(flag))) return false;
       }
 
-      // ================= 1. SEARCH =================
+      // ================= 1. DEPT FILTER (NEW) =================
+      if (activeDept) {
+        const isSupportSpecial = (a.projectName?.includes('hỗ trợ') || a.workflowType === 'Quy_trinh_1') && (a.currentStep === 'GD2_Cho_Nop_VPDK' || a.currentStep === 'S3_Nop_VPDK');
+        const config = (stepConfig || {})[a.currentStep];
+        const dept = isSupportSpecial ? 'KT' : (config?.dept || '---');
+        if (dept !== activeDept) return false;
+      }
+
+      // ================= 2. SEARCH =================
       if (normalizedSearch) {
         const unit = (a.unitCode || '').toLowerCase();
         const name = (a.customerName || '').toLowerCase();
@@ -350,5 +361,5 @@ export function useApplicationFilters(
 
       return true;
     });
-  }, [applications, dashboardFilter, search, filterStatus, filterLoanStatus, filterSelfService, filterIssue, filterSLAStatus, selectedFlags]);
+  }, [applications, dashboardFilter, search, filterStatus, filterLoanStatus, filterSelfService, filterIssue, filterSLAStatus, selectedFlags, filterDept, stepConfig]);
 }
