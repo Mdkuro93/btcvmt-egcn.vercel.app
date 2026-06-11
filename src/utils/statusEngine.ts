@@ -149,6 +149,14 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
       }
     }
 
+    // Custom SLA logic for S3_Nop_VPDK in Quy trình 2 (always prioritize ktHandoverToPtdaDate if provided)
+    if (currentStep === 'S3_Nop_VPDK' && (app.workflowType === 'Quy_trinh_2' || app.workflow_type === 'Quy_trinh_2')) {
+      const ktPtdaDate = app.ktHandoverToPtdaDate || app.kt_handover_to_ptda_date;
+      if (isDateValid(ktPtdaDate)) {
+        stepStartTime = new Date(ktPtdaDate).getTime();
+      }
+    }
+
     // Fallback date-mapping logic if no specific entry is found in history (e.g. legacy/imported records)
     if (!stepStartTime) {
       const mapping: Record<string, string> = {
@@ -156,7 +164,7 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
         S1_ChuanBi: 'contractSigningDate',
         S2_KT_Tiep_Nhan: 'accountingHandoverDate',
         S2_KT_Ban_giao: 'accountingHandoverDate',
-        S3_Nop_VPDK: 'accountingHandoverDate',
+        S3_Nop_VPDK: (app.workflowType === 'Quy_trinh_2' || app.workflow_type === 'Quy_trinh_2') ? 'ktHandoverToPtdaDate' : 'accountingHandoverDate',
         S5_Tai_Chinh_Khach_Hang: 'taxNotificationDate',
         S5_1_PTDA_TiepNhan: 'taxReceiptDate',
         S6_Nhan_So_GCN: app.gcnReceivedDate ? 'gcnReceivedDate' : (app.gcnSignedDate ? 'gcnSignedDate' : 'taxReceiptDate'),
@@ -181,6 +189,7 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
       const milestoneOrder = [
         'receivedDate',
         'accountingHandoverDate',
+        'ktHandoverToPtdaDate',
         'submissionDate',
         'taxNotificationDate',
         'taxReceiptDate',

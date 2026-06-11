@@ -401,7 +401,43 @@ export default function SettingsView({
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Ghi chú chân trang 1</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Lưu ý 1</label>
+                <input 
+                  type="text" 
+                  value={handoverTemplate.note1}
+                  onChange={(e) => setHandoverTemplate({...handoverTemplate, note1: e.target.value})}
+                  className={cn(
+                    "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none focus:ring-2 transition-all shadow-sm",
+                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-500/10 focus:border-indigo-500" : "bg-slate-950 border-slate-800 text-white focus:ring-indigo-500/10 focus:border-indigo-500"
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Lưu ý 2</label>
+                <input 
+                  type="text" 
+                  value={handoverTemplate.note2}
+                  onChange={(e) => setHandoverTemplate({...handoverTemplate, note2: e.target.value})}
+                  className={cn(
+                    "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none focus:ring-2 transition-all shadow-sm",
+                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-500/10 focus:border-indigo-500" : "bg-slate-950 border-slate-800 text-white focus:ring-indigo-500/10 focus:border-indigo-500"
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Nhãn ký tên (VD: Ký và ghi rõ họ tên)</label>
+                <input 
+                  type="text" 
+                  value={handoverTemplate.signatureLabel}
+                  onChange={(e) => setHandoverTemplate({...handoverTemplate, signatureLabel: e.target.value})}
+                  className={cn(
+                    "w-full px-5 py-4 rounded-2xl border text-sm font-bold focus:outline-none focus:ring-2 transition-all shadow-sm",
+                    theme === 'light' ? "bg-slate-50 border-slate-200 text-slate-900 focus:ring-indigo-500/10 focus:border-indigo-500" : "bg-slate-950 border-slate-800 text-white focus:ring-indigo-500/10 focus:border-indigo-500"
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Tiêu đề Chân trang 1 (Bên giao)</label>
                 <input 
                   type="text" 
                   value={handoverTemplate.footerNote1}
@@ -413,7 +449,7 @@ export default function SettingsView({
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Ghi chú chân trang 2</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Tiêu đề Chân trang 2 (Bên nhận)</label>
                 <input 
                   type="text" 
                   value={handoverTemplate.footerNote2}

@@ -199,6 +199,7 @@ export function validateDateSequence(app: Partial<Application>): string | null {
   const chronoDates = [
     { key: 'receivedDate', label: 'Ngày nhận HS' },
     { key: 'accountingHandoverDate', label: 'Ngày KT tiếp nhận' },
+    { key: 'ktHandoverToPtdaDate', label: 'Ngày KT bàn giao' },
     { key: 'submissionDate', label: 'Ngày nộp VPĐK' },
     { key: 'taxNotificationDate', label: 'Ngày TB Thuế' },
     { key: 'taxReceiptDate', label: 'Ngày nộp thuế/NVTC' },

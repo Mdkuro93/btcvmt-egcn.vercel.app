@@ -18,6 +18,8 @@ export interface BulkTransitionModalProps {
   onChangeLocation?: (v: 'PHUONG' | 'TP_DANANG') => void;
   refCode?: string;
   onChangeRefCode?: (v: string) => void;
+  ktHandover?: string;
+  onChangeKtHandover?: (v: string) => void;
   theme: 'light' | 'dark';
   showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void;
   dateError?: string | null;
@@ -39,6 +41,8 @@ export default function BulkTransitionModal({
   onChangeLocation,
   refCode,
   onChangeRefCode,
+  ktHandover,
+  onChangeKtHandover,
   theme,
   showToast,
   dateError,
@@ -172,6 +176,29 @@ export default function BulkTransitionModal({
               </div>
             )}
 
+            {targetStep === 'S2_KT_Ban_giao' && (
+              <div className="space-y-3">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">
+                  Ngày Kế toán bàn giao cho PTDA (Bắt buộc)
+                </label>
+                <div className="relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                    <Calendar size={18} />
+                  </div>
+                  <input
+                    type="date"
+                    value={ktHandover || ''}
+                    max={new Date().toISOString().split('T')[0]}
+                    onChange={(e) => onChangeKtHandover?.(e.target.value)}
+                    className={cn(
+                      "w-full pl-12 pr-4 py-4 rounded-3xl text-sm font-bold border outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all",
+                      theme === 'dark' ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200 text-slate-900"
+                    )}
+                  />
+                </div>
+              </div>
+            )}
+
             {isSubmittingVPDK && (
               <>
                 <div className="space-y-3">
@@ -228,6 +255,7 @@ export default function BulkTransitionModal({
           <button
             disabled={
               (updateField?.isRequired !== false && updateField && !value) || 
+              (targetStep === 'S2_KT_Ban_giao' && !ktHandover) ||
               (dateError && !isDateWarning) || false
             }
             onClick={() => {
@@ -235,7 +263,7 @@ export default function BulkTransitionModal({
             }}
             className={cn(
               "flex-1 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
-              ((updateField && !value) || (dateError && !isDateWarning))
+              ((updateField && !value) || (targetStep === 'S2_KT_Ban_giao' && !ktHandover) || (dateError && !isDateWarning))
                 ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
                 : "bg-indigo-600 text-white hover:bg-indigo-500 shadow-xl shadow-indigo-900/40"
             )}

@@ -67,6 +67,20 @@ export type UnitStatus =
   | 'Error'
   | 'Draft';
 
+export type HandoverTemplate = {
+  companyName: string;
+  subTitle: string;
+  docCode: string;
+  title: string;
+  subTitle2: string;
+  address: string;
+  footerNote1: string;
+  footerNote2: string;
+  note1: string;
+  note2: string;
+  signatureLabel: string;
+};
+
 export type ApplicationStepHistory = {
   id: string;
   stepName: string;
@@ -135,6 +149,7 @@ export type Application = {
   taxNotificationReceivedDate?: string; // Ngày nhận thông báo thuế
   taxReceiptDate?: string; // Ngày nhận GNT
   accountingHandoverDate?: string; // Ngày bàn giao cho kế toán
+  ktHandoverToPtdaDate?: string; // Ngày Kế toán bàn giao cho PTDA
   submissionDate?: string; // Ngày nộp hồ sơ tại VPĐKĐĐ (VPDK)
   gcnReceivedDate?: string; // Ngày nhận sổ
   ptdaHandoverDate?: string; // Ngày bàn giao GCN PTT

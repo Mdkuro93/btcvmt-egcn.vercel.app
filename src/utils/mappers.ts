@@ -87,6 +87,7 @@ export const mapFromSnakeCase = (item: Record<string, any>): Application => {
     taxNotificationReceivedDate: str(val('tax_notification_received_date', 'taxNotificationReceivedDate')),
     taxReceiptDate: str(val('tax_receipt_date', 'taxReceiptDate')),
     accountingHandoverDate: str(val('accounting_handover_date', 'accountingHandoverDate')),
+    ktHandoverToPtdaDate: str(val('kt_handover_to_ptda_date', 'ktHandoverToPtdaDate')), // Ngày KT bàn giao cho PTDA (Quy trình 2)
     submissionDate: str(val('submission_date', 'submissionDate')),
     gcnReceivedDate: str(val('gcn_received_date', 'gcnReceivedDate')),
     ptdaHandoverDate: str(val('ptda_handover_date', 'ptdaHandoverDate')),
@@ -176,6 +177,7 @@ export const mapToSnakeCase = (app: Application): Record<string, any> => {
     tax_notification_received_date: app.taxNotificationReceivedDate,
     tax_receipt_date: app.taxReceiptDate,
     accounting_handover_date: app.accountingHandoverDate,
+    kt_handover_to_ptda_date: app.ktHandoverToPtdaDate, // Ngày KT bàn giao cho PTDA (Quy trình 2)
     submission_date: app.submissionDate,
     gcn_received_date: app.gcnReceivedDate,
     ptda_handover_date: app.ptdaHandoverDate,

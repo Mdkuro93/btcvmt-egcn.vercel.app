@@ -114,7 +114,7 @@ import UserManagementView from './components/UserManagementView';
 import HandoverRecord from './components/HandoverRecord';
 import LoginScreen from './components/LoginScreen';
 import ProjectModal from './components/modals/ProjectModal';
-import HandoverTicketModal from './components/modals/HandoverTicketModal';
+import HandoverTicketModal, { HandoverPrintContent } from './components/modals/HandoverTicketModal';
 import BulkDocumentModal from './components/modals/BulkDocumentModal';
 import BulkNoteModal from './components/modals/BulkNoteModal';
 import ChangePasswordModal from './components/modals/ChangePasswordModal';
@@ -145,7 +145,7 @@ import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { MOCK_APPLICATIONS, PROJECTS, STEP_CONFIG as INITIAL_STEP_CONFIG, MOCK_USERS, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS, getNextStep, CONST_QUY_TRINH_1, CONST_QUY_TRINH_2, REGION_ORDER } from './constants';
-import { Application, UnitStatus, KPI, Dept, UserProfile, UserPermission, PropertyType, StepName, AppNotification, Project, ApplicationStepHistory, AuditTrailEntry, ScannedFile, IssueType, IssueSeverity } from './types';
+import { Application, UnitStatus, KPI, Dept, UserProfile, UserPermission, PropertyType, StepName, AppNotification, Project, ApplicationStepHistory, AuditTrailEntry, ScannedFile, IssueType, IssueSeverity, HandoverTemplate } from './types';
 
 type ApplicationHistory = {
   id: string;
@@ -1012,13 +1012,16 @@ export default function App() {
     const saved = localStorage.getItem('procedural_handover_template');
     return safeParse(saved, {
       companyName: 'TẬP ĐOÀN SUNGROUP',
-      subTitle: 'Vùng Đà Nẵng',
+      subTitle: 'Vùng Miền Trung',
       docCode: 'Mẫu HC-09-BM04',
       title: 'BIÊN BẢN BÀN GIAO',
       subTitle2: 'Nội dung bàn giao',
       address: 'Phường Hòa Hiệp Nam, Quận Liên Chiểu, TP Đà Nẵng',
-      footerNote1: 'Người bàn giao: Ký và ghi rõ họ tên.',
-      footerNote2: 'Người nhận: Ký và ghi rõ họ tên.'
+      footerNote1: 'ĐẠI DIỆN BÊN GIAO',
+      footerNote2: 'ĐẠI DIỆN BÊN NHẬN',
+      note1: 'Biên bản được lập thành 02 bản, mỗi bên giữ 01 bản để làm căn cứ.',
+      note2: 'Vui lòng kiểm tra kỹ thông tin trên GCN trước khi ký nhận bàn giao.',
+      signatureLabel: '(Ký và ghi rõ họ tên)'
     });
   });
 
@@ -2798,6 +2801,7 @@ export default function App() {
   const [bulkTransitionValue, setBulkTransitionValue] = useState(new Date().toISOString().split('T')[0]);
   const [bulkTransitionLocation, setBulkTransitionLocation] = useState<'PHUONG' | 'TP_DANANG'>('PHUONG');
   const [bulkTransitionRefCode, setBulkTransitionRefCode] = useState('');
+  const [bulkTransitionKtHandover, setBulkTransitionKtHandover] = useState(new Date().toISOString().split('T')[0]);
 
   const bulkTransitionChronoError = useMemo(() => {
     if (!bulkTransitionField || !bulkTransitionValue || selectedAppIds.length === 0) return null;
@@ -2810,6 +2814,9 @@ export default function App() {
       if (!app) continue;
       
       const appWithDate = { ...app, [bulkTransitionField.key]: bulkTransitionValue };
+      if (bulkTransitionTarget === 'S3_Nop_VPDK' && app.workflowType === 'Quy_trinh_2') {
+        appWithDate.ktHandoverToPtdaDate = bulkTransitionKtHandover;
+      }
       const vpdKSteps = ['S3_Nop_VPDK', 'GD3_Nop_VPDK'];
       if (vpdKSteps.includes(bulkTransitionTarget || '')) {
         if (bulkTransitionLocation !== undefined) appWithDate.submissionLocation = bulkTransitionLocation as any;
@@ -2827,7 +2834,7 @@ export default function App() {
     }
     
     return firstError || firstWarning;
-  }, [applications, selectedAppIds, bulkTransitionField, bulkTransitionValue, bulkTransitionTarget, bulkTransitionLocation, bulkTransitionRefCode]);
+  }, [applications, selectedAppIds, bulkTransitionField, bulkTransitionValue, bulkTransitionTarget, bulkTransitionLocation, bulkTransitionRefCode, bulkTransitionKtHandover]);
 
   // SPREADSHEET MODE STATES
   const [isSpreadsheetMode, setIsSpreadsheetMode] = useState(false);
@@ -3563,9 +3570,6 @@ export default function App() {
     const appsToPrint = applications.filter(a => selectedAppIds.includes(a.id));
     setPrintHandoverApps(appsToPrint);
     setIsPrintingHandover(true);
-    setTimeout(() => {
-      window.print();
-    }, 500);
   };
 
   const createAuditEntry = (action: string, isBulk: boolean, count: number, unitCode: string, detail?: string): AuditTrailEntry => {
@@ -3842,8 +3846,9 @@ export default function App() {
     let updateField: {key: keyof Application, label: string, isRequired?: boolean} | null = null;
     
     // Mapping transition to field
-    if (nextStep === 'S2_KT_Tiep_Nhan') updateField = { key: 'contractSigningDate', label: 'Ngày ký HĐCN/HĐMB', isRequired: false };
-    else if (nextStep === 'S2_KT_Ban_giao') updateField = { key: 'contractSigningDate', label: 'Ngày ký HĐCN/HĐMB', isRequired: true };
+    if (nextStep === 'S2_KT_Tiep_Nhan' || nextStep === 'S2_KT_Ban_giao') {
+      updateField = { key: 'contractSigningDate', label: 'Ngày ký HĐCN/HĐMB', isRequired: true };
+    }
     else if (nextStep === 'S3_Nop_VPDK') updateField = { key: 'submissionDate', label: 'Ngày nộp VPĐK', isRequired: true };
     else if (nextStep === 'S5_Tai_Chinh_Khach_Hang') updateField = { key: 'taxNotificationDate', label: 'Ngày TB Thuế', isRequired: true };
     else if (nextStep === 'S5_1_PTDA_TiepNhan') updateField = { key: 'taxReceiptDate', label: 'Ngày nhận/cung cấp GNT / Nộp thuế', isRequired: true };
@@ -3880,15 +3885,15 @@ export default function App() {
     let initialValue = today;
     let initLocation: 'PHUONG' | 'TP_DANANG' = 'PHUONG';
     let initRefCode = '';
+    let initKtHandover = today;
     
-    if (idsToProcess.length === 1) {
-      const singleApp = applications.find(a => a.id === idsToProcess[0]);
-      if (singleApp) {
-        if (updateField && (singleApp as any)[updateField.key]) {
-          initialValue = (singleApp as any)[updateField.key];
-        }
-        if (singleApp.submissionLocation) initLocation = singleApp.submissionLocation as any;
-        if (singleApp.vpdkCode) initRefCode = singleApp.vpdkCode;
+    // Pre-fill existing value if records share a common value for that field
+    const selectedRecords = applications.filter(a => idsToProcess.includes(a.id));
+    if (updateField && selectedRecords.length > 0) {
+      const fieldValues = selectedRecords.map(a => (a as any)[updateField!.key] || '');
+      const uniqueValues = Array.from(new Set(fieldValues)).filter(v => v !== '');
+      if (uniqueValues.length === 1) {
+        initialValue = uniqueValues[0];
       }
     }
 
@@ -3897,16 +3902,22 @@ export default function App() {
     setBulkTransitionValue(initialValue);
     setBulkTransitionLocation(initLocation);
     setBulkTransitionRefCode(initRefCode);
+    setBulkTransitionKtHandover(initKtHandover);
     setIsBulkTransitionModalOpen(true);
   };
 
-  const executeBulkStepTransition = async (nextStep: StepName, dateValue: string | null, location?: string, refCode?: string) => {
+  const executeBulkStepTransition = async (nextStep: StepName, dateValue: string | null, location?: string, refCode?: string, ktHandoverDate?: string) => {
     if (selectedAppIds.length === 0) return;
     
     // Check if mandatory date is provided
     if (bulkTransitionField && bulkTransitionField.isRequired !== false && !dateValue) {
       showToast(`Vui lòng nhập ${bulkTransitionField.label} trước khi xác nhận.`, 'warning');
       return;
+    }
+
+    if (nextStep === 'S3_Nop_VPDK') {
+      const q2Selected = applications.some(app => selectedAppIds.includes(app.id) && app.workflowType === 'Quy_trinh_2');
+      // No longer mandatory here as it should be done at S2_KT_Ban_giao
     }
 
     const nowStr = new Date().toISOString().split('T')[0];
@@ -4000,6 +4011,10 @@ export default function App() {
         if (vpdKSteps.includes(recordNextStep as string)) {
           if (location !== undefined) appWithDate.submissionLocation = location as any;
           if (refCode !== undefined) appWithDate.vpdkCode = refCode;
+        }
+
+        if (recordNextStep === 'S2_KT_Ban_giao' && ktHandoverDate) {
+          appWithDate.ktHandoverToPtdaDate = ktHandoverDate;
         }
         
         let targetStep = recordNextStep;
@@ -4788,13 +4803,14 @@ export default function App() {
     const ktFields = [
       'contractSigningDate', 'submissionLocation', 'vpdkCode', 'submissionDate',
       'taxReceiptDate', 'taxVpdkSubmissionDate', 'taxPaymentStatus',
-      'gcnReceivedDate', 'ptdaHandoverDate',
+      'gcnReceivedDate', 'ptdaHandoverDate', 'ktHandoverToPtdaDate',
       'issueType', 'issueNotes', 'issueSeverity'
     ];
 
     // Project/Authority: PTDA responsible for processing dates (GCN milestones)
     const ptdaFields = [
       'vpdkCode', 'taxNotificationDate', 'taxNoticeProvisionDate', 'gcnSignedDate', 'taxReceiptDate',
+      'ktHandoverToPtdaDate',
       'issueType', 'issueNotes', 'issueSeverity'
     ];
 
@@ -6535,7 +6551,35 @@ export default function App() {
         onClose={() => setIsHandoverTicketOpen(false)} 
         app={editApp || selectedApp} 
         theme={theme} 
+        template={handoverTemplate}
       />
+
+      {/* Bulk Print View - Visible only during printing */}
+      {isPrintingHandover && (
+        <div className="fixed inset-0 bg-white z-[9999] overflow-auto print:static print:z-auto print:bg-white no-print-overlay">
+          <div className="max-w-4xl mx-auto py-10 print:py-0">
+            {printHandoverApps.map((app, index) => (
+              <div key={`print-handover-${app.id || 'none'}-${index}`} className={cn("bg-white text-slate-900 mb-10 print:mb-0", index > 0 ? "break-before-page" : "")}>
+                <HandoverPrintContent app={app} template={handoverTemplate} theme="light" />
+              </div>
+            ))}
+          </div>
+          <div className="fixed bottom-8 right-8 flex gap-4 print:hidden">
+            <button 
+              onClick={() => window.print()}
+              className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-2xl shadow-indigo-600/30 hover:bg-indigo-700 transition-all active:scale-95 flex items-center gap-2"
+            >
+              <Printer size={18} /> Xác nhận In ({printHandoverApps.length})
+            </button>
+            <button 
+              onClick={() => setIsPrintingHandover(false)}
+              className="px-6 py-3 bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest shadow-2xl hover:bg-slate-800 transition-all active:scale-95"
+            >
+              Thoát chế độ in
+            </button>
+          </div>
+        </div>
+      )}
 
       <CreateApplicationModal
         isCreateModalOpen={isCreateModalOpen}
@@ -6636,7 +6680,7 @@ export default function App() {
         onClose={() => setIsBulkTransitionModalOpen(false)}
         onConfirm={() => {
           if (bulkTransitionTarget) {
-            executeBulkStepTransition(bulkTransitionTarget, bulkTransitionField ? bulkTransitionValue : null, bulkTransitionLocation, bulkTransitionRefCode);
+            executeBulkStepTransition(bulkTransitionTarget, bulkTransitionField ? bulkTransitionValue : null, bulkTransitionLocation, bulkTransitionRefCode, bulkTransitionKtHandover);
           }
         }}
         selectedCount={selectedAppIds.length}
@@ -6650,6 +6694,8 @@ export default function App() {
         onChangeLocation={setBulkTransitionLocation}
         refCode={bulkTransitionRefCode}
         onChangeRefCode={setBulkTransitionRefCode}
+        ktHandover={bulkTransitionKtHandover}
+        onChangeKtHandover={setBulkTransitionKtHandover}
         theme={theme}
         showToast={showToast}
         dateError={bulkTransitionChronoError}

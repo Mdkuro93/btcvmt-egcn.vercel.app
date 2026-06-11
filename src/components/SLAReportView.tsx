@@ -269,10 +269,10 @@ export default function SLAReportView({
           {pagedApps.length === 0 && (
             <p className={cn('text-xs italic py-4 text-center', muted)}>Không có hồ sơ nào ở giai đoạn này.</p>
           )}
-          {pagedApps.map(app => {
+          {pagedApps.map((app, index) => {
             const late = app._slaInfo.daysLate || 0;
             return (
-              <div key={app.id} className="grid grid-cols-[1fr_1fr_90px_70px_90px] gap-3 py-3 border-b border-slate-800/50 last:border-0 items-center">
+              <div key={`sla-app-${app.id || 'none'}-${index}`} className="grid grid-cols-[1fr_1fr_90px_70px_90px] gap-3 py-3 border-b border-slate-800/50 last:border-0 items-center">
                 <span className={cn('text-xs font-black', strong)}>{app.unitCode || app.id}</span>
                 <span className={cn('text-xs truncate', muted)}>{app.projectName}</span>
                 <span className={cn('text-xs', muted)}>{app.stepEntryDate || '—'}</span>
@@ -324,9 +324,9 @@ export default function SLAReportView({
           >
             Tất cả dự án
           </button>
-          {projects.filter(p => deptApps.some(a => a.projectName === p.name)).map(proj => (
+          {projects.filter(p => deptApps.some(a => a.projectName === p.name)).map((proj, index) => (
             <button
-              key={proj.id}
+              key={`sla-proj-${proj.id || 'none'}-${index}`}
               onClick={() => setSelectedProjectId(proj.id)}
               className={cn(
                 'px-4 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all border',
@@ -347,8 +347,8 @@ export default function SLAReportView({
             { label: 'Trễ SLA', val: kpi.overdue, color: kpi.overdue > 0 ? 'text-rose-500' : 'text-emerald-500' },
             { label: 'Trễ > 15 ngày', val: kpi.critical, color: kpi.critical > 0 ? 'text-amber-500' : 'text-emerald-500' },
             { label: 'Hoàn tất tháng', val: kpi.completedMonth, color: 'text-indigo-500' },
-          ].map(k => (
-            <div key={k.label} className={cn(card, 'text-center')}>
+          ].map((k, index) => (
+            <div key={`sla-kpi-${k.label}-${index}`} className={cn(card, 'text-center')}>
               <p className={cn('text-3xl font-black italic tracking-tighter', k.color)}>{k.val}</p>
               <p className={cn('text-[10px] font-black uppercase tracking-widest mt-1', muted)}>{k.label}</p>
             </div>
@@ -358,9 +358,9 @@ export default function SLAReportView({
         {/* Cards tóm tắt theo dự án (chỉ hiện khi xem tất cả) */}
         {!selectedProjectId && projectStats.length > 1 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-2">
-            {projectStats.map(ps => (
+            {projectStats.map((ps, index) => (
               <button
-                key={ps.id}
+                key={`sla-ps-${ps.id || 'none'}-${index}`}
                 onClick={() => setSelectedProjectId(ps.id)}
                 className={cn(card, 'text-left hover:border-indigo-500/50 cursor-pointer w-full')}
               >
@@ -420,9 +420,9 @@ export default function SLAReportView({
             </div>
           )}
 
-          {stageStats.map(stage => (
+          {stageStats.map((stage, idx) => (
             <button
-              key={stage.key}
+              key={`sla-stage-${stage.key || 'stage'}-${idx}`}
               onClick={() => { setSelectedStageKey(stage.key); setPage(0); }}
               className={cn(
                 'w-full grid grid-cols-[1fr_140px_70px_65px] gap-3 py-3 border-b border-slate-800/50 last:border-0 items-center',

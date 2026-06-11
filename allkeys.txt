@@ -1,0 +1,103 @@
+src/components/modals/BulkIssueModal.tsx:                  key={`severity-${value}`}
+src/components/modals/CreateApplicationModal.tsx:                            <option key={`create-proj-opt-${p.id || 'none'}-${pIdx}`} value={p.name}>{p.name}</option>
+src/components/modals/ProjectModal.tsx:                    <div key={`project-checklist-${idx}`} className="flex gap-2">
+src/components/modals/ImportPreviewModal.tsx:                  <li key={`err-${e.substring(0, 10).replace(/[^a-zA-Z0-9]/g, "")}-${i}`} className="text-rose-600 text-sm font-medium">{e}</li>
+src/components/modals/ImportPreviewModal.tsx:                  <li key={`dup-${w.substring(0, 10).replace(/[^a-zA-Z0-9]/g, "")}-${i}`} className="text-rose-600 text-sm font-medium">{w}</li>
+src/components/modals/ImportPreviewModal.tsx:                  <li key={`cross-${w.substring(0, 10).replace(/[^a-zA-Z0-9]/g, "")}-${i}`} className="text-amber-700 text-sm font-medium leading-relaxed">{w}</li>
+src/components/modals/ImportPreviewModal.tsx:                  <li key={`other-${w.substring(0, 10).replace(/[^a-zA-Z0-9]/g, "")}-${i}`} className="text-amber-700 text-sm font-medium">{w}</li>
+src/components/modals/ApplicationDetailModal.tsx:                              key={`step-indicator-${label}-${idx}`}
+src/components/modals/ApplicationDetailModal.tsx:                                        key={`chk-${item}-${idx}`}
+src/components/modals/ApplicationDetailModal.tsx:                                      key={`${log.type}-${log.id || "noid"}-${log.time || "notime"}-${index}`}
+src/components/modals/ApplicationDetailModal.tsx:                                    key={`${file.id || "scanned-file"}-${index}`}
+src/components/modals/UserManagementModal.tsx:                          key={p.val}
+src/components/modals/UserManagementModal.tsx:                        <label key={`project-assign-${project.id || 'proj'}-${index}`} className="flex items-center gap-2 p-2 hover:bg-slate-800/50 rounded-lg cursor-pointer transition-colors">
+src/components/HandoverRecord.tsx:              <React.Fragment key={`${app.id || 'handover-app'}-${idx}`}>
+src/components/HandoverRecord.tsx:                          <span key={`${f.id || 'file'}-${fIdx}`} className="truncate max-w-[100px]">• {f.name}</span>
+src/components/HandoverRecord.tsx:                          key={`${f.id || 'file-link'}-${fIdx}`} 
+src/components/HandoverRecord.tsx:              <tr key={`skeleton-${i}`}>
+src/components/ProjectManagementView.tsx:             key={`${region}-${idx}`} 
+src/components/ProjectManagementView.tsx:                        key={`${project.id || 'project'}-${pIdx}`}
+src/components/ReportsView.tsx:              key={`report-nav-err-${type}-${idx}`}
+src/components/ReportsView.tsx:            key="nav-error-ERROR"
+src/components/ReportsView.tsx:              key={`report-nav-main-${type}-${idx}`}
+src/components/ReportsView.tsx:          key="nav-main-ERROR"
+src/components/ReportsView.tsx:            <option key={`report-export-proj-opt-${p.id}-${pIdx}`} value={p.id}>
+src/components/ReportsView.tsx:            key={reportType}
+src/components/ReportsView.tsx:                    <span key={`report-role-badge-${roleText || 'r'}-${idx}`} className="px-2 py-0.5 bg-indigo-500/10 text-indigo-500 text-[8px] font-black rounded-lg border border-indigo-500/20">{roleText}</span>
+src/components/ReportsView.tsx:                 <div key={`report-kpi-bar-${kpiText || 'k'}-${i}`} className="space-y-1">
+src/components/ReportsView.tsx:                          key={`report-loan-proj-btn-${p.id}-${pIdx}`}
+src/components/ReportsView.tsx:                                   <Cell key={`report-loan-pie-cell-${index}-${entry.name || 'e'}`} fill={entry.color} />
+src/components/ReportsView.tsx:                                   <Cell key={`report-loan-bar-cell-${index}-${entry.name || 'e'}`} fill={entry.color} />
+src/components/ReportsView.tsx:                            key={`report-loan-row-${app.id || 'new'}-${index}`} 
+src/components/ReportsView.tsx:                           <div key={`report-perf-usr-card-${user.id || 'u'}-${i}`} className={cn(
+src/components/ReportsView.tsx:                      <div key={`report-top-user-kpi-${user.id || 'n'}-${index}`} className={cn(
+src/components/ReportsView.tsx:                  <div key={`proj-ranking-list-${p.id || p.name || 'e'}-${i}`} className="flex items-center gap-4">
+src/components/tabs/ResourcesTab.tsx:                key="resources"
+src/components/tabs/ResourcesTab.tsx:                        <div key={`${item}-${idx}`} className={cn(
+src/components/tabs/ResourcesTab.tsx:                          <button key={`resource-doc-${idx}`} className={cn(
+src/components/tabs/DashboardTab.tsx:                key="dashboard"
+src/components/tabs/DashboardTab.tsx:                                <Cell key={`dashboard-progress-normal-cell-${entry.name || 'unnamed'}-${index}`} fill={entry.color} />
+src/components/tabs/DashboardTab.tsx:                                    key={`dashboard-overall-pie-cell-${entry.name || 'unnamed'}-${index}`} 
+src/components/tabs/DashboardTab.tsx:                                               <Cell key={`dashboard-loan-ratio-cell-${entry.name || 'unnamed'}-${index}`} fill={entry.color} />
+src/components/tabs/DashboardTab.tsx:                                                 key={`dashboard-loan-status-cell-${entry.name || 'unnamed'}-${index}`} 
+src/components/tabs/DashboardTab.tsx:                          <div key={`dashboard-admin-dept-card-${dept.dept || dept.label}-${idx}`} className={cn(
+src/components/tabs/DashboardTab.tsx:                            <option key={`dashboard-region-option-${r}-${index}`} value={r}>{r}</option>
+src/components/tabs/DashboardTab.tsx:                                key={`dashboard-project-row-${p.id || p.name || 'proj'}-${index}`} 
+src/components/tabs/ApplicationsTab.tsx:                key="applications"
+src/components/tabs/ApplicationsTab.tsx:                              key={`sort-btn-${field}-${idx}`}
+src/components/tabs/ApplicationsTab.tsx:                                        key={`flag-badge-${item.key}-${idx}`}
+src/components/tabs/ApplicationsTab.tsx:                                  key={`filter-tag-item-${idx}-${act.label}`}
+src/components/tabs/ApplicationsTab.tsx:                              <th key={`head-${f.key}-${index}`} className="px-2 py-2 text-center whitespace-nowrap bg-indigo-500/5 border-b border-slate-800/10">{f.label}</th>
+src/components/tabs/ApplicationsTab.tsx:                              key={`app-table-row-${app.id || 'new'}-${app.unitCode || 'none'}-${index}`} 
+src/components/tabs/ApplicationsTab.tsx:                                      key={`cell-field-${app.id || index}-${f.key}-${fIdx}`} 
+src/components/tabs/ApplicationsTab.tsx:                        key={`bulk-assign-usr-${u.id || index}-${index}`} 
+src/components/Sidebar.tsx:              <div key={`side-reg-${region}-${regIndex}`} className="space-y-1">
+src/components/Sidebar.tsx:                          key={`sidebar-proj-${region}-${p.id || 'proj'}-${pIndex}`} 
+src/components/FieldModeView.tsx:              key={`proj-tab-${p.id}-${index}`}
+src/components/FieldModeView.tsx:                  key={`field-app-${app.id || app.unitCode || index}-${index}`} 
+src/components/FieldModeView.tsx:                                      key={`edit-st-${st.val}`}
+src/components/FieldModeView.tsx:                                                 <option key={`back-st-${st}-${idx}`} value={st}>
+src/components/FieldModeView.tsx:                                       <div key={`timeline-${stepKey}-${idx}`} className="flex gap-4 items-start text-left relative">
+src/components/FieldModeView.tsx:                                  <div key={`file-list-item-${file.id || i}`} className="py-2.5 flex items-center justify-between text-left">
+src/components/NotificationPanel.tsx:                  key={`${rem.id || 'rem'}-${index}`}
+src/components/NotificationPanel.tsx:                key={`${n.id || 'notif'}-${idx}`} 
+src/components/UserManagementView.tsx:                  <tr key={`user-row-mgnt-${user.id || user.username || idx}-${idx}`} className={cn(
+src/components/DashboardCharts.tsx:                    <Cell key={`cell-normal-${index}`} fill={entry.color} />
+src/components/DashboardCharts.tsx:                    <Cell key={`cell-error-${index}`} fill="#ef4444" />
+src/components/DashboardCharts.tsx:                      key={`cell-pie-dashboard-${entry.name || index}-${index}`} 
+src/components/DashboardCharts.tsx:              <div key={`pie-legend-${entry.name}-${index}`} className="flex flex-col gap-0.5">
+src/components/ResourcesCenter.tsx:           <div key={cat.name} className={cn(
+src/components/ResourcesCenter.tsx:             <div key={`resource-item-${i}`} className="p-6 flex items-center justify-between group hover:bg-slate-800/10 transition-all">
+src/components/ErrorReportView.tsx:                      <Cell key={`err-severity-cell-item-${index}`} fill={entry.color} />
+src/components/ErrorReportView.tsx:                      <Cell key={`err-type-cell-item-${index}`} fill={index === 0 ? '#ef4444' : index === 1 ? '#f59e0b' : '#6366f1'} />
+src/components/ErrorReportView.tsx:                    <tr key={`error-matrix-row-${type}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
+src/components/ErrorReportView.tsx:                    <Cell key={`err-step-cell-item-${index}`} fill={index % 2 === 0 ? '#8b5cf6' : '#6366f1'} />
+src/components/ErrorReportView.tsx:                    key={`${app.id || 'issue-row'}-${index}`} 
+src/components/LoginScreen.tsx:                        <div key={`step-stat-${step.label || 'st'}-${idx}`} className="space-y-0.5 font-sans">
+src/components/AppSubComponents.tsx:                  options.map((opt, idx) => <option key={`${opt}-${idx}`} value={opt}>{opt}</option>)
+src/components/AppSubComponents.tsx:        key={`festive-fw-${i}`}
+src/components/SettingsView.tsx:                    <div key={`settings-sla-step1-${step}-${idx}`} className={cn(
+src/components/SettingsView.tsx:                    <div key={`settings-sla-step2-${step}-${idx}`} className={cn(
+src/components/SettingsView.tsx:                <div key={`${item}-${idx}`} className={cn(
+src/components/SettingsView.tsx:                    <tr key={`${workflowTab}-${key}-${index}`} className={cn(
+src/components/ThemeToggle.tsx:              key="moon"
+src/components/ThemeToggle.tsx:              key="sun"
+src/components/ThemeToggle.tsx:               key={`toggle-particle-${i}`}
+src/components/SLAReportView.tsx:              <span key={h} className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{h}</span>
+src/components/SLAReportView.tsx:              <div key={`sla-app-${app.id || 'none'}-${index}`} className="grid grid-cols-[1fr_1fr_90px_70px_90px] gap-3 py-3 border-b border-slate-800/50 last:border-0 items-center">
+src/components/SLAReportView.tsx:              key={`sla-proj-${proj.id || 'none'}-${index}`}
+src/components/SLAReportView.tsx:            <div key={`sla-kpi-${k.label}-${index}`} className={cn(card, 'text-center')}>
+src/components/SLAReportView.tsx:                key={`sla-ps-${ps.id || 'none'}-${index}`}
+src/components/SLAReportView.tsx:                <span key={h} className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{h}</span>
+src/components/SLAReportView.tsx:              key={`sla-stage-${stage.key || 'stage'}-${idx}`}
+src/App.tsx:                key="dashboard-tab-view"
+src/App.tsx:                key="applications-tab-view"
+src/App.tsx:                key="users"
+src/App.tsx:                key="projects"
+src/App.tsx:                key="reports"
+src/App.tsx:                key="settings"
+src/App.tsx:                key="resources-tab-view"
+src/App.tsx:              <div key={`print-handover-${app.id || 'none'}-${index}`} className={cn("bg-white text-slate-900 mb-10 print:mb-0", index > 0 ? "break-before-page" : "")}>
+src/App.tsx:                        <option key="all-projects-filter" value="ALL">Tất cả dự án</option>
+src/App.tsx:                          <option key={`project-filter-${p.id}-${index}`} value={p.id}>{p.name}</option>
+src/App.tsx:                        <option key="all-status-filter" value="ALL">Tất cả trạng thái</option>

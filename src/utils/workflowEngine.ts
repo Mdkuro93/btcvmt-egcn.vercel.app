@@ -121,6 +121,15 @@ export const WorkflowEngine = {
       }
 
       if (app.workflowType === 'Quy_trinh_2') {
+        if (app.currentStep === 'S2_KT_Ban_giao' && finalStep === 'S3_Nop_VPDK') {
+          if (!app.ktHandoverToPtdaDate) {
+            return {
+              success: false,
+              type: 'warning',
+              message: 'Bắt buộc nhập Ngày Kế toán bàn giao cho PTDA trước khi chuyển sang Bước 3.'
+            };
+          }
+        }
         if (app.currentStep === 'S3_Nop_VPDK' && finalStep === 'S5_Tai_Chinh_Khach_Hang') {
           if (!app.taxNotificationDate && !app.taxNotificationReceivedDate) {
             return {
