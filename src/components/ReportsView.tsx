@@ -45,9 +45,6 @@ const calculateDaysBetweenDates = (start: string, end: string) => {
 };
 
 const getOverdueInfo = (app: any, stepConfig: Record<string, any>, slaConfig: Record<string, number>) => {
-  if (app._sla) {
-    return app._sla;
-  }
   return calculateSLA(app, stepConfig, slaConfig);
 };
 
@@ -1234,14 +1231,24 @@ export default function ReportsView({
                   className="flex items-center justify-between p-3 bg-rose-500/10 rounded-2xl border border-rose-500/20 cursor-pointer hover:bg-rose-500/20 transition-all"
                 >
                    <span className="text-[10px] font-black text-rose-500 uppercase">{"Hồ sơ trễ hạn > 15 ngày"}</span>
-                   <span className="text-sm font-black text-rose-500">{applications.filter(a => calculateDaysDiff(a.receivedDate) > 15).length}</span>
+                   <span className="text-sm font-black text-rose-500">
+                     {applications.filter(a => {
+                       const info = getOverdueInfo(a, stepConfig, slaConfig);
+                       return info.isOverdue && (info.daysLate || 0) > 15;
+                     }).length}
+                   </span>
                 </div>
                 <div 
                   onClick={() => { setActiveTab('applications'); setFilterLoanStatus('Co_Vay'); }}
                   className="flex items-center justify-between p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20 cursor-pointer hover:bg-amber-500/20 transition-all"
                 >
                    <span className="text-[10px] font-black text-amber-500 uppercase">Vi phạm Cam kết cấp GCN</span>
-                   <span className="text-sm font-black text-amber-500">{loanApps.filter(a => calculateDaysDiff(a.receivedDate) > 10).length}</span>
+                   <span className="text-sm font-black text-amber-500">
+                     {loanApps.filter(a => {
+                       const info = getOverdueInfo(a, stepConfig, slaConfig);
+                       return info.isOverdue && (info.daysLate || 0) > 10;
+                     }).length}
+                   </span>
                 </div>
              </div>
               <button className={cn("w-full mt-6 py-3 rounded-2xl text-[9px] font-black uppercase transition-all", theme === 'light' ? "bg-slate-50 border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100" : "bg-slate-900 border border-slate-800 text-slate-500 hover:text-white")}>

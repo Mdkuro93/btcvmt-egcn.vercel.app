@@ -618,8 +618,7 @@ export const ApplicationDetailModal = ({
                   const overdueInfo = getOverdueInfo(
                     editApp || selectedApp,
                     stepConfig,
-                    slaConfig,
-                    true,
+                    slaConfig
                   );
                   if (!overdueInfo.isOverdue) return null;
                   return (

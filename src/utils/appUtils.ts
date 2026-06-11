@@ -48,10 +48,7 @@ export const getTaxStatus = (app: Application) => {
   return { label: 'Chưa hoàn thành', color: 'text-amber-500' };
 };
 
-export const getOverdueInfo = (app: any, stepConfig: Record<string, any>, slaConfig: Record<string, number>, bypassCache: boolean = false) => {
-  if (app._sla && !bypassCache) {
-    return app._sla;
-  }
+export const getOverdueInfo = (app: any, stepConfig: Record<string, any>, slaConfig: Record<string, number>) => {
   return calculateSLA(app, stepConfig, slaConfig);
 };
 
