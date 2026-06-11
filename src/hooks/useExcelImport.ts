@@ -188,10 +188,11 @@ export function useExcelImport({
   };
 
   const parseDateFromExcel = (value: any): string | null => {
-    if (value === undefined || value === null) return null;
+    if (value === undefined || value === null || value === '') return null;
     
     const validateYearAndFormat = (year: number, month: number, day: number): string | null => {
-      if (year >= 2000 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      // Mở rộng khoảng năm hợp lệ để tránh sót dữ liệu
+      if (year >= 1900 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
         const mStr = String(month).padStart(2, '0');
         const dStr = String(day).padStart(2, '0');
         return `${year}-${mStr}-${dStr}`;
@@ -199,12 +200,13 @@ export function useExcelImport({
       return null;
     };
 
-    // 1. Handle Excel Serial Number (either numeric or numeric string representation)
-    const numericStr = String(value).trim();
-    const isOnlyDigits = /^\d+$/.test(numericStr);
-    if (isOnlyDigits) {
+    const strVal = String(value).trim();
+    if (!strVal || strVal === '---' || strVal.toLowerCase() === 'none') return null;
+
+    // LỚP 1: Xử lý dạng số Excel (Serial Number) - Vd: 46184 hoặc 46184.5
+    if (/^\d{4,5}(\.\d+)?$/.test(strVal)) {
       try {
-        const numVal = Number(numericStr);
+        const numVal = Number(strVal);
         const parsedDate = XLSX.SSF.parse_date_code(numVal);
         if (parsedDate) {
           return validateYearAndFormat(parsedDate.y, parsedDate.m, parsedDate.d);
@@ -214,52 +216,34 @@ export function useExcelImport({
       }
     }
 
-    // 2. Handle string formats
-    if (typeof value === 'string' || typeof value === 'number') {
-      const strVal = String(value).trim();
-      if (!strVal || strVal === '---' || strVal.toLowerCase() === 'none') return null;
+    // LỚP 2: Xử lý chuỗi ngày tháng phổ biến bằng Regex
+    // Hỗ trợ DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY
+    const vnDateRegex = /^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/;
+    const vnMatch = strVal.match(vnDateRegex);
+    if (vnMatch) {
+      const d = parseInt(vnMatch[1], 10);
+      const m = parseInt(vnMatch[2], 10);
+      const y = parseInt(vnMatch[3], 10);
+      return validateYearAndFormat(y, m, d);
+    }
 
-      // Check DD/MM/YYYY or D/M/YYYY
-      const slashParts = strVal.split('/');
-      if (slashParts.length === 3) {
-        const d = Number(slashParts[0]);
-        const m = Number(slashParts[1]);
-        const y = Number(slashParts[2]);
-        if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
-          return validateYearAndFormat(y, m, d);
-        }
-      }
+    // Hỗ trợ YYYY/MM/DD hoặc YYYY-MM-DD
+    const isoDateRegex = /^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/;
+    const isoMatch = strVal.match(isoDateRegex);
+    if (isoMatch) {
+      const y = parseInt(isoMatch[1], 10);
+      const m = parseInt(isoMatch[2], 10);
+      const d = parseInt(isoMatch[3], 10);
+      return validateYearAndFormat(y, m, d);
+    }
 
-      // Check YYYY-MM-DD or DD-MM-YYYY
-      const dashParts = strVal.split('-');
-      if (dashParts.length === 3) {
-        if (dashParts[0].length === 4) {
-          // YYYY-MM-DD
-          const y = Number(dashParts[0]);
-          const m = Number(dashParts[1]);
-          const d = Number(dashParts[2]);
-          if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
-            return validateYearAndFormat(y, m, d);
-          }
-        } else {
-          // DD-MM-YYYY
-          const d = Number(dashParts[0]);
-          const m = Number(dashParts[1]);
-          const y = Number(dashParts[2]);
-          if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
-            return validateYearAndFormat(y, m, d);
-          }
-        }
-      }
-
-      // Try parsing with native JS Date
-      const nativeDate = new Date(strVal);
-      if (!isNaN(nativeDate.getTime())) {
-        const y = nativeDate.getFullYear();
-        const m = nativeDate.getMonth() + 1;
-        const d = nativeDate.getDate();
-        return validateYearAndFormat(y, m, d);
-      }
+    // LỚP 3: Dự phòng fallback bằng Date object của JS
+    const nativeDate = new Date(strVal);
+    if (!isNaN(nativeDate.getTime())) {
+      const y = nativeDate.getFullYear();
+      const m = nativeDate.getMonth() + 1;
+      const d = nativeDate.getDate();
+      return validateYearAndFormat(y, m, d);
     }
     
     return null;
