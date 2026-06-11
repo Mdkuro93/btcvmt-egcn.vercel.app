@@ -37,8 +37,8 @@ export const HandoverPrintContent = ({
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-60">Giấy chứng nhận Quyền sử dụng đất</p>
           </div>
           <div className="text-right space-y-1">
-            <p className="text-[10px] font-mono opacity-60">Mã hiệu: {template.docCode}</p>
-            <p className="text-[10px] font-mono opacity-60">Số: {app.unitCode}/{new Date().getFullYear()}/BBBG</p>
+            <p className="text-[10px] font-unit opacity-60">Mã hiệu: {template.docCode}</p>
+            <p className="text-[10px] font-unit opacity-60">Số: {app.unitCode}/{new Date().getFullYear()}/BBBG</p>
             <p className="text-[10px] font-mono opacity-60">{new Date().toLocaleDateString('vi-VN')}</p>
           </div>
        </div>
@@ -71,7 +71,8 @@ export const HandoverPrintContent = ({
              </div>
              <div className="col-span-2">
                <p className="opacity-50 mb-0.5">Mã sản phẩm / Lô căn:</p>
-               <p className="font-bold text-lg">{app.unitCode} - Dự án {app.projectName}</p>
+               <p className="font-bold text-lg font-unit">{app.unitCode}</p>
+               <p className="text-[10px] uppercase tracking-widest opacity-60">Dự án {app.projectName}</p>
              </div>
              {template.address && (
                 <div className="col-span-2">

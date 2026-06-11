@@ -389,6 +389,11 @@ export function useExcelImport({
             );
           }
 
+          if (projectName && !matchedProject) {
+            errors.push(`Dòng ${idx + 2}: Dự án "${projectName}" không tồn tại trong hệ thống. Vui lòng tạo dự án trước hoặc kiểm tra lại tên.`);
+            return;
+          }
+
           const officialProjectName = matchedProject ? matchedProject.name : projectName;
           
           const key = `${officialProjectName.toLowerCase()}_${unitCode}`;
@@ -690,7 +695,7 @@ export function useExcelImport({
                 }
              }
 
-             const parentProject = projects.find(p => p.name.toLowerCase() === parsedProjectName.toLowerCase());
+             const parentProject = matchedProject; // Use the already matched project object
              const inheritedWorkflowType = parentProject?.workflowType || 'Quy_trinh_1';
              const initialStep = inheritedWorkflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
              const initialStepLabel = inheritedWorkflowType === 'Quy_trinh_2' ? 'B1: Chuẩn bị hồ sơ (PTT)' : 'GĐ1: Chuẩn bị (PTT)';

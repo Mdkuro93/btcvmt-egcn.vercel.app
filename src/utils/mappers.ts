@@ -169,6 +169,7 @@ export const mapToSnakeCase = (app: Application): Record<string, any> => {
     submission_location: app.submissionLocation,
     vpdk_code: app.vpdkCode,
     current_step: app.currentStep,
+    workflow_type: app.workflowType,
     status: app.status,
     status_id: STATUS_TO_ID_MAP[app.status] || 1,
     received_date: app.receivedDate,

@@ -110,7 +110,7 @@ export const StatusBadge = ({ status, app, variant = 'default' }: { status: Unit
   );
 };
 
-export const DetailCard = ({ label, value, field, valueColor = 'text-[var(--color-text-primary)]', editable = false, type = 'text', options, onChange, isEditing = false, theme = 'dark' }: { label: string, value?: string, field?: keyof Application, valueColor?: string, editable?: boolean, type?: string, options?: string[], onChange?: (val: any) => void, isEditing?: boolean, theme?: 'light' | 'dark' }) => {
+export const DetailCard = ({ label, value, field, valueColor = 'text-[var(--color-text-primary)]', editable = false, type = 'text', options, onChange, isEditing = false, theme = 'dark', isMono = false }: { label: string, value?: string, field?: keyof Application, valueColor?: string, editable?: boolean, type?: string, options?: string[], onChange?: (val: any) => void, isEditing?: boolean, theme?: 'light' | 'dark', isMono?: boolean }) => {
   const active = editable && isEditing;
   const darkValueColor = valueColor === 'text-[var(--color-text-primary)]' ? 'text-[var(--color-text-primary)]' : valueColor;
   const lightValueColor = valueColor === 'text-[var(--color-text-primary)]' ? 'text-slate-900' : valueColor;
@@ -168,7 +168,8 @@ export const DetailCard = ({ label, value, field, valueColor = 'text-[var(--colo
               max={(type === 'date' && !isDeadlineStr) ? todayStr : undefined}
               className={cn(
                 "w-full border rounded-xl px-3 py-1.5 text-xs font-black text-emerald-400 outline-none focus:ring-2 focus:ring-emerald-500/30",
-                theme === 'dark' ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
+                theme === 'dark' ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200",
+                isMono && "font-unit"
               )}
               value={value || ''}
               onChange={(e) => onChange?.(e.target.value)}
@@ -176,7 +177,7 @@ export const DetailCard = ({ label, value, field, valueColor = 'text-[var(--colo
           )}
         </div>
       ) : (
-        <p className={cn("text-xs font-bold truncate transition-colors", theme === 'dark' ? darkValueColor : lightValueColor)}>
+        <p className={cn("text-xs font-bold truncate transition-colors", theme === 'dark' ? darkValueColor : lightValueColor, isMono && "font-unit text-[14px]")}>
           {type === 'date' ? formatDate(value) : (value || '---')}
         </p>
       )}

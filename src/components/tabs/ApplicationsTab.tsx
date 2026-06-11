@@ -918,7 +918,7 @@ export const ApplicationsTab = ({
                                     />
                                   ) : (
                                     <div className="flex items-center gap-1">
-                                      <span className={cn("text-[12px] font-black tracking-tight", theme === 'light' ? "text-slate-900" : "text-white")}>{app.unitCode}</span>
+                                      <span className={cn("text-[13px] font-bold font-unit", theme === 'light' ? "text-slate-900" : "text-white")}>{app.unitCode}</span>
                                       {app.isRejected && app.currentStep === 'S1_ChuanBi' && (
                                         <span className="animate-pulse flex items-center gap-1 text-[9px] bg-rose-500 text-white px-1 py-0.5 rounded-full font-bold uppercase tracking-tight">
                                           <RotateCcw size={8} /> Trả về

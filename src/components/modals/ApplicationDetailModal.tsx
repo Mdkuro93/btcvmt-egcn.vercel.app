@@ -298,7 +298,7 @@ export const ApplicationDetailModal = ({
               >
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-3 mb-2">
-                    <span className="px-3 py-1 bg-indigo-500/10 text-indigo-400 rounded-lg text-sm font-black uppercase tracking-widest border border-indigo-500/20">
+                    <span className={cn("text-lg font-bold font-unit uppercase", theme === 'light' ? "text-slate-900" : "text-indigo-400")}>
                       {(editApp || selectedApp).unitCode}
                     </span>
                     <StatusBadge
@@ -944,6 +944,7 @@ export const ApplicationDetailModal = ({
                                   label="Mã lô/ căn"
                                   value={(editApp || selectedApp).unitCode}
                                   isEditing={isEditing}
+                                  isMono={true}
                                 />
                                 <DetailCard
                                   theme={theme}

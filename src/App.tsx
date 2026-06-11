@@ -3153,7 +3153,7 @@ export default function App() {
 
         // Ensure full initialization for new imported records (temporary imp ID)
         if (typeof updated.id === 'string' && (updated.id.includes('-imp-') || !applications.some(a => a.id === updated.id))) {
-          const parentProject = projects.find(p => p.name === updated.projectName);
+          const parentProject = projects.find(p => p.name.toLowerCase() === updated.projectName?.toLowerCase());
           const inheritedWorkflowType = parentProject?.workflowType || 'Quy_trinh_1';
           const initialStep = inheritedWorkflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
           const initialStatus = (stepConfig as any)[initialStep]?.status || 'Processing';
@@ -3893,7 +3893,7 @@ export default function App() {
       const fieldValues = selectedRecords.map(a => (a as any)[updateField!.key] || '');
       const uniqueValues = Array.from(new Set(fieldValues)).filter(v => v !== '');
       if (uniqueValues.length === 1) {
-        initialValue = uniqueValues[0];
+        initialValue = uniqueValues[0] as string;
       }
     }
 

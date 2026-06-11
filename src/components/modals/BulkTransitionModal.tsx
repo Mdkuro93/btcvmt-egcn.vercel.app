@@ -102,7 +102,7 @@ export default function BulkTransitionModal({
 
         <div className={cn("mb-6 p-4 rounded-2xl text-xs font-mono max-h-32 overflow-y-auto", theme === 'dark' ? "bg-slate-950 border border-slate-800" : "bg-slate-50 border border-slate-200")}>
           <div className="font-bold mb-2 uppercase tracking-wider text-xs text-indigo-500">Danh sách mã căn:</div>
-          <div className="flex flex-wrap gap-2 text-slate-400">
+          <div className="flex flex-wrap gap-2 text-slate-400 font-unit text-[13px] font-bold">
             {unitCodes.join(", ")}
           </div>
         </div>
