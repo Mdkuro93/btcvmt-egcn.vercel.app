@@ -3394,7 +3394,7 @@ export default function App() {
 
     if (isManagementEdit) {
       headers = [
-        "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)", 
+        "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Số GCNQSDĐ", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)", 
         "Hạn GCN cam kết", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT",
         "Nơi nộp", "Mã VPĐK", "Ngày nộp hồ sơ", "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", 
         "Ngày GCN đã ký", "Ngày GCN đã nhận", "Ngày BG KT", "Ngày BG GCN Khách"
@@ -3405,6 +3405,7 @@ export default function App() {
         app.customerName,
         app.contractSignerType || '',
         app.phoneNumber || '',
+        app.gcnNumber || '',
         app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
         app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
         formatExcelDate(app.commitmentDate),
@@ -3426,7 +3427,7 @@ export default function App() {
       ]);
     } else if (userRole === 'PTT' || userRole === 'MANAGER_PTT') {
       headers = [
-        "Dự án", "Mã lô/căn", "Tên khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản", 
+        "Dự án", "Mã lô/căn", "Tên khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Số GCNQSDĐ", "Vay ngân hàng (Có/Không)", "Loại tài sản", 
         "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Hạn cam kết Ngân hàng", "Ngày bàn giao căn hộ", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT", "Ngày nhận GCN", "Ngày BG GCN Khách",
         "Phân loại sai sót", "Mức độ sai sót", "Ghi chú sai sót"
       ];
@@ -3437,6 +3438,7 @@ export default function App() {
           app.customerName,
           app.contractSignerType || '',
           app.phoneNumber || '',
+          app.gcnNumber || '',
           app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
           app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
           formatExcelDate(app.receivedDate),
@@ -3501,7 +3503,7 @@ export default function App() {
     } else {
       // Default / Admin: Full Template for complete control
       headers = [
-        "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng", "Loại tài sản", 
+        "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Số GCNQSDĐ", "Vay ngân hàng", "Loại tài sản", 
         "Hạn cam kết vay", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Tự làm sổ", "Ngày bàn giao sang KT",
         "Nơi nộp", "Mã HS VPĐK", "Ngày nộp VPĐK", "Ngày TB Thuế", "Ngày nhận TB Thuế", 
         "Ngày nhận NVTC", "Ngày trình ký GCN", "Ngày nhận GCN thực tế", "Ngày BG Pkt", "Ngày BG Khách"
@@ -3512,6 +3514,7 @@ export default function App() {
         app.customerName,
         app.contractSignerType || '',
         app.phoneNumber || '',
+        app.gcnNumber || '',
         app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
         app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
         formatExcelDate(app.bankCommitmentDeadline),
