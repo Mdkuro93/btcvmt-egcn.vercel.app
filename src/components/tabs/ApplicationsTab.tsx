@@ -714,7 +714,7 @@ export const ApplicationsTab = ({
                           </th>
                           <th className="px-2 py-2 border-b border-slate-800/10">Mã căn</th>
                           <th className="px-2 py-2 border-b border-slate-800/10">Dự án</th>
-                          <th className="px-2 py-2 border-b border-slate-800/10">Khách hàng</th>
+                          <th className="px-2 py-2 border-b border-slate-800/10 max-w-[300px] w-[300px] min-w-[220px]">Khách hàng</th>
                           {isSpreadsheetMode ? (
                             EDITABLE_DATE_FIELDS.map((f, index) => (
                               <th key={`head-${f.key}-${index}`} className="px-2 py-2 text-center whitespace-nowrap bg-indigo-500/5 border-b border-slate-800/10">{f.label}</th>
@@ -907,7 +907,7 @@ export const ApplicationsTab = ({
                                 </span>
                               </td>
                               <td 
-                                className="px-2 py-0 text-[11px] leading-tight" 
+                                className="px-2 py-2 text-[11px] leading-tight max-w-[300px] w-[300px] min-w-[220px]" 
                                 onDoubleClick={(e) => {
                                   e.stopPropagation();
                                   setQuickEditId(app.id);
@@ -915,9 +915,9 @@ export const ApplicationsTab = ({
                                 }}
                                 onClick={() => quickEditId !== app.id && handleSelectApp(app)}
                               >
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-start gap-1.5">
                                   <div className={cn(
-                                    "w-5 h-5 rounded-full flex items-center justify-center transition-all shrink-0",
+                                    "w-5 h-5 rounded-full flex items-center justify-center transition-all shrink-0 mt-0.5",
                                     theme === 'light' ? "bg-slate-100 text-slate-400" : "bg-slate-800 text-slate-500"
                                   )}>
                                     <User size={10} />
@@ -942,7 +942,7 @@ export const ApplicationsTab = ({
                                         }}
                                       />
                                     ) : (
-                                      <span className={cn("text-xs font-medium truncate", theme === 'light' ? "text-slate-600" : "text-slate-300")}>{app.customerName}</span>
+                                      <span className={cn("text-xs font-semibold whitespace-normal break-words block", theme === 'light' ? "text-slate-800" : "text-slate-200")}>{app.customerName}</span>
                                     )}
                                     <div className="flex flex-wrap gap-1.5 mt-1 items-center">
                                       <span className="text-[10px] text-slate-400 dark:text-slate-500 italic">{formatDate(app.receivedDate)}</span>
