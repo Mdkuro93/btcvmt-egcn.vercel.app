@@ -1956,7 +1956,7 @@ export default function App() {
         contract_signing_date,
         gcn_signed_date, gcn_received_date, customer_handover_date,
         accounting_handover_date, ptda_handover_date, is_self_service,
-        loan_status, issue_type, is_rejected,
+        loan_status, issue_type, issue_severity, issue_notes, issue_status, is_rejected,
         property_type, customer_name, unit_code,
         received_date, contract_signer_type, phone_number,
         created_at

@@ -35,12 +35,22 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
       const hasActiveError = app.status === 'Error' || (app.issueType && app.issueType !== 'None');
       const status = hasActiveError ? 'OPEN' : 'RESOLVED';
       
+      const rawNotes = app.issueNotes ?? 
+                       (app as any).issue_notes ?? 
+                       (app as any).ghi_chu ?? 
+                       (app as any).ghi_chu_sai_sot ?? 
+                       (app as any).note ?? 
+                       (app as any).notes ?? 
+                       (app as any).error_description ?? 
+                       (app as any).incident_note ?? 
+                       '';
+      
       return {
         ...app,
         issueStatus: app.issueStatus || status as 'OPEN' | 'RESOLVED',
         issueType: app.issueType || 'None',
         issueSeverity: app.issueSeverity || 'Minor',
-        issueNotes: app.issueNotes || '',
+        issueNotes: typeof rawNotes === 'string' ? rawNotes.trim() : String(rawNotes ?? ''),
       };
     });
   }, [applications]);
@@ -106,15 +116,30 @@ export default function ErrorReportView({ applications, theme = 'light' }: Error
 
   const stepChartData = useMemo(() => {
     const labels: Record<string, string> = {
-      KT: 'Kế toán Thuế',
-      VPDK: 'Nộp VPĐK',
-      TAX: 'Thông báo Thuế',
-      GCN: 'Phê duyệt GCN',
-      OTHER: 'Các bước khác'
+      CHUAN_BI: '1. ĐANG CHUẨN BỊ',
+      CHO_NOP_VPDK: '2. CHỜ NỘP VPĐK',
+      DA_NOP_VPDK: '3. ĐÃ NỘP VPĐK',
+      CHO_TB_THUE: '4. CHỜ THÔNG BÁO THUẾ',
+      CHO_HT_NVTC: '5. CHỜ HOÀN THÀNH NVTC',
+      DA_NOP_THUE: '6. ĐÃ NỘP THUẾ',
+      DA_CO_GCN: '7. ĐÃ CÓ GCN',
+      CHO_BAN_GIAO: '8. CHỜ BÀN GIAO'
     };
-    return Object.entries(stepStats).map(([key, value]) => ({
+
+    const order = [
+      'CHUAN_BI',
+      'CHO_NOP_VPDK',
+      'DA_NOP_VPDK',
+      'CHO_TB_THUE',
+      'CHO_HT_NVTC',
+      'DA_NOP_THUE',
+      'DA_CO_GCN',
+      'CHO_BAN_GIAO'
+    ];
+
+    return order.map(key => ({
       name: labels[key] || key,
-      value
+      value: stepStats[key] || 0
     }));
   }, [stepStats]);
 
