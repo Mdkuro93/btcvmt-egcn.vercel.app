@@ -160,7 +160,7 @@ export function useExcelImport({
     } else {
       headers = [
         "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)",
-        "Hạn GCN cam kết", "Tự làm sổ (Có/Không)", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Ngày bàn giao sang KT"
+        "Hạn GCN cam kết", "Tự làm sổ (Có/Không)", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Ngày bàn giao sang KT", "Số GCNQSDĐ"
       ];
       data = sourceApps.map((app: Application) => [
         app.projectName || '',
@@ -176,6 +176,7 @@ export function useExcelImport({
         app.contractSigningDate ? (formatDate(app.contractSigningDate) === '---' ? '' : formatDate(app.contractSigningDate)) : '',
         app.handoverApartmentDate ? (formatDate(app.handoverApartmentDate) === '---' ? '' : formatDate(app.handoverApartmentDate)) : '',
         app.accountingHandoverDate ? (formatDate(app.accountingHandoverDate) === '---' ? '' : formatDate(app.accountingHandoverDate)) : '',
+        app.gcnNumber || ''
       ]);
     }
 
