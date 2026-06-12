@@ -627,6 +627,13 @@ export function useExcelImport({
                changes.push(`Số GCNQSDĐ: ${existingApp.gcnNumber || 'Trống'} -> ${newGcnNumber}`);
              }
 
+             if (updatedApp.issueType && updatedApp.issueType !== 'None' && String(updatedApp.issueType).trim() !== '') {
+                if (updatedApp.status !== 'Error') {
+                   updatedApp.status = 'Error';
+                   changes.push(`Trạng thái tự động cập nhật: Error (Có phân loại sai sót)`);
+                }
+             }
+
              if (changes.length > 0) {
                 if (updatedApp.status !== 'Error') {
                   const inferred = inferStepFromDates(updatedApp, slaConfig, 'IMPORT');
@@ -795,6 +802,10 @@ export function useExcelImport({
              
              newApp.status = inferred.status;
              newApp.currentStep = inferred.currentStep;
+
+             if (newApp.issueType && newApp.issueType !== 'None' && String(newApp.issueType).trim() !== '') {
+               newApp.status = 'Error';
+             }
 
              const auditEntry = {
                id: `audit-${Date.now()}-${newApp.unitCode}-${Math.random().toString(36).substring(2,9)}`,

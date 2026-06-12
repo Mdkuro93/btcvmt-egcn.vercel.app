@@ -24,7 +24,8 @@ import { Application, Project, StepName, UnitStatus } from '../types';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
 import { calculateSLA } from '../utils/statusEngine';
-import { REGION_ORDER } from '../constants';
+import { REGION_ORDER, STEP_CONFIG as INITIAL_STEP_CONFIG } from '../constants';
+import { determineStatusFromStep } from '../utils/appUtils';
 import ErrorReportView from './ErrorReportView';
 import SLAReportView from './SLAReportView';
 const calculateDaysDiff = (dateStr: string) => {
@@ -51,7 +52,12 @@ const getOverdueInfo = (app: any, stepConfig: Record<string, any>, slaConfig: Re
 const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Application }) => {
   let effectiveStatus: string = status;
   if (app) {
-    if (app.status === 'WaitingHandover' || app.status === 'Completed') {
+    let baseStatus = app.status;
+    if (baseStatus === 'Error') {
+      baseStatus = determineStatusFromStep(app.currentStep, INITIAL_STEP_CONFIG);
+    }
+
+    if (baseStatus === 'WaitingHandover' || baseStatus === 'Completed') {
       effectiveStatus = app.customerHandoverDate ? 'Completed' : 'WaitingHandover';
     } else if (app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK') {
       effectiveStatus = (app.vpdkCode && app.submissionLocation && app.submissionDate) ? 'Submitted' : 'WaitingVPDK';
@@ -70,7 +76,13 @@ const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Appli
       effectiveStatus = app.gcnSignedDate ? 'GCN_Issued' : 'GCN_SignPending_Dynamic';
     } else if (['S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach', 'GD6_Cho_BG_Khach', 'GD5_Cho_PTT_TiepNhan_BG'].includes(app.currentStep)) {
        effectiveStatus = app.customerHandoverDate ? 'Completed' : 'WaitingHandover';
+    } else {
+       effectiveStatus = baseStatus;
     }
+  }
+
+  if (effectiveStatus === 'Error' && app) {
+    effectiveStatus = determineStatusFromStep(app.currentStep, INITIAL_STEP_CONFIG);
   }
 
   const configs: Record<string, { label: string, classes: string }> = {
@@ -89,7 +101,21 @@ const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Appli
     Draft: { label: 'Nháp', classes: 'bg-slate-500/10 text-slate-600 border border-slate-500/20' },
   };
 
-  const config = configs[effectiveStatus] || configs.Processing;
+  let config = configs[effectiveStatus] || configs.Processing;
+
+  if (app) {
+    const slaResult = calculateSLA(app);
+    const hasIssue = app.status === 'Error' || (app.issueType && app.issueType !== 'None') || app.isRejected;
+    const isOverdue = slaResult.isOverdue;
+
+    if (hasIssue || isOverdue) {
+      config = {
+        label: config.label,
+        classes: 'bg-rose-500/12 text-rose-500 border border-rose-500/30 font-black animate-pulse'
+      };
+    }
+  }
+
   return (
     <span className={cn("px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap inline-block", config.classes)}>
       {config.label}

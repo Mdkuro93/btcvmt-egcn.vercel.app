@@ -150,11 +150,14 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
       } else {
         // Dat_Nen
         activeSla = 25;
+        const signingDate = app.contract_signing_date || app.contractSigningDate;
         const rDate = app.receivedDate || app.received_date;
-        if (isDateValid(rDate)) {
+        if (isDateValid(signingDate)) {
+          targetStartDateStr = signingDate;
+        } else if (isDateValid(rDate)) {
           targetStartDateStr = rDate;
         } else {
-          // No received date -> Do not compute SLA, return normal
+          // No signing/received date -> Do not compute SLA, return normal
           return { isOverdue: false, daysLate: 0, daysLeft: 25, urgency: 'normal' as const };
         }
       }
@@ -211,48 +214,49 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
     if (!stepStartTime) {
       const mapping: Record<string, string> = {
         // Workflow 2
-        S1_ChuanBi: 'contractSigningDate',
-        S2_KT_Tiep_Nhan: 'accountingHandoverDate',
-        S2_KT_Ban_giao: 'accountingHandoverDate',
-        S3_Nop_VPDK: (app.workflowType === 'Quy_trinh_2' || app.workflow_type === 'Quy_trinh_2') ? 'ktHandoverToPtdaDate' : 'accountingHandoverDate',
-        S5_Tai_Chinh_Khach_Hang: 'taxNotificationDate',
-        S5_1_PTDA_TiepNhan: 'taxReceiptDate',
-        S6_Nhan_So_GCN: app.gcnReceivedDate ? 'gcnReceivedDate' : (app.gcnSignedDate ? 'gcnSignedDate' : 'taxReceiptDate'),
-        S7_PTDA_Ban_Giao: 'gcnReceivedDate',
-        S7_1_PTT_Tiep_Nhan: 'gcnReceivedDate',
-        S7_2_Ban_Giao_Khach: 'customerHandoverDate',
+        S1_ChuanBi: 'contract_signing_date',
+        S2_KT_Tiep_Nhan: 'accounting_handover_date',
+        S2_KT_Ban_giao: 'accounting_handover_date',
+        S3_Nop_VPDK: (app.workflowType === 'Quy_trinh_2' || app.workflow_type === 'Quy_trinh_2') ? 'kt_handover_to_ptda_date' : 'accounting_handover_date',
+        S5_Tai_Chinh_Khach_Hang: 'tax_notification_date',
+        S5_1_PTDA_TiepNhan: 'tax_receipt_date',
+        S6_Nhan_So_GCN: (app.gcnReceivedDate || app.gcn_received_date) ? 'gcn_received_date' : ((app.gcnSignedDate || app.gcn_signed_date) ? 'gcn_signed_date' : 'tax_receipt_date'),
+        S7_PTDA_Ban_Giao: 'gcn_received_date',
+        S7_1_PTT_Tiep_Nhan: 'gcn_received_date',
+        S7_2_Ban_Giao_Khach: 'customer_handover_date',
 
         // Workflow 1
-        GD1_ChuanBi: 'contractSigningDate',
-        GD1_Cho_KT_TiepNhan: 'accountingHandoverDate',
-        GD2_Cho_Nop_VPDK: 'accountingHandoverDate',
-        GD3_Nop_VPDK: 'submissionDate',
-        GD4_Cho_Nop_NVTC: 'submissionDate',
-        GD4_Cho_KT_TiepNhan_LaySo: 'taxNotificationDate',
-        GD5_Cho_Ky_In_GCN: 'taxReceiptDate',
-        GD5_Cho_GCN: app.gcnSignedDate ? 'gcnSignedDate' : 'taxReceiptDate',
-        GD5_Cho_PTT_TiepNhan_BG: app.gcnReceivedDate ? 'gcnReceivedDate' : 'gcnSignedDate',
-        GD6_Cho_BG_Khach: 'ptdaHandoverDate',
-        Hoan_Tat: 'customerHandoverDate'
+        GD1_ChuanBi: 'contract_signing_date',
+        GD1_Cho_KT_TiepNhan: 'accounting_handover_date',
+        GD2_Cho_Nop_VPDK: 'accounting_handover_date',
+        GD3_Nop_VPDK: 'submission_date',
+        GD4_Cho_Nop_NVTC: 'submission_date',
+        GD4_Cho_KT_TiepNhan_LaySo: 'tax_notification_date',
+        GD5_Cho_Ky_In_GCN: 'tax_receipt_date',
+        GD5_Cho_GCN: (app.gcnSignedDate || app.gcn_signed_date) ? 'gcn_signed_date' : 'tax_receipt_date',
+        GD5_Cho_PTT_TiepNhan_BG: (app.gcnReceivedDate || app.gcn_received_date) ? 'gcn_received_date' : 'gcn_signed_date',
+        GD6_Cho_BG_Khach: 'ptda_handover_date',
+        Hoan_Tat: 'customer_handover_date'
       };
 
       const milestoneOrder = [
-        'receivedDate',
-        'accountingHandoverDate',
-        'ktHandoverToPtdaDate',
-        'submissionDate',
-        'taxNotificationDate',
-        'taxReceiptDate',
-        'gcnSignedDate',
-        'gcnReceivedDate',
-        'ptdaHandoverDate',
-        'customerHandoverDate'
+        'contract_signing_date',
+        'received_date',
+        'accounting_handover_date',
+        'kt_handover_to_ptda_date',
+        'submission_date',
+        'tax_notification_date',
+        'tax_receipt_date',
+        'gcn_signed_date',
+        'gcn_received_date',
+        'ptda_handover_date',
+        'customer_handover_date'
       ];
 
-      const fieldKey = mapping[currentStep] || 'receivedDate';
+      const fieldKey = mapping[currentStep] || 'received_date';
       
       // FIX: Improved Waterfall Logic
-      // If we are past Step 1 but have no milestone date, DO NOT jump back to receivedDate.
+      // If we are past Step 1 but have no milestone date, DO NOT jump back to received_date.
       // This jump is what causes the "415 days late" error.
       let comparisonDate: string | undefined;
       const startIdx = milestoneOrder.indexOf(fieldKey);
@@ -261,8 +265,8 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
         // Search backwards from the current step's milestone
         for (let i = startIdx; i >= 0; i--) {
           const k = milestoneOrder[i];
-          const snakeK = k.replace(/([A-Z])/g, "_$1").toLowerCase();
-          const val = (app[k] || app[snakeK]) as string | undefined;
+          const camelK = k.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+          const val = (app[k] || app[camelK]) as string | undefined;
           if (isDateValid(val)) {
             comparisonDate = val;
             break;
@@ -270,15 +274,18 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
         }
       }
 
-      // Final Guard: If Step is > Step 1, and we only found receivedDate, 
+      // Final Guard: If Step is > Step 1, and we only found contract_signing_date or received_date, 
       // but the step requires a later milestone that is missing, treat as normal (not overdue).
-      if (comparisonDate === (app.receivedDate || app.received_date) && startIdx >= 1) {
+      const isEarlyMilestone = 
+        comparisonDate === (app.contractSigningDate || app.contract_signing_date) ||
+        comparisonDate === (app.receivedDate || app.received_date);
+      if (isEarlyMilestone && startIdx >= 1) {
         return { isOverdue: false, daysLate: 0, daysLeft: sla, urgency: 'normal' as const };
       }
 
-      // If still no date found, use receivedDate as last resort
+      // If still no date found, use received_date as last resort
       if (!comparisonDate) {
-        comparisonDate = app.receivedDate || app.received_date;
+        comparisonDate = app.received_date || app.receivedDate;
       }
 
       if (comparisonDate) {

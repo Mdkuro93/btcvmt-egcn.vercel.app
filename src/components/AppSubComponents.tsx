@@ -4,6 +4,9 @@ import { ArrowRight, ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Application, UnitStatus } from '../types';
 import { formatDate } from '../utils/dateUtils';
+import { calculateSLA } from '../utils/statusEngine';
+import { determineStatusFromStep } from '../utils/appUtils';
+import { STEP_CONFIG as INITIAL_STEP_CONFIG } from '../constants';
 
 export const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark', onClick, isActive }: { title: string, value: number | string, icon: any, colorClass: string, delay: number, theme?: 'light' | 'dark', onClick?: () => void, isActive?: boolean }) => (
   <motion.div 
@@ -37,7 +40,12 @@ export const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 
 export const StatusBadge = ({ status, app, variant = 'default' }: { status: UnitStatus | string; app?: Application; variant?: 'default' | 'compact' }) => {
   let effectiveStatus: string = status;
   if (app) {
-    if (app.status === 'WaitingHandover' || app.status === 'Completed') {
+    let baseStatus = app.status;
+    if (baseStatus === 'Error') {
+      baseStatus = determineStatusFromStep(app.currentStep, INITIAL_STEP_CONFIG);
+    }
+
+    if (baseStatus === 'WaitingHandover' || baseStatus === 'Completed') {
       effectiveStatus = app.customerHandoverDate ? 'Completed' : 'WaitingHandover';
     } else if (app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK') {
       const isActuallySubmitted = !!app.submissionDate;
@@ -77,7 +85,13 @@ export const StatusBadge = ({ status, app, variant = 'default' }: { status: Unit
       effectiveStatus = app.gcnSignedDate ? 'GCN_Issued' : 'GCN_SignPending_Dynamic';
     } else if (['S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach', 'GD6_Cho_BG_Khach', 'GD5_Cho_PTT_TiepNhan_BG'].includes(app.currentStep)) {
        effectiveStatus = app.customerHandoverDate ? 'Completed' : 'WaitingHandover';
+    } else {
+      effectiveStatus = baseStatus;
     }
+  }
+
+  if (effectiveStatus === 'Error' && app) {
+    effectiveStatus = determineStatusFromStep(app.currentStep, INITIAL_STEP_CONFIG);
   }
 
   const configs: Record<string, { label: string, classes: string }> = {
@@ -98,7 +112,21 @@ export const StatusBadge = ({ status, app, variant = 'default' }: { status: Unit
     Draft: { label: 'Nháp', classes: 'bg-slate-500/10 text-slate-600 border border-slate-500/20' },
   };
 
-  const config = configs[effectiveStatus] || configs.Processing;
+  let config = configs[effectiveStatus] || configs.Processing;
+
+  if (app) {
+    const slaResult = calculateSLA(app);
+    const hasIssue = app.status === 'Error' || (app.issueType && app.issueType !== 'None') || app.isRejected;
+    const isOverdue = slaResult.isOverdue;
+
+    if (hasIssue || isOverdue) {
+      config = {
+        label: config.label,
+        classes: 'bg-rose-500/12 text-rose-500 border border-rose-500/30 font-black animate-pulse'
+      };
+    }
+  }
+
   return (
     <span className={cn(
       variant === 'compact' ? "px-1 py-0 rounded text-[9px] font-bold uppercase tracking-tighter" : "px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider",

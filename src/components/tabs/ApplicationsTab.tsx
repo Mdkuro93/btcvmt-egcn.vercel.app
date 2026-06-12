@@ -77,8 +77,8 @@ export const ApplicationsTab = ({
   setFilterIssue,
   filterSLAStatus,
   setFilterSLAStatus,
-  selectedFlags,
-  setSelectedFlags,
+  selectedFlags = [],
+  setSelectedFlags = () => {},
   sortConfig,
   setSortConfig,
   currentPage,
@@ -442,7 +442,9 @@ export const ApplicationsTab = ({
                                   setFilterSLAStatus('ALL');
                                   setFilterIssue('ALL');
                                   setFilterDept('ALL');
-                                  setSelectedFlags([]);
+                                  if (typeof setSelectedFlags === 'function') {
+                                    setSelectedFlags([]);
+                                  }
                                   setSearch('');
                                   setDashboardFilter('ALL');
                                   setCurrentPage(0);
