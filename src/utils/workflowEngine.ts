@@ -150,6 +150,17 @@ export const WorkflowEngine = {
           if (!app.customerHandoverDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày BG GCN cho khách để Hoàn Tất.' };
         }
       } else {
+        // --- CO LAP PHAN QUYEN QUY TRINH 1: Kế toán (KT) thực hiện chuyển từ GĐ2 sang GĐ3 ---
+        if (app.currentStep === 'GD2_Cho_Nop_VPDK' && finalStep === 'GD3_Nop_VPDK') {
+          if (userRole !== 'KT' && userRole !== 'ADMIN' && !userRole.startsWith('MANAGER_') && userRole !== 'DIRECTOR' && userRole !== 'MANAGER_ALL') {
+            return {
+              success: false,
+              type: 'error',
+              message: 'Quyền thực hiện bước này thuộc bộ phận Kế toán (KT).'
+            };
+          }
+        }
+
         // --- FIX #8: Bổ sung validation đầy đủ cho Quy_trinh_1 ở các milestone cuối ---
         if (
           (app.currentStep === 'GD1_Cho_KT_TiepNhan' && finalStep === 'GD2_Cho_Nop_VPDK') ||

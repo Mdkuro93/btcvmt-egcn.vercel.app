@@ -112,6 +112,8 @@ export const ApplicationDetailModal = ({
   handleDeleteFile,
   setPreviewFile,
   handleResolveIssue,
+  handleProposeException,
+  handleApproveException,
   calculateDaysBetweenDates,
   formatDate,
   handleSingleOrBulkReportIssue,
@@ -138,6 +140,11 @@ export const ApplicationDetailModal = ({
   slaConfig,
 }: any) => {
   const currentApp = editApp || selectedApp;
+
+  const [proposeOpen, setProposeOpen] = React.useState(false);
+  const [proposeReason, setProposeReason] = React.useState("");
+  const [approveOpen, setApproveOpen] = React.useState(false);
+  const [approveNotes, setApproveNotes] = React.useState("");
 
   const detailBackdropRef = React.useRef<HTMLDivElement>(null);
   const mousedownOnDetailBackdrop = React.useRef(false);
@@ -298,7 +305,14 @@ export const ApplicationDetailModal = ({
               >
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-3 mb-2">
-                    <span className={cn("text-lg font-bold font-unit uppercase", theme === 'light' ? "text-slate-900" : "text-indigo-400")}>
+                    <span
+                      className={cn(
+                        "text-lg font-bold font-unit uppercase",
+                        theme === "light"
+                          ? "text-slate-900"
+                          : "text-indigo-400",
+                      )}
+                    >
                       {(editApp || selectedApp).unitCode}
                     </span>
                     <StatusBadge
@@ -361,37 +375,100 @@ export const ApplicationDetailModal = ({
                         )}
                       </div>
 
-                      {(effectiveUserCanEdit ||
-                        ["ADMIN", "DIRECTOR", "MANAGER_ALL"].includes(
-                          userRole,
-                        )) && (
-                        <button
-                          disabled={
-                            !(
-                              effectiveUserCanEdit ||
-                              ["ADMIN", "DIRECTOR", "MANAGER_ALL"].includes(
-                                userRole,
-                              )
-                            )
-                          }
-                          onClick={() => {
-                            if (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Standard Issue Resolution Button */}
+                        {(effectiveUserCanEdit ||
+                          ["ADMIN", "DIRECTOR", "MANAGER_ALL"].includes(
+                            userRole,
+                          )) && (
+                          <button
+                            disabled={
                               !(
                                 effectiveUserCanEdit ||
                                 ["ADMIN", "DIRECTOR", "MANAGER_ALL"].includes(
                                   userRole,
                                 )
                               )
-                            )
-                              return;
-                            handleResolveIssue((editApp || selectedApp).id);
-                          }}
-                          className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <CheckCircle2 size={14} />
-                          Xác nhận khắc phục xong
-                        </button>
-                      )}
+                            }
+                            onClick={() => {
+                              if (
+                                !(
+                                  effectiveUserCanEdit ||
+                                  ["ADMIN", "DIRECTOR", "MANAGER_ALL"].includes(
+                                    userRole,
+                                  )
+                                )
+                              )
+                                return;
+                              handleResolveIssue((editApp || selectedApp).id);
+                            }}
+                            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <CheckCircle2 size={14} />
+                            Xác nhận khắc phục xong
+                          </button>
+                        )}
+
+                        {/* Proposal Button for low-level staff */}
+                        {![
+                          "ADMIN",
+                          "DIRECTOR",
+                          "MANAGER",
+                          "MANAGER_ALL",
+                          "MANAGER_PTT",
+                          "MANAGER_KT",
+                          "MANAGER_PTDA",
+                        ].includes(userRole) &&
+                          !(editApp || selectedApp).checklist?.[
+                            "bypass_proposed"
+                          ] &&
+                          !(editApp || selectedApp).checklist?.[
+                            "bypass_gcn"
+                          ] && (
+                            <button
+                              onClick={() => setProposeOpen(true)}
+                              className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md flex items-center gap-2"
+                            >
+                              <AlertTriangle size={14} />
+                              Đề xuất Ngoại lệ
+                            </button>
+                          )}
+
+                        {/* Approval Button for Managers / Dept Heads / Admins */}
+                        {[
+                          "ADMIN",
+                          "DIRECTOR",
+                          "MANAGER",
+                          "MANAGER_ALL",
+                          "MANAGER_PTT",
+                          "MANAGER_KT",
+                          "MANAGER_PTDA",
+                        ].includes(userRole) &&
+                          !(editApp || selectedApp).checklist?.[
+                            "bypass_gcn"
+                          ] && (
+                            <button
+                              onClick={() => {
+                                setApproveNotes(
+                                  (editApp || selectedApp).checklist?.[
+                                    "bypass_proposed"
+                                  ]
+                                    ? "Đồng ý phê duyệt ngoại lệ theo đề xuất."
+                                    : "",
+                                );
+                                setApproveOpen(true);
+                              }}
+                              className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md flex items-center gap-2"
+                            >
+                              <Check size={14} />
+                              {(editApp || selectedApp).checklist?.[
+                                "bypass_proposed"
+                              ]
+                                ? "Phê duyệt Đề xuất Ngoại lệ"
+                                : "Duyệt Ngoại lệ (Bypass)"}
+                            </button>
+                          )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -618,7 +695,7 @@ export const ApplicationDetailModal = ({
                   const overdueInfo = getOverdueInfo(
                     editApp || selectedApp,
                     stepConfig,
-                    slaConfig
+                    slaConfig,
                   );
                   if (!overdueInfo.isOverdue) return null;
                   return (
@@ -1229,7 +1306,8 @@ export const ApplicationDetailModal = ({
                                 </h4>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {(editApp || selectedApp).workflowType === "Quy_trinh_2" && (
+                                {(editApp || selectedApp).workflowType ===
+                                  "Quy_trinh_2" && (
                                   <DetailCard
                                     theme={theme}
                                     label={
@@ -1481,6 +1559,15 @@ export const ApplicationDetailModal = ({
                                     handleFieldChange("gcnReceivedDate", val)
                                   }
                                 />
+                                 <DetailCard
+                                   theme={theme}
+                                   label="Số GCNQSDĐ"
+                                   value={(editApp || selectedApp).gcnNumber}
+                                   type="text"
+                                   editable={isFieldEditable("gcnNumber")}
+                                   isEditing={isEditing}
+                                   onChange={(val) => handleFieldChange("gcnNumber", val)}
+                                 />
                               </div>
                             </section>
 
@@ -2282,6 +2369,16 @@ export const ApplicationDetailModal = ({
                               effectiveDept === "PTDA") ||
                             effectiveDept === role;
 
+                          // Cô lập phân quyền cho Quy trình 1
+                          if (app.workflowType === "Quy_trinh_1") {
+                            if (
+                              app.currentStep === "GD2_Cho_Nop_VPDK" &&
+                              role === "KT"
+                            ) {
+                              canAction = true;
+                            }
+                          }
+
                           return (
                             <button
                               disabled={!canAction}
@@ -2319,6 +2416,16 @@ export const ApplicationDetailModal = ({
                           (role === "MANAGER_PTDA" &&
                             effectiveDept === "PTDA") ||
                           effectiveDept === role;
+
+                        // Cô lập phân quyền cho Quy trình 1
+                        if (app.workflowType === "Quy_trinh_1") {
+                          if (
+                            app.currentStep === "GD2_Cho_Nop_VPDK" &&
+                            role === "KT"
+                          ) {
+                            canAction = true;
+                          }
+                        }
                         const nextStep = app.isSelfService
                           ? app.currentStep === "Hoan_Tat"
                             ? null
@@ -2457,6 +2564,189 @@ export const ApplicationDetailModal = ({
                 ) : null}
               </div>
             </motion.div>
+
+            {/* Propose Exception Dialog Modal */}
+            {proposeOpen && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md">
+                <div
+                  className={cn(
+                    "w-full max-w-md rounded-3xl p-6 shadow-2xl border transition-all",
+                    theme === "light"
+                      ? "bg-white border-slate-200 text-slate-900"
+                      : "bg-slate-900 border-slate-800 text-slate-100",
+                  )}
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-3 bg-amber-500/10 text-amber-500 rounded-2xl">
+                      <AlertTriangle size={24} />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-black tracking-tight uppercase font-serif">
+                        Đề xuất Ngoại lệ
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Gửi đề xuất xin duyệt bỏ qua kiểm tra tự động lệch tiến
+                        độ GCN
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 ms-1">
+                        Lý do đề xuất / Thực trạng tế
+                      </label>
+                      <textarea
+                        value={proposeReason}
+                        onChange={(e) => setProposeReason(e.target.value)}
+                        placeholder="Nhập lý do chi tiết (ví dụ: GCN được cấp thực tế sớm hơn chu trình bàn giao standard do có chỉ thị gấp...)"
+                        rows={4}
+                        className={cn(
+                          "w-full rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-amber-500 outline-none border transition-all resize-none",
+                          theme === "light"
+                            ? "bg-slate-50 border-slate-200 focus:bg-white focus:border-amber-500 text-slate-900"
+                            : "bg-slate-950 border-slate-800 focus:bg-slate-900 focus:border-amber-500 text-slate-100 placeholder:text-slate-600",
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 mt-6">
+                    <button
+                      onClick={() => {
+                        setProposeOpen(false);
+                        setProposeReason("");
+                      }}
+                      className={cn(
+                        "flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all",
+                        theme === "light"
+                          ? "bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100"
+                          : "bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900",
+                      )}
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button
+                      disabled={!proposeReason.trim()}
+                      onClick={async () => {
+                        await handleProposeException(
+                          currentApp.id,
+                          proposeReason,
+                        );
+                        setProposeOpen(false);
+                        setProposeReason("");
+                      }}
+                      className="flex-1 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Gửi Đề xuất
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Approve Exception Dialog Modal */}
+            {approveOpen && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md">
+                <div
+                  className={cn(
+                    "w-full max-w-md rounded-3xl p-6 shadow-2xl border transition-all",
+                    theme === "light"
+                      ? "bg-white border-slate-200 text-slate-900"
+                      : "bg-slate-900 border-slate-800 text-slate-100",
+                  )}
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-3 bg-indigo-500/10 text-indigo-500 rounded-2xl">
+                      <CheckCircle2 size={24} />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-black tracking-tight uppercase font-serif">
+                        Phê duyệt Ngoại lệ
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Xác nhận bỏ qua cảnh báo và tiếp tục tiến độ chuẩn của
+                        hồ sơ
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {currentApp?.checklist?.["bypass_proposed"] && (
+                      <div
+                        className={cn(
+                          "p-4 rounded-2xl border border-dashed text-xs font-semibold leading-relaxed",
+                          theme === "light"
+                            ? "bg-amber-50/50 border-amber-200 text-amber-800"
+                            : "bg-amber-950/20 border-amber-900/40 text-amber-300",
+                        )}
+                      >
+                        <p className="font-extrabold uppercase tracking-wider text-[10px] text-amber-500 mb-1">
+                          Đề xuất từ Chuyên viên:
+                        </p>
+                        <p>
+                          "
+                          {currentApp.issueNotes?.replace(
+                            "Đang chờ duyệt ngoại lệ: ",
+                            "",
+                          )}
+                          "
+                        </p>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 ms-1">
+                        Ghi chú phê duyệt / Ý kiến lãnh đạo
+                      </label>
+                      <textarea
+                        value={approveNotes}
+                        onChange={(e) => setApproveNotes(e.target.value)}
+                        placeholder="Ghi nhận các ý kiến chỉ đạo hoặc ghi chú kiểm soát tại đây..."
+                        rows={4}
+                        className={cn(
+                          "w-full rounded-2xl p-4 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none border transition-all resize-none",
+                          theme === "light"
+                            ? "bg-slate-50 border-slate-200 focus:bg-white focus:border-indigo-500 text-slate-900"
+                            : "bg-slate-950 border-slate-800 focus:bg-slate-900 focus:border-indigo-500 text-slate-100 placeholder:text-slate-600",
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 mt-6">
+                    <button
+                      onClick={() => {
+                        setApproveOpen(false);
+                        setApproveNotes("");
+                      }}
+                      className={cn(
+                        "flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all",
+                        theme === "light"
+                          ? "bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100"
+                          : "bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900",
+                      )}
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button
+                      disabled={!approveNotes.trim()}
+                      onClick={async () => {
+                        await handleApproveException(
+                          currentApp.id,
+                          approveNotes || "Lãnh đạo phê duyệt ngoại lệ.",
+                        );
+                        setApproveOpen(false);
+                        setApproveNotes("");
+                      }}
+                      className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Phê duyệt
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </AnimatePresence>

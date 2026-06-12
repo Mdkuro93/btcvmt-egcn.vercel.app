@@ -129,7 +129,7 @@ export function useExcelImport({
         "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)", 
         "Hạn GCN cam kết", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT",
         "Nơi nộp", "Mã VPĐK", "Ngày nộp hồ sơ", "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", 
-        "Ngày GCN đã ký", "Ngày GCN đã nhận", "Ngày BG KT", "Ngày BG GCN Khách"
+        "Ngày GCN đã ký", "Ngày GCN đã nhận", "Ngày BG KT", "Ngày BG GCN Khách", "Số GCNQSDĐ"
       ];
       data = sourceApps.map((app: Application) => [
         app.projectName || '',
@@ -154,7 +154,8 @@ export function useExcelImport({
         app.gcnSignedDate ? (formatDate(app.gcnSignedDate) === '---' ? '' : formatDate(app.gcnSignedDate)) : '',
         app.gcnReceivedDate ? (formatDate(app.gcnReceivedDate) === '---' ? '' : formatDate(app.gcnReceivedDate)) : '',
         app.accountingHandoverDate ? (formatDate(app.accountingHandoverDate) === '---' ? '' : formatDate(app.accountingHandoverDate)) : '',
-        app.customerHandoverDate ? (formatDate(app.customerHandoverDate) === '---' ? '' : formatDate(app.customerHandoverDate)) : ''
+        app.customerHandoverDate ? (formatDate(app.customerHandoverDate) === '---' ? '' : formatDate(app.customerHandoverDate)) : '',
+        app.gcnNumber || ''
       ]);
     } else {
       headers = [
@@ -335,6 +336,7 @@ export function useExcelImport({
           issueType: findCol(['phan loai sai sot'], ['phan loai sai sot']),
           issueSeverity: findCol(['muc do sai sot'], ['muc do sai sot']),
           issueNotes: findCol(['ghi chu sai sot'], ['ghi chu sai sot']),
+          gcnNumber: findCol(['so gcnqsdd', 'so gcn', 'gcnqsdd'], ['so gcn', 'gcnqsdd']),
         };
 
         const getRowVal = (row: any[], field: keyof typeof colMap) => {
@@ -550,14 +552,14 @@ export function useExcelImport({
                 updatedApp.gcnReceivedDate = gReceivedDate;
                 changes.push(`Ngày nhận GCN thực tế: ${existingApp.gcnReceivedDate || 'Trống'} -> ${gReceivedDate}`);
 
-                const isEarly = ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => updatedApp.currentStep.startsWith(prefix));
+                const isBypassed = updatedApp.checklist?.['bypass_gcn'] === true;
+                const isEarly = !isBypassed && ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => updatedApp.currentStep.startsWith(prefix));
                 if (isEarly) {
-                  updatedApp.issueType = 'Sai sót Khác';
+                  const waitingStep = updatedApp.workflowType === 'Quy_trinh_2' ? 'S7_1_PTT_Tiep_Nhan' : 'GD5_Cho_PTT_TiepNhan_BG';
+                  updatedApp.currentStep = waitingStep;
+                  updatedApp.status = 'WaitingHandover';
                   updatedApp.issueNotes = (updatedApp.issueNotes ? updatedApp.issueNotes + '\n' : '') + 'Cảnh báo: Lệch tiến độ thực tế (Có ngày nhận GCN nhưng chưa tới bước bàn giao)';
-                  updatedApp.issueSeverity = 'High';
-                  updatedApp.issueStatus = 'OPEN';
-                  updatedApp.status = 'Error';
-                  changes.push(`>> LỆCH TIẾN ĐỘ THỰC TẾ: Đã có ngày nhận sổ khi đang ở bước ${updatedApp.currentStep}`);
+                  changes.push(`>> Tự động chuyển sang Chờ bàn giao do có ngày nhận GCN (bước gốc: ${existingApp.currentStep})`);
                 }
              }
 
@@ -598,6 +600,12 @@ export function useExcelImport({
              if (isNotes !== undefined && isNotes !== '' && isNotes !== existingApp.issueNotes) {
                 updatedApp.issueNotes = isNotes;
                 changes.push(`Ghi chú sai sót: ${existingApp.issueNotes || 'Không'} -> ${isNotes}`);
+             }
+
+             const newGcnNumber = getRowStr(row, 'gcnNumber');
+             if (newGcnNumber !== undefined && newGcnNumber !== '' && newGcnNumber !== existingApp.gcnNumber) {
+               updatedApp.gcnNumber = newGcnNumber;
+               changes.push(`Số GCNQSDĐ: ${existingApp.gcnNumber || 'Trống'} -> ${newGcnNumber}`);
              }
 
              if (changes.length > 0) {
@@ -754,6 +762,9 @@ export function useExcelImport({
 
              const isNotes = getRowStr(row, 'issueNotes');
              if (isNotes) newApp.issueNotes = isNotes;
+
+             const gcnNo = getRowStr(row, 'gcnNumber');
+             if (gcnNo) newApp.gcnNumber = gcnNo;
 
              const inferred = inferStepFromDates(newApp as Application, slaConfig, 'IMPORT');
              

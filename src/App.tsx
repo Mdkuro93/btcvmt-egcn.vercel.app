@@ -3145,7 +3145,8 @@ export default function App() {
         // Step and Status remain as they were in original unless modified via WorkflowEngine.
 
         if (processedChanges.gcnReceivedDate) {
-          const isEarly = ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => (original.currentStep as string).startsWith(prefix));
+          const isBypassed = updated.checklist?.['bypass_gcn'] === true;
+          const isEarly = !isBypassed && ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => (original.currentStep as string).startsWith(prefix));
           if (isEarly) {
             updated.issueType = 'Sai sót Khác';
             updated.issueNotes = (updated.issueNotes ? updated.issueNotes + '\n' : '') + 'Cảnh báo: Lệch tiến độ thực tế (Có ngày nhận GCN nhưng chưa tới bước bàn giao)';
@@ -4602,6 +4603,118 @@ export default function App() {
     }
   };
 
+  const handleProposeException = async (appId: string, reason: string) => {
+    try {
+      const app = applications.find(a => a.id === appId);
+      if (!app) return;
+
+      const newHistory = [
+        {
+          id: `propose-${Date.now()}`,
+          stepName: stepConfig[app.currentStep]?.label || app.currentStep,
+          dept: userRole as Dept,
+          receivedDate: new Date().toISOString(),
+          note: `Đề xuất xử lý ngoại lệ: ${reason}`,
+          performedBy: currentUser?.id,
+          performedByName: currentUser?.name
+        },
+        ...app.history
+      ];
+
+      const check = app.checklist || {};
+      const updatedApp = {
+        ...app,
+        issueType: 'Sai sót Khác' as const,
+        issueNotes: `Đang chờ duyệt ngoại lệ: ${reason}`,
+        issueSeverity: 'Critical' as const,
+        issueStatus: 'OPEN' as const,
+        status: 'Error' as const,
+        checklist: {
+          ...check,
+          bypass_proposed: true,
+          bypass_gcn: false
+        },
+        history: newHistory
+      };
+
+      const auditEntry = createAuditEntry('Đề xuất ngoại lệ', false, 1, app.unitCode, `Đề xuất ngoại lệ thành công lý do: ${reason}`);
+      const updatedAppWithAudit = {
+        ...updatedApp,
+        auditTrail: [auditEntry, ...(app.auditTrail || [])]
+      };
+
+      const finalApp = await localSyncRecord(updatedAppWithAudit);
+      handleSetApplications(prev => prev.map(a => a.id === appId ? finalApp : a));
+      handleSetDashboardApps(prev => prev.map(a => a.id === appId ? finalApp : a));
+      setSelectedApp(finalApp);
+      showToast('Đã gửi đề xuất ngoại lệ.', 'success');
+    } catch (error) {
+      console.error(error);
+      showToast('Lỗi khi đề xuất ngoại lệ.', 'error');
+    }
+  };
+
+  const handleApproveException = async (appId: string, notes: string) => {
+    try {
+      const app = applications.find(a => a.id === appId);
+      if (!app) return;
+
+      // Only departments with manager roles or admin can approve
+      const allowedRoles = ['ADMIN', 'DIRECTOR', 'MANAGER', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'];
+      if (!allowedRoles.includes(userRole)) {
+        showToast('Bạn không có quyền phê duyệt ngoại lệ!', 'error');
+        return;
+      }
+
+      const stepCfg = stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep];
+
+      const newHistory = [
+        {
+          id: `approve-${Date.now()}`,
+          stepName: stepCfg.label,
+          dept: userRole as Dept,
+          receivedDate: new Date().toISOString(),
+          note: `Đã phê duyệt ngoại lệ: ${notes}`,
+          performedBy: currentUser?.id,
+          performedByName: currentUser?.name
+        },
+        ...app.history
+      ];
+
+      const check = app.checklist || {};
+      const updatedApp = {
+        ...app,
+        status: stepCfg.status,
+        isRejected: false,
+        issueType: 'None' as const,
+        issueSeverity: 'Minor' as const,
+        issueNotes: '',
+        issueStatus: 'RESOLVED' as const,
+        checklist: {
+          ...check,
+          bypass_proposed: false,
+          bypass_gcn: true
+        },
+        history: newHistory
+      };
+
+      const auditEntry = createAuditEntry('Phê duyệt ngoại lệ', false, 1, app.unitCode, `Đã phê duyệt ngoại lệ thành công với ghi chú: ${notes}`);
+      const updatedAppWithAudit = {
+        ...updatedApp,
+        auditTrail: [auditEntry, ...(app.auditTrail || [])]
+      };
+
+      const finalApp = await localSyncRecord(updatedAppWithAudit);
+      handleSetApplications(prev => prev.map(a => a.id === appId ? finalApp : a));
+      handleSetDashboardApps(prev => prev.map(a => a.id === appId ? finalApp : a));
+      setSelectedApp(finalApp);
+      showToast('Đã phê duyệt ngoại lệ thành công.', 'success');
+    } catch (error) {
+      console.error(error);
+      showToast('Lỗi khi phê duyệt ngoại lệ.', 'error');
+    }
+  };
+
   const handleRejectApp = async (reason: string) => {
     const app = editApp || selectedApp;
     if (!app) return;
@@ -4788,7 +4901,7 @@ export default function App() {
     const pttFields = [
       'customerName', 'contractSignerType', 'phoneNumber', 'loanStatus', 'bankCommitmentDeadline', 'propertyType', 
       'contractSigningDate', 'receivedDate', 'isSelfService', 'customerHandoverDate', 'taxNotificationReceivedDate', 'accountingHandoverDate', 'staffName',
-      'gcnReceivedDate', 'taxReceiptDate', 'handoverApartmentDate'
+      'gcnReceivedDate', 'taxReceiptDate', 'handoverApartmentDate', 'gcnNumber'
     ];
 
     // Financial & Tax & Authority Submission: KT responsible for processing according to function (Tax/Accounting)
@@ -4796,14 +4909,14 @@ export default function App() {
       'contractSigningDate', 'submissionLocation', 'vpdkCode', 'submissionDate',
       'taxReceiptDate', 'taxVpdkSubmissionDate', 'taxPaymentStatus',
       'gcnReceivedDate', 'ptdaHandoverDate', 'ktHandoverToPtdaDate',
-      'issueType', 'issueNotes', 'issueSeverity'
+      'issueType', 'issueNotes', 'issueSeverity', 'gcnNumber'
     ];
 
     // Project/Authority: PTDA responsible for processing dates (GCN milestones)
     const ptdaFields = [
       'vpdkCode', 'taxNotificationDate', 'taxNoticeProvisionDate', 'gcnSignedDate', 'taxReceiptDate',
       'ktHandoverToPtdaDate',
-      'issueType', 'issueNotes', 'issueSeverity'
+      'issueType', 'issueNotes', 'issueSeverity', 'gcnNumber'
     ];
 
     if (userRole === 'PTT' || userRole === 'MANAGER_PTT') {
@@ -4867,7 +4980,8 @@ export default function App() {
       
       // Check Lệch Tiến Độ Thực Tế cho GCN
       if (field === 'gcnReceivedDate' && value) {
-        const isEarly = ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => nextApp.currentStep.startsWith(prefix));
+        const isBypassed = nextApp.checklist?.['bypass_gcn'] === true;
+        const isEarly = !isBypassed && ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => nextApp.currentStep.startsWith(prefix));
         if (isEarly) {
           nextApp.issueType = 'Sai sót Khác';
           nextApp.issueNotes = (nextApp.issueNotes ? nextApp.issueNotes + '\n' : '') + 'Cảnh báo: Lệch tiến độ thực tế (Có ngày nhận GCN nhưng chưa tới bước bàn giao)';
@@ -4949,15 +5063,16 @@ export default function App() {
 
           // Check Lệch Tiến Độ Thực Tế cho GCN
           if (field === 'gcnReceivedDate' && value) {
-            const isEarly = ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => nextApp.currentStep.startsWith(prefix));
+            const isBypassed = nextApp.checklist?.['bypass_gcn'] === true;
+            const isEarly = !isBypassed && ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => nextApp.currentStep.startsWith(prefix));
             if (isEarly) {
               nextApp.issueType = 'Sai sót Khác';
               nextApp.issueNotes = (nextApp.issueNotes ? nextApp.issueNotes + '\n' : '') + 'Cảnh báo: Lệch tiến độ thực tế (Có ngày nhận GCN nhưng chưa tới bước bàn giao)';
               nextApp.issueSeverity = 'High';
               nextApp.status = 'Error';
-            nextApp.issueStatus = 'OPEN';
-            nextApp.issueResolvedAt = null;
-            if (!nextApp.issueCreatedAt) nextApp.issueCreatedAt = new Date().toISOString();
+              nextApp.issueStatus = 'OPEN';
+              nextApp.issueResolvedAt = null;
+              if (!nextApp.issueCreatedAt) nextApp.issueCreatedAt = new Date().toISOString();
             }
           }
 
@@ -6509,6 +6624,8 @@ export default function App() {
         handleDeleteFile={handleDeleteFile}
         setPreviewFile={setPreviewFile}
         handleResolveIssue={handleResolveIssue}
+        handleProposeException={handleProposeException}
+        handleApproveException={handleApproveException}
         calculateDaysBetweenDates={calculateDaysBetweenDates}
         formatDate={formatDate}
         handleSingleOrBulkReportIssue={handleSingleOrBulkReportIssue}

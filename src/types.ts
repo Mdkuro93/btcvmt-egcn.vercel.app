@@ -134,6 +134,7 @@ export type Application = {
   contractSigningDate?: string; // Ngày ký HĐCN
   assignorGcnNumber?: string; // Số GCN QSDĐ của bên CN
   assignorGcnDate?: string; // Ngày cấp GCN của bên CN
+  gcnNumber?: string; // Số GCNQSDĐ được cấp
   
   // Thông tin tiến độ
   isSelfService?: boolean; // KH tự làm sổ đỏ

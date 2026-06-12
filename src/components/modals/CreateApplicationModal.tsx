@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Application, UserProfile, Project } from '../../types';
 import { cn } from '../../lib/utils';
-import { X, Home, Map as MapIcon, User, Key, Save, ChevronDown, Clock, Check } from 'lucide-react';
+import { X, Home, Map as MapIcon, User, Key, Save, ChevronDown, Clock, Check, FileText } from 'lucide-react';
 
 export const CreateApplicationModal = ({
   isCreateModalOpen,
@@ -142,6 +142,25 @@ export const CreateApplicationModal = ({
                           )}
                           value={newApp.contractSignerType}
                           onChange={(e) => setNewApp({...newApp, contractSignerType: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-1.5 flex-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Số GCNQSDĐ</label>
+                      <div className="relative group">
+                        <FileText size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-emerald-500 transition-colors" />
+                        <input 
+                          type="text" 
+                          placeholder="Nhập số sổ đỏ / GCN"
+                          className={cn(
+                            "w-full pl-10 pr-4 py-3 border rounded-2xl text-sm focus:ring-2 transition-all outline-none",
+                            theme === 'light' ? "bg-white border-slate-200 text-slate-900 focus:bg-white focus:ring-emerald-500/20" : "bg-slate-900 border-slate-800 text-slate-200 focus:ring-emerald-500/20"
+                          )}
+                          value={newApp.gcnNumber || ''}
+                          onChange={(e) => setNewApp({...newApp, gcnNumber: e.target.value})}
                         />
                       </div>
                     </div>
