@@ -128,6 +128,13 @@ export default function BulkTransitionModal({
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 ml-1">
                   {updateField.label} {updateField.isRequired !== false ? '(Bắt buộc)' : '(Không bắt buộc)'}
                 </label>
+                {/* Thêm đoạn này phía trên input date */}
+                {updateField && selectedCount > 0 && (
+                  <p className="text-xs text-amber-600 mb-1 leading-relaxed">
+                    💡 Ngày này chỉ áp dụng cho hồ sơ <strong>chưa có</strong> {updateField.label}. 
+                    Hồ sơ đã có ngày sẽ được giữ nguyên.
+                  </p>
+                )}
                 <div className="relative">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
                     <Calendar size={18} />

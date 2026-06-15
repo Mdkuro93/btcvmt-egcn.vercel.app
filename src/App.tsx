@@ -3982,19 +3982,29 @@ export default function App() {
     // If there is no specific field to update, we can either skip the modal and transition directly 
     // or keep the modal just for confirmation. Here we just show the modal without a required date.
     const today = new Date().toISOString().split('T')[0];
-    let initialValue = today;
+    let initialValue = '';
     let initLocation: 'PHUONG' | 'TP_DANANG' = 'PHUONG';
     let initRefCode = '';
     let initKtHandover = today;
     
     // Pre-fill existing value if records share a common value for that field
     const selectedRecords = applications.filter(a => idsToProcess.includes(a.id));
+    // Đếm hồ sơ chưa có ngày để hiển thị thông báo trong modal
+    let recordsWithoutDate = 0;
+
     if (updateField && selectedRecords.length > 0) {
       const fieldValues = selectedRecords.map(a => (a as any)[updateField!.key] || '');
       const uniqueValues = Array.from(new Set(fieldValues)).filter(v => v !== '');
-      if (uniqueValues.length === 1) {
+      recordsWithoutDate = fieldValues.filter(v => v === '').length;
+
+      if (uniqueValues.length === 1 && recordsWithoutDate === 0) {
+        // Tất cả cùng 1 ngày → pre-fill ngày đó
+        initialValue = uniqueValues[0] as string;
+      } else if (uniqueValues.length === 1 && recordsWithoutDate > 0) {
+        // Có ngày chung + một số hồ sơ trống → pre-fill ngày chung làm gợi ý
         initialValue = uniqueValues[0] as string;
       }
+      // Nếu nhiều ngày khác nhau → initialValue = '' → user tự nhập ngày cho hồ sơ trống
     }
 
     setBulkTransitionTarget(nextStep);
@@ -4049,7 +4059,8 @@ export default function App() {
         
         let appWithDateForCheck = { ...app };
         if (bulkTransitionField && dateValue) {
-          (appWithDateForCheck as any)[bulkTransitionField.key] = dateValue;
+          const existingValue = (app as any)[bulkTransitionField.key];
+          (appWithDateForCheck as any)[bulkTransitionField.key] = existingValue || dateValue;
         }
 
         const chronoError = validateDateSequence(appWithDateForCheck);
@@ -4082,7 +4093,8 @@ export default function App() {
         // Apply bulk date update if provided FIRST so transition check works with the updated date
         let appWithDate = { ...app };
         if (bulkTransitionField && dateValue) {
-          (appWithDate as any)[bulkTransitionField.key] = dateValue;
+          const existingValue = (app as any)[bulkTransitionField.key];
+          (appWithDate as any)[bulkTransitionField.key] = existingValue || dateValue;
         }
 
         // --- PRIORITIZED SELF-SERVICE JUMP LOGIC (Bulk) ---
