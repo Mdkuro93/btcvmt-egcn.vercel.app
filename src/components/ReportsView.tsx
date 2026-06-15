@@ -285,6 +285,61 @@ export default function ReportsView({
       ];
     }
 
+    else if (reportType === 'ERROR') {
+      fileName = `BaoCao_SaiSot_VuongMac_${today.replace(/\//g,'-')}`;
+      sheetName = 'Báo cáo Sai sót';
+
+      const normalizedErrors = filteredApps.map(app => {
+        const hasActiveError = app.status === 'Error' || (app.issueType && app.issueType !== 'None');
+        const status = hasActiveError ? 'OPEN' : 'RESOLVED';
+        const rawNotes = app.issueNotes ?? 
+                         (app as any).issue_notes ?? 
+                         (app as any).ghi_chu ?? 
+                         (app as any).ghi_chu_sai_sot ?? 
+                         (app as any).note ?? 
+                         (app as any).notes ?? 
+                         (app as any).error_description ?? 
+                         (app as any).incident_note ?? 
+                         '';
+        return {
+          ...app,
+          issueStatus: app.issueStatus || (status as 'OPEN' | 'RESOLVED'),
+          issueType: app.issueType || 'None',
+          issueSeverity: app.issueSeverity || 'Minor',
+          issueNotes: typeof rawNotes === 'string' ? rawNotes.trim() : String(rawNotes ?? ''),
+        };
+      }).filter(app => app.issueType && app.issueType !== 'None');
+
+      rows = [
+        ['BÁO CÁO CHI TIẾT SAI SÓT & VƯỚNG MẮC HỒ SƠ'],
+        [`Dự án: ${projectName} | Xuất ngày: ${today}`],
+        [],
+        [
+          'STT', 'Mã lô/căn', 'Dự án', 'Khách hàng', 'Loại tài sản', 
+          'Vay vốn', 'Tự làm sổ', 'Giai đoạn hiện tại', 'Trạng thái hồ sơ',
+          'Loại sai sót', 'Trạng thái xử lý', 'Mức độ nghiêm trọng', 'Chi tiết ghi chú sự vụ',
+          'Số lần từ chối', 'Lý do từ chối cuối'
+        ],
+        ...normalizedErrors.map((app, i) => [
+          i + 1,
+          app.unitCode || '',
+          app.projectName || '',
+          app.customerName || '',
+          app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
+          app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
+          app.isSelfService ? 'Có' : 'Không',
+          app.currentStep || '',
+          app.status || '',
+          app.issueType || 'Khác',
+          app.issueStatus === 'OPEN' ? 'Đang mở (Chưa XL)' : 'Đã xử lý / Đóng',
+          (app.issueSeverity as any) === 'High' || app.issueSeverity === 'Critical' ? 'Nghiêm trọng/Cao' : (app.issueSeverity as any) === 'Medium' || app.issueSeverity === 'Moderate' ? 'Trung bình' : 'Nhẹ',
+          app.issueNotes || '',
+          app.rejectionCount || 0,
+          app.rejectionReason || ''
+        ])
+      ];
+    }
+
     else {
       // Tổng hợp cho PROJECT, REGION, LOAN, PERFORMANCE
       fileName = `BaoCao_TongHop_${today.replace(/\//g,'-')}`;
@@ -571,6 +626,13 @@ export default function ReportsView({
   }, [loanApps]);
 
   if (reportType === 'ERROR') {
+    const errorDisplayApps = exportProjectId === 'ALL'
+      ? applications
+      : applications.filter(a => {
+          const proj = projects.find(p => p.id === exportProjectId);
+          return proj ? a.projectName === proj.name : true;
+        });
+
     return (
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 text-left">
         <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
@@ -619,7 +681,73 @@ export default function ReportsView({
           </button>
         </div>
 
-        <ErrorReportView applications={applications} theme={theme} />
+        {/* Toolbar Export */}
+        <div className={cn(
+          "flex flex-wrap items-center gap-3 p-4 rounded-2xl border mb-6",
+          theme === 'light'
+            ? "bg-slate-50 border-slate-100"
+            : "bg-slate-800/50 border-slate-700/50"
+        )}>
+          <span className={cn(
+            "text-[10px] font-black uppercase tracking-wider",
+            theme === 'light' ? "text-slate-500" : "text-slate-400"
+          )}>
+            Xuất báo cáo:
+          </span>
+
+          {/* Chọn dự án */}
+          <select
+            value={exportProjectId}
+            onChange={e => setExportProjectId(e.target.value)}
+            className={cn(
+              "text-xs px-3 py-2 rounded-xl border outline-none",
+              "font-semibold transition-all",
+              theme === 'light'
+                ? "bg-white border-slate-200 text-slate-700"
+                : "bg-slate-700/50 border-slate-600 text-white"
+            )}
+          >
+            <option value="ALL">📊 Tất cả dự án</option>
+            {projects.map((p, pIdx) => (
+              <option key={`report-export-proj-opt-err-${p.id}-${pIdx}`} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Số hồ sơ sẽ xuất */}
+          <span className={cn(
+            "text-[10px] font-bold",
+            theme === 'light' ? "text-slate-400" : "text-slate-500"
+          )}>
+            {exportProjectId === 'ALL'
+              ? `${applications.length} hồ sơ`
+              : `${applications.filter(a => {
+                  const p = projects.find(
+                    x => x.id === exportProjectId
+                  );
+                  return p ? a.projectName === p.name : false;
+                }).length} hồ sơ`
+            }
+          </span>
+
+          {/* Nút Export */}
+          <button
+            onClick={handleExportExcel}
+            className={cn(
+              "ml-auto flex items-center gap-2",
+              "px-4 py-2 rounded-xl font-bold text-xs text-white",
+              "bg-emerald-600 hover:bg-emerald-500",
+              "transition-all shadow-md shadow-emerald-500/20",
+              "active:scale-95"
+            )}
+          >
+            <Download size={14} />
+            Xuất Excel
+          </button>
+        </div>
+
+        <ErrorReportView applications={errorDisplayApps} theme={theme} />
       </div>
     );
   }

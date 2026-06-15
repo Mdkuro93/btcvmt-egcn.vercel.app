@@ -725,6 +725,7 @@ export const ApplicationsTab = ({
                           ) : (
                             <>
                               <th className="px-2 py-2 border-b border-slate-800/10">Loại lô</th>
+                              <th className="px-2 py-2 border-b border-slate-800/10">Số GCNQSDĐ</th>
                               <th className="px-2 py-2 border-b border-slate-800/10">Trạng thái</th>
                               <th className="px-2 py-2 text-center border-b border-slate-800/10">Bộ phận</th>
                               {(userRole === 'PTT' || isManagement) && (
@@ -749,7 +750,7 @@ export const ApplicationsTab = ({
                       )}>
                         {isLoadingApps ? (
                           <tr>
-                            <td colSpan={13} className="px-6 py-12 text-center text-slate-500 italic">
+                            <td colSpan={14} className="px-6 py-12 text-center text-slate-500 italic">
                                <div className="flex flex-col items-center gap-4">
                                   <RefreshCcw className="animate-spin text-indigo-500" size={24} />
                                   <p className="text-xs font-black uppercase tracking-widest">Đang tải dữ liệu hồ sơ...</p>
@@ -758,7 +759,7 @@ export const ApplicationsTab = ({
                           </tr>
                         ) : displayedApps.length === 0 ? (
                           <tr>
-                            <td colSpan={13} className="px-6 py-12 text-center text-slate-500 italic font-medium">
+                            <td colSpan={14} className="px-6 py-12 text-center text-slate-500 italic font-medium">
                                <div className="flex flex-col items-center gap-4 opacity-40">
                                   <Files size={40} />
                                   <p className="text-sm">Không tìm thấy hồ sơ nào phù hợp với bộ lọc hiện tại.</p>
@@ -1090,6 +1091,11 @@ export const ApplicationsTab = ({
                                   <td className="px-2 py-0 text-[10px] leading-tight text-slate-500 dark:text-slate-400">
                                     <span className="font-medium">
                                       {app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền'}
+                                    </span>
+                                  </td>
+                                  <td className="px-2 py-0 text-[10px] leading-tight text-slate-500 dark:text-slate-400">
+                                    <span className="font-semibold">
+                                      {app.gcnNumber || '-'}
                                     </span>
                                   </td>
                                   <td className="px-2 py-0">
