@@ -5010,6 +5010,17 @@ export default function App() {
     // Admin always has edit rights
     if (userRole === 'ADMIN') return true;
     
+    // Áp dụng cho tất cả role trừ ADMIN
+    if (fieldName === 'isSelfService' && userRole !== 'ADMIN') {
+      const app = appToCheck || editApp || selectedApp;
+      if (!app) return true;
+      const allowedSteps = [
+        'GD1_ChuanBi', 'GD1_Cho_KT_TiepNhan', 'GD2_Cho_Nop_VPDK',
+        'S1_ChuanBi', 'S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao'
+      ];
+      return allowedSteps.includes(app.currentStep);
+    }
+    
     // Management/Leadership roles depend on the permission field from DB
     if (userRole === 'MANAGER' || userRole === 'DIRECTOR' || userRole === 'MANAGER_ALL') {
       return userCanEdit;
@@ -5088,6 +5099,67 @@ export default function App() {
   };
 
   const handleFieldChange = (field: keyof Application, value: any) => {
+    if (field === 'isSelfService' && value === true) {
+      const app = editApp || selectedApp;
+      if (app && !app.isSelfService) {
+        const firstStep: StepName = app.workflowType === 'Quy_trinh_2' 
+          ? 'S1_ChuanBi' 
+          : 'GD1_ChuanBi';
+
+        const confirmed = window.confirm(
+          `Đổi sang Khách tự làm sổ?\n\n` +
+          `Hồ sơ sẽ được đặt lại về bước đầu (${firstStep === 'S1_ChuanBi' ? 'S1 - Chuẩn bị' : 'GĐ1 - Chuẩn bị'}).\n` +
+          `Toàn bộ dữ liệu đã nhập được giữ nguyên.\n` +
+          `Thao tác này sẽ được ghi vào lịch sử hồ sơ.`
+        );
+        if (!confirmed) return;
+
+        const auditEntry = createAuditEntry(
+          'Đổi loại hồ sơ: Công ty làm sổ → Khách tự làm sổ',
+          false,
+          1,
+          app.unitCode,
+          `Hồ sơ được đặt lại về bước đầu (${firstStep === 'S1_ChuanBi' ? 'S1 - Chuẩn bị' : 'GĐ1 - Chuẩn bị'}) để xử lý theo quy trình tự làm sổ.`
+        );
+
+        const historyItem: any = {
+          id: Math.random().toString(36).substr(2, 9),
+          timestamp: new Date().toISOString(),
+          user: userRole,
+          action: `Đổi loại hồ sơ: Công ty làm sổ → Khách tự làm sổ. Reset về bước: ${firstStep}`,
+        };
+
+        if (editApp) {
+          const nextApp = {
+            ...editApp,
+            isSelfService: true,
+            currentStep: firstStep,
+            status: 'Processing',
+            history: [historyItem, ...(editApp.history || [])],
+            auditTrail: [auditEntry, ...(editApp.auditTrail || [])]
+          };
+          setEditApp(nextApp);
+        } else if (selectedApp) {
+          handleSetApplications(prev => prev.map(a => {
+            if (a.id === selectedApp.id) {
+              const nextApp = {
+                ...a,
+                isSelfService: true,
+                currentStep: firstStep,
+                status: 'Processing',
+                history: [historyItem, ...(a.history || [])],
+                auditTrail: [auditEntry, ...(a.auditTrail || [])]
+              };
+              setSelectedApp(nextApp);
+              return nextApp;
+            }
+            return a;
+          }));
+        }
+        return;
+      }
+    }
+
     if (editApp) {
       const nextApp = { ...editApp, [field]: value };
       
@@ -6888,7 +6960,7 @@ export default function App() {
         newApp={newApp}
         setNewApp={setNewApp}
         formErrors={formErrors}
-        visibleProjects={visibleProjects}
+        projects={visibleProjects}
         handleCreateApp={handleCreateApp}
         isSavingApp={isSavingApp}
       />

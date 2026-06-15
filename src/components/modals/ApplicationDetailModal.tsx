@@ -1107,6 +1107,25 @@ export const ApplicationDetailModal = ({
                                 />
                                 <DetailCard
                                   theme={theme}
+                                  label="Tự làm sổ"
+                                  value={
+                                    (editApp || selectedApp).isSelfService
+                                      ? "Khách tự làm"
+                                      : "Công ty làm"
+                                  }
+                                  type="select"
+                                  editable={isFieldEditable("isSelfService")}
+                                  isEditing={isEditing}
+                                  options={["Công ty làm", "Khách tự làm"]}
+                                  onChange={(val: string) =>
+                                    handleFieldChange(
+                                      "isSelfService",
+                                      val === "Khách tự làm"
+                                    )
+                                  }
+                                />
+                                <DetailCard
+                                  theme={theme}
                                   label="Ngày ký HĐCN/HĐMB"
                                   value={
                                     (editApp || selectedApp).contractSigningDate

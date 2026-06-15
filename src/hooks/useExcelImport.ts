@@ -399,6 +399,18 @@ export function useExcelImport({
             return;
           }
 
+          // Kiểm tra user có được phân quyền dự án này không
+          if (matchedProject && visibleProjects.length > 0) {
+            const isAllowed = visibleProjects.some(vp => vp.id === matchedProject!.id);
+            if (!isAllowed) {
+              errors.push(
+                `Dòng ${idx + 2}: Bạn không có quyền nhập liệu cho dự án "${matchedProject.name}". ` +
+                `Chỉ được phép nhập: ${visibleProjects.map(vp => vp.name).join(', ')}.`
+              );
+              return;
+            }
+          }
+
           const officialProjectName = matchedProject ? matchedProject.name : projectName;
           
           const key = `${officialProjectName.toLowerCase()}_${unitCode}`;

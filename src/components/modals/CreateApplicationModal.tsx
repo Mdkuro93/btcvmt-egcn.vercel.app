@@ -12,9 +12,12 @@ export const CreateApplicationModal = ({
   setNewApp,
   formErrors,
   visibleProjects,
+  projects,
   handleCreateApp,
   isSavingApp
 }: any) => {
+
+  const displayProjects = visibleProjects || projects || [];
 
   return (
 <>
@@ -100,7 +103,7 @@ export const CreateApplicationModal = ({
                           value={newApp.projectName}
                           onChange={(e) => setNewApp({...newApp, projectName: e.target.value})}
                         >
-                          {visibleProjects.map((p, pIdx) => (
+                          {displayProjects.map((p, pIdx) => (
                             <option key={`create-proj-opt-${p.id || 'none'}-${pIdx}`} value={p.name}>{p.name}</option>
                           ))}
                         </select>
