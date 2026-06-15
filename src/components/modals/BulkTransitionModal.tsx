@@ -21,7 +21,7 @@ export interface BulkTransitionModalProps {
   ktHandover?: string;
   onChangeKtHandover?: (v: string) => void;
   theme: 'light' | 'dark';
-  showToast: (msg: string, type: 'success' | 'error' | 'warning' | 'info') => void;
+  showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   dateError?: string | null;
   isSelfService?: boolean;
 }

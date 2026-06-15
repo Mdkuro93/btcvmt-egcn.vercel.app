@@ -603,7 +603,7 @@ export default function FieldModeView({
                         <div className="flex items-center gap-2">
                           <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
                           <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-tight">
-                            Giai đoạn: <span className="text-white italic font-black">{matchedStep?.label || app.currentStepLabel || 'Mới'}</span>
+                            Giai đoạn: <span className="text-white italic font-black">{matchedStep?.label || (app as any).currentStepLabel || 'Mới'}</span>
                           </p>
                         </div>
 

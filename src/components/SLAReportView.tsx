@@ -275,7 +275,7 @@ export default function SLAReportView({
               <div key={`sla-app-${app.id || 'none'}-${index}`} className="grid grid-cols-[1fr_1fr_90px_70px_90px] gap-3 py-3 border-b border-slate-800/50 last:border-0 items-center">
                 <span className={cn('text-xs font-black', strong)}>{app.unitCode || app.id}</span>
                 <span className={cn('text-xs truncate', muted)}>{app.projectName}</span>
-                <span className={cn('text-xs', muted)}>{app.stepEntryDate || '—'}</span>
+                <span className={cn('text-xs', muted)}>{(app as any).stepEntryDate || '—'}</span>
                 <span className={cn('text-xs font-black', late > 0 ? (late > 15 ? 'text-rose-500' : 'text-amber-500') : 'text-emerald-500')}>
                   {late > 0 ? `+${late} ngày` : 'Đúng hạn'}
                 </span>

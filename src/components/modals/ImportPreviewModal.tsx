@@ -10,8 +10,8 @@ interface ImportPreviewModalProps {
   onConfirm: () => Promise<void>;
   isLoading?: boolean;
   data: {
-    toCreate: Application[];
-    toUpdate: Application[];
+    toCreate: any[];
+    toUpdate: any[];
     warnings: string[];
     errors: string[];
   } | null;

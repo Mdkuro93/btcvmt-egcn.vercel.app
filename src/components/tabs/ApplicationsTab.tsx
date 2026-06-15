@@ -775,7 +775,7 @@ export const ApplicationsTab = ({
                             <tr 
                               id={`app-row-${app.id || 'new'}-${index}`}
                               key={`app-table-row-${app.id || 'new'}-${app.unitCode || 'none'}-${index}`} 
-                              ref={el => tableRowRefs.current[index] = el}
+                              ref={el => { tableRowRefs.current[index] = el; }}
                               className={cn(
                                 "transition-all cursor-pointer group border-b relative h-[32px]",
                                 isFocused && (theme === 'light' ? "bg-indigo-50/80 ring-1 ring-inset ring-indigo-500/20 z-10" : "bg-indigo-900/20 ring-1 ring-inset ring-indigo-400/30 z-10"),

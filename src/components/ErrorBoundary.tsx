@@ -24,6 +24,8 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: any) {
     console.error('[App Crash]', error, info);
+    // TODO: Sentry.captureException(error, { extra: info });
+    // TODO: LogRocket.captureException(error);
   }
 
   render() {

@@ -1114,7 +1114,7 @@ export default function ReportsView({
                       <h4 className="text-[10px] font-black uppercase text-slate-500 mb-6 tracking-widest text-center">Biểu đồ Năng lực (Hồ sơ/Nhân viên)</h4>
                       {isChartsReady && stats && stats.length > 0 ? (<div className="h-[350px] w-full">
                         <ResponsiveContainer width="100%" height={350}>
-                          <BarChart data={stats} layout="vertical" margin={{ left: 20 }}>
+                          <BarChart data={stats as any} layout="vertical" margin={{ left: 20 }}>
                                <XAxis type="number" hide />
                                <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={10} width={100} axisLine={false} tickLine={false} />
                                <ReTooltip 
@@ -1139,7 +1139,7 @@ export default function ReportsView({
                        <h4 className="text-[10px] font-black uppercase text-slate-500 mb-6 tracking-widest text-center">Phân tích Tốc độ (TAT trung bình)</h4>
                       <div className="h-[350px] w-full">
                          <ResponsiveContainer width="100%" height={350}>
-                            <AreaChart data={stats.slice().sort((a:any, b:any) => a.avgTime - b.avgTime)}>
+                            <AreaChart data={(stats as any).slice().sort((a:any, b:any) => a.avgTime - b.avgTime)}>
                                <defs>
                                  <linearGradient id="colorAvg" x1="0" y1="0" x2="0" y2="1">
                                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.1}/>
@@ -1221,7 +1221,7 @@ export default function ReportsView({
             ) : (
               <div className="h-[400px] w-full">
                 <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={stats} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+                  <BarChart data={stats as any} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={theme === 'light' ? "#e2e8f0" : "#ffffff10"} vertical={false} />
                     <XAxis dataKey="name" stroke="#475569" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />
                     <YAxis stroke="#475569" fontSize={10} fontWeight="bold" axisLine={false} tickLine={false} />

@@ -440,6 +440,39 @@ async function fetchRecordDetail(recordId: string | number): Promise<{
 const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplications: Application[], showToast?: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void) => {
   if (appsToSync.length === 0) return allApplications;
   try {
+    const uniqueProjects = Array.from(new Set(appsToSync.map(a => a.projectName).filter(Boolean)));
+    const uniqueUnitCodes = Array.from(new Set(appsToSync.map(a => a.unitCode).filter(Boolean)));
+
+    let existingDbRecords: any[] = [];
+    if (uniqueProjects.length > 0 && uniqueUnitCodes.length > 0) {
+      const { data: dbData, error: dbErr } = await supabase
+        .from('records')
+        .select('id, unit_code, project_name, history, audit_trail')
+        .in('project_name', uniqueProjects)
+        .in('unit_code', uniqueUnitCodes);
+      
+      if (!dbErr && dbData) {
+        existingDbRecords = dbData;
+      } else if (dbErr) {
+        console.error('Lỗi khi truy vấn trùng lặp trong database:', dbErr);
+      }
+    }
+
+    if (existingDbRecords.length > 0) {
+      appsToSync.forEach(app => {
+        const matchingDb = existingDbRecords.find(db => 
+          String(db.unit_code || '').toLowerCase() === String(app.unitCode || '').toLowerCase() &&
+          String(db.project_name || '').toLowerCase() === String(app.projectName || '').toLowerCase()
+        );
+        if (matchingDb) {
+          const mappedDb = mapFromSnakeCase(matchingDb);
+          app.id = mappedDb.id;
+          app.history = mappedDb.history || [];
+          app.auditTrail = mappedDb.auditTrail || [];
+        }
+      });
+    }
+
     const recordsToInsert: any[] = appsToSync
       .filter(a => !a.id || (typeof a.id === 'string' && a.id.includes('-imp-')))
       .map(app => {
@@ -1614,6 +1647,15 @@ export default function App() {
     }
     const currentRequestId = ++fetchRequestIds.current.applications;
 
+    const controller = new AbortController();
+    let timeoutId: any;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        controller.abort();
+        reject(new Error('TIMEOUT'));
+      }, 15000);
+    });
+
     try {
       let query = supabase.from('records').select(RECORD_LIGHT_SELECT, { count: 'exact' });
       
@@ -1633,7 +1675,7 @@ export default function App() {
       }
       
       // Advanced Filters
-      if (filterStatus && filterStatus !== 'ALL' && filterStatus !== '') {
+      if (filterStatus && filterStatus !== 'ALL' && (filterStatus as string) !== '') {
         let dbStatus = filterStatus as string;
         // Map Vietnamese labels back to DB values if they happen to be used
         const normalized = filterStatus.toLowerCase();
@@ -1700,7 +1742,7 @@ export default function App() {
           query = query.eq('status', dbStatus);
         }
       }
-      if (filterLoanStatus && filterLoanStatus !== 'ALL' && filterLoanStatus !== '') {
+      if (filterLoanStatus && filterLoanStatus !== 'ALL' && (filterLoanStatus as string) !== '') {
         query = query.eq('loan_status', filterLoanStatus);
       }
       if (filterSelfService !== 'ALL') {
@@ -1916,10 +1958,15 @@ export default function App() {
         }
       }
       
-      const { data, count, error } = await query
+      const queryPromise = query
         .order('created_at', { ascending: false })
-        .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1);
+        .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1)
+        .abortSignal(controller.signal);
         
+      const res = await Promise.race([queryPromise, timeoutPromise]);
+      clearTimeout(timeoutId);
+      const { data, count, error } = res as any;
+         
       if (error) throw error;
       
       // Chống Race Condition: nếu có request mới hơn thì bỏ qua data từ request cũ này
@@ -1928,11 +1975,16 @@ export default function App() {
       const fetchedApps = (data || []).map(mapFromSnakeCase);
       handleSetApplications(fetchedApps);
       setTotalCount(count || 0);
-    } catch (error) {
+    } catch (error: any) {
+      clearTimeout(timeoutId);
       if (currentRequestId !== fetchRequestIds.current.applications) return;
       console.error('Error fetching paginated records:', error);
-     showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
-     handleSetApplications([]);
+      if (error?.message === 'TIMEOUT' || error?.name === 'AbortError' || error?.message?.includes('aborted')) {
+        showToast('Kết nối mạng quá chậm hoặc server bận, vui lòng thử lại sau!', 'warning');
+      } else {
+        showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
+      }
+      handleSetApplications([]);
       setTotalCount(0);
       // Suppress UI error to keep dashboard smooth
     } finally {
@@ -1984,6 +2036,15 @@ export default function App() {
     }
     const currentRequestId = ++fetchRequestIds.current.dashboard;
 
+    const controller = new AbortController();
+    let timeoutId: any;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        controller.abort();
+        reject(new Error('TIMEOUT'));
+      }, 15000);
+    });
+
     try {
       // Fetch columns using RECORD_LIGHT_SELECT to optimize bandwidth and maintain consistency
       let query = supabase.from('records').select(RECORD_LIGHT_SELECT);
@@ -2006,18 +2067,27 @@ export default function App() {
         }
       }
 
-      const { data, error } = await query;
+      const queryPromise = query.abortSignal(controller.signal);
+
+      const res = await Promise.race([queryPromise, timeoutPromise]);
+      clearTimeout(timeoutId);
+      const { data, error } = res as any;
       if (error) throw error;
       
       if (currentRequestId !== fetchRequestIds.current.dashboard) return;
       
       const fetched = (data || []).map(mapFromSnakeCase);
       handleSetDashboardApps(fetched);
-    } catch (error) {
+    } catch (error: any) {
+      clearTimeout(timeoutId);
       if (currentRequestId !== fetchRequestIds.current.dashboard) return;
       console.error('Error fetching dashboard records:', error);
-     showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
-     handleSetDashboardApps([]);
+      if (error?.message === 'TIMEOUT' || error?.name === 'AbortError' || error?.message?.includes('aborted')) {
+        showToast('Kết nối mạng quá chậm hoặc server bận, vui lòng thử lại sau!', 'warning');
+      } else {
+        showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
+      }
+      handleSetDashboardApps([]);
     } finally {
       if (currentRequestId === fetchRequestIds.current.dashboard) {
         setIsLoadingDashboard(false);
@@ -3043,7 +3113,7 @@ export default function App() {
 
       const matchedApp = applications.find(a => 
         (a.unitCode || '').trim().toLowerCase() === firstCol || 
-        a.id.toLowerCase() === firstCol
+        (a.id !== undefined && String(a.id).toLowerCase() === firstCol)
       );
       
       if (matchedApp) {
@@ -3057,6 +3127,9 @@ export default function App() {
         return;
       }
 
+      if (!targetApp || targetApp.id === undefined) return;
+      const appIdStr = String(targetApp.id);
+
       rowData.forEach((val, ci) => {
         const fieldObj = EDITABLE_DATE_FIELDS[fieldOffset + ci];
         if (!fieldObj) return;
@@ -3064,20 +3137,24 @@ export default function App() {
         const field = fieldObj.key;
         const trimmedVal = val.trim();
         
-        if (!newChanges[targetApp.id]) newChanges[targetApp.id] = {};
-        newChanges[targetApp.id][field as keyof Application] = trimmedVal as any;
+        if (!newChanges[appIdStr]) newChanges[appIdStr] = {};
+        (newChanges[appIdStr] as any)[field] = trimmedVal;
         
         // Inline Validation: Allow /, -, .
         const isValid = !trimmedVal || trimmedVal === '---' || 
                         /^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{4})$/.test(trimmedVal) || 
                         /^\d{4}-\d{2}-\d{2}$/.test(trimmedVal);
         if (!isValid) {
-          if (!newErrors[targetApp.id]) newErrors[targetApp.id] = {};
-          newErrors[targetApp.id][field] = 'Ngày không đúng định dạng (dd/mm/yyyy)';
+          if (!newErrors[appIdStr]) {
+            (newErrors as any)[appIdStr] = {};
+          }
+          (newErrors as any)[appIdStr][field] = 'Ngày không đúng định dạng (dd/mm/yyyy)';
         } else {
-          if (newErrors[targetApp.id]) {
-            delete newErrors[targetApp.id][field];
-            if (Object.keys(newErrors[targetApp.id]).length === 0) delete newErrors[targetApp.id];
+          if (newErrors[appIdStr]) {
+            delete (newErrors as any)[appIdStr][field];
+            if (Object.keys((newErrors as any)[appIdStr]).length === 0) {
+              delete (newErrors as any)[appIdStr];
+            }
           }
         }
       });
@@ -3550,7 +3627,7 @@ export default function App() {
         formatExcelDate(app.handoverApartmentDate),
         app.isSelfService ? 'Có' : 'Không',
         formatExcelDate(app.accountingHandoverDate),
-        app.submissionLocation === 'PHUONG' ? 'Phường/Xã' : app.submissionLocation === 'TINH' ? 'Tỉnh/Thành phố' : '',
+        app.submissionLocation === 'PHUONG' ? 'Phường/Xã' : app.submissionLocation === 'TP_DANANG' ? 'Tỉnh/Thành phố' : '',
         app.vpdkCode || '',
         formatExcelDate(app.submissionDate),
         formatExcelDate(app.taxNotificationDate),
@@ -5016,7 +5093,7 @@ export default function App() {
         if (isEarly) {
           nextApp.issueType = 'Sai sót Khác';
           nextApp.issueNotes = (nextApp.issueNotes ? nextApp.issueNotes + '\n' : '') + 'Cảnh báo: Lệch tiến độ thực tế (Có ngày nhận GCN nhưng chưa tới bước bàn giao)';
-          nextApp.issueSeverity = 'High';
+          nextApp.issueSeverity = 'Critical';
           nextApp.status = 'Error';
           nextApp.issueStatus = 'OPEN';
           nextApp.issueResolvedAt = null;
@@ -5099,7 +5176,7 @@ export default function App() {
             if (isEarly) {
               nextApp.issueType = 'Sai sót Khác';
               nextApp.issueNotes = (nextApp.issueNotes ? nextApp.issueNotes + '\n' : '') + 'Cảnh báo: Lệch tiến độ thực tế (Có ngày nhận GCN nhưng chưa tới bước bàn giao)';
-              nextApp.issueSeverity = 'High';
+              nextApp.issueSeverity = 'Critical';
               nextApp.status = 'Error';
               nextApp.issueStatus = 'OPEN';
               nextApp.issueResolvedAt = null;
@@ -5185,13 +5262,27 @@ export default function App() {
     }
     setFormErrors({});
 
-    const isDuplicate = applications.some(a => 
-      String(a.unitCode || '').toLowerCase() === String(newApp.unitCode || '').toLowerCase() && 
-      a.projectName === newApp.projectName
-    );
+    // Direct query to check database matching records to prevent duplicate under pagination issues
+    let isDuplicate = false;
+    try {
+      const { data: dupData, error: dupError } = await supabase
+        .from('records')
+        .select('id')
+        .eq('project_name', newApp.projectName)
+        .ilike('unit_code', newApp.unitCode.trim())
+        .limit(1);
+
+      if (dupError) {
+        console.error('Error checking duplicate:', dupError);
+      } else if (dupData && dupData.length > 0) {
+        isDuplicate = true;
+      }
+    } catch (e) {
+      console.error('Exception during duplicate check:', e);
+    }
 
     if (isDuplicate) {
-      showToast(`Hồ sơ ${newApp.unitCode} đã tồn tại trong dự án ${newApp.projectName}`, 'error');
+      showToast("Mã lô/căn đã tồn tại trong dự án này", 'error');
       setFormErrors({ unitCode: 'Mã lô/căn đã tồn tại trong dự án này' });
       return;
     }
@@ -6048,6 +6139,7 @@ export default function App() {
           setNotifications(prev => [
             { 
               id: `notif-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, 
+              recipientId: currentUser?.id || 'all',
               title: 'Cập nhật hiện trường', 
               message: `Hồ sơ ${updated.unitCode} được cập nhật trạng thái bởi nhân viên hiện trường.`, 
               time: 'Vừa xong', 
@@ -6588,7 +6680,7 @@ export default function App() {
               </motion.div>
             )}
 
-            {activeTab === 'projects' && isManagementEdit && (
+            {(activeTab as string) === 'projects' && isManagementEdit && (
               <motion.div 
                 key="projects"
                 initial={{ opacity: 0, scale: 0.95 }}
