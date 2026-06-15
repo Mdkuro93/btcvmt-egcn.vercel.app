@@ -200,12 +200,13 @@ export function useApplicationFilters(
         const computedStage = getComputedStageName(a);
         if (activeStatus === 'Processing' && computedStage !== '1. ĐANG CHUẨN BỊ') return false;
         if (activeStatus === 'WaitingVPDK' && computedStage !== '2. CHỜ NỘP VPĐK') return false;
-        if (activeStatus === 'TaxPending' && computedStage !== '5. CHỜ HOÀN THÀNH NVTC' && computedStage !== '4. CHỜ THÔNG BÁO THUẾ') return false;
+        if (activeStatus === 'TaxNoticePending' && computedStage !== '4. CHỜ THÔNG BÁO THUẾ') return false;
+        if (activeStatus === 'TaxPending' && computedStage !== '5. CHỜ HOÀN THÀNH NVTC') return false;
         if (activeStatus === 'WaitingHandover' && computedStage !== 'CHỜ BÀN GIAO') return false;
         if (activeStatus === 'TaxPaid' && computedStage !== '6. ĐÃ NỘP THUẾ') return false;
         if (activeStatus === 'Submitted' && computedStage !== '3. ĐÃ NỘP VPĐK') return false;
         if (activeStatus === 'Completed' && computedStage !== 'HOÀN TẤT') return false;
-        if (!['Processing', 'WaitingVPDK', 'TaxPending', 'WaitingHandover', 'TaxPaid', 'Submitted', 'Completed'].includes(activeStatus) && a.status !== activeStatus) return false;
+        if (!['Processing', 'WaitingVPDK', 'TaxPending', 'TaxNoticePending', 'WaitingHandover', 'TaxPaid', 'Submitted', 'Completed'].includes(activeStatus) && a.status !== activeStatus) return false;
       }
 
       // ================= 3. LOAN =================

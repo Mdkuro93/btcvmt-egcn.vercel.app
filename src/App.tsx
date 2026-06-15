@@ -139,7 +139,7 @@ import { formatDate } from './utils/dateUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { createClient, RealtimeChannel } from '@supabase/supabase-js';
 
-const RECORD_LIGHT_SELECT = 'id, unit_code, project_name, customer_name, contract_signer_type, phone_number, property_type, loan_status, is_self_service, current_step, status, received_date, contract_signing_date, submission_date, tax_notification_date, tax_receipt_date, gcn_signed_date, gcn_received_date, customer_handover_date, accounting_handover_date, ptda_handover_date, bank_commitment_deadline, submission_location, vpdk_code, issue_type, issue_severity, issue_notes, is_rejected, workflow_type, created_at, assigned_to, tax_payment_status, scanned_files';
+const RECORD_LIGHT_SELECT = 'id, unit_code, project_name, customer_name, contract_signer_type, phone_number, property_type, loan_status, is_self_service, current_step, status, received_date, contract_signing_date, submission_date, tax_notification_date, tax_receipt_date, gcn_signed_date, gcn_received_date, customer_handover_date, accounting_handover_date, ptda_handover_date, bank_commitment_deadline, submission_location, vpdk_code, issue_type, issue_severity, issue_notes, is_rejected, workflow_type, created_at, assigned_to, tax_payment_status, scanned_files, rejection_count, rejection_reason, commitment_date, assigned_to_id, assigned_to_name, tax_vpdk_submission_date';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
@@ -369,15 +369,16 @@ async function fetchRecordDetail(recordId: string | number): Promise<{
     fullApp?: Partial<Application>;
   } = { history: [], auditTrail: [] };
 
-  const stringId = String(recordId);
-  const parsedIdForInt = isNaN(Number(recordId)) ? null : Number(recordId);
-  
+  // ✅ FIX: 6. Tại hàm fetchRecordDetail: Tối ưu bằng cách kiểm tra kiểu dữ liệu của ID trước khi gọi query, tránh cơ chế fallback thử sai ép kiểu gọi DB 2 lần gây lãng phí round-trip.
+  const isNumeric = typeof recordId === 'number' || (typeof recordId === 'string' && /^\d+$/.test(recordId.trim()));
+  const targetId = isNumeric ? Number(recordId) : String(recordId);
+
   // 1. Fetch record_history
   try {
     const { data: historyData, error: historyError } = await supabase
       .from('record_history')
       .select('*')
-      .eq('record_id', stringId)
+      .eq('record_id', targetId)
       .order('created_at', { ascending: true });
     
     if (!historyError && historyData && historyData.length > 0) {
@@ -391,25 +392,6 @@ async function fetchRecordDetail(recordId: string | number): Promise<{
         performedBy: h.performed_by,
         performedByName: h.performed_by_name,
       }));
-    } else if (parsedIdForInt !== null) {
-      // Second try with Number if string failed to find rows
-      const { data: hData } = await supabase
-        .from('record_history')
-        .select('*')
-        .eq('record_id', parsedIdForInt)
-        .order('created_at', { ascending: true });
-      if (hData && hData.length > 0) {
-        result.history = hData.map((h: any) => ({
-          id: h.id,
-          stepName: h.step_name,
-          dept: h.dept,
-          receivedDate: h.received_date,
-          completedDate: h.completed_date,
-          note: h.note,
-          performedBy: h.performed_by,
-          performedByName: h.performed_by_name,
-        }));
-      }
     }
   } catch (err) {
     console.error('Full failure fetching history:', err);
@@ -420,7 +402,7 @@ async function fetchRecordDetail(recordId: string | number): Promise<{
     const { data: auditData, error: auditError } = await supabase
       .from('record_audit_trail')
       .select('*')
-      .eq('record_id', stringId)
+      .eq('record_id', targetId)
       .order('timestamp', { ascending: false });
     
     if (!auditError && auditData && auditData.length > 0) {
@@ -432,22 +414,6 @@ async function fetchRecordDetail(recordId: string | number): Promise<{
         changes: a.changes,
         timestamp: a.timestamp,
       }));
-    } else if (parsedIdForInt !== null) {
-      const { data: aData } = await supabase
-        .from('record_audit_trail')
-        .select('*')
-        .eq('record_id', parsedIdForInt)
-        .order('timestamp', { ascending: false });
-      if (aData && aData.length > 0) {
-        result.auditTrail = aData.map((a: any) => ({
-          id: a.id,
-          userId: a.user_id,
-          userName: a.user_name,
-          action: a.action,
-          changes: a.changes,
-          timestamp: a.timestamp,
-        }));
-      }
     }
   } catch (err) {
     console.error('Full failure fetching auditTrail:', err);
@@ -455,19 +421,11 @@ async function fetchRecordDetail(recordId: string | number): Promise<{
 
   // 3. Fetch fullApp from records
   try {
-    let res = await supabase
+    const res = await supabase
       .from('records')
       .select('*')
-      .eq('id', stringId)
+      .eq('id', targetId)
       .maybeSingle();
-    
-    if (!res.data && parsedIdForInt !== null) {
-      res = await supabase
-        .from('records')
-        .select('*')
-        .eq('id', parsedIdForInt)
-        .maybeSingle();
-    }
     
     if (res.data) {
       result.fullApp = mapFromSnakeCase(res.data);
@@ -517,6 +475,10 @@ const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplicati
     const allReturnedData = [...insertedData, ...updatedData];
     const updatedAppsLocal = [...allApplications];
 
+    // ✅ FIX: Lỗi 1 - Ghi nhận history và audit trail cho tất cả bản ghi trong bulk sync
+    const historyPromises: any[] = [];
+    const auditPromises: any[] = [];
+
     if (allReturnedData.length > 0) {
       allReturnedData.forEach(item => {
         const returnedApp = mapFromSnakeCase(item);
@@ -534,6 +496,47 @@ const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplicati
            returnedApp.auditTrail = (returnedApp.auditTrail && returnedApp.auditTrail.length > 0) ? returnedApp.auditTrail : (originalInput.auditTrail || []);
         }
 
+        // Add history and audit trail promises
+        if (originalInput) {
+          if (originalInput.history && originalInput.history.length > 0) {
+            originalInput.history.forEach(h => {
+              if (h.id) {
+                historyPromises.push(
+                  supabase.from('record_history').upsert({
+                    id: h.id,
+                    record_id: String(returnedApp.id),
+                    step_name: h.stepName,
+                    dept: h.dept,
+                    received_date: h.receivedDate,
+                    completed_date: h.completedDate || null,
+                    note: h.note || '',
+                    performed_by: h.performedBy || null,
+                    performed_by_name: h.performedByName || null,
+                  }, { onConflict: 'id' })
+                );
+              }
+            });
+          }
+
+          if (originalInput.auditTrail && originalInput.auditTrail.length > 0) {
+            originalInput.auditTrail.forEach(a => {
+              if (a.id) {
+                auditPromises.push(
+                  supabase.from('record_audit_trail').upsert({
+                    id: a.id,
+                    record_id: String(returnedApp.id),
+                    user_id: a.userId,
+                    user_name: a.userName,
+                    action: a.action,
+                    changes: a.changes || '',
+                    timestamp: a.timestamp,
+                  }, { onConflict: 'id' })
+                );
+              }
+            });
+          }
+        }
+
         const idx = updatedAppsLocal.findIndex(a => 
           (a.id === returnedApp.id) || 
           (a.unitCode === returnedApp.unitCode && a.projectName === returnedApp.projectName && a.id?.toString().includes('-imp-'))
@@ -545,6 +548,29 @@ const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplicati
           updatedAppsLocal.push(returnedApp);
         }
       });
+
+      // Write in parallel with soft catching of errors via console.warn
+      try {
+        if (historyPromises.length > 0) {
+          const res = await Promise.all(historyPromises);
+          res.forEach(r => {
+            if (r.error) console.warn('Lỗi phụ khi ghi history trong bulk sync:', r.error);
+          });
+        }
+      } catch (err) {
+        console.warn('Lỗi ngoại lệ khi ghi history trong bulk sync:', err);
+      }
+
+      try {
+        if (auditPromises.length > 0) {
+          const res = await Promise.all(auditPromises);
+          res.forEach(r => {
+            if (r.error) console.warn('Lỗi phụ khi ghi audit trail trong bulk sync:', r.error);
+          });
+        }
+      } catch (err) {
+        console.warn('Lỗi ngoại lệ khi ghi audit trail trong bulk sync:', err);
+      }
     }
     return updatedAppsLocal;
   } catch (error) {
@@ -1417,7 +1443,9 @@ export default function App() {
             }
 
             else if (eventType === 'UPDATE') {
-              const updatedApp = mapFromSnakeCase(newRow);
+              // ✅ FIX: 1. Tại hàm Realtime UPDATE: Sửa hàm mapFromSnakeCase để thực hiện MERGE mảng history/auditTrail từ trạng thái cũ (state cũ) trước khi set ứng dụng, tránh việc payload rỗng của realtime xóa sạch lịch sử trong RAM hiển thị.
+              const prevApp = applications.find(a => a.id === newRow.id) || dashboardApps.find(a => a.id === newRow.id);
+              const updatedApp = mapFromSnakeCase(newRow, prevApp);
               
               const isSelfUpdated = selfUpdateRef.current.has(updatedApp.id as number);
               if (isSelfUpdated) {
@@ -1612,7 +1640,8 @@ export default function App() {
         if (normalized === 'đang chuẩn bị' || normalized === 'processing') dbStatus = 'Processing';
         else if (normalized === 'chờ nộp vpđk' || normalized === 'waitingvpdk') dbStatus = 'WaitingVPDK';
         else if (normalized === 'đã nộp vpđk' || normalized === 'submitted') dbStatus = 'Submitted';
-        else if (normalized === 'chờ nộp thuế' || normalized === 'chờ thông báo thuế' || normalized === 'taxpending') dbStatus = 'TaxPending';
+        else if (normalized === 'chờ thông báo thuế' || normalized === 'taxnoticepending') dbStatus = 'TaxNoticePending';
+        else if (normalized === 'chờ nộp thuế' || normalized === 'chờ hoàn thành nvtc' || normalized === 'taxpending') dbStatus = 'TaxPending';
         else if (normalized === 'đã nộp thuế' || normalized === 'taxpaid') dbStatus = 'TaxPaid';
         else if (normalized === 'đã hoàn thành nvtc' || normalized === 'taxcompleted') dbStatus = 'TaxCompleted';
         else if (normalized === 'chờ bàn giao' || normalized === 'waitinghandover') dbStatus = 'WaitingHandover';
@@ -1632,6 +1661,14 @@ export default function App() {
             'current_step.eq.S2_KT_Ban_giao,' +
             'current_step.eq.GD1_Nop_VPDK,' +
             'current_step.eq.GD2_Cho_Nop_VPDK'
+          );
+        } else if (dbStatus === 'TaxNoticePending') {
+          query = query.or(
+            'status.eq.Submitted,' +
+            'status.eq.TaxPending,' +
+            'current_step.eq.S3_Nop_VPDK,' +
+            'current_step.eq.GD3_Nop_VPDK,' +
+            'current_step.eq.S4_Cho_Thong_Bao_Thue'
           );
         } else if (dbStatus === 'TaxPending') {
           query = query.or(
@@ -1948,19 +1985,8 @@ export default function App() {
     const currentRequestId = ++fetchRequestIds.current.dashboard;
 
     try {
-      // Fetch ONLY necessary columns for dashboard stats, ignoring pagination and filters to optimize bandwidth
-      let query = supabase.from('records').select(`
-        id, status, current_step, project_name,
-        workflow_type, submission_date,
-        tax_notification_date, tax_receipt_date,
-        contract_signing_date,
-        gcn_signed_date, gcn_received_date, customer_handover_date,
-        accounting_handover_date, ptda_handover_date, is_self_service,
-        loan_status, issue_type, issue_severity, issue_notes, issue_status, is_rejected,
-        property_type, customer_name, unit_code,
-        received_date, contract_signer_type, phone_number,
-        created_at
-      `);
+      // Fetch columns using RECORD_LIGHT_SELECT to optimize bandwidth and maintain consistency
+      let query = supabase.from('records').select(RECORD_LIGHT_SELECT);
       
       const currentUserRole = currentUser?.dept || 'PTT';
       
@@ -2767,7 +2793,8 @@ export default function App() {
                 ),
                 receivedDate: new Date().toISOString(),
                 note: `[BÁO SAI SÓT - ${reportIssueSeverity}] ${reportIssueNote}`,
-                performedByName: 'Admin', 
+                performedBy: currentUser?.id,
+                performedByName: currentUser?.name || 'Hệ thống', // ✅ FIX: 7. Thay thế chuỗi tên người dùng hardcode 'Admin' bằng biến động currentUser?.name
             };
             return {
                 ...app,
@@ -4753,6 +4780,7 @@ export default function App() {
       rejectionCount: (app.rejectionCount || 0) + 1,
       isRejected: true,
       rejectionReason: reason,
+      history: newHistory, // ✅ FIX: 5. Vá logic để mảng newHistory phải được gán trực tiếp vào đối tượng updatedApp trước khi thực hiện đồng bộ sync lên Supabase
     };
 
     setIsSavingApp(true);
@@ -5176,7 +5204,7 @@ export default function App() {
       const initialStep = inheritedWorkflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
       const initialStatus = (stepConfig as any)[initialStep]?.status || 'Processing';
 
-      const appToAddTemp: any = {
+       const appToAddTemp: any = {
         unitCode: newApp.unitCode,
         customerName: newApp.customerName,
         contractSignerType: newApp.contractSignerType,
@@ -5193,13 +5221,27 @@ export default function App() {
         receivedDate: new Date().toISOString().split('T')[0],
         taxPaymentStatus: 'Unpaid',
         checklist: {},
+        // ✅ FIX: Lỗi 4 - Thêm performedBy và performedByName cho history khởi tạo
         history: [
           {
             id: generateUUID(),
             stepName: (stepConfig[initialStep] || INITIAL_STEP_CONFIG[initialStep]).label,
             dept: 'PTT',
             receivedDate: new Date().toISOString(),
-            note: 'Khởi tạo hồ sơ mới'
+            note: 'Khởi tạo hồ sơ mới',
+            performedBy: currentUser?.id,
+            performedByName: currentUser?.name
+          }
+        ],
+        // ✅ FIX: Lỗi 4 - Thêm auditTrail cho appToAddTemp
+        auditTrail: [
+          {
+            id: generateUUID(),
+            userId: currentUser?.id || 'system',
+            userName: currentUser?.name || 'Hệ thống',
+            action: 'Tạo hồ sơ mới',
+            timestamp: new Date().toISOString(),
+            changes: ''
           }
         ]
       };
@@ -5215,6 +5257,51 @@ export default function App() {
       const appToAdd = mapFromSnakeCase(data[0]);
       if (appToAdd?.id) {
         registerSelfUpdate(appToAdd.id);
+
+        // ✅ FIX: Lỗi 4 - Ghi record_history và record_audit_trail cho hồ sơ vừa tạo vào bảng riêng
+        if (appToAddTemp.history && appToAddTemp.history.length > 0) {
+          const historyPromises = appToAddTemp.history.map((h: any) => {
+            if (!h.id) return Promise.resolve();
+            return supabase.from('record_history').upsert({
+              id: h.id,
+              record_id: String(appToAdd.id),
+              step_name: h.stepName,
+              dept: h.dept,
+              received_date: h.receivedDate,
+              completed_date: h.completedDate || null,
+              note: h.note || '',
+              performed_by: h.performedBy || null,
+              performed_by_name: h.performedByName || null,
+            }, { onConflict: 'id' });
+          });
+          const historyResults = await Promise.all(historyPromises);
+          historyResults.forEach(res => {
+            if (res.error) console.warn('Lỗi phụ khi ghi history cho hồ sơ mới:', res.error);
+          });
+        }
+
+        if (appToAddTemp.auditTrail && appToAddTemp.auditTrail.length > 0) {
+          const auditPromises = appToAddTemp.auditTrail.map((a: any) => {
+            if (!a.id) return Promise.resolve();
+            return supabase.from('record_audit_trail').upsert({
+              id: a.id,
+              record_id: String(appToAdd.id),
+              user_id: a.userId,
+              user_name: a.userName,
+              action: a.action,
+              changes: a.changes || '',
+              timestamp: a.timestamp,
+            }, { onConflict: 'id' });
+          });
+          const auditResults = await Promise.all(auditPromises);
+          auditResults.forEach(res => {
+            if (res.error) console.warn('Lỗi phụ khi ghi audit trail cho hồ sơ mới:', res.error);
+          });
+        }
+
+        // Enrich local references with our history / audit values Since they aren't returned by LIGHT_SELECT
+        appToAdd.history = appToAddTemp.history;
+        appToAdd.auditTrail = appToAddTemp.auditTrail;
       }
 
       handleSetApplications(prev => [appToAdd, ...prev]);
@@ -6948,10 +7035,11 @@ export default function App() {
                         <option key="all-status-filter" value="ALL">Tất cả trạng thái</option>
                         <option value="Processing">ĐANG CHUẨN BỊ</option>
                         <option value="WaitingVPDK">CHỜ NỘP VPĐK</option>
-                        <option value="TaxPending">CHỜ HOÀN THÀNH NVTC</option>
-                        <option value="WaitingHandover">CHỜ BÀN GIAO</option>
-                        <option value="TaxPaid">ĐÃ NỘP THUẾ</option>
                         <option value="Submitted">ĐÃ NỘP VPĐK</option>
+                        <option value="TaxNoticePending">CHỜ THÔNG BÁO THUẾ</option>
+                        <option value="TaxPending">CHỜ HOÀN THÀNH NVTC</option>
+                        <option value="TaxPaid">ĐÃ NỘP THUẾ</option>
+                        <option value="WaitingHandover">CHỜ BÀN GIAO</option>
                         <option value="Completed">HOÀN TẤT</option>
                       </select>
                     </div>

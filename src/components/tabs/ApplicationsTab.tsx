@@ -344,10 +344,11 @@ export const ApplicationsTab = ({
                           const statusLabels: Record<string, string> = {
                             Processing: 'ĐANG CHUẨN BỊ',
                             WaitingVPDK: 'CHỜ NỘP VPĐK',
-                            TaxPending: 'CHỜ HOÀN THÀNH NVTC',
-                            WaitingHandover: 'CHỜ BÀN GIAO',
-                            TaxPaid: 'ĐÃ NỘP THUẾ',
                             Submitted: 'ĐÃ NỘP VPĐK',
+                            TaxNoticePending: 'CHỜ THÔNG BÁO THUẾ',
+                            TaxPending: 'CHỜ HOÀN THÀNH NVTC',
+                            TaxPaid: 'ĐÃ NỘP THUẾ',
+                            WaitingHandover: 'CHỜ BÀN GIAO',
                             Completed: 'HOÀN TẤT'
                           };
                           activeFilters.push({

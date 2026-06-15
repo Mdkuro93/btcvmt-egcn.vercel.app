@@ -9,7 +9,7 @@ export const safeParse = (val: string | any, fallback: any) => {
   }
 };
 
-export const mapFromSnakeCase = (item: Record<string, any>): Application => {
+export const mapFromSnakeCase = (item: Record<string, any>, oldApp?: any): Application => {
   if (!item) return {} as Application;
 
   const val = (snakeKey: string, camelKey: string): any => {
@@ -112,10 +112,25 @@ export const mapFromSnakeCase = (item: Record<string, any>): Application => {
     rejectionReason: str(val('rejection_reason', 'rejectionReason')),
     commitmentDate: str(val('commitment_date', 'commitmentDate')),
     taxPaymentStatus: normalizeTaxPaymentStatus(val('tax_payment_status', 'taxPaymentStatus')),
-    history: safeParse(val('history', 'history'), []),
+    assignedToId: str(val('assigned_to_id', 'assignedToId')),
+    assignedToName: str(val('assigned_to_name', 'assignedToName')),
+    taxVpdkSubmissionDate: str(val('tax_vpdk_submission_date', 'taxVpdkSubmissionDate')),
+    history: (() => {
+      const dbVal = val('history', 'history');
+      const parsed = dbVal !== undefined && dbVal !== null ? safeParse(dbVal, []) : [];
+      if (parsed && parsed.length > 0) return parsed;
+      if (oldApp && typeof oldApp === 'object' && oldApp.history && oldApp.history.length > 0) return oldApp.history;
+      return [];
+    })(),
     checklist: safeParse(val('checklist', 'checklist'), {}),
     scannedFiles: safeParse(val('scanned_files', 'scannedFiles'), []),
-    auditTrail: safeParse(val('audit_trail', 'auditTrail'), []),
+    auditTrail: (() => {
+      const dbVal = val('audit_trail', 'auditTrail');
+      const parsed = dbVal !== undefined && dbVal !== null ? safeParse(dbVal, []) : [];
+      if (parsed && parsed.length > 0) return parsed;
+      if (oldApp && typeof oldApp === 'object' && oldApp.auditTrail && oldApp.auditTrail.length > 0) return oldApp.auditTrail;
+      return [];
+    })(),
     hasError: bool(val('has_error', 'hasError')) || bool(val('hasError', 'hasError'))
   };
   mappedApp.flags = buildFlags(mappedApp);
@@ -205,14 +220,17 @@ export const mapToSnakeCase = (app: Application): Record<string, any> => {
     commitment_date: app.commitmentDate,
     has_error: app.hasError,
     tax_payment_status: app.taxPaymentStatus,
+    assigned_to_id: app.assignedToId,
+    assigned_to_name: app.assignedToName,
+    tax_vpdk_submission_date: app.taxVpdkSubmissionDate,
     updated_at: new Date().toISOString()
   };
 
-  // Only include heavy/JSON fields if they are explicitly present and non-empty to avoid overwriting rich data with empty snapshots during lazy loading updates
-  if (app.history && app.history.length > 0) data.history = app.history;
-  if (app.checklist && Object.keys(app.checklist).length > 0) data.checklist = app.checklist;
-  if (app.scannedFiles && app.scannedFiles.length > 0) data.scanned_files = app.scannedFiles;
-  if (app.auditTrail && app.auditTrail.length > 0) data.audit_trail = app.auditTrail;
+  // Only include heavy/JSON fields if they are explicitly present to avoid overwriting rich data with empty snapshots during lazy loading updates
+  if (app.history !== undefined) data.history = app.history;
+  if (app.checklist !== undefined && Object.keys(app.checklist).length > 0) data.checklist = app.checklist;
+  if (app.scannedFiles !== undefined && app.scannedFiles.length > 0) data.scanned_files = app.scannedFiles;
+  if (app.auditTrail !== undefined) data.audit_trail = app.auditTrail;
 
   Object.keys(data).forEach(key => {
     const isDateField = key.endsWith('_date') || 

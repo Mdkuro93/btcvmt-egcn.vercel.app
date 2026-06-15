@@ -11,9 +11,11 @@ const DEFAULT_SLA_CONFIG = Object.values(DEFAULT_STEP_CONFIG).reduce((acc: any, 
 export function calculateDaysDiff(dateStr: string) {
   if (!dateStr) return 0;
   const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return 0;
   const today = new Date();
   const diffTime = Math.abs(today.getTime() - date.getTime());
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const res = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return isNaN(res) ? 0 : res;
 }
 
 // FIX #1: Đã xóa WeakMap slaCache.

@@ -1,16 +1,8 @@
 import { Application, StepName } from '../types';
-import { calculateSLA } from './statusEngine';
+import { calculateSLA, calculateDaysDiff } from './statusEngine';
 import { WORKFLOW_1_STEPS, WORKFLOW_2_STEPS } from '../constants';
 
-export const calculateDaysDiff = (dateStr: string) => {
-  if (!dateStr) return 0;
-  const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return 0;
-  const today = new Date();
-  const diffTime = Math.abs(today.getTime() - date.getTime());
-  const res = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return isNaN(res) ? 0 : res;
-};
+export { calculateDaysDiff };
 
 export const calculateDaysBetweenDates = (start: string, end: string) => {
   const d1 = new Date(start);

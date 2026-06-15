@@ -1,5 +1,17 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { Application, IssueType, IssueSeverity, UserProfile } from '../types';
+import { Application, IssueType, IssueSeverity, UserProfile, ApplicationStepHistory, AuditTrailEntry, Dept } from '../types';
+import { STEP_CONFIG } from '../constants';
+
+const generateUUID = (): string => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
 
 export interface UseBulkActionsProps {
   applications: Application[];
@@ -43,9 +55,35 @@ export function useBulkActions({
     setIsSavingApp(true);
     
     try {
+      const nowStr = new Date().toISOString();
       const updatedApps = applications.map(app => {
         if (selectedAppIds.includes(app.id)) {
-          return { ...app, note: bulkNoteText };
+          // ✅ FIX: Lỗi 2 - Ghi nhận history và audit trail cho cập nhật ghi chú hàng loạt
+          const historyEntry: ApplicationStepHistory = {
+            id: generateUUID(),
+            stepName: STEP_CONFIG[app.currentStep]?.label || app.currentStep,
+            dept: (currentUser?.dept as Dept) || 'PTT',
+            receivedDate: nowStr,
+            note: `[GHI CHÚ] ${bulkNoteText}`,
+            performedBy: currentUser?.id,
+            performedByName: currentUser?.name
+          };
+
+          const auditEntry: AuditTrailEntry = {
+            id: generateUUID(),
+            userId: currentUser?.id || 'system',
+            userName: currentUser?.name || 'Hệ thống',
+            action: 'Cập nhật ghi chú hàng loạt',
+            changes: bulkNoteText.substring(0, 50),
+            timestamp: nowStr
+          };
+
+          return { 
+            ...app, 
+            note: bulkNoteText,
+            history: [historyEntry, ...(app.history || [])],
+            auditTrail: [auditEntry, ...(app.auditTrail || [])]
+          };
         }
         return app;
       });
@@ -66,7 +104,7 @@ export function useBulkActions({
     } finally {
       setIsSavingApp(false);
     }
-  }, [selectedAppIds, bulkNoteText, applications, setApplications, bulkSyncRecordsToSupabase, showToast, setIsSavingApp]);
+  }, [selectedAppIds, bulkNoteText, applications, setApplications, bulkSyncRecordsToSupabase, showToast, setIsSavingApp, currentUser]);
 
   const handleBulkReportIssue = useCallback(async () => {
     if (selectedAppIds.length === 0 || !bulkIssueNote.trim()) return;
@@ -101,12 +139,36 @@ export function useBulkActions({
       const assignedUser = users.find(u => u.id === bulkAssignUserId);
       if (!assignedUser) return;
       
+      const nowStr = new Date().toISOString();
       const updatedApps = applications.map(app => {
         if (!selectedAppIds.includes(app.id)) return app;
+
+        // ✅ FIX: Lỗi 3 - Ghi nhận history và audit trail cho gán hồ sơ hàng loạt
+        const historyEntry: ApplicationStepHistory = {
+          id: generateUUID(),
+          stepName: STEP_CONFIG[app.currentStep]?.label || app.currentStep,
+          dept: (currentUser?.dept as Dept) || 'PTT',
+          receivedDate: nowStr,
+          note: `Gán hồ sơ cho nhân viên phụ trách: ${assignedUser.name}`,
+          performedBy: currentUser?.id,
+          performedByName: currentUser?.name
+        };
+
+        const auditEntry: AuditTrailEntry = {
+          id: generateUUID(),
+          userId: currentUser?.id || 'system',
+          userName: currentUser?.name || 'Hệ thống',
+          action: 'Gán nhân viên phụ trách hàng loạt',
+          changes: `Gán cho: ${assignedUser.name} (${assignedUser.dept})`,
+          timestamp: nowStr
+        };
+
         return {
           ...app,
           assignedToId: assignedUser.id,
           assignedToName: assignedUser.name,
+          history: [historyEntry, ...(app.history || [])],
+          auditTrail: [auditEntry, ...(app.auditTrail || [])]
         };
       });
       
@@ -122,7 +184,7 @@ export function useBulkActions({
     } finally {
       setIsSavingApp(false);
     }
-  }, [selectedAppIds, bulkAssignUserId, applications, users, bulkSyncRecordsToSupabase, setApplications, showToast, setIsSavingApp]);
+  }, [selectedAppIds, bulkAssignUserId, applications, users, bulkSyncRecordsToSupabase, setApplications, showToast, setIsSavingApp, currentUser]);
 
   const canBulkAssign = useMemo(() => {
     const role = currentUser?.dept;
