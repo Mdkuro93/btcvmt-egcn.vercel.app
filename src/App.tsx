@@ -5011,7 +5011,7 @@ export default function App() {
     if (userRole === 'ADMIN') return true;
     
     // Áp dụng cho tất cả role trừ ADMIN
-    if (fieldName === 'isSelfService' && userRole !== 'ADMIN') {
+    if (fieldName === 'isSelfService') {
       const app = appToCheck || editApp || selectedApp;
       if (!app) return true;
       const allowedSteps = [
@@ -5130,11 +5130,11 @@ export default function App() {
         };
 
         if (editApp) {
-          const nextApp = {
+          const nextApp: Application = {
             ...editApp,
             isSelfService: true,
             currentStep: firstStep,
-            status: 'Processing',
+            status: 'Processing' as UnitStatus,
             history: [historyItem, ...(editApp.history || [])],
             auditTrail: [auditEntry, ...(editApp.auditTrail || [])]
           };
@@ -5142,11 +5142,11 @@ export default function App() {
         } else if (selectedApp) {
           handleSetApplications(prev => prev.map(a => {
             if (a.id === selectedApp.id) {
-              const nextApp = {
+              const nextApp: Application = {
                 ...a,
                 isSelfService: true,
                 currentStep: firstStep,
-                status: 'Processing',
+                status: 'Processing' as UnitStatus,
                 history: [historyItem, ...(a.history || [])],
                 auditTrail: [auditEntry, ...(a.auditTrail || [])]
               };
@@ -6100,9 +6100,9 @@ export default function App() {
       createStageItem('4. CHỜ THÔNG BÁO THUẾ', stages.TAX_WARNING, '#f97316', 'TaxPending'),
       createStageItem('5. CHỜ HOÀN THÀNH NVTC', stages.AWAITING_FINANCE, '#8b5cf6', 'TaxPending'),
       createStageItem('6. ĐÃ NỘP THUẾ', stages.TAX_PAID, '#10b981', 'TaxCompleted'),
-      createStageItem('ĐÃ CÓ GCN', stages.GCN_READY, '#06b6d4', 'GCN_Issued'),
-      createStageItem('CHỜ BÀN GIAO', stages.WAITING_HANDOVER, '#6366f1', 'WaitingHandover'),
-      createStageItem('HOÀN TẤT', stages.COMPLETED, '#22c55e', 'Completed')
+      createStageItem('7. ĐÃ CÓ GCN', stages.GCN_READY, '#06b6d4', 'GCN_Issued'),
+      createStageItem('8. CHỜ BÀN GIAO', stages.WAITING_HANDOVER, '#6366f1', 'WaitingHandover'),
+      createStageItem('9. HOÀN TẤT', stages.COMPLETED, '#22c55e', 'Completed')
     ];
   };
 
