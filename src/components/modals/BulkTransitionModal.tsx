@@ -129,7 +129,7 @@ export default function BulkTransitionModal({
                   {updateField.label} {updateField.isRequired !== false ? '(Bắt buộc)' : '(Không bắt buộc)'}
                 </label>
                 {/* Thêm đoạn này phía trên input date */}
-                {updateField && selectedCount > 0 && (
+                {updateField && selectedCount > 0 && updateField.isRequired === false && (
                   <p className="text-xs text-amber-600 mb-1 leading-relaxed">
                     💡 Ngày này chỉ áp dụng cho hồ sơ <strong>chưa có</strong> {updateField.label}. 
                     Hồ sơ đã có ngày sẽ được giữ nguyên.

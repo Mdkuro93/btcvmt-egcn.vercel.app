@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { StatCard } from '../AppSubComponents';
@@ -13,6 +14,7 @@ import {
 import DashboardAlerts from '../DashboardAlerts';
 
 export const DashboardTab = ({
+  stats: dashboardStatsProps,
   activeTab,
   userRole,
   dashboardApps,
@@ -20,23 +22,15 @@ export const DashboardTab = ({
   theme,
   dashboardFilter,
   handleDashboardClick,
-  stats,
-  chartData,
   monthlySlaData,
   projectPerformance,
   selectedProject,
-  kpis,
   setActiveTab,
   setFilterStatus,
   setDashboardFilter,
   setFilterSLAStatus,
   setFilterIssue,
   setSearch,
-  overallPieData,
-  overallPieTotal,
-  roleKpis,
-  loanRatioTotal,
-  loanPieData,
   projectRegionFilter,
   setProjectRegionFilter,
   REGION_ORDER,
@@ -47,9 +41,19 @@ export const DashboardTab = ({
   setReportType,
   dashboardTab,
   setDashboardTab,
-  progressChartData,
   showToast
 }: any) => {
+  const {
+    kpis,
+    roleKpis,
+    stats,
+    chartData,
+    progressChartData,
+    loanPieData,
+    overallPieData,
+    overallPieTotal,
+    loanRatioTotal
+  } = dashboardStatsProps || {};
 
   return (
 <>
