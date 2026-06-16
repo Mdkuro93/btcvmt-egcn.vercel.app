@@ -462,6 +462,7 @@ export function useDashboardStats(
         value: list.length,
         normal: list.length - errorCount,
         error: errorCount,
+        labelAnchor: 0.01, // Giá trị ảo cực nhỏ, chỉ dùng để neo LabelList, không ảnh hưởng tỷ lệ trực quan
         color,
         statusId,
         list

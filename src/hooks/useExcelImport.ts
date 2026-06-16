@@ -130,7 +130,8 @@ export function useExcelImport({
         "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Số GCNQSDĐ", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)", 
         "Hạn GCN cam kết", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT",
         "Nơi nộp", "Mã VPĐK", "Ngày nộp hồ sơ", "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", 
-        "Ngày GCN đã ký", "Ngày GCN đã nhận", "Ngày BG KT", "Ngày BG GCN Khách"
+        "Ngày GCN đã ký", "Ngày GCN đã nhận", "Ngày BG KT", "Ngày BG GCN Khách",
+        "Phân loại sai sót", "Mức độ sai sót", "Ghi chú sai sót"
       ];
       data = sourceApps.map((app: Application) => [
         app.projectName || '',
@@ -156,12 +157,16 @@ export function useExcelImport({
         app.gcnSignedDate ? (formatDate(app.gcnSignedDate) === '---' ? '' : formatDate(app.gcnSignedDate)) : '',
         app.gcnReceivedDate ? (formatDate(app.gcnReceivedDate) === '---' ? '' : formatDate(app.gcnReceivedDate)) : '',
         app.accountingHandoverDate ? (formatDate(app.accountingHandoverDate) === '---' ? '' : formatDate(app.accountingHandoverDate)) : '',
-        app.customerHandoverDate ? (formatDate(app.customerHandoverDate) === '---' ? '' : formatDate(app.customerHandoverDate)) : ''
+        app.customerHandoverDate ? (formatDate(app.customerHandoverDate) === '---' ? '' : formatDate(app.customerHandoverDate)) : '',
+        (app.issueType && app.issueType !== 'None') ? app.issueType : '',
+        app.issueSeverity || '',
+        app.issueNotes || ''
       ]);
     } else {
       headers = [
         "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Số GCNQSDĐ", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)",
-        "Hạn GCN cam kết", "Tự làm sổ (Có/Không)", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Ngày bàn giao sang KT"
+        "Hạn GCN cam kết", "Tự làm sổ (Có/Không)", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Ngày bàn giao sang KT",
+        "Phân loại sai sót", "Mức độ sai sót", "Ghi chú sai sót"
       ];
       data = sourceApps.map((app: Application) => [
         app.projectName || '',
@@ -177,7 +182,10 @@ export function useExcelImport({
         app.receivedDate ? (formatDate(app.receivedDate) === '---' ? '' : formatDate(app.receivedDate)) : '',
         app.contractSigningDate ? (formatDate(app.contractSigningDate) === '---' ? '' : formatDate(app.contractSigningDate)) : '',
         app.handoverApartmentDate ? (formatDate(app.handoverApartmentDate) === '---' ? '' : formatDate(app.handoverApartmentDate)) : '',
-        app.accountingHandoverDate ? (formatDate(app.accountingHandoverDate) === '---' ? '' : formatDate(app.accountingHandoverDate)) : ''
+        app.accountingHandoverDate ? (formatDate(app.accountingHandoverDate) === '---' ? '' : formatDate(app.accountingHandoverDate)) : '',
+        (app.issueType && app.issueType !== 'None') ? app.issueType : '',
+        app.issueSeverity || '',
+        app.issueNotes || ''
       ]);
     }
 

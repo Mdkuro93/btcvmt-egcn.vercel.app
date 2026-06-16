@@ -1,19 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Supabase Configuration
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || 'https://eewikwqwtgmrlvyrfgit.supabase.co').trim().replace(/\/$/, '');
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_KEY;
 
-const JWT_ANON_KEY_STANDARD = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVld2lrd3F3dGdtcmx2eXJmZ2l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5MzkwOTUsImV4cCI6MjA5MzUxNTA5NX0.BaoDhOsVuVha0b8L-7caSE6vtrzmeIDdg7z2DLooCWc';
+if (!supabaseUrl) {
+  console.error("Cảnh báo: Chưa cấu hình VITE_SUPABASE_URL trong file .env");
+}
 
-const getValidSupabaseKey = (): string => {
-  const keyCandidate = import.meta.env.VITE_SUPABASE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
-  if (keyCandidate && keyCandidate.trim().startsWith('eyJ')) {
-    return keyCandidate.trim();
-  }
-  return JWT_ANON_KEY_STANDARD;
-};
+if (!supabaseAnonKey) {
+  console.error("Cảnh báo: Chưa cấu hình VITE_SUPABASE_ANON_KEY trong file .env");
+}
 
-const SUPABASE_KEY = getValidSupabaseKey();
+const SUPABASE_URL = (supabaseUrl || 'https://placeholder.supabase.co').trim().replace(/\/$/, '');
+const SUPABASE_KEY = (supabaseAnonKey || 'placeholder-key').trim();
 
 if (!SUPABASE_KEY) {
   console.error('[Config] VITE_SUPABASE_KEY chưa được cấu hình!');

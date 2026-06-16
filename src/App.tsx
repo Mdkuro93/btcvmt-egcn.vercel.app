@@ -173,21 +173,20 @@ const DOC_CHECKLIST_ITEMS = [
 ];
 
 // Supabase Configuration
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_KEY;
+
+if (!supabaseUrl) {
+  console.error("Cảnh báo: Chưa cấu hình VITE_SUPABASE_URL trong file .env");
+}
+
+if (!supabaseAnonKey) {
+  console.error("Cảnh báo: Chưa cấu hình VITE_SUPABASE_ANON_KEY trong file .env");
+}
+
 // Đảm bảo URL hợp lệ
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || 'https://eewikwqwtgmrlvyrfgit.supabase.co').trim().replace(/\/$/, '');
-
-const JWT_ANON_KEY_STANDARD = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVld2lrd3F3dGdtcmx2eXJmZ2l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5MzkwOTUsImV4cCI6MjA5MzUxNTA5NX0.BaoDhOsVuVha0b8L-7caSE6vtrzmeIDdg7z2DLooCWc';
-
-const getValidSupabaseKey = (): string => {
-  // Validate if env variable is a valid JWT token
-  const keyCandidate = import.meta.env.VITE_SUPABASE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
-  if (keyCandidate && keyCandidate.trim().startsWith('eyJ')) {
-    return keyCandidate.trim();
-  }
-  return JWT_ANON_KEY_STANDARD;
-};
-
-const SUPABASE_KEY = getValidSupabaseKey();
+const SUPABASE_URL = (supabaseUrl || 'https://placeholder.supabase.co').trim().replace(/\/$/, '');
+const SUPABASE_KEY = (supabaseAnonKey || 'placeholder-key').trim();
 
 // Validate key trước khi tạo client
 if (!SUPABASE_KEY) {
@@ -828,6 +827,17 @@ export default function App() {
   }, [theme]);
 
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const askConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmDialog({ isOpen: true, title, message, onConfirm });
+  };
 
   // Initialize session on app load
   useEffect(() => {
@@ -3771,53 +3781,58 @@ export default function App() {
       showToast('Bạn không có quyền thực hiện thao tác này!', 'error');
       return;
     }
-    if (window.confirm(`Bạn có chắc chắn muốn xóa hồ sơ căn ${code}? Thao tác này không thể hoàn tác.`)) {
-      setIsSavingApp(true);
-      try {
-        // 1. Cleanup files from storage first
+    
+    askConfirm(
+      'Xác nhận xóa hồ sơ',
+      `Bạn có chắc chắn muốn xóa hồ sơ căn ${code}? Thao tác này không thể hoàn tác.`,
+      async () => {
+        setIsSavingApp(true);
         try {
-          await cleanupFilesForRecords([id]);
-        } catch (cleanupErr) {
-          console.warn('File cleanup warning (continuing with app delete):', cleanupErr);
+          // 1. Cleanup files from storage first
+          try {
+            await cleanupFilesForRecords([id]);
+          } catch (cleanupErr) {
+            console.warn('File cleanup warning (continuing with app delete):', cleanupErr);
+          }
+
+          // 2. Delete from Database
+          const { error } = await supabase
+            .from('records')
+            .delete()
+            .eq('id', id);
+
+          if (error) throw error;
+
+          // 3. Verify thực sự đã xóa (RLS có thể chặn silently)
+          const { data: checkData } = await supabase
+            .from('records')
+            .select('id')
+            .eq('id', id)
+            .maybeSingle();
+
+          if (checkData) {
+            throw new Error(
+              'Xóa không thành công - có thể do quyền truy cập. ' +
+              'Vui lòng kiểm tra lại hoặc liên hệ Admin.'
+            );
+          }
+
+          handleSetApplications(prev => prev.filter(app => app.id !== id));
+          handleSetDashboardApps(prev => prev.filter(app => app.id !== id));
+          if (selectedApp?.id === id) {
+            setSelectedApp(null);
+            setIsEditing(false);
+            setEditApp(null);
+          }
+          showToast('Đã xóa hồ sơ và tài liệu đính kèm thành công', 'success');
+        } catch (error) {
+          console.error('Supabase delete error:', error);
+          showToast('Lỗi khi xóa dữ liệu trên Supabase.', 'error');
+        } finally {
+          setIsSavingApp(false);
         }
-
-        // 2. Delete from Database
-        const { error } = await supabase
-          .from('records')
-          .delete()
-          .eq('id', id);
-
-        if (error) throw error;
-
-        // 3. Verify thực sự đã xóa (RLS có thể chặn silently)
-        const { data: checkData } = await supabase
-          .from('records')
-          .select('id')
-          .eq('id', id)
-          .maybeSingle();
-
-        if (checkData) {
-          throw new Error(
-            'Xóa không thành công - có thể do quyền truy cập. ' +
-            'Vui lòng kiểm tra lại hoặc liên hệ Admin.'
-          );
-        }
-
-        handleSetApplications(prev => prev.filter(app => app.id !== id));
-        handleSetDashboardApps(prev => prev.filter(app => app.id !== id));
-        if (selectedApp?.id === id) {
-          setSelectedApp(null);
-          setIsEditing(false);
-          setEditApp(null);
-        }
-        showToast('Đã xóa hồ sơ và tài liệu đính kèm thành công', 'success');
-      } catch (error) {
-        console.error('Supabase delete error:', error);
-     showToast('Lỗi khi xóa dữ liệu trên Supabase.', 'error');
-      } finally {
-        setIsSavingApp(false);
       }
-    }
+    );
   };
 
   const handleSelfServiceHandoverConfirm = (customerHandoverDate: string) => {
@@ -4286,55 +4301,57 @@ export default function App() {
   const handleBulkDelete = async () => {
     if (selectedAppIds.length === 0) return;
     
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa ${selectedAppIds.length} hồ sơ đã chọn? Hành động này không thể hoàn tác.`)) {
-      return;
-    }
+    askConfirm(
+      'Xác nhận xóa hàng loạt',
+      `Bạn có chắc chắn muốn xóa ${selectedAppIds.length} hồ sơ đã chọn? Hành động này không thể hoàn tác.`,
+      async () => {
+        const count = selectedAppIds.length;
+        setIsSavingApp(true);
 
-    const count = selectedAppIds.length;
-    setIsSavingApp(true);
+        try {
+          // 1. Cleanup files from storage first
+          try {
+            await cleanupFilesForRecords(selectedAppIds);
+          } catch (cleanupErr) {
+            console.warn('Bulk file cleanup warning:', cleanupErr);
+          }
 
-    try {
-      // 1. Cleanup files from storage first
-      try {
-        await cleanupFilesForRecords(selectedAppIds);
-      } catch (cleanupErr) {
-        console.warn('Bulk file cleanup warning:', cleanupErr);
+          // 2. Delete from Database
+          registerSelfUpdate(selectedAppIds);
+          const { error } = await supabase
+            .from('records')
+            .delete()
+            .in('id', selectedAppIds);
+
+          if (error) throw error;
+
+          // 3. Verify thực sự đã xóa
+          const { data: remaining } = await supabase
+            .from('records')
+            .select('id')
+            .in('id', selectedAppIds);
+
+          if (remaining && remaining.length > 0) {
+            throw new Error(
+              `Chỉ xóa được ${count - remaining.length}/${count} hồ sơ. ` +
+              `${remaining.length} hồ sơ bị từ chối - có thể do quyền truy cập.`
+            );
+          }
+
+          // Cleanup notifications for deleted records
+          await bulkDeleteNotificationsForRecords(selectedAppIds);
+
+          handleSetApplications(prev => prev.filter(app => !selectedAppIds.includes(app.id)));
+          setSelectedAppIds([]);
+          showToast(`Đã xóa hàng loạt ${count} hồ sơ và tài liệu đính kèm thành công.`, 'success');
+        } catch (error) {
+          console.error('Supabase bulk delete error:', error);
+          showToast('Lỗi khi xóa hàng loạt trên Supabase.', 'error');
+        } finally {
+          setIsSavingApp(false);
+        }
       }
-
-      // 2. Delete from Database
-      registerSelfUpdate(selectedAppIds);
-      const { error } = await supabase
-        .from('records')
-        .delete()
-        .in('id', selectedAppIds);
-
-      if (error) throw error;
-
-      // 3. Verify thực sự đã xóa
-      const { data: remaining } = await supabase
-        .from('records')
-        .select('id')
-        .in('id', selectedAppIds);
-
-      if (remaining && remaining.length > 0) {
-        throw new Error(
-          `Chỉ xóa được ${count - remaining.length}/${count} hồ sơ. ` +
-          `${remaining.length} hồ sơ bị từ chối - có thể do quyền truy cập.`
-        );
-      }
-
-      // Cleanup notifications for deleted records
-      await bulkDeleteNotificationsForRecords(selectedAppIds);
-
-      handleSetApplications(prev => prev.filter(app => !selectedAppIds.includes(app.id)));
-      setSelectedAppIds([]);
-      showToast(`Đã xóa hàng loạt ${count} hồ sơ và tài liệu đính kèm thành công.`, 'success');
-    } catch (error) {
-      console.error('Supabase bulk delete error:', error);
-     showToast('Lỗi khi xóa hàng loạt trên Supabase.', 'error');
-    } finally {
-      setIsSavingApp(false);
-    }
+    );
   };
 
   const handleBulkResolveIssues = async () => {
@@ -4461,50 +4478,56 @@ export default function App() {
 
   const handleDeleteFile = async (fileId: string) => {
     const app = editApp || selectedApp;
-    if (!app || !window.confirm('Bạn có chắc chắn muốn xóa tài liệu này?')) return;
+    if (!app) return;
 
-    const fileToDelete = (app.scannedFiles || []).find(f => f.id === fileId);
-    const updatedApp = {
-      ...app,
-      scannedFiles: (app.scannedFiles || []).filter(f => f.id !== fileId)
-    };
+    askConfirm(
+      'Xác nhận xóa tài liệu',
+      'Bạn có chắc chắn muốn xóa tài liệu này?',
+      async () => {
+        const fileToDelete = (app.scannedFiles || []).find(f => f.id === fileId);
+        const updatedApp = {
+          ...app,
+          scannedFiles: (app.scannedFiles || []).filter(f => f.id !== fileId)
+        };
 
-    setIsSavingApp(true);
-    try {
-      // 1. Delete from Supabase Storage if path exists AND it's not a shared file
-      // If it's shared, we only remove the link from the current record's scannedFiles
-      if (fileToDelete?.path && !fileToDelete.isShared) {
-        const { error: storageError } = await supabase.storage
-          .from('Documents-GCN')
-          .remove([fileToDelete.path]);
-        
-        if (storageError) {
-          console.warn('Storage delete warning:', storageError);
-          // We continue anyway to update the record even if storage delete failed
+        setIsSavingApp(true);
+        try {
+          // 1. Delete from Supabase Storage if path exists AND it's not a shared file
+          // If it's shared, we only remove the link from the current record's scannedFiles
+          if (fileToDelete?.path && !fileToDelete.isShared) {
+            const { error: storageError } = await supabase.storage
+              .from('Documents-GCN')
+              .remove([fileToDelete.path]);
+            
+            if (storageError) {
+              console.warn('Storage delete warning:', storageError);
+              // We continue anyway to update the record even if storage delete failed
+            }
+          } else if (fileToDelete?.isShared) {
+            console.log('[Info] Shared file link removed. Original file kept on storage.');
+          }
+
+          // 2. Update DB record
+          const auditEntry = createAuditEntry('Xóa tài liệu', false, 1, app.unitCode, `Đã xóa tài liệu "${fileToDelete?.name || 'Tài liệu'}"`);
+          const appWithAudit = {
+            ...updatedApp,
+            auditTrail: [auditEntry, ...(updatedApp.auditTrail || [])]
+          };
+          const finalWithAudit = await localSyncRecord(appWithAudit);
+
+          handleSetApplications(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
+          handleSetDashboardApps(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
+          if (editApp && editApp.id === app.id) setEditApp(finalWithAudit);
+          if (selectedApp && selectedApp.id === app.id) setSelectedApp(finalWithAudit);
+          showToast(fileToDelete?.isShared ? 'Đã gỡ bỏ bản sao tài liệu chung.' : 'Đã xóa tài liệu khỏi hệ thống thành công.', 'success');
+        } catch (error) {
+          console.error('Supabase file delete error:', error);
+          showToast('Lỗi khi xóa tài liệu.', 'error');
+        } finally {
+          setIsSavingApp(false);
         }
-      } else if (fileToDelete?.isShared) {
-        console.log('[Info] Shared file link removed. Original file kept on storage.');
       }
-
-      // 2. Update DB record
-      const auditEntry = createAuditEntry('Xóa tài liệu', false, 1, app.unitCode, `Đã xóa tài liệu "${fileToDelete?.name || 'Tài liệu'}"`);
-      const appWithAudit = {
-        ...updatedApp,
-        auditTrail: [auditEntry, ...(updatedApp.auditTrail || [])]
-      };
-      const finalWithAudit = await localSyncRecord(appWithAudit);
-
-      handleSetApplications(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
-      handleSetDashboardApps(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
-      if (editApp && editApp.id === app.id) setEditApp(finalWithAudit);
-      if (selectedApp && selectedApp.id === app.id) setSelectedApp(finalWithAudit);
-      showToast(fileToDelete?.isShared ? 'Đã gỡ bỏ bản sao tài liệu chung.' : 'Đã xóa tài liệu khỏi hệ thống thành công.', 'success');
-    } catch (error) {
-      console.error('Supabase file delete error:', error);
-     showToast('Lỗi khi xóa tài liệu.', 'error');
-    } finally {
-      setIsSavingApp(false);
-    }
+    );
   };
 
   const handleBulkFileUpload = async (file: File) => {
@@ -5130,56 +5153,56 @@ export default function App() {
           ? 'S1_ChuanBi' 
           : 'GD1_ChuanBi';
 
-        const confirmed = window.confirm(
-          `Đổi sang Khách tự làm sổ?\n\n` +
+        askConfirm(
+          'Đổi sang Khách tự làm sổ',
           `Hồ sơ sẽ được đặt lại về bước đầu (${firstStep === 'S1_ChuanBi' ? 'S1 - Chuẩn bị' : 'GĐ1 - Chuẩn bị'}).\n` +
           `Toàn bộ dữ liệu đã nhập được giữ nguyên.\n` +
-          `Thao tác này sẽ được ghi vào lịch sử hồ sơ.`
-        );
-        if (!confirmed) return;
+          `Thao tác này sẽ được ghi vào lịch sử hồ sơ.`,
+          () => {
+            const auditEntry = createAuditEntry(
+              'Đổi loại hồ sơ: Công ty làm sổ → Khách tự làm sổ',
+              false,
+              1,
+              app.unitCode,
+              `Hồ sơ được đặt lại về bước đầu (${firstStep === 'S1_ChuanBi' ? 'S1 - Chuẩn bị' : 'GĐ1 - Chuẩn bị'}) để xử lý theo quy trình tự làm sổ.`
+            );
 
-        const auditEntry = createAuditEntry(
-          'Đổi loại hồ sơ: Công ty làm sổ → Khách tự làm sổ',
-          false,
-          1,
-          app.unitCode,
-          `Hồ sơ được đặt lại về bước đầu (${firstStep === 'S1_ChuanBi' ? 'S1 - Chuẩn bị' : 'GĐ1 - Chuẩn bị'}) để xử lý theo quy trình tự làm sổ.`
-        );
+            const historyItem: any = {
+              id: Math.random().toString(36).substr(2, 9),
+              timestamp: new Date().toISOString(),
+              user: userRole,
+              action: `Đổi loại hồ sơ: Công ty làm sổ → Khách tự làm sổ. Reset về bước: ${firstStep}`,
+            };
 
-        const historyItem: any = {
-          id: Math.random().toString(36).substr(2, 9),
-          timestamp: new Date().toISOString(),
-          user: userRole,
-          action: `Đổi loại hồ sơ: Công ty làm sổ → Khách tự làm sổ. Reset về bước: ${firstStep}`,
-        };
-
-        if (editApp) {
-          const nextApp: Application = {
-            ...editApp,
-            isSelfService: true,
-            currentStep: firstStep,
-            status: 'Processing' as UnitStatus,
-            history: [historyItem, ...(editApp.history || [])],
-            auditTrail: [auditEntry, ...(editApp.auditTrail || [])]
-          };
-          setEditApp(nextApp);
-        } else if (selectedApp) {
-          handleSetApplications(prev => prev.map(a => {
-            if (a.id === selectedApp.id) {
+            if (editApp) {
               const nextApp: Application = {
-                ...a,
+                ...editApp,
                 isSelfService: true,
                 currentStep: firstStep,
                 status: 'Processing' as UnitStatus,
-                history: [historyItem, ...(a.history || [])],
-                auditTrail: [auditEntry, ...(a.auditTrail || [])]
+                history: [historyItem, ...(editApp.history || [])],
+                auditTrail: [auditEntry, ...(editApp.auditTrail || [])]
               };
-              setSelectedApp(nextApp);
-              return nextApp;
+              setEditApp(nextApp);
+            } else if (selectedApp) {
+              handleSetApplications(prev => prev.map(a => {
+                if (a.id === selectedApp.id) {
+                  const nextApp: Application = {
+                    ...a,
+                    isSelfService: true,
+                    currentStep: firstStep,
+                    status: 'Processing' as UnitStatus,
+                    history: [historyItem, ...(a.history || [])],
+                    auditTrail: [auditEntry, ...(a.auditTrail || [])]
+                  };
+                  setSelectedApp(nextApp);
+                  return nextApp;
+                }
+                return a;
+              }));
             }
-            return a;
-          }));
-        }
+          }
+        );
         return;
       }
     }
@@ -5543,7 +5566,7 @@ export default function App() {
 
   const handleCreateUser = async () => {
     if (!newUser.username || !newUser.name) {
-      alert('Vui lòng điền đầy đủ thông tin');
+      showToast('Vui lòng điền đầy đủ thông tin', 'warning');
       return;
     }
     
@@ -5563,7 +5586,7 @@ export default function App() {
       showToast('Đã thêm người dùng mới và đồng bộ Supabase thành công!', 'success');
     } catch (error: any) {
       console.error('Supabase create user error:', error);
-     showToast(`Lỗi khi tạo người dùng lên Supabase: ${error.message || ''}`, 'error');
+      showToast(`Lỗi khi tạo người dùng lên Supabase: ${error.message || ''}`, 'error');
     } finally {
       setIsSavingApp(false);
     }
@@ -5583,43 +5606,53 @@ export default function App() {
       showToast('Đã cập nhật thông tin người dùng lên Supabase thành công!', 'success');
     } catch (error: any) {
       console.error('Supabase update user error:', error);
-     showToast(`Lỗi khi cập nhật người dùng: ${error.message || ''}`, 'error');
+      showToast(`Lỗi khi cập nhật người dùng: ${error.message || ''}`, 'error');
     } finally {
       setIsSavingApp(false);
     }
   };
 
   const handleDeleteUser = async (id: string) => {
-    if (!confirm('Bạn có chắc muốn xóa người dùng này?')) return;
-    setIsSavingApp(true);
-    try {
-      const { error } = await supabase.from('users').delete().eq('id', id);
-      if (error) throw error;
-      setUsers(prev => prev.filter(u => u.id !== id));
-      showToast('Đã xóa người dùng khỏi Supabase!', 'success');
-    } catch (error) {
-      console.error('Supabase delete user error:', error);
-     showToast('Lỗi khi xóa người dùng.', 'error');
-    } finally {
-      setIsSavingApp(false);
-    }
+    askConfirm(
+      'Xóa người dùng',
+      'Bạn có chắc muốn xóa người dùng này?',
+      async () => {
+        setIsSavingApp(true);
+        try {
+          const { error } = await supabase.from('users').delete().eq('id', id);
+          if (error) throw error;
+          setUsers(prev => prev.filter(u => u.id !== id));
+          showToast('Đã xóa người dùng khỏi Supabase!', 'success');
+        } catch (error) {
+          console.error('Supabase delete user error:', error);
+          showToast('Lỗi khi xóa người dùng.', 'error');
+        } finally {
+          setIsSavingApp(false);
+        }
+      }
+    );
   };
 
   const handleResetUserPassword = async (u: UserProfile) => {
-    if (!confirm(`Bạn có chắc muốn reset mật khẩu cho tài khoản @${u.username}? Mật khẩu mặc định sẽ là '123456'.`)) return;
-    setIsSavingApp(true);
-    try {
-      const updatedUser = { ...u, password: '123456' };
-      const { error } = await supabase.from('users').update({ password: '123456' }).eq('id', u.id);
-      if (error) throw error;
-      setUsers(prev => prev.map(usr => usr.id === u.id ? updatedUser : usr));
-      showToast(`Đã reset mật khẩu cho @${u.username} thành 123456`, 'success');
-    } catch (error) {
-      console.error('Supabase reset password error:', error);
-     showToast('Lỗi khi reset mật khẩu.', 'error');
-    } finally {
-      setIsSavingApp(false);
-    }
+    askConfirm(
+      'Reset mật khẩu',
+      `Bạn có chắc muốn reset mật khẩu cho tài khoản @${u.username}? Mật khẩu mặc định sẽ là '123456'.`,
+      async () => {
+        setIsSavingApp(true);
+        try {
+          const updatedUser = { ...u, password: '123456' };
+          const { error } = await supabase.from('users').update({ password: '123456' }).eq('id', u.id);
+          if (error) throw error;
+          setUsers(prev => prev.map(usr => usr.id === u.id ? updatedUser : usr));
+          showToast(`Đã reset mật khẩu cho @${u.username} thành 123456`, 'success');
+        } catch (error) {
+          console.error('Supabase reset password error:', error);
+          showToast('Lỗi khi reset mật khẩu.', 'error');
+        } finally {
+          setIsSavingApp(false);
+        }
+      }
+    );
   };
 
   
@@ -6326,16 +6359,20 @@ useEffect(() => {
                     setIsProjectModalOpen(true);
                   }}
                   onDelete={async (id) => {
-                    if (confirm("Bạn có chắc muốn xóa dự án này? Tất cả hồ sơ liên quan sẽ bị ảnh hưởng.")) {
-                      try {
-                        const updatedProjects = projects.filter(p => p.id !== id);
-                        await handleSaveConfig('projects', updatedProjects);
-                        setProjects(updatedProjects);
-                      } catch (error) {
-                        console.error('Delete project error:', error);
-     showToast('Lỗi khi xóa dự án.', 'error');
+                    askConfirm(
+                      'Xóa dự án',
+                      'Bạn có chắc muốn xóa dự án này? Tất cả hồ sơ liên quan sẽ bị ảnh hưởng.',
+                      async () => {
+                        try {
+                          const updatedProjects = projects.filter(p => p.id !== id);
+                          await handleSaveConfig('projects', updatedProjects);
+                          setProjects(updatedProjects);
+                        } catch (error) {
+                          console.error('Delete project error:', error);
+                          showToast('Lỗi khi xóa dự án.', 'error');
+                        }
                       }
-                    }
+                    );
                   }}
                   theme={theme}
                 />
@@ -6862,6 +6899,33 @@ useEffect(() => {
           </>
         )}
       </AnimatePresence>
+
+      {/* Confirm Dialog */}
+      {confirmDialog?.isOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="w-full max-w-md bg-slate-900 rounded-[2rem] p-8 border border-slate-700 shadow-2xl">
+            <h3 className="text-lg font-black text-white mb-3">{confirmDialog.title}</h3>
+            <p className="text-sm text-slate-400 mb-6 whitespace-pre-line">{confirmDialog.message}</p>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setConfirmDialog(null)}
+                className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold text-sm"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={() => {
+                  confirmDialog.onConfirm();
+                  setConfirmDialog(null);
+                }}
+                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm"
+              >
+                Xác nhận
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
         </div>
       } />
     </Routes>

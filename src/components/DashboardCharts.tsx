@@ -132,11 +132,20 @@ export default function DashboardCharts({
                   dataKey="error" 
                   stackId="a" 
                   barSize={24} 
-                  radius={[0, 12, 12, 0]}
+                  radius={[0, 0, 0, 0]}
                 >
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-error-${index}`} fill="#ef4444" />
                   ))}
+                </Bar>
+                <Bar 
+                  dataKey="labelAnchor" 
+                  stackId="a" 
+                  barSize={24} 
+                  radius={[0, 12, 12, 0]}
+                  fill="transparent"
+                  isAnimationActive={false}
+                >
                   <LabelList 
                     dataKey="value" 
                     position="right" 
