@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useModalStore } from '../stores/useModalStore';
 import { 
   Save, RefreshCcw, Database, Clock, ClipboardList, Plus, Trash2, Printer, 
   FolderArchive, Files, Layers, Info, GitMerge, Settings, ChevronUp, ChevronDown, 
@@ -25,6 +26,7 @@ interface SettingsViewProps {
   onRefreshStorage: () => void;
   onClearNotifications: () => void;
   onCleanupJunkFiles: () => void;
+  askConfirm: (title: string, message: string, onConfirm: () => void) => void;
 }
 
 export default function SettingsView({ 
@@ -43,7 +45,8 @@ export default function SettingsView({
   isFetchingStorage,
   onRefreshStorage,
   onClearNotifications,
-  onCleanupJunkFiles
+  onCleanupJunkFiles,
+  askConfirm
 }: SettingsViewProps) {
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [workflowTab, setWorkflowTab] = useState<'GD' | 'S'>('S');
@@ -126,10 +129,14 @@ export default function SettingsView({
             <div className="flex items-center gap-2">
               <button 
                 onClick={() => {
-                  if (confirm('Bạn có chắc muốn đặt lại SLA về mặc định hệ thống?')) {
-                    const defaultSla = Object.values(INITIAL_STEP_CONFIG).reduce((acc: any, s: any) => ({ ...acc, [s.label]: s.slaDays || 10 }), {});
-                    setSlaConfig(defaultSla);
-                  }
+                  askConfirm(
+                    'Đặt lại SLA mặc định',
+                    'Bạn có chắc muốn đặt lại SLA về mặc định hệ thống?',
+                    () => {
+                      const defaultSla = Object.values(INITIAL_STEP_CONFIG).reduce((acc: any, s: any) => ({ ...acc, [s.label]: s.slaDays || 10 }), {});
+                      setSlaConfig(defaultSla);
+                    }
+                  );
                 }}
                 className="px-4 py-2 bg-slate-500/10 text-slate-500 hover:bg-slate-500/20 border border-slate-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
               >
@@ -658,10 +665,14 @@ export default function SettingsView({
                   };
                   
                   const handleRemove = (index: number) => {
-                    if (confirm('Bạn có chắc muốn xóa bước này?')) {
-                      const newSequence = workflowSequences[workflowTab].filter((_, i) => i !== index);
-                      setWorkflowSequences({...workflowSequences, [workflowTab]: newSequence});
-                    }
+                    askConfirm(
+                      'Xóa bước',
+                      'Bạn có chắc muốn xóa bước này?',
+                      () => {
+                        const newSequence = workflowSequences[workflowTab].filter((_, i) => i !== index);
+                        setWorkflowSequences({...workflowSequences, [workflowTab]: newSequence});
+                      }
+                    );
                   };
                   
                   return (
@@ -810,9 +821,13 @@ export default function SettingsView({
             </div>
             <button 
               onClick={() => {
-                if (window.confirm('Bạn có chắc chắn muốn xóa toàn bộ thông báo? Hành động này không thể hoàn tác.')) {
-                  onClearNotifications();
-                }
+                askConfirm(
+                  'Xóa toàn bộ thông báo',
+                  'Bạn có chắc chắn muốn xóa toàn bộ thông báo? Hành động này không thể hoàn tác.',
+                  () => {
+                    onClearNotifications();
+                  }
+                );
               }}
               className="px-6 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-lg shadow-rose-600/20 flex items-center gap-2 whitespace-nowrap active:scale-95"
             >
@@ -830,9 +845,13 @@ export default function SettingsView({
             </div>
             <button 
               onClick={() => {
-                if (window.confirm('Bạn có chắc chắn muốn dọn dẹp file rác? Hành động này không thể hoàn tác.')) {
-                  onCleanupJunkFiles();
-                }
+                askConfirm(
+                  'Dọn dẹp file rác',
+                  'Bạn có chắc chắn muốn dọn dẹp file rác? Hành động này không thể hoàn tác.',
+                  () => {
+                    onCleanupJunkFiles();
+                  }
+                );
               }}
               className="px-6 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-lg shadow-rose-600/20 flex items-center gap-2 whitespace-nowrap active:scale-95"
             >

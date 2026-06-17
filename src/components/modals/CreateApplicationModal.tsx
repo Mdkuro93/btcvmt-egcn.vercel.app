@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Application, UserProfile, Project } from '../../types';
 import { cn } from '../../lib/utils';
 import { X, Home, Map as MapIcon, User, Key, Save, ChevronDown, Clock, Check, FileText } from 'lucide-react';
+import { useToast } from '../../hooks/useToast';
 
 export const CreateApplicationModal = ({
   isCreateModalOpen,
@@ -18,6 +19,19 @@ export const CreateApplicationModal = ({
 }: any) => {
 
   const displayProjects = visibleProjects || projects || [];
+  const { showToast } = useToast();
+  const toast = {
+    error: (msg: string) => showToast(msg, 'error')
+  };
+  const formData = newApp;
+
+  const handleSubmit = () => {
+    if (!formData.receivedDate) {
+      toast.error("Vui lòng nhập Ngày tiếp nhận hồ sơ! Đây là trường bắt buộc để tính toán hiệu suất (SLA) của các phòng ban.");
+      return;
+    }
+    handleCreateApp();
+  };
 
   return (
 <>
@@ -166,6 +180,24 @@ export const CreateApplicationModal = ({
                           onChange={(e) => setNewApp({...newApp, gcnNumber: e.target.value})}
                         />
                       </div>
+                    </div>
+
+                    <div className="space-y-1.5 flex-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">Ngày tiếp nhận <span className="text-rose-500">*</span></label>
+                      <div className="relative group">
+                        <Clock size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-emerald-500 transition-colors" />
+                        <input 
+                          type="date" 
+                          className={cn(
+                            "w-full pl-10 pr-4 py-3 border rounded-2xl text-sm focus:ring-2 transition-all outline-none",
+                            theme === 'light' ? "bg-white border-slate-200 text-slate-900 focus:bg-white" : "bg-slate-900 border-slate-800 text-slate-200",
+                            formErrors.receivedDate ? "border-rose-500 ring-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.1)]" : "focus:ring-emerald-500/20"
+                          )}
+                          value={newApp.receivedDate || ''}
+                          onChange={(e) => setNewApp({...newApp, receivedDate: e.target.value})}
+                        />
+                      </div>
+                      {formErrors.receivedDate && <p className="text-[10px] text-rose-500 font-bold pl-1 italic">{formErrors.receivedDate}</p>}
                     </div>
                   </div>
                 </div>
@@ -329,7 +361,7 @@ export const CreateApplicationModal = ({
                 </button>
                 <button 
                   disabled={isSavingApp}
-                  onClick={handleCreateApp}
+                  onClick={handleSubmit}
                   className="flex-1 py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:from-emerald-500 hover:to-emerald-400 transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:scale-100"
                 >
                   {isSavingApp ? (

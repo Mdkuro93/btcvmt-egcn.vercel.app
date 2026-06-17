@@ -48,6 +48,15 @@ interface ModalState {
 
   selectedApp: Application | null;
   setSelectedApp: (updater: Application | null | ((prev: Application | null) => Application | null)) => void;
+
+  confirmDialog: {
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null;
+  setConfirmDialog: (dialog: { isOpen: boolean; title: string; message: string; onConfirm: () => void } | null) => void;
+  askConfirm: (title: string, message: string, onConfirm: () => void) => void;
 }
 
 export const useModalStore = create<ModalState>((set) => ({
@@ -95,4 +104,8 @@ export const useModalStore = create<ModalState>((set) => ({
 
   selectedApp: null,
   setSelectedApp: (updater) => set((state) => ({ selectedApp: typeof updater === 'function' ? updater(state.selectedApp) : updater })),
+
+  confirmDialog: null,
+  setConfirmDialog: (dialog) => set({ confirmDialog: dialog }),
+  askConfirm: (title, message, onConfirm) => set({ confirmDialog: { isOpen: true, title, message, onConfirm } }),
 }));

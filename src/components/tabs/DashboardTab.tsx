@@ -170,7 +170,7 @@ export const DashboardTab = ({
                     />
                     <StatCard 
                       title="BÁO CÁO HỒ SƠ VAY" 
-                      value={applications.filter(a => a.loanStatus === 'Co_Vay').length} 
+                      value={kpis?.loanCount || 0} 
                       icon={CreditCard} 
                       colorClass="bg-blue-600 shadow-blue-600/40" 
                       delay={0.4} 
@@ -285,7 +285,7 @@ export const DashboardTab = ({
                         <ResponsiveContainer width="100%" height={500}>
                            <BarChart 
                              layout="vertical"
-                             data={progressChartData} 
+                             data={progressChartData?.map((d: any) => ({ ...d, labelAnchor: 0.01 }))} 
                              margin={{ top: 20, right: 60, left: 10, bottom: 5 }}
                              barGap={0}
                              onClick={(data: any) => {
@@ -355,30 +355,7 @@ export const DashboardTab = ({
                               {progressChartData.map((entry: any, index: number) => (
                                 <Cell key={`dashboard-progress-normal-cell-${entry.name || 'unnamed'}-${index}`} fill={entry.color} />
                               ))}
-                              <LabelList 
-                                dataKey="normal" 
-                                position="right" 
-                                offset={15} 
-                                content={(props: any) => {
-                                   const { x, y, width, height, index } = props;
-                                   const data = progressChartData[index];
-                                   if (!data || data.error > 0) return null;
-                                   return (
-                                      <text 
-                                         x={isNaN(Number(x)) || isNaN(Number(width)) ? 0 : Number(x) + Number(width) + 15} 
-                                         y={isNaN(Number(y)) || isNaN(Number(height)) ? 0 : Number(y) + Number(height) / 2} 
-                                         opacity={isNaN(Number(x)) || isNaN(Number(y)) || isNaN(Number(width)) || isNaN(Number(height)) ? 0 : 1} 
-                                         fill={theme === 'light' ? '#1e293b' : '#f8fafc'} 
-                                         fontSize="12" 
-                                         fontWeight="900"
-                                         textAnchor="start"
-                                         dominantBaseline="central"
-                                      >
-                                         {data.value}
-                                      </text>
-                                   );
-                                }}
-                              />
+
                             </Bar>
                             <Bar 
                               dataKey="error" 
@@ -387,29 +364,16 @@ export const DashboardTab = ({
                               barSize={24} 
                               radius={[0, 12, 12, 0]} 
                               className="shadow-[0_0_15px_rgba(244,63,94,0.3)]"
-                            >
-                              <LabelList 
-                                dataKey="error" 
-                                position="right" 
-                                offset={15} 
-                                content={(props: any) => {
-                                   const { x, y, width, height, index } = props;
-                                   const data = progressChartData[index];
-                                   if (!data || data.error === 0) return null;
-                                   return (
-                                      <text 
-                                         x={isNaN(Number(x)) || isNaN(Number(width)) ? 0 : Number(x) + Number(width) + 15} 
-                                         y={isNaN(Number(y)) || isNaN(Number(height)) ? 0 : Number(y) + Number(height) / 2} 
-                                         opacity={isNaN(Number(x)) || isNaN(Number(y)) || isNaN(Number(width)) || isNaN(Number(height)) ? 0 : 1} 
-                                         fill={theme === 'light' ? '#1e293b' : '#f8fafc'} 
-                                         fontSize="12" 
-                                         fontWeight="900"
-                                         textAnchor="start"
-                                         dominantBaseline="central"
-                                      >
-                                         {data.value}
-                                      </text>
-                                   );
+                            />
+                            <Bar dataKey="labelAnchor" stackId="a" fill="transparent" isAnimationActive={false}>
+                              <LabelList
+                                dataKey="value"
+                                position="right"
+                                offset={10}
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 900,
+                                  fill: theme === 'dark' ? '#f8fafc' : '#1e293b'
                                 }}
                               />
                             </Bar>
@@ -602,29 +566,29 @@ export const DashboardTab = ({
                                     </div>
                                   ) : (
                                     <p className="text-[9px] italic opacity-40 text-center mt-4">Không có dữ liệu</p>
-                                  )}
-                               </div>
-                            </div>
-                         </div>
-                      </div>
-                    </div>
-                  </div>
-
-
-
+                                   )}
+                                </div>
+                             </div>
+                          </div>
+                       </div>
+                     </div>
+                   </div>
 
                 {(userRole === 'ADMIN' || userRole === 'DIRECTOR') && (
                   <div className={cn(
                     "backdrop-blur-xl rounded-3xl shadow-2xl border transition-all overflow-hidden",
                     theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900/20 shadow-2xl border-slate-800/50"
                   )}>
-                    <div className={cn("p-5 border-b flex items-center justify-between", theme === 'light' ? "border-slate-100 bg-slate-50" : "border-slate-800/50")}>
+                    <div className={cn("p-5 border-b flex flex-wrap items-center justify-between gap-4", theme === 'light' ? "border-slate-100 bg-slate-50" : "border-slate-800/50")}>
                       <div className="flex items-center gap-4">
                         <h3 className={cn("font-bold font-serif text-lg italic", theme === 'light' ? "text-slate-900" : "text-white")}>Hiệu suất Xử lý theo Phòng ban</h3>
                         <div className="flex items-center gap-2 bg-slate-800/20 rounded-lg p-1 border border-slate-700/30">
                           <Clock size={10} className="text-slate-500 ml-1" />
                           <span className="text-[9px] font-black uppercase text-slate-400 px-2 italic">Chỉ số SLA trung bình</span>
                         </div>
+                      </div>
+                      <div className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold italic">
+                        * Loại trừ hồ sơ có vướng mắc khỏi ngày trung bình để đảm bảo khách quan
                       </div>
                     </div>
                     <div className="p-6">
@@ -662,6 +626,17 @@ export const DashboardTab = ({
                                  {(isNaN(Number(dept.avgDays)) ? 0 : (dept.avgDays || 0)) > 10 ? 'Chậm' : 'Tốt'}
                                </span>
                             </div>
+
+                            {dept.issueExcludedCount > 0 && (
+                              <div className="mt-2 pt-2 border-t border-slate-800/10 dark:border-slate-800/40 flex justify-between items-center text-[8px]">
+                                <span className="text-amber-500 dark:text-amber-400/80 font-bold uppercase tracking-wider flex items-center gap-1">
+                                  <AlertCircle size={8} /> Vướng mắc hoãn SLA:
+                                </span>
+                                <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-500 dark:text-amber-400 font-black rounded">
+                                  {dept.issueExcludedCount} hồ sơ
+                                </span>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>

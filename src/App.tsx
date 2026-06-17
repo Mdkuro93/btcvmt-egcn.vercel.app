@@ -135,7 +135,6 @@ import { ApplicationsTab } from './components/tabs/ApplicationsTab';
 import { ResourcesTab } from './components/tabs/ResourcesTab';
 import { Routes, Route, Link } from 'react-router-dom';
 import { ThemeToggle } from './components/ThemeToggle';
-import ReportScreen from './pages/ReportScreen';
 import { cn } from './lib/utils';
 import { formatDate } from './utils/dateUtils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -703,7 +702,8 @@ export default function App() {
     editUser, setEditUser,
     editingProject, setEditingProject,
     editApp, setEditApp,
-    selectedApp, setSelectedApp
+    selectedApp, setSelectedApp,
+    confirmDialog, setConfirmDialog, askConfirm
   } = useModalStore();
 
   // Data Store
@@ -827,17 +827,6 @@ export default function App() {
   }, [theme]);
 
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-
-  const [confirmDialog, setConfirmDialog] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    onConfirm: () => void;
-  } | null>(null);
-
-  const askConfirm = (title: string, message: string, onConfirm: () => void) => {
-    setConfirmDialog({ isOpen: true, title, message, onConfirm });
-  };
 
   // Initialize session on app load
   useEffect(() => {
@@ -3384,7 +3373,8 @@ export default function App() {
     currentStep: 'S1_ChuanBi' as StepName,
     isSelfService: false,
     commitmentDate: '',
-    handoverApartmentDate: ''
+    handoverApartmentDate: '',
+    receivedDate: ''
   });
 
   // Ensure newApp.projectName is set to a valid project the user has access to
@@ -5383,6 +5373,9 @@ export default function App() {
     const errors: Record<string, string> = {};
     if (!newApp.unitCode) errors.unitCode = 'Vui lòng nhập mã căn';
     if (!newApp.customerName) errors.customerName = 'Vui lòng nhập tên khách hàng';
+    if (!newApp.receivedDate) {
+      errors.receivedDate = 'Vui lòng nhập Ngày tiếp nhận hồ sơ! Đây là trường bắt buộc để tính toán hiệu suất (SLA) của các phòng ban.';
+    }
     if (newApp.propertyType === 'Can_Ho' && !newApp.handoverApartmentDate) {
       errors.handoverApartmentDate = 'Vui lòng chọn ngày bàn giao căn hộ thực tế';
     }
@@ -5440,7 +5433,7 @@ export default function App() {
         handoverApartmentDate: newApp.propertyType === 'Can_Ho' ? newApp.handoverApartmentDate : undefined,
         currentStep: initialStep,
         status: initialStatus,
-        receivedDate: new Date().toISOString().split('T')[0],
+        receivedDate: newApp.receivedDate,
         taxPaymentStatus: 'Unpaid',
         checklist: {},
         // ✅ FIX: Lỗi 4 - Thêm performedBy và performedByName cho history khởi tạo
@@ -5551,7 +5544,8 @@ export default function App() {
         currentStep: 'S1_ChuanBi',
         isSelfService: false,
         commitmentDate: '',
-        handoverApartmentDate: ''
+        handoverApartmentDate: '',
+        receivedDate: ''
       });
       setFormErrors({});
       showToast(`Hồ sơ ${appToAdd.unitCode} đã được khởi tạo và đồng bộ Supabase!`, 'success');
@@ -5802,6 +5796,7 @@ useEffect(() => {
         supabase={supabase}
         currentUser={currentUser}
         onStepTransition={handleStepTransition}
+        askConfirm={askConfirm}
         onUpdateApp={async (updated) => {
           handleSetApplications(prev => prev.map(a => a.id === updated.id ? updated : a));
           setNotifications(prev => [
@@ -5830,7 +5825,6 @@ useEffect(() => {
 
   return (
     <Routes>
-      <Route path="/report" element={<ReportScreen applications={applications.length > 0 ? applications : dashboardApps} />} />
       <Route path="*" element={
         <div className={cn(
           "flex h-screen w-full overflow-hidden font-sans relative transition-colors duration-700",
@@ -6429,6 +6423,7 @@ useEffect(() => {
                   onRefreshStorage={fetchStorageUsage}
                   onClearNotifications={clearAllAppNotifications}
                   onCleanupJunkFiles={cleanupJunkFiles}
+                  askConfirm={askConfirm}
                 />
               </motion.div>
             )}

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
+import { useModalStore } from '../stores/useModalStore';
 import { 
   ShieldCheck, 
   X, 
@@ -46,6 +47,7 @@ interface FieldModeViewProps {
   supabase?: any;
   currentUser: UserProfile;
   onStepTransition: (nextStep: StepName, note?: string, overrideApp?: Application) => Promise<void>;
+  askConfirm: (title: string, message: string, onConfirm: () => void) => void;
 }
 
 export default function FieldModeView({ 
@@ -56,7 +58,8 @@ export default function FieldModeView({
   onExit,
   supabase,
   currentUser,
-  onStepTransition
+  onStepTransition,
+  askConfirm
 }: FieldModeViewProps) {
   const [search, setSearch] = useState('');
   const [selectedProject, setSelectedProject] = useState<string>('all');
@@ -261,33 +264,37 @@ export default function FieldModeView({
   };
 
   // Delete uploaded file handler in mobile portal
-  const handleDeleteFile = async (fileId: string) => {
+  const handleDeleteFile = (fileId: string) => {
     if (!editAppInstance) return;
-    if (!window.confirm('Bạn có chắc chắn muốn xóa tài liệu này?')) return;
+    askConfirm(
+      'Xóa tài liệu',
+      'Bạn có chắc chắn muốn xóa tài liệu này?',
+      async () => {
+        try {
+          const fileToDelete = (editAppInstance.scannedFiles || []).find(f => f.id === fileId);
+          const updatedFiles = (editAppInstance.scannedFiles || []).filter(f => f.id !== fileId);
+          
+          const updatedApp = {
+            ...editAppInstance,
+            scannedFiles: updatedFiles
+          };
 
-    try {
-      const fileToDelete = (editAppInstance.scannedFiles || []).find(f => f.id === fileId);
-      const updatedFiles = (editAppInstance.scannedFiles || []).filter(f => f.id !== fileId);
-      
-      const updatedApp = {
-        ...editAppInstance,
-        scannedFiles: updatedFiles
-      };
+          setEditAppInstance(updatedApp);
+          
+          // Delete from storage if it has a path
+          if (fileToDelete?.path && !fileToDelete.isShared && supabase) {
+            await supabase.storage
+              .from('Documents-GCN')
+              .remove([fileToDelete.path]);
+          }
 
-      setEditAppInstance(updatedApp);
-      
-      // Delete from storage if it has a path
-      if (fileToDelete?.path && !fileToDelete.isShared && supabase) {
-        await supabase.storage
-          .from('Documents-GCN')
-          .remove([fileToDelete.path]);
+          // Sync and save to database
+          onUpdateApp(updatedApp);
+        } catch (err) {
+          console.error('Error deleting file on mobile:', err);
+        }
       }
-
-      // Sync and save to database
-      onUpdateApp(updatedApp);
-    } catch (err) {
-      console.error('Error deleting file on mobile:', err);
-    }
+    );
   };
 
   // Complete edit and save everything

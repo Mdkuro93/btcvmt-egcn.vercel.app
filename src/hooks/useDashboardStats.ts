@@ -66,8 +66,8 @@ export function useDashboardStats(
       completed: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'Completed').length,
       error: dashboardApps.filter(a => a.status === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None')).length,
       overdue: dashboardApps.filter(a => getOverdueInfo(a, stepConfig, slaConfig).isOverdue).length,
-      loanCount: processingApps.filter(a => a.loanStatus === 'Co_Vay').length,
-      regularCount: processingApps.filter(a => a.loanStatus === 'Khong_Vay').length,
+      loanCount: dashboardApps.filter(a => a.loanStatus === 'Co_Vay').length,
+      regularCount: dashboardApps.filter(a => a.loanStatus === 'Khong_Vay').length,
       rejectedCount: processingApps.filter(a => a.isRejected && a.currentStep === 'S1_ChuanBi').length,
     };
   }, [dashboardApps, stepConfig, slaConfig]);
@@ -177,8 +177,12 @@ export function useDashboardStats(
           if (dept === 'PTDA' && isSupportSpecial) return false; // Force NOT PTDA for this step in support process
           return (stepConfig[a.currentStep] || INITIAL_STEP_CONFIG[a.currentStep])?.dept === dept;
         });
-        const avgDaysRaw = appsInDept.length > 0 
-            ? appsInDept.reduce((acc, curr) => acc + (calculateDaysDiff(curr.receivedDate) || 0), 0) / appsInDept.length
+
+        // Filter apps to exclude those with active issues (issueType != null/undefined and is not 'None')
+        const appsInDeptForAvg = appsInDept.filter(a => !a.issueType || a.issueType === 'None');
+
+        const avgDaysRaw = appsInDeptForAvg.length > 0 
+            ? appsInDeptForAvg.reduce((acc, curr) => acc + (calculateDaysDiff(curr.receivedDate) || 0), 0) / appsInDeptForAvg.length
             : 0;
         const avgDays = isNaN(avgDaysRaw) ? 0 : avgDaysRaw;
             
@@ -187,6 +191,7 @@ export function useDashboardStats(
             label: dept === 'PTT' ? 'Thủ tục' : dept === 'KT' ? 'Kế toán' : 'PTDA',
             avgDays: Math.round(avgDays) || 0,
             count: appsInDept.length,
+            issueExcludedCount: appsInDept.length - appsInDeptForAvg.length,
             color: avgDays > 10 ? 'bg-rose-500' : (avgDays > 5 ? 'bg-amber-500' : 'bg-emerald-500')
         };
     });
