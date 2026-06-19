@@ -678,20 +678,6 @@ export default function App() {
   // const [isUploadingShared, setIsUploadingShared] = useState(false);
 
   useEffect(() => {
-    const handleMobileSignal = setInterval(() => {
-       if ((window as any).__openBulkDocsFromMobile) {
-          const ids = (window as any).__mobileSelectedIds || [];
-          if (ids.length > 0) {
-             setSelectedAppIds(ids);
-             setIsBulkDocumentOpen(true);
-          }
-          (window as any).__openBulkDocsFromMobile = false;
-          (window as any).__mobileSelectedIds = [];
-       }
-    }, 500);
-    return () => clearInterval(handleMobileSignal);
-  }, []);
-  useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
         setCurrentUser(null);
@@ -1101,7 +1087,7 @@ export default function App() {
           '⚠️ Tải dữ liệu quá lâu. Kiểm tra kết nối.', 
           'error'
         );
-      }, 15000);
+      }, 30000);
 
       setIsInitialLoading(true);
       setIsLoadingApps(true);
@@ -1485,7 +1471,7 @@ export default function App() {
       timeoutId = setTimeout(() => {
         controller.abort();
         reject(new Error('TIMEOUT'));
-      }, 15000);
+      }, 30000);
     });
 
     try {
@@ -1874,7 +1860,7 @@ export default function App() {
       timeoutId = setTimeout(() => {
         controller.abort();
         reject(new Error('TIMEOUT'));
-      }, 15000);
+      }, 30000);
     });
 
     try {
@@ -4972,6 +4958,10 @@ useEffect(() => {
         currentUser={currentUser}
         onStepTransition={handleStepTransition}
         askConfirm={askConfirm}
+        onOpenBulkDocs={(ids) => {
+          setSelectedAppIds(ids);
+          setIsBulkDocumentOpen(true);
+        }}
         onUpdateApp={async (updated) => {
           handleSetApplications(prev => prev.map(a => a.id === updated.id ? updated : a));
           setNotifications(prev => [
