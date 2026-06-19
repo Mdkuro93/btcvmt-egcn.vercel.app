@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useAuthStore } from './stores/useAuthStore';
 import { useToast } from './hooks/useToast';
 import { useBulkActions } from './hooks/useBulkActions';
 import { useApplicationFilters } from './hooks/useApplicationFilters';
@@ -6,7 +7,7 @@ import { useDashboardStats } from './hooks/useDashboardStats';
 import { calculateSLA } from './utils/statusEngine';
 import { diffDays } from './utils/dateUtils';
 import { buildFlags } from './utils/flagUtils';
-import { mapFromSnakeCase, mapToSnakeCase, mapUserFromSnakeCase, mapUserToSnakeCase, safeParse } from './utils/mappers';
+import { mapFromSnakeCase, mapToSnakeCase, mapUserFromSnakeCase, mapUserToSnakeCase, safeParse, mapNotificationToSnakeCase } from './utils/mappers';
 import { calculateDaysDiff, calculateDaysBetweenDates, getPhaseIndex, getTaxStatus, getOverdueInfo, inferStepFromDates, validateDateSequence } from './utils/appUtils';
 import { WorkflowEngine } from './utils/workflowEngine';
 import { StatCard, StatusBadge, DetailCard, FestiveBranding, PrintStyles } from './components/AppSubComponents';
@@ -126,7 +127,7 @@ import ImportPreviewModal from './components/modals/ImportPreviewModal';
 import { ApplicationDetailModal } from './components/modals/ApplicationDetailModal';
 import { CreateApplicationModal } from './components/modals/CreateApplicationModal';
 import { useModalStore } from './stores/useModalStore';
-import { useDataStore } from './stores/useDataStore';
+import { useDataStore, bulkSyncRecordsToSupabase, createAuditEntry, updateAppIssue } from './stores/useDataStore';
 import { UserManagementModal } from './components/modals/UserManagementModal';
 import { Sidebar } from './components/Sidebar';
 import { DashboardTab } from './components/tabs/DashboardTab';
@@ -281,18 +282,6 @@ const mapNotificationFromSnakeCase = (item: any): AppNotification => {
   };
 };
 
-const mapNotificationToSnakeCase = (noti: Partial<AppNotification>) => {
-  return {
-    user_id: noti.recipientId,
-    title: noti.title,
-    content: noti.message,
-    created_at: noti.time || new Date().toISOString(),
-    type: noti.type,
-    is_read: noti.isRead || false,
-    record_id: noti.appId
-  };
-};
-
 async function syncRecordToSupabase(app: Application) {
   const snakeData = mapToSnakeCase(app);
   const { data, error } = await supabase.from('records').upsert(snakeData).select(RECORD_LIGHT_SELECT);
@@ -437,185 +426,6 @@ async function fetchRecordDetail(recordId: string | number): Promise<{
   return result;
 }
 
-const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplications: Application[], showToast?: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void) => {
-  if (appsToSync.length === 0) return allApplications;
-  try {
-    const uniqueProjects = Array.from(new Set(appsToSync.map(a => a.projectName).filter(Boolean)));
-    const uniqueUnitCodes = Array.from(new Set(appsToSync.map(a => a.unitCode).filter(Boolean)));
-
-    let existingDbRecords: any[] = [];
-    if (uniqueProjects.length > 0 && uniqueUnitCodes.length > 0) {
-      const { data: dbData, error: dbErr } = await supabase
-        .from('records')
-        .select('id, unit_code, project_name, history, audit_trail')
-        .in('project_name', uniqueProjects)
-        .in('unit_code', uniqueUnitCodes);
-      
-      if (!dbErr && dbData) {
-        existingDbRecords = dbData;
-      } else if (dbErr) {
-        console.error('Lỗi khi truy vấn trùng lặp trong database:', dbErr);
-      }
-    }
-
-    if (existingDbRecords.length > 0) {
-      appsToSync.forEach(app => {
-        const matchingDb = existingDbRecords.find(db => 
-          String(db.unit_code || '').toLowerCase() === String(app.unitCode || '').toLowerCase() &&
-          String(db.project_name || '').toLowerCase() === String(app.projectName || '').toLowerCase()
-        );
-        if (matchingDb) {
-          const mappedDb = mapFromSnakeCase(matchingDb);
-          app.id = mappedDb.id;
-          app.history = mappedDb.history || [];
-          app.auditTrail = mappedDb.auditTrail || [];
-        }
-      });
-    }
-
-    const recordsToInsert: any[] = appsToSync
-      .filter(a => !a.id || (typeof a.id === 'string' && a.id.includes('-imp-')))
-      .map(app => {
-        const snakeObj = mapToSnakeCase(app);
-        delete snakeObj.id; // Ensure id is NOT sent for insert
-        return snakeObj;
-      });
-
-    const recordsToUpdate: any[] = appsToSync
-      .filter(a => a.id && !a.id.toString().includes('-imp-'))
-      .map(app => mapToSnakeCase(app));
-
-    let insertedData: any[] = [];
-    if (recordsToInsert.length > 0) {
-      const { data: insertResult, error: insertError } = await supabase
-        .from('records')
-        .insert(recordsToInsert)
-        .select(RECORD_LIGHT_SELECT);
-      if (insertError) throw insertError;
-      insertedData = insertResult || [];
-    }
-
-    let updatedData: any[] = [];
-    if (recordsToUpdate.length > 0) {
-      const { data: upsertResult, error: updateError } = await supabase
-        .from('records')
-        .upsert(recordsToUpdate, { onConflict: 'id' })
-        .select(RECORD_LIGHT_SELECT);
-      if (updateError) throw updateError;
-      updatedData = upsertResult || recordsToUpdate; // fallback về local nếu select không trả data
-    }
-    
-    const allReturnedData = [...insertedData, ...updatedData];
-    const updatedAppsLocal = [...allApplications];
-
-    // ✅ FIX: Lỗi 1 - Ghi nhận history và audit trail cho tất cả bản ghi trong bulk sync
-    const historyPromises: any[] = [];
-    const auditPromises: any[] = [];
-
-    if (allReturnedData.length > 0) {
-      allReturnedData.forEach(item => {
-        const returnedApp = mapFromSnakeCase(item);
-        
-        // Find existing app by unitCode if it was a new record
-        const originalInput = appsToSync.find(a => 
-          (a.id?.toString() === returnedApp.id?.toString()) || 
-          (a.unitCode === returnedApp.unitCode && a.projectName === returnedApp.projectName)
-        );
-
-        // Preserve history and auditTrail from in-memory state if DB returned empty
-        // Since we don't select them in LIGHT_SELECT and they are separate tables anyway
-        if (originalInput) {
-           returnedApp.history = (returnedApp.history && returnedApp.history.length > 0) ? returnedApp.history : (originalInput.history || []);
-           returnedApp.auditTrail = (returnedApp.auditTrail && returnedApp.auditTrail.length > 0) ? returnedApp.auditTrail : (originalInput.auditTrail || []);
-        }
-
-        // Add history and audit trail promises
-        if (originalInput) {
-          if (originalInput.history && originalInput.history.length > 0) {
-            originalInput.history.forEach(h => {
-              if (h.id) {
-                historyPromises.push(
-                  supabase.from('record_history').upsert({
-                    id: h.id,
-                    record_id: String(returnedApp.id),
-                    step_name: h.stepName,
-                    dept: h.dept,
-                    received_date: h.receivedDate,
-                    completed_date: h.completedDate || null,
-                    note: h.note || '',
-                    performed_by: h.performedBy || null,
-                    performed_by_name: h.performedByName || null,
-                  }, { onConflict: 'id' })
-                );
-              }
-            });
-          }
-
-          if (originalInput.auditTrail && originalInput.auditTrail.length > 0) {
-            originalInput.auditTrail.forEach(a => {
-              if (a.id) {
-                auditPromises.push(
-                  supabase.from('record_audit_trail').upsert({
-                    id: a.id,
-                    record_id: String(returnedApp.id),
-                    user_id: a.userId,
-                    user_name: a.userName,
-                    action: a.action,
-                    changes: a.changes || '',
-                    timestamp: a.timestamp,
-                  }, { onConflict: 'id' })
-                );
-              }
-            });
-          }
-        }
-
-        const idx = updatedAppsLocal.findIndex(a => 
-          (a.id === returnedApp.id) || 
-          (a.unitCode === returnedApp.unitCode && a.projectName === returnedApp.projectName && a.id?.toString().includes('-imp-'))
-        );
-        
-        if (idx !== -1) {
-          updatedAppsLocal[idx] = returnedApp;
-        } else {
-          updatedAppsLocal.push(returnedApp);
-        }
-      });
-
-      // Write in parallel with soft catching of errors via console.warn
-      try {
-        if (historyPromises.length > 0) {
-          const res = await Promise.all(historyPromises);
-          res.forEach(r => {
-            if (r.error) console.warn('Lỗi phụ khi ghi history trong bulk sync:', r.error);
-          });
-        }
-      } catch (err) {
-        console.warn('Lỗi ngoại lệ khi ghi history trong bulk sync:', err);
-      }
-
-      try {
-        if (auditPromises.length > 0) {
-          const res = await Promise.all(auditPromises);
-          res.forEach(r => {
-            if (r.error) console.warn('Lỗi phụ khi ghi audit trail trong bulk sync:', r.error);
-          });
-        }
-      } catch (err) {
-        console.warn('Lỗi ngoại lệ khi ghi audit trail trong bulk sync:', err);
-      }
-    }
-    return updatedAppsLocal;
-  } catch (error) {
-    console.error('Lỗi nghiêm trọng trong quá trình bulk sync:', error);
-    if (showToast) {
-      showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
-    }
-    throw error;
-  }
-};
-
-
 const formatExcelDate = (val: string | Date | undefined) => {
   if (!val) return '';
   const formatted = formatDate(val);
@@ -685,6 +495,7 @@ const parseExcelDate = (value: any): string | undefined => {
 // HandoverRecord template moved to components/
 
 export default function App() {
+  const { currentUser, userRole, setCurrentUser } = useAuthStore();
 
   // Modal Store
   const {
@@ -723,7 +534,10 @@ export default function App() {
     isLoadingConfig, setIsLoadingConfig,
     isInitialLoading, setIsInitialLoading,
     isAuthLoading, setIsAuthLoading,
-    fetchInitialData, initRealtime
+    fetchInitialData, initRealtime, reportIssue,
+    resolveIssue, resolveError, bulkResolveIssues, proposeException, approveException,
+    stepTransition, rejectApp, bulkRejectApps,
+    executeBulkStepTransition: executeBulkStepTransitionAction
   } = useDataStore();
   const { toast, showToast } = useToast();
   const selfUpdateRef = useRef<Set<number>>(new Set());
@@ -826,8 +640,6 @@ export default function App() {
     }
   }, [theme]);
 
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-
   // Initialize session on app load
   useEffect(() => {
     const initSession = async () => {
@@ -929,7 +741,6 @@ export default function App() {
 
   // const [stepConfig, setStepConfig] = useState<Record<string, { label: string, dept: Dept, status: UnitStatus, slaDays?: number, active: boolean }>>(INITIAL_STEP_CONFIG);
   // const [projects, setProjects] = useState<Project[]>([]);
-  const userRole = useMemo(() => currentUser?.dept || 'PTT', [currentUser]);
 
   const canEdit = (user: UserProfile | null): boolean => {
     if (!user) return false;
@@ -2254,7 +2065,25 @@ export default function App() {
   };
 
   const createNotification = async (noti: Partial<AppNotification>) => {
+    if (!noti.recipientId) return;
+
     try {
+      // Validate recipient exists
+      const { data: existingUsers, error: checkError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', noti.recipientId);
+        
+      if (checkError) {
+        console.error('Error checking user existence:', checkError);
+        return; // Safe fallback
+      }
+      
+      if (!existingUsers || existingUsers.length === 0) {
+        console.warn(`Bỏ qua gửi thông báo: user_id ${noti.recipientId} không tồn tại.`);
+        return;
+      }
+
       const snakeData: any = mapNotificationToSnakeCase(noti);
       delete snakeData.id; // explicitly remove id to let Supabase gen_random_uuid handle it
       const { error } = await supabase.from('notifications').insert(snakeData);
@@ -2264,8 +2093,8 @@ export default function App() {
       }
     } catch (error) {
       console.error('Error creating notification:', error);
-     showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
-     }
+      // Suppress toast as notifications are non-critical background jobs
+    }
   };
 
   const notifyNextDepartment = async (app: Application, targetStep: StepName) => {
@@ -2304,6 +2133,42 @@ export default function App() {
     
     const notificationsToInsert: any[] = [];
     
+    // Thu thập trước toàn bộ user_id dự kiến gửi thông báo, để xác thực 1 lần duy nhất
+    // (tránh N+1 query), phòng trường hợp cache `users` trong store bị stale do user đã bị xóa
+    const candidateUserIds = new Set<string>();
+    appsToSync.forEach(app => {
+      const appProjectId = app.projectId || projects.find(p => p.name === app.projectName)?.id;
+      users.filter(u => 
+        u.dept === targetDept && 
+        u.id !== currentUser?.id &&
+        typeof u.id === 'string' &&
+        u.id.length === 36 &&
+        (appProjectId ? (u.assignedProjectIds || []).includes(appProjectId) : true)
+      ).forEach(u => candidateUserIds.add(u.id));
+    });
+
+    let validUserIds = new Set<string>();
+    if (candidateUserIds.size > 0) {
+      try {
+        const { data: existingUsers, error: userCheckError } = await supabase
+          .from('users')
+          .select('id')
+          .in('id', Array.from(candidateUserIds));
+        if (userCheckError) {
+          console.error('Lỗi kiểm tra user tồn tại trước khi gửi thông báo:', userCheckError);
+        } else {
+          validUserIds = new Set((existingUsers || []).map(u => u.id));
+        }
+      } catch (err) {
+        console.error('Catch error khi kiểm tra user tồn tại:', err);
+      }
+    }
+
+    const skippedUserIds = Array.from(candidateUserIds).filter(id => !validUserIds.has(id));
+    if (skippedUserIds.length > 0) {
+      console.warn(`Bỏ qua ${skippedUserIds.length} user_id không còn tồn tại trong hệ thống khi gửi thông báo hàng loạt:`, skippedUserIds);
+    }
+    
     appsToSync.forEach(app => {
       const appProjectId = app.projectId || projects.find(p => p.name === app.projectName)?.id;
       const targetUsers = users.filter(u => 
@@ -2311,6 +2176,7 @@ export default function App() {
         u.id !== currentUser?.id &&
         typeof u.id === 'string' &&
         u.id.length === 36 &&
+        validUserIds.has(u.id) &&
         (appProjectId ? (u.assignedProjectIds || []).includes(appProjectId) : true)
       );
       
@@ -2323,20 +2189,54 @@ export default function App() {
           appId: app.id
         };
         const snake = mapNotificationToSnakeCase(noti as any);
-        // Remove id if present to let DB handle it
         if ((snake as any).id) delete (snake as any).id;
         notificationsToInsert.push(snake);
       });
     });
 
+    let failedCount = 0;
+    let lastError: any = null;
+
     if (notificationsToInsert.length > 0) {
-      try {
-        const { error } = await supabase.from('notifications').insert(notificationsToInsert);
-        if (error) console.error('Bulk next dept notification error:', error);
-      } catch (err) {
-        console.error('Bulk next dept notification catch error:', err);
-      }
+      // Bắn tất cả request song song — nhanh hơn for...of tuần tự,
+      // Promise.allSettled đảm bảo 1 request lỗi không ảnh hưởng các request khác.
+      const notificationPromises = notificationsToInsert.map(async (noti) => {
+        try {
+          const { error } = await supabase.from('notifications').insert(noti);
+          if (error) {
+            if (error.code === '23503') {
+              console.warn('Bỏ qua 1 notification do user không còn tồn tại (FK violation):', error.details);
+              return { success: false, isUserDeleted: true };
+            }
+            console.error('Lỗi insert notification:', error);
+            return { success: false, error };
+          }
+          return { success: true };
+        } catch (err) {
+          console.error('Catch error khi insert notification:', err);
+          return { success: false, error: err };
+        }
+      });
+
+      const results = await Promise.allSettled(notificationPromises);
+
+      results.forEach(r => {
+        if (r.status === 'fulfilled' && !r.value.success) {
+          failedCount++;
+          if (r.value.error) lastError = r.value.error;
+        } else if (r.status === 'rejected') {
+          failedCount++;
+        }
+      });
     }
+
+    const totalSkipped = skippedUserIds.length + failedCount;
+
+    if (failedCount > 0 && failedCount === notificationsToInsert.length) {
+      return { success: false, skippedCount: totalSkipped, error: lastError };
+    }
+
+    return { success: true, skippedCount: totalSkipped };
   };
 
   const markNotificationAsRead = async (id: string) => {
@@ -2865,59 +2765,14 @@ export default function App() {
   const [reportIssueNote, setReportIssueNote] = useState('');
 
   const handleSingleOrBulkReportIssue = async (apps: Application[]) => {
-    if (apps.length === 0 || !reportIssueNote.trim()) return;
-    
     setIsSavingApp(true);
-    try {
-        const updatedApps = apps.map(app => {
-            const logEntry: ApplicationStepHistory = {
-                id: Math.random().toString(36).substr(2, 9),
-                stepName: app.currentStep,
-                dept: (
-                  userRole === 'ADMIN' ? 'ADMIN' : 
-                  userRole === 'MANAGER' ? 'KT' : 
-                  userRole === 'MANAGER_PTT' ? 'PTT' :
-                  userRole === 'MANAGER_KT' ? 'KT' :
-                  userRole === 'MANAGER_PTDA' ? 'PTDA' :
-                  userRole === 'MANAGER_ALL' ? 'ADMIN' :
-                  (userRole as Dept)
-                ),
-                receivedDate: new Date().toISOString(),
-                note: `[BÁO SAI SÓT - ${reportIssueSeverity}] ${reportIssueNote}`,
-                performedBy: currentUser?.id,
-                performedByName: currentUser?.name || 'Hệ thống', // ✅ FIX: 7. Thay thế chuỗi tên người dùng hardcode 'Admin' bằng biến động currentUser?.name
-            };
-            return {
-                ...app,
-                status: 'Error' as const,
-                issueType: reportIssueType,
-                issueSeverity: reportIssueSeverity,
-                issueNotes: reportIssueNote,
-                history: [logEntry, ...(app.history || [])]
-            };
-        });
-
-        const syncedApps = await bulkSyncRecordsToSupabase(updatedApps, applications);
-        
-        handleSetApplications(prev => prev.map(a => {
-            const updated = syncedApps.find(sa => sa.id === a.id);
-            return updated ? updated : a;
-        }));
-
-        handleSetDashboardApps(prev => prev.map(a => {
-            const updated = syncedApps.find(sa => sa.id === a.id);
-            return updated ? updated : a;
-        }));
-        
-        setIsReportIssueFormOpen(false);
-        setReportIssueNote('');
-        showToast(`Đã báo cáo sai sót cho ${apps.length} hồ sơ thành công.`, 'success');
-    } catch(e) {
-        console.error(e);
-        showToast('Lỗi khi ghi nhận sai sót hàng loạt.', 'error');
-    } finally {
-        setIsSavingApp(false);
+    const result = await reportIssue(apps, reportIssueType, reportIssueSeverity, reportIssueNote);
+    if (result.success) {
+      setIsReportIssueFormOpen(false);
+      setReportIssueNote('');
     }
+    showToast(result.message, result.success ? 'success' : 'error');
+    setIsSavingApp(false);
   };
 
   const [bulkTransitionTarget, setBulkTransitionTarget] = useState<StepName | null>(null);
@@ -3696,18 +3551,6 @@ export default function App() {
     setIsPrintingHandover(true);
   };
 
-  const createAuditEntry = (action: string, isBulk: boolean, count: number, unitCode: string, detail?: string): AuditTrailEntry => {
-    const mode = isBulk ? '[Hàng loạt]' : '[Thủ công]';
-    return {
-      id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      userId: currentUser?.id || 'admin',
-      userName: currentUser?.name || 'Admin',
-      timestamp: new Date().toISOString(),
-      action: `${mode} ${action}`,
-      changes: detail || (isBulk ? `Xử lý đồng thời ${count} hồ sơ` : `Cập nhật hồ sơ ${unitCode}`)
-    };
-  };
-
   const handleUpdateApp = async () => {
     if (!editApp || !selectedApp) return;
     setIsSavingApp(true);
@@ -3841,119 +3684,24 @@ export default function App() {
     const app = overrideApp || editApp || selectedApp;
     if (!app) return;
 
-    // Sử dụng WorkflowEngine tập trung
-    const transitionCheck = WorkflowEngine.validateTransition(app, nextStep, userRole);
-    if (!transitionCheck.success) {
-      if (transitionCheck.requiresHandoverDate) {
-        setSelfServiceHandoverModal({ app, nextStep });
-        return;
-      }
-      showToast(transitionCheck.message || 'Lỗi chuyển bước', transitionCheck.type as 'error' | 'warning');
+    const result = await stepTransition(app, nextStep, note, localSyncRecord, deleteAllNotificationsForRecord);
+
+    if (result.requiresHandoverDate) {
+      setSelfServiceHandoverModal({ app, nextStep });
       return;
     }
-    
-    const targetStep = transitionCheck.nextStep || nextStep;
-    console.log(`[Manual Update Step] mode=RUNTIME app=${app.unitCode}, ${app.currentStep} -> ${targetStep}`);
-    
-    const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
-    const currentIdx = workflowSteps.indexOf(app.currentStep as StepName);
-    const nextIdx = workflowSteps.indexOf(targetStep);
-    const isMovingForward = nextIdx > currentIdx;
 
-    const nowStr = new Date().toISOString().split('T')[0];
-    const fullNow = new Date().toISOString();
-    const prevHistory = [...app.history];
-    if (prevHistory.length > 0) {
-      prevHistory[0] = { ...prevHistory[0], completedDate: fullNow };
+    if (!result.success) {
+      showToast(result.message, (result.type as 'error' | 'warning') || 'error');
+      return;
     }
 
-    const currentStepLabel = (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep]).label;
-    const targetStepLabel = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label;
-    const nextDeptLabel = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).dept;
-    const transitionDirection = isMovingForward ? 'Chuyển' : 'Trả hồ sơ';
-    const handoverNote = note || `${transitionDirection} từ bước [${currentStepLabel}] sang [${targetStepLabel}] (Bộ phận xử lý tiếp theo: ${nextDeptLabel})`;
-
-    const newHistory = [
-      {
-        id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        stepName: targetStepLabel,
-        dept: nextDeptLabel,
-        receivedDate: fullNow,
-        note: handoverNote,
-        performedBy: currentUser?.id,
-        performedByName: currentUser?.name
-      },
-      ...prevHistory
-    ];
-
-    const autoDates: Partial<Application> = {};
-    // Removed auto-populate dates based on transition
-
-    // Auto handover status
-    autoDates.isHandedOver = isMovingForward;
-
-    let targetStatus = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).status;
-    
-    // Business Logic updates
-    if (targetStep === 'S2_KT_Tiep_Nhan') targetStatus = 'WaitingVPDK'; // CHỜ NỘP VPĐK
-    if (targetStep === 'S5_1_PTDA_TiepNhan') targetStatus = 'TaxPaid'; // ĐÃ NỘP THUẾ
-    if (targetStep === 'S7_2_Ban_Giao_Khach' || targetStep === 'GD6_Cho_BG_Khach' || targetStep === 'GD5_Cho_PTT_TiepNhan_BG') {
-       targetStatus = app.customerHandoverDate ? 'Completed' : 'WaitingHandover';
+    if (result.finalApp) {
+      setSelectedApp(result.finalApp);
     }
-
-    if (targetStep === 'Hoan_Tat') targetStatus = 'Completed';
-
-    if (targetStatus === 'TaxCompleted' && !app.taxReceiptDate) {
-      targetStatus = 'TaxPending'; // Fallback if no receipt date yet
-    }
-    
-    // If it's a return, set status to Error/Rejection
-    const finalStatus = !isMovingForward ? 'Error' : (targetStep === 'S1_ChuanBi' ? 'Error' : targetStatus);
-
-    const updatedApp = {
-      ...app,
-      ...autoDates,
-      currentStep: targetStep,
-      status: finalStatus,
-      isRejected: !isMovingForward,
-      rejectionReason: !isMovingForward ? note : (targetStep === 'S1_ChuanBi' ? app.rejectionReason : ''),
-      history: newHistory,
-      auditTrail: [
-        createAuditEntry(
-          'Chuyển bước xử lý', 
-          false, 
-          1, 
-          app.unitCode, 
-          `Từ: ${(stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep]).label} -> ${(stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label}`
-        ), 
-        ...(app.auditTrail || [])
-      ]
-    };
-
-    const originalApp = app;
-    try {
-      const finalApp = await localSyncRecord(updatedApp);
-      // Notification tự động qua Supabase DB Trigger + Edge Function notify-step-change
-      // Không cần gọi từ client nữa để tránh duplicate
-
-      // Cleanup notifications if complete
-      if (targetStep === 'Hoan_Tat') {
-        await deleteAllNotificationsForRecord(app.id);
-      }
-
-      handleSetApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
-      handleSetDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
-      setSelectedApp(finalApp);
-      setEditApp(null);
-      setIsEditing(false);
-      showToast(`Đã chuyển hồ sơ sang bước: ${(stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label} (Đã đồng bộ Supabase)`, 'success');
-    } catch (error) {
-      console.error('Supabase transition error:', error);
-      setSelectedApp(originalApp);
-      setEditApp(null);
-      setIsEditing(false);
-      showToast('Lỗi đồng bộ Supabase. Hồ sơ chưa được chuyển bước — vui lòng thử lại.', 'error');
-    }
+    setEditApp(null);
+    setIsEditing(false);
+    showToast(result.message, 'success');
   };
 
   const handleBulkStepTransition = (nextStep: StepName, overrideIds?: (string | number)[]) => {
@@ -4046,244 +3794,50 @@ export default function App() {
   };
 
   const executeBulkStepTransition = async (nextStep: StepName, dateValue: string | null, location?: string, refCode?: string, ktHandoverDate?: string) => {
-    if (selectedAppIds.length === 0) return;
-    
-    // Check if mandatory date is provided
-    if (bulkTransitionField && bulkTransitionField.isRequired !== false && !dateValue) {
-      showToast(`Vui lòng nhập ${bulkTransitionField.label} trước khi xác nhận.`, 'warning');
+    setIsSavingApp(true);
+
+    const result = await executeBulkStepTransitionAction(
+      selectedAppIds,
+      nextStep,
+      dateValue,
+      bulkTransitionField,
+      location,
+      refCode,
+      ktHandoverDate,
+      localBulkSync,
+      bulkNotifyNextDepartment,
+      bulkDeleteNotificationsForRecords
+    );
+
+    if (!result.success) {
+      if (result.message) {
+        showToast(result.message, (result.type as 'error' | 'warning') || 'error');
+      }
+      setIsSavingApp(false);
       return;
     }
 
-    if (nextStep === 'S3_Nop_VPDK') {
-      const q2Selected = applications.some(app => selectedAppIds.includes(app.id) && app.workflowType === 'Quy_trinh_2');
-      // No longer mandatory here as it should be done at S2_KT_Ban_giao
+    if (selectedApp && selectedAppIds.includes(selectedApp.id) && result.finalApps) {
+      const updatedSelected = result.finalApps.find(fa => fa.id === selectedApp.id);
+      if (updatedSelected) {
+        setSelectedApp(updatedSelected);
+      }
     }
 
-    const nowStr = new Date().toISOString().split('T')[0];
-    const updatedCount = selectedAppIds.length;
-    setIsSavingApp(true);
-    
-    try {
-      const chronoErrors: string[] = [];
-      const chronoWarnings: string[] = [];
-      
-      // Preliminary Chronology Check — collect ALL errors before proceeding
-      for (const app of applications) {
-        if (!selectedAppIds.includes(app.id)) continue;
-        
-        const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
-        const currentIdx = workflowSteps.indexOf(app.currentStep);
-        
-        // Use the centralized determineTargetStep logic to match runtime step resolution perfectly
-        let recordNextStep = nextStep;
-        const { finalStep, isJump } = WorkflowEngine.determineTargetStep(app, nextStep);
-        if (isJump) {
-          recordNextStep = finalStep;
-        }
-        
-        const nextIdx = workflowSteps.indexOf(recordNextStep);
-        if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
-          if (nextIdx !== currentIdx + 1 && !isJump) continue;
-        }
-        
-        let appWithDateForCheck = { ...app };
-        if (bulkTransitionField && dateValue) {
-          const existingValue = (app as any)[bulkTransitionField.key];
-          (appWithDateForCheck as any)[bulkTransitionField.key] = existingValue || dateValue;
-        }
+    setSelectedAppIds([]);
+    setIsBulkTransitionModalOpen(false);
+    setBulkTransitionTarget(null);
+    setBulkTransitionField(null);
 
-        const chronoError = validateDateSequence(appWithDateForCheck);
-        if (chronoError) {
-          if (chronoError.startsWith('⚠️')) {
-            chronoWarnings.push(`Căn ${app.unitCode}: ${chronoError}`);
-          } else {
-            chronoErrors.push(`Căn ${app.unitCode}: ${chronoError}`);
-          }
-        }
-      }
-
-      // Block execution if any hard chrono errors found
-      if (chronoErrors.length > 0) {
-        showToast(`Lỗi trình tự ngày: ${chronoErrors[0]}`, 'error');
-        setIsSavingApp(false);
-        return;
-      }
-
-      let actuallyUpdatedCount = 0;
-
-      const updatedApps = applications.map(app => {
-        if (!selectedAppIds.includes(app.id)) return app;
-        
-        // Security check: Only move apps that are in the expected source step for this bulk action
-        // This prevents the issue where one dept accepts apps that haven't been handed over by the previous dept
-        const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
-        const currentIdx = workflowSteps.indexOf(app.currentStep);
-        
-        // Apply bulk date update if provided FIRST so transition check works with the updated date
-        let appWithDate = { ...app };
-        if (bulkTransitionField && dateValue) {
-          const existingValue = (app as any)[bulkTransitionField.key];
-          (appWithDate as any)[bulkTransitionField.key] = existingValue || dateValue;
-        }
-
-        // --- PRIORITIZED SELF-SERVICE JUMP LOGIC (Bulk) ---
-        let recordNextStep = nextStep;
-        const transitionCheck = WorkflowEngine.validateTransition(appWithDate, nextStep, userRole);
-        if (transitionCheck.success && transitionCheck.nextStep) {
-          recordNextStep = transitionCheck.nextStep;
-        }
-
-        const nextIdx = workflowSteps.indexOf(recordNextStep);
-        const isMovingForward = nextIdx > currentIdx;
-        
-        if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
-          if (nextIdx !== currentIdx + 1 && recordNextStep !== transitionCheck.nextStep) {
-            return app;
-          }
-        }
-
-        actuallyUpdatedCount++;
-
-        // Save location and refCode if provided in the bulk transition (usually for nộp VPĐK steps)
-        const vpdKSteps = [
-          'S3_Nop_VPDK', 'S5_Tai_Chinh_Khach_Hang',
-          'GD3_Nop_VPDK', 'GD4_Cho_Nop_NVTC', 'Hoan_Tat'
-        ];
-        if (vpdKSteps.includes(recordNextStep as string)) {
-          if (location !== undefined) appWithDate.submissionLocation = location as any;
-          if (refCode !== undefined) appWithDate.vpdkCode = refCode;
-        }
-
-        if (recordNextStep === 'S2_KT_Ban_giao' && ktHandoverDate) {
-          appWithDate.ktHandoverToPtdaDate = ktHandoverDate;
-        }
-        
-        let targetStep = recordNextStep;
-        console.log(`[Bulk Update Step] mode=RUNTIME app=${appWithDate.unitCode}, ${appWithDate.currentStep} -> ${targetStep}`);
-        
-        const prevHistory = [...appWithDate.history];
-        if (prevHistory.length > 0) {
-          prevHistory[0] = { ...prevHistory[0], completedDate: nowStr };
-        }
-        
-        const note = `Chuyển hàng loạt ${dateValue ? `(Cập nhật ${bulkTransitionField?.label}: ${dateValue})` : ''}`;
-
-        const nextDeptLabel = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).dept;
-        const handoverNote = `Hồ sơ đã hoàn tất và tự động bàn giao sang bộ phận ${nextDeptLabel}`;
-        
-        const newHistory = [
-          {
-            id: `hist-${Date.now()}-${appWithDate.id}`,
-            stepName: (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label,
-            dept: nextDeptLabel,
-            receivedDate: new Date().toISOString(),
-            note: `${note}. ${handoverNote}`,
-            performedBy: currentUser?.id,
-            performedByName: currentUser?.name
-          },
-          ...prevHistory
-        ];
-        
-        // Removed auto-populate dates based on transition
-        const autoDates: Partial<Application> = {};
-
-        // Auto handover logic
-        autoDates.isHandedOver = isMovingForward;
-
-        let targetStatus = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).status;
-        
-        // Business Logic updates
-        if (targetStep === 'S2_KT_Tiep_Nhan' || targetStep === 'GD1_Cho_KT_TiepNhan') targetStatus = 'WaitingVPDK'; // CHỜ NỘP VPĐK
-        if (targetStep === 'GD4_Cho_Nop_NVTC') targetStatus = 'TaxPending'; // CHỜ TB THUẾ / CHỜ ĐÓNG THUẾ
-        if (targetStep === 'S5_1_PTDA_TiepNhan') targetStatus = 'TaxPaid'; // ĐÃ NỘP THUẾ
-        if (targetStep === 'S7_2_Ban_Giao_Khach' || targetStep === 'GD6_Cho_BG_Khach' || targetStep === 'GD5_Cho_PTT_TiepNhan_BG') {
-           targetStatus = app.customerHandoverDate ? 'Completed' : 'WaitingHandover';
-        }
-
-        if (targetStep === 'Hoan_Tat') targetStatus = 'Completed';
-
-        if (targetStatus === 'TaxCompleted' && !appWithDate.taxReceiptDate) {
-          targetStatus = 'TaxPending';
-        }
-
-        return {
-          ...appWithDate,
-          ...autoDates,
-          currentStep: targetStep,
-          status: targetStep === 'S1_ChuanBi' ? 'Error' : targetStatus,
-          isRejected: !isMovingForward,
-          rejectionReason: targetStep === 'S1_ChuanBi' ? appWithDate.rejectionReason : '',
-          history: newHistory,
-          auditTrail: [
-            createAuditEntry(
-              'Chuyển bước hàng loạt', 
-              true, 
-              updatedCount, 
-              appWithDate.unitCode, 
-              `Từ: ${(stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep]).label} -> ${(stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label}`
-            ), 
-            ...(appWithDate.auditTrail || [])
-          ]
-        };
-      });
-
-      if (actuallyUpdatedCount === 0) {
-        showToast('Không có hồ sơ nào đủ điều kiện để thực hiện chuyển bước này hàng loạt.', 'warning');
-        setIsSavingApp(false);
-        return;
-      }
-
-      const appsToSync = updatedApps.filter(app => {
-        const original = applications.find(a => a.id === app.id);
-        return original && original.currentStep !== app.currentStep;
-      });
-      
-      // Perform bulk upsert to Supabase
-      const finalApps = await localBulkSync(appsToSync, updatedApps);
-      handleSetApplications(finalApps);
-      handleSetDashboardApps(prev => {
-        const next = [...prev];
-        appsToSync.forEach(synced => {
-          const idx = next.findIndex(a => a.id === synced.id);
-          const foundInFinal = finalApps.find(fa => fa.unitCode === synced.unitCode);
-          if (idx !== -1 && foundInFinal) {
-            next[idx] = foundInFinal;
-          } else if (foundInFinal) {
-            next.push(foundInFinal);
-          }
-        });
-        return next;
-      });
-
-      if (selectedApp && selectedAppIds.includes(selectedApp.id)) {
-        const updatedSelected = finalApps.find(fa => fa.id === selectedApp.id);
-        if (updatedSelected) {
-          setSelectedApp(updatedSelected);
-        }
-      }
-
-      // Notifications for bulk transition
-      await bulkNotifyNextDepartment(appsToSync, nextStep);
-
-      // Cleanup notifications for finished apps
-      if (nextStep === 'Hoan_Tat') {
-        await bulkDeleteNotificationsForRecords(selectedAppIds);
-      }
-
-      setSelectedAppIds([]);
-      setIsBulkTransitionModalOpen(false);
-      setBulkTransitionTarget(null);
-      setBulkTransitionField(null);
-      if (chronoWarnings.length > 0) {
-        showToast(`Các lưu ý ngày tương lai: ${chronoWarnings.slice(0, 3).join(', ')}${chronoWarnings.length > 3 ? '...' : ''}`, 'warning');
-      }
-      showToast(`Đã xử lý hàng loạt ${actuallyUpdatedCount} hồ sơ lên Supabase thành công.`, 'success');
-    } catch (error) {
-      console.error('Supabase bulk transition error:', error);
-     showToast('Lỗi khi cập nhật hàng loạt lên Supabase.', 'error');
-    } finally {
-      setIsSavingApp(false);
+    if (result.chronoWarnings && result.chronoWarnings.length > 0) {
+      showToast(
+        `Các lưu ý ngày tương lai: ${result.chronoWarnings.slice(0, 3).join(', ')}${result.chronoWarnings.length > 3 ? '...' : ''}`,
+        'warning'
+      );
     }
+
+    showToast(result.message, (result.type as 'success' | 'warning') || 'success');
+    setIsSavingApp(false);
   };
 
 
@@ -4345,59 +3899,10 @@ export default function App() {
   };
 
   const handleBulkResolveIssues = async () => {
-    const appsToResolve = applications.filter(a => 
-      selectedRows.has(a.id) && 
-      (a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None'))
-    );
-    if (appsToResolve.length === 0) return;
-    
     setIsSavingApp(true);
-    try {
-      const updatedApps = appsToResolve.map(app => {
-        const stepCfg = stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep];
-        
-        const newHistory = [
-          {
-            id: `resolve-${Date.now()}-${app.id}`,
-            stepName: stepCfg.label,
-            dept: userRole as Dept,
-            receivedDate: new Date().toISOString(),
-            note: 'Đã khắc phục xong sai sót/vướng mắc. Sẵn sàng chuyển bước tiếp theo.',
-            performedBy: currentUser?.id,
-            performedByName: currentUser?.name
-          },
-          ...app.history
-        ];
-
-        const auditEntry = createAuditEntry('Khắc phục vướng mắc', false, 1, app.unitCode, 'Đã xác nhận hoàn tất khắc phục sai sót/vướng mắc');
-        
-        return {
-          ...app,
-          status: stepCfg.status,
-          isRejected: false,
-          issueType: 'None' as const,
-          issueSeverity: 'Minor' as const,
-          issueNotes: '',
-          issueStatus: 'RESOLVED' as const,
-          history: newHistory,
-          auditTrail: [auditEntry, ...(app.auditTrail || [])]
-        };
-      });
-
-      const finalApps = await bulkSyncRecordsToSupabase(updatedApps, applications);
-      handleSetApplications(finalApps);
-      handleSetDashboardApps(prev => {
-        const validIds = new Set(finalApps.map(a => a.id));
-        return prev.map(a => validIds.has(a.id) ? finalApps.find(f => f.id === a.id) || a : a);
-      });
-
-      showToast(`Đã xác nhận khắc phục thành công cho ${updatedApps.length} hồ sơ.`, 'success');
-    } catch (e) {
-      console.error(`Bulk resolve error:`, e);
-      showToast('Lỗi khi cập nhật trạng thái hàng loạt.', 'error');
-    } finally {
-      setIsSavingApp(false);
-    }
+    const result = await bulkResolveIssues(selectedRows);
+    showToast(result.message, result.success ? 'success' : 'error');
+    setIsSavingApp(false);
   };
 
 
@@ -4611,25 +4116,7 @@ export default function App() {
     );
   };
 
-  function updateAppIssue(
-    app: Application, 
-    note: string, 
-    type: IssueType = 'Sai sót Khác', 
-    severity: IssueSeverity = 'Moderate'
-  ): Application {
-    const auditEntry = createAuditEntry('Ghi nhận vướng mắc', false, 1, app.unitCode, `Loại: ${type}. Ghi chú: ${note}`);
-    
-    return {
-      ...app,
-      status: 'Error' as const,
-      issueNotes: note,
-      issueType: type,
-      issueSeverity: severity,
-      issueStatus: 'OPEN',
-      issueCreatedAt: new Date().toISOString(),
-      auditTrail: [auditEntry, ...(app.auditTrail || [])]
-    };
-  }
+
 
   // Deprecated
   const handleReportErrorOld = async (note: string) => {
@@ -4670,375 +4157,63 @@ export default function App() {
   const handleResolveError = async () => {
     const app = editApp || selectedApp;
     if (!app) return;
-
-    const newHistory = [
-      {
-        id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        stepName: 'Khắc phục lỗi',
-        dept: userRole as Dept,
-        receivedDate: new Date().toISOString(),
-        note: 'Đã khắc phục', // Updated note
-        performedBy: currentUser?.id,
-        performedByName: currentUser?.name
-      },
-      ...app.history
-    ];
-
-    const updatedApp = {
-      ...app,
-      status: (stepConfig[app.currentStep]?.status || 'Processing') as any,
-      issueType: 'None' as const,
-      issueSeverity: 'Minor' as const,
-      issueNotes: '',
-      issueStatus: 'RESOLVED' as const,
-      isRejected: false,
-      history: newHistory
-    };
-
     setIsSavingApp(true);
-    try {
-      const finalApp = await localSyncRecord(updatedApp);
-
-      handleSetApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
-      setSelectedApp(finalApp);
-      showToast('Đã phục hồi trạng thái và đồng bộ Supabase thành công.', 'success');
-    } catch (error) {
-      console.error('Supabase resolve error:', error);
-     showToast('Lỗi khi lưu trạng thái phục hồi lên Supabase.', 'error');
-    } finally {
-      setIsSavingApp(false);
+    const result = await resolveError(app, localSyncRecord);
+    if (result.success && result.finalApp) {
+      setSelectedApp(result.finalApp);
     }
+    showToast(result.message, result.success ? 'success' : 'error');
+    setIsSavingApp(false);
   };
 
   const handleResolveIssue = async (appId: string) => {
-    try {
-      const app = applications.find(a => a.id === appId);
-      if (!app) return;
-      
-      const stepCfg = stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep];
-      
-      const newHistory = [
-        {
-          id: `resolve-${Date.now()}`,
-          stepName: stepCfg.label,
-          dept: userRole as Dept,
-          receivedDate: new Date().toISOString(),
-          note: 'Đã khắc phục xong sai sót/vướng mắc. Sẵn sàng chuyển bước tiếp theo.',
-          performedBy: currentUser?.id,
-          performedByName: currentUser?.name
-        },
-        ...app.history
-      ];
-
-      const updatedApp = {
-        ...app,
-        status: stepCfg.status,
-        isRejected: false,
-        issueType: 'None' as const,
-        issueSeverity: 'Minor' as const,
-        issueNotes: '',
-        issueStatus: 'RESOLVED' as const,
-        history: newHistory
-      };
-
-      const auditEntry = createAuditEntry('Khắc phục vướng mắc', false, 1, app.unitCode, 'Đã xác nhận hoàn tất khắc phục sai sót/vướng mắc');
-      const updatedAppWithAudit = {
-        ...updatedApp,
-        auditTrail: [auditEntry, ...(app.auditTrail || [])]
-      };
-
-      const finalApp = await localSyncRecord(updatedAppWithAudit);
-      
-      handleSetApplications(prev => prev.map(a => a.id === appId ? finalApp : a));
-      handleSetDashboardApps(prev => prev.map(a => a.id === appId ? finalApp : a));
-      setSelectedApp(finalApp);
-      showToast('Đã xác nhận khắc phục xong vướng mắc.', 'success');
-    } catch (error) {
-      console.error(error);
-     showToast('Lỗi khi cập nhật trạng thái.', 'error');
-    }
+    const result = await resolveIssue(appId, localSyncRecord);
+    showToast(result.message, result.success ? 'success' : 'error');
   };
 
   const handleProposeException = async (appId: string, reason: string) => {
-    try {
-      const app = applications.find(a => a.id === appId);
-      if (!app) return;
-
-      const newHistory = [
-        {
-          id: `propose-${Date.now()}`,
-          stepName: stepConfig[app.currentStep]?.label || app.currentStep,
-          dept: userRole as Dept,
-          receivedDate: new Date().toISOString(),
-          note: `Đề xuất xử lý ngoại lệ: ${reason}`,
-          performedBy: currentUser?.id,
-          performedByName: currentUser?.name
-        },
-        ...app.history
-      ];
-
-      const check = app.checklist || {};
-      const updatedApp = {
-        ...app,
-        issueType: 'Sai sót Khác' as const,
-        issueNotes: `Đang chờ duyệt ngoại lệ: ${reason}`,
-        issueSeverity: 'Critical' as const,
-        issueStatus: 'OPEN' as const,
-        status: 'Error' as const,
-        checklist: {
-          ...check,
-          bypass_proposed: true,
-          bypass_gcn: false
-        },
-        history: newHistory
-      };
-
-      const auditEntry = createAuditEntry('Đề xuất ngoại lệ', false, 1, app.unitCode, `Đề xuất ngoại lệ thành công lý do: ${reason}`);
-      const updatedAppWithAudit = {
-        ...updatedApp,
-        auditTrail: [auditEntry, ...(app.auditTrail || [])]
-      };
-
-      const finalApp = await localSyncRecord(updatedAppWithAudit);
-      handleSetApplications(prev => prev.map(a => a.id === appId ? finalApp : a));
-      handleSetDashboardApps(prev => prev.map(a => a.id === appId ? finalApp : a));
-      setSelectedApp(finalApp);
-      showToast('Đã gửi đề xuất ngoại lệ.', 'success');
-    } catch (error) {
-      console.error(error);
-      showToast('Lỗi khi đề xuất ngoại lệ.', 'error');
+    const result = await proposeException(appId, reason, localSyncRecord);
+    if (result.success && result.finalApp) {
+      setSelectedApp(result.finalApp);
     }
+    showToast(result.message, result.success ? 'success' : 'error');
   };
 
   const handleApproveException = async (appId: string, notes: string) => {
-    try {
-      const app = applications.find(a => a.id === appId);
-      if (!app) return;
-
-      // Only departments with manager roles or admin can approve
-      const allowedRoles = ['ADMIN', 'DIRECTOR', 'MANAGER', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'];
-      if (!allowedRoles.includes(userRole)) {
-        showToast('Bạn không có quyền phê duyệt ngoại lệ!', 'error');
-        return;
-      }
-
-      const stepCfg = stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep];
-
-      const newHistory = [
-        {
-          id: `approve-${Date.now()}`,
-          stepName: stepCfg.label,
-          dept: userRole as Dept,
-          receivedDate: new Date().toISOString(),
-          note: `Đã phê duyệt ngoại lệ: ${notes}`,
-          performedBy: currentUser?.id,
-          performedByName: currentUser?.name
-        },
-        ...app.history
-      ];
-
-      const check = app.checklist || {};
-      const updatedApp = {
-        ...app,
-        status: stepCfg.status,
-        isRejected: false,
-        issueType: 'None' as const,
-        issueSeverity: 'Minor' as const,
-        issueNotes: '',
-        issueStatus: 'RESOLVED' as const,
-        checklist: {
-          ...check,
-          bypass_proposed: false,
-          bypass_gcn: true
-        },
-        history: newHistory
-      };
-
-      const auditEntry = createAuditEntry('Phê duyệt ngoại lệ', false, 1, app.unitCode, `Đã phê duyệt ngoại lệ thành công với ghi chú: ${notes}`);
-      const updatedAppWithAudit = {
-        ...updatedApp,
-        auditTrail: [auditEntry, ...(app.auditTrail || [])]
-      };
-
-      const finalApp = await localSyncRecord(updatedAppWithAudit);
-      handleSetApplications(prev => prev.map(a => a.id === appId ? finalApp : a));
-      handleSetDashboardApps(prev => prev.map(a => a.id === appId ? finalApp : a));
-      setSelectedApp(finalApp);
-      showToast('Đã phê duyệt ngoại lệ thành công.', 'success');
-    } catch (error) {
-      console.error(error);
-      showToast('Lỗi khi phê duyệt ngoại lệ.', 'error');
+    const result = await approveException(appId, notes, localSyncRecord);
+    if (result.success && result.finalApp) {
+      setSelectedApp(result.finalApp);
     }
+    showToast(result.message, result.success ? 'success' : 'error');
   };
 
   const handleRejectApp = async (reason: string) => {
     const app = editApp || selectedApp;
     if (!app) return;
 
-    // Restriction: Only authorized depts can reject apps
-    const allowedDepts: string[] = ['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'];
-    if (!allowedDepts.includes(userRole)) {
-      showToast('Bạn không có quyền Trả về / Yêu cầu bổ sung hồ sơ.', 'error');
-      return;
-    }
-
-    // Determine previous step dynamically
-    const stepKeys = Object.keys(stepConfig);
-    const currentIndex = stepKeys.indexOf(app.currentStep);
-    const prevStep = currentIndex > 0 ? stepKeys[currentIndex - 1] as StepName : app.currentStep;
-
-    const newHistory = [
-      {
-        id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        stepName: 'Yêu cầu chỉnh sửa / Bổ sung',
-        dept: userRole as Dept,
-        receivedDate: new Date().toISOString(),
-        note: `Hồ sơ sai sót/cần bổ sung: ${reason}`,
-        performedBy: currentUser?.id,
-        performedByName: currentUser?.name
-      },
-      ...app.history
-    ];
-
-    const updatedApp = {
-      ...updateAppIssue(app, reason, 'Sai sót Khác'),
-      currentStep: prevStep,
-      rejectionCount: (app.rejectionCount || 0) + 1,
-      isRejected: true,
-      rejectionReason: reason,
-      history: newHistory, // ✅ FIX: 5. Vá logic để mảng newHistory phải được gán trực tiếp vào đối tượng updatedApp trước khi thực hiện đồng bộ sync lên Supabase
-    };
-
     setIsSavingApp(true);
-    try {
-      // Create notification for users in the previous step's department
-      const prevStepConfig = stepConfig[prevStep] || INITIAL_STEP_CONFIG[prevStep];
-      const targetDept = prevStepConfig.dept;
-      const targetUsers = users.filter(u => u.dept === targetDept && u.id !== currentUser?.id);
-      
-      const promises = targetUsers.map(u => 
-        createNotification({
-          recipientId: u.id,
-          title: 'Hồ sơ bị trả về / Cần bổ sung',
-          message: `Hồ sơ lô ${app.unitCode} (${app.projectName}) bị Kế toán trả về: ${reason}`,
-          type: 'Urgent',
-          appId: app.id
-        })
-      );
-      await Promise.all(promises);
+    const result = await rejectApp(app, reason, localSyncRecord, createNotification);
 
-      const finalApp = await localSyncRecord(updatedApp);
-      const oldId = app.id;
-
-      handleSetApplications(prev => prev.map(a => a.id === oldId ? finalApp : a));
-      handleSetDashboardApps(prev => prev.map(a => a.id === oldId ? finalApp : a));
-      setSelectedApp(finalApp);
+    if (result.success && result.finalApp) {
+      setSelectedApp(result.finalApp);
       setEditApp(null);
       setIsEditing(false);
       setExpandedSections(prev => prev.includes('OTHER_SECTION') ? prev : [...prev, 'OTHER_SECTION']);
-      showToast('Hồ sơ đã được trả về giai đoạn 1 và cập nhật Supabase thành công.', 'warning');
-    } catch (error) {
-      console.error('Supabase reject error:', error);
-     showToast('Lỗi khi lưu yêu cầu bổ sung lên Supabase.', 'error');
-    } finally {
-      setIsSavingApp(false);
     }
+    showToast(result.message, result.success ? 'warning' : 'error');
+    setIsSavingApp(false);
   };
 
   const handleBulkRejectApps = async (reason: string) => {
     if (selectedAppIds.length === 0) return;
 
-    // Restriction: Only authorized depts can reject apps
-    const allowedDepts: string[] = ['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'];
-    if (!allowedDepts.includes(userRole)) {
-      showToast('Bạn không có quyền Trả về / Yêu cầu bổ sung hồ sơ.', 'error');
-      return;
-    }
-
-    const appsToReject = applications.filter(app => selectedAppIds.includes(app.id));
-    if (appsToReject.length === 0) return;
-
     setIsSavingApp(true);
-    try {
-      const updatedApps = appsToReject.map(app => {
-        const stepKeys = Object.keys(stepConfig);
-        const currentIndex = stepKeys.indexOf(app.currentStep);
-        const prevStep = currentIndex > 0 ? stepKeys[currentIndex - 1] as StepName : app.currentStep;
-
-        const auditEntry = createAuditEntry('Yêu cầu chỉnh sửa / Bổ sung', true, 1, app.unitCode, `Hồ sơ sai sót/cần bổ sung: ${reason}`);
-
-        return {
-          ...updateAppIssue(app, reason, 'Sai sót Khác'),
-          currentStep: prevStep,
-          rejectionCount: (app.rejectionCount || 0) + 1,
-          isRejected: true,
-          rejectionReason: reason,
-          auditTrail: [auditEntry, ...(app.auditTrail || [])],
-          history: [
-            {
-              id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              stepName: 'Yêu cầu chỉnh sửa / Bổ sung',
-              dept: userRole as Dept,
-              receivedDate: new Date().toISOString(),
-              note: `Hồ sơ bị trả về hàng loạt: ${reason}`,
-              performedBy: currentUser?.id,
-              performedByName: currentUser?.name
-            },
-            ...app.history
-          ]
-        };
-      });
-
-      const finalApps = await bulkSyncRecordsToSupabase(updatedApps, applications);
-
-      // Create notifications in bulk
-      const notificationsToInsert = updatedApps.flatMap(app => {
-        const stepKeys = Object.keys(stepConfig);
-        const originalApp = applications.find(a => a.id === app.id);
-        const currentIndex = stepKeys.indexOf(originalApp?.currentStep || '');
-        const prevStep = currentIndex > 0 ? stepKeys[currentIndex - 1] as StepName : app.currentStep;
-        
-        const prevStepConfig = stepConfig[prevStep] || INITIAL_STEP_CONFIG[prevStep];
-        const targetDept = prevStepConfig.dept;
-        const targetUsers = users.filter(u => u.dept === targetDept && u.id !== currentUser?.id);
-        
-        return targetUsers.map(u => ({
-          recipientId: u.id,
-          title: 'Hồ sơ bị trả về hàng loạt',
-          message: `Hồ sơ lô ${app.unitCode} bị trả về: ${reason}`,
-          type: 'Urgent',
-          appId: app.id
-        }));
-      });
-
-      if (notificationsToInsert.length > 0) {
-        try {
-          const snakeNotis = notificationsToInsert.map(n => {
-            const s = mapNotificationToSnakeCase(n as any);
-            if ((s as any).id) delete (s as any).id;
-            return s;
-          });
-          const { error: notiError } = await supabase.from('notifications').insert(snakeNotis);
-          if (notiError) console.error('Bulk notification error:', notiError);
-        } catch (err) {
-          console.error('Catch error in bulk notification:', err);
-        }
-      }
-
-      handleSetApplications(finalApps);
-      handleSetDashboardApps(prev => {
-        const validIds = new Set(finalApps.map(a => a.id));
-        return prev.map(a => validIds.has(a.id) ? finalApps.find(f => f.id === a.id) || a : a);
-      });
-      
+    const result = await bulkRejectApps(selectedAppIds, reason);
+    if (result.success) {
       setSelectedAppIds([]);
-      showToast(`Đã trả về ${updatedApps.length} hồ sơ thành công.`, 'warning');
-    } catch (error) {
-      console.error('Bulk reject error:', error);
-      showToast('Lỗi khi trả hồ sơ hàng loạt.', 'error');
-    } finally {
-      setIsSavingApp(false);
     }
+    showToast(result.message, result.success ? 'warning' : 'error');
+    setIsSavingApp(false);
   };
 
   const isFieldEditable = (fieldName: string, appToCheck?: Application) => {

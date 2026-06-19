@@ -1,5 +1,17 @@
-import { Application, UserProfile, UnitStatus, StepName } from '../types';
+import { Application, UserProfile, UnitStatus, StepName, AppNotification } from '../types';
 import { buildFlags } from './flagUtils';
+
+export const mapNotificationToSnakeCase = (noti: Partial<AppNotification>) => {
+  return {
+    user_id: noti.recipientId,
+    title: noti.title,
+    content: noti.message,
+    created_at: noti.time || new Date().toISOString(),
+    type: noti.type,
+    is_read: noti.isRead || false,
+    record_id: noti.appId
+  };
+};
 
 export const safeParse = (val: string | any, fallback: any) => {
   try {
