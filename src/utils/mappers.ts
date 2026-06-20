@@ -2,6 +2,14 @@ import { Application, UserProfile, UnitStatus, StepName, AppNotification } from 
 import { buildFlags } from './flagUtils';
 
 export const mapNotificationToSnakeCase = (noti: Partial<AppNotification>) => {
+  // record_id phải là bigint trong DB (xác nhận qua SQL) — ép kiểu về number
+  // để tránh lỗi 23503 type mismatch khi Postgres nhận string thay vì bigint.
+  // parseInt trả về NaN nếu appId không hợp lệ — dùng undefined để Postgres
+  // nhận NULL thay vì báo lỗi cast.
+  const recordId = noti.appId !== undefined && noti.appId !== null
+    ? parseInt(String(noti.appId), 10)
+    : undefined;
+
   return {
     user_id: noti.recipientId,
     title: noti.title,
@@ -9,7 +17,7 @@ export const mapNotificationToSnakeCase = (noti: Partial<AppNotification>) => {
     created_at: noti.time || new Date().toISOString(),
     type: noti.type,
     is_read: noti.isRead || false,
-    record_id: noti.appId
+    record_id: isNaN(recordId as number) ? undefined : recordId
   };
 };
 

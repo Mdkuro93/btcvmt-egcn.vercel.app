@@ -322,6 +322,7 @@ export function useDashboardStats(
         selfServiceRatioStats,
         ptt: { 
             total: pttTotal, 
+            totalAllVisibleRecords: dashboardApps.length,
             processing: pttProcessing, 
             issues: pttIssues, 
             taxPending: pttTaxPending, 
@@ -330,6 +331,7 @@ export function useDashboardStats(
         },
         kt: {
             total: ktTotal,
+            totalAllVisibleRecords: dashboardApps.length,
             received: ktNeedReceive,
             processing: ktProcessing,
             issues: ktIssues,
@@ -337,6 +339,7 @@ export function useDashboardStats(
         },
         ptda: {
             received: ptdaReceived,
+            totalAllVisibleRecords: dashboardApps.length,
             daNopVPDK: daNopVPDK.length,
             noTax: ptdaNoTax,
             noTaxPaid: ptdaTaxPending,

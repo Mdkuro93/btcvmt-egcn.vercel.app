@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { Application, Project, UserProfile, AppNotification, Dept, ApplicationStepHistory, AuditTrailEntry, IssueType, IssueSeverity, StepName } from '../types';
-import { mapFromSnakeCase, safeParse, mapToSnakeCase, mapNotificationToSnakeCase } from '../utils/mappers';
+import { mapFromSnakeCase, safeParse, mapToSnakeCase, mapNotificationToSnakeCase, mapUserToSnakeCase, mapUserFromSnakeCase } from '../utils/mappers';
 import { STEP_CONFIG as INITIAL_STEP_CONFIG, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS } from '../constants';
 import { useAuthStore } from './useAuthStore';
 import { WorkflowEngine } from '../utils/workflowEngine';
@@ -352,6 +352,51 @@ interface DataState {
     notifyResult?: { success: boolean; skippedCount: number } | undefined;
     finalApps?: Application[];
   }>;
+
+  createApp: (
+    newApp: Partial<Application>,
+    localRegisterSelfUpdate: (id: string | number) => void
+  ) => Promise<{ success: boolean; message: string; app?: Application }>;
+
+  updateApp: (
+    app: Application,
+    localSyncRecord: (app: Application) => Promise<Application>
+  ) => Promise<{ success: boolean; message: string; finalApp?: Application }>;
+
+  deleteApp: (
+    id: string,
+    code: string,
+    cleanupFilesForRecords: (ids: (string | number)[]) => Promise<void>
+  ) => Promise<{ success: boolean; message: string }>;
+
+  quickSave: (
+    id: string,
+    quickEditData: Record<string, any>,
+    localSyncRecord: (app: Application) => Promise<Application>
+  ) => Promise<{ success: boolean; message: string; finalApp?: Application }>;
+
+  createUser: (
+    userData: Partial<UserProfile>
+  ) => Promise<{ success: boolean; message: string; user?: UserProfile }>;
+
+  updateUser: (
+    user: UserProfile
+  ) => Promise<{ success: boolean; message: string }>;
+
+  deleteUser: (
+    id: string
+  ) => Promise<{ success: boolean; message: string }>;
+
+  resetUserPassword: (
+    userId: string,
+    username: string
+  ) => Promise<{ success: boolean; message: string }>;
+
+  updatePassword: (
+    userId: string,
+    currentPassword: string,
+    newPassword: string
+  ) => Promise<{ success: boolean; message: string }>;
 }
 
 export const useDataStore = create<DataState>((set, get) => ({
@@ -1485,6 +1530,270 @@ export const useDataStore = create<DataState>((set, get) => ({
     } catch (error) {
       console.error('Supabase bulk transition error:', error);
       return { success: false, message: 'Lỗi khi cập nhật hàng loạt lên Supabase.', type: 'error' };
+    }
+  },
+
+  createApp: async (newApp, localRegisterSelfUpdate) => {
+    const { currentUser } = useAuthStore.getState();
+    const { projects, stepConfig, setApplications, setDashboardApps } = get();
+
+    // Duplicate check trực tiếp trên DB (tránh lỗi pagination cache)
+    try {
+      const { data: dupData, error: dupError } = await supabase
+        .from('records')
+        .select('id')
+        .eq('project_name', newApp.projectName!)
+        .ilike('unit_code', newApp.unitCode!.trim())
+        .limit(1);
+      if (dupError) console.error('Error checking duplicate:', dupError);
+      else if (dupData && dupData.length > 0) {
+        return { success: false, message: 'Mã lô/căn đã tồn tại trong dự án này' };
+      }
+    } catch (e) {
+      console.error('Exception during duplicate check:', e);
+    }
+
+    try {
+      const parentProject = projects.find(p => p.name === newApp.projectName);
+      const inheritedWorkflowType = parentProject?.workflowType || 'Quy_trinh_1';
+      const initialStep: StepName = inheritedWorkflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
+      const initialStatus = (stepConfig as any)[initialStep]?.status || 'Processing';
+      const newId = crypto.randomUUID();
+      const histId = crypto.randomUUID();
+      const auditId = crypto.randomUUID();
+
+      const appToAddTemp: any = {
+        unitCode: newApp.unitCode,
+        customerName: newApp.customerName,
+        contractSignerType: newApp.contractSignerType,
+        projectName: newApp.projectName,
+        workflowType: inheritedWorkflowType,
+        propertyType: newApp.propertyType,
+        loanStatus: newApp.loanStatus,
+        submissionLocation: newApp.submissionLocation,
+        isSelfService: newApp.isSelfService,
+        commitmentDate: newApp.commitmentDate,
+        handoverApartmentDate: newApp.propertyType === 'Can_Ho' ? newApp.handoverApartmentDate : undefined,
+        currentStep: initialStep,
+        status: initialStatus,
+        receivedDate: newApp.receivedDate,
+        taxPaymentStatus: 'Unpaid',
+        checklist: {},
+        history: [{
+          id: histId,
+          stepName: (stepConfig[initialStep] || INITIAL_STEP_CONFIG[initialStep]).label,
+          dept: 'PTT',
+          receivedDate: new Date().toISOString(),
+          note: 'Khởi tạo hồ sơ mới',
+          performedBy: currentUser?.id,
+          performedByName: currentUser?.name
+        }],
+        auditTrail: [{
+          id: auditId,
+          userId: currentUser?.id || 'system',
+          userName: currentUser?.name || 'Hệ thống',
+          action: 'Tạo hồ sơ mới',
+          timestamp: new Date().toISOString(),
+          changes: ''
+        }]
+      };
+
+      const dataToInsert = mapToSnakeCase(appToAddTemp);
+      delete dataToInsert.id;
+
+      const { data, error } = await supabase
+        .from('records')
+        .insert(dataToInsert)
+        .select(RECORD_LIGHT_SELECT);
+
+      if (error) throw error;
+
+      const appToAdd = mapFromSnakeCase(data[0]);
+      if (appToAdd?.id) {
+        localRegisterSelfUpdate(appToAdd.id);
+
+        if (appToAddTemp.history?.length > 0) {
+          const historyPromises = appToAddTemp.history.map((h: any) => {
+            if (!h.id) return Promise.resolve();
+            return supabase.from('record_history').upsert({
+              id: h.id,
+              record_id: String(appToAdd.id),
+              step_name: h.stepName,
+              dept: h.dept,
+              received_date: h.receivedDate,
+              completed_date: h.completedDate || null,
+              note: h.note || '',
+              performed_by: h.performedBy || null,
+              performed_by_name: h.performedByName || null,
+            }, { onConflict: 'id' });
+          });
+          const historyResults = await Promise.all(historyPromises);
+          historyResults.forEach(res => {
+            if ((res as any).error) console.warn('Lỗi phụ khi ghi history cho hồ sơ mới:', (res as any).error);
+          });
+        }
+
+        if (appToAddTemp.auditTrail?.length > 0) {
+          const auditPromises = appToAddTemp.auditTrail.map((a: any) => {
+            if (!a.id) return Promise.resolve();
+            return supabase.from('record_audit_trail').upsert({
+              id: a.id,
+              record_id: String(appToAdd.id),
+              user_id: a.userId,
+              user_name: a.userName,
+              action: a.action,
+              changes: a.changes || '',
+              timestamp: a.timestamp,
+            }, { onConflict: 'id' });
+          });
+          const auditResults = await Promise.all(auditPromises);
+          auditResults.forEach(res => {
+            if ((res as any).error) console.warn('Lỗi phụ khi ghi audit trail cho hồ sơ mới:', (res as any).error);
+          });
+        }
+
+        appToAdd.history = appToAddTemp.history;
+        appToAdd.auditTrail = appToAddTemp.auditTrail;
+      }
+
+      setApplications(prev => [appToAdd, ...prev]);
+      setDashboardApps(prev => [appToAdd, ...prev]);
+
+      return { success: true, message: `Hồ sơ ${appToAdd.unitCode} đã được khởi tạo và đồng bộ Supabase!`, app: appToAdd };
+    } catch (error: any) {
+      console.error('Supabase insert error:', error);
+      return { success: false, message: `Lỗi khi lưu hồ sơ mới lên Supabase: ${error.message || ''}` };
+    }
+  },
+
+  updateApp: async (app, localSyncRecord) => {
+    try {
+      const auditEntry = createAuditEntry('Cập nhật thông tin', false, 1, app.unitCode, 'Chỉnh sửa chi tiết hồ sơ');
+      const updatedApp = { ...app, auditTrail: [auditEntry, ...(app.auditTrail || [])] };
+      const finalApp = await localSyncRecord(updatedApp);
+      const { setApplications, setDashboardApps } = get();
+      setApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
+      setDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
+      return { success: true, message: 'Đã cập nhật thông tin hồ sơ và đồng bộ Supabase thành công!', finalApp };
+    } catch (error: any) {
+      console.error('Supabase update error:', error);
+      return { success: false, message: `Lỗi khi lưu dữ liệu lên Supabase: ${error.message || 'Vui lòng kiểm tra cấu hình.'}` };
+    }
+  },
+
+  deleteApp: async (id, code, cleanupFilesForRecords) => {
+    try {
+      try { await cleanupFilesForRecords([id]); }
+      catch (cleanupErr) { console.warn('File cleanup warning (continuing with app delete):', cleanupErr); }
+
+      const { error } = await supabase.from('records').delete().eq('id', id);
+      if (error) throw error;
+
+      const { data: checkData } = await supabase.from('records').select('id').eq('id', id).maybeSingle();
+      if (checkData) {
+        throw new Error('Xóa không thành công - có thể do quyền truy cập. Vui lòng kiểm tra lại hoặc liên hệ Admin.');
+      }
+
+      const { setApplications, setDashboardApps } = get();
+      setApplications(prev => prev.filter(a => a.id !== id));
+      setDashboardApps(prev => prev.filter(a => a.id !== id));
+
+      return { success: true, message: 'Đã xóa hồ sơ và tài liệu đính kèm thành công' };
+    } catch (error: any) {
+      console.error('Delete app error:', error);
+      return { success: false, message: error.message || 'Lỗi khi xóa hồ sơ.' };
+    }
+  },
+
+  quickSave: async (id, quickEditData, localSyncRecord) => {
+    const { applications } = get();
+    const app = applications.find(a => a.id === id);
+    if (!app) return { success: false, message: 'Không tìm thấy hồ sơ.' };
+
+    const auditEntry = createAuditEntry('Cập nhật nhanh', false, 1, app.unitCode);
+    const updatedApp = { ...app, ...quickEditData, auditTrail: [auditEntry, ...(app.auditTrail || [])] };
+    if (updatedApp.status !== 'Error') updatedApp.status = app.status;
+
+    try {
+      const finalApp = await localSyncRecord(updatedApp);
+      const { setApplications, setDashboardApps } = get();
+      setApplications(prev => prev.map(a => a.id === id ? finalApp : a));
+      setDashboardApps(prev => prev.map(a => a.id === id ? finalApp : a));
+      return { success: true, message: 'Cập nhật nhanh và đồng bộ Supabase thành công!', finalApp };
+    } catch (error) {
+      console.error('Quick save error:', error);
+      return { success: false, message: 'Lỗi khi cập nhật nhanh lên Supabase.' };
+    }
+  },
+
+  createUser: async (userData) => {
+    try {
+      const snakeUser = mapUserToSnakeCase(userData as UserProfile);
+      delete (snakeUser as any).id;
+      const { data, error } = await supabase.from('users').insert(snakeUser).select('*').single();
+      if (error) throw error;
+      const newUser = mapUserFromSnakeCase(data);
+      const { setUsers } = get();
+      setUsers(prev => [...prev, newUser]);
+      return { success: true, message: `Đã tạo tài khoản ${newUser.username} thành công!`, user: newUser };
+    } catch (error: any) {
+      console.error('Create user error:', error);
+      return { success: false, message: `Lỗi tạo tài khoản: ${error.message || ''}` };
+    }
+  },
+
+  updateUser: async (user) => {
+    try {
+      const { error } = await supabase.from('users').update(mapUserToSnakeCase(user)).eq('id', user.id);
+      if (error) throw error;
+      const { setUsers } = get();
+      setUsers(prev => prev.map(u => u.id === user.id ? user : u));
+      return { success: true, message: 'Đã cập nhật tài khoản thành công!' };
+    } catch (error: any) {
+      console.error('Update user error:', error);
+      return { success: false, message: `Lỗi cập nhật tài khoản: ${error.message || ''}` };
+    }
+  },
+
+  deleteUser: async (id) => {
+    try {
+      const { error } = await supabase.from('users').delete().eq('id', id);
+      if (error) throw error;
+      const { setUsers } = get();
+      setUsers(prev => prev.filter(u => u.id !== id));
+      return { success: true, message: 'Đã xóa tài khoản thành công!' };
+    } catch (error: any) {
+      console.error('Delete user error:', error);
+      return { success: false, message: `Lỗi xóa tài khoản: ${error.message || ''}` };
+    }
+  },
+
+  resetUserPassword: async (userId, username) => {
+    try {
+      const { error } = await supabase.from('users').update({ password: '123456' }).eq('id', userId);
+      if (error) throw error;
+      return { success: true, message: `Đã reset mật khẩu tài khoản ${username} về 123456` };
+    } catch (error: any) {
+      console.error('Reset password error:', error);
+      return { success: false, message: `Lỗi reset mật khẩu: ${error.message || ''}` };
+    }
+  },
+
+  updatePassword: async (userId, currentPassword, newPassword) => {
+    try {
+      const { data: userData, error: fetchError } = await supabase
+        .from('users').select('password').eq('id', userId).single();
+      if (fetchError) throw fetchError;
+      if (userData?.password !== currentPassword) {
+        return { success: false, message: 'Mật khẩu hiện tại không đúng!' };
+      }
+      const { error: updateError } = await supabase
+        .from('users').update({ password: newPassword }).eq('id', userId);
+      if (updateError) throw updateError;
+      return { success: true, message: 'Đã cập nhật mật khẩu thành công!' };
+    } catch (error: any) {
+      console.error('Update password error:', error);
+      return { success: false, message: `Lỗi cập nhật mật khẩu: ${error.message || ''}` };
     }
   }
 }));

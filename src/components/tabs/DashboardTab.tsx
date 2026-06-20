@@ -70,7 +70,7 @@ export const DashboardTab = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <StatCard 
                       title="TỔNG SỐ LƯỢNG HỒ SƠ" 
-                      value={dashboardApps?.length ?? 0} 
+                      value={roleKpis.ptt.totalAllVisibleRecords} 
                       icon={Files} 
                       colorClass="bg-blue-500 shadow-blue-500/40" 
                       delay={0.1} 
@@ -113,7 +113,7 @@ export const DashboardTab = ({
 
                 {userRole === 'KT' && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <StatCard title="Tổng số lượng hồ sơ" value={roleKpis.kt.total} icon={Files} colorClass="bg-blue-500 shadow-blue-500/40" delay={0.1} theme={theme} isActive={dashboardFilter === 'ALL' || !dashboardFilter} onClick={() => handleDashboardClick('ALL')} />
+                    <StatCard title="Tổng số lượng hồ sơ" value={roleKpis.kt.totalAllVisibleRecords} icon={Files} colorClass="bg-blue-500 shadow-blue-500/40" delay={0.1} theme={theme} isActive={dashboardFilter === 'ALL' || !dashboardFilter} onClick={() => handleDashboardClick('ALL')} />
                     <StatCard title="Hồ sơ cần tiếp nhận" value={roleKpis.kt.received} icon={Files} colorClass="bg-info shadow-info/40" delay={0.15} theme={theme} isActive={dashboardFilter === 'KT_NEED_RECEIVE'} onClick={() => handleDashboardClick('KT_NEED_RECEIVE')} />
                     <StatCard title="Hồ sơ đang xử lý" value={roleKpis.kt.processing} icon={Activity} colorClass="bg-cyan-500 shadow-cyan-500/40" delay={0.2} theme={theme} isActive={dashboardFilter === 'KT_PROCESSING'} onClick={() => handleDashboardClick('KT_PROCESSING')} />
                     <StatCard title="Chờ hoàn thành NVTC" value={roleKpis.kt.taxPending} icon={Clock} colorClass="bg-warning shadow-warning/40" delay={0.25} theme={theme} isActive={dashboardFilter === 'KT_TAX_PENDING_COMPLETE'} onClick={() => handleDashboardClick('KT_TAX_PENDING_COMPLETE')} />
@@ -121,12 +121,13 @@ export const DashboardTab = ({
                 )}
 
                 {userRole === 'PTDA' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                    <StatCard title="Hồ sơ cần tiếp nhận" value={roleKpis.ptda.received} icon={Files} colorClass="bg-blue-500 shadow-blue-500/40" delay={0.05} theme={theme} isActive={dashboardFilter === 'PTDA_NEED_RECEIVE'} onClick={() => handleDashboardClick('PTDA_NEED_RECEIVE')} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                    <StatCard title="Tổng số lượng hồ sơ" value={roleKpis.ptda.totalAllVisibleRecords} icon={Files} colorClass="bg-blue-500 shadow-blue-500/40" delay={0.02} theme={theme} isActive={dashboardFilter === 'ALL' || !dashboardFilter} onClick={() => handleDashboardClick('ALL')} />
+                    <StatCard title="Hồ sơ cần tiếp nhận" value={roleKpis.ptda.received} icon={Files} colorClass="bg-indigo-500 shadow-indigo-500/40" delay={0.05} theme={theme} isActive={dashboardFilter === 'PTDA_NEED_RECEIVE'} onClick={() => handleDashboardClick('PTDA_NEED_RECEIVE')} />
                     <StatCard title="Đã nộp VPĐK" value={roleKpis.ptda.daNopVPDK} icon={CheckCircle2} colorClass="bg-emerald-500 shadow-emerald-500/40" delay={0.08} theme={theme} isActive={dashboardFilter === 'SUBMITTED_RECENT'} onClick={() => handleDashboardClick('SUBMITTED_RECENT')} />
-                    <StatCard title="Chờ TB Thuế" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-warning shadow-warning/40" delay={0.12} theme={theme} isActive={dashboardFilter === 'WAIT_TAX_NOTICE_OVERDUE'} onClick={() => handleDashboardClick('WAIT_TAX_NOTICE_OVERDUE')} />
+                    <StatCard title="Chờ TB Thuế" value={roleKpis.ptda.noTax} icon={Clock} colorClass="bg-amber-500 shadow-amber-500/40" delay={0.12} theme={theme} isActive={dashboardFilter === 'WAIT_TAX_NOTICE_OVERDUE'} onClick={() => handleDashboardClick('WAIT_TAX_NOTICE_OVERDUE')} />
                     <StatCard title="Chờ hoàn thành NVTC" value={roleKpis.ptda.noTaxPaid} icon={CheckCircle2} colorClass="bg-warning shadow-warning/40" delay={0.15} theme={theme} isActive={dashboardFilter === 'PTDA_TAX_PENDING_COMPLETE'} onClick={() => handleDashboardClick('PTDA_TAX_PENDING_COMPLETE')} />
-                    <StatCard title="CHỜ BÀN GIAO" value={roleKpis.ptda.gcnWaiting} icon={FileText} colorClass="bg-info shadow-info/40" delay={0.2} theme={theme} isActive={dashboardFilter === 'PTDA_WAIT_GCN_SIGN'} onClick={() => handleDashboardClick('PTDA_WAIT_GCN_SIGN')} />
+                    <StatCard title="CHỜ BÀN GIAO" value={roleKpis.ptda.gcnWaiting} icon={FileText} colorClass="bg-cyan-500 shadow-cyan-500/40" delay={0.2} theme={theme} isActive={dashboardFilter === 'PTDA_WAIT_GCN_SIGN'} onClick={() => handleDashboardClick('PTDA_WAIT_GCN_SIGN')} />
                   </div>
                 )}
 
