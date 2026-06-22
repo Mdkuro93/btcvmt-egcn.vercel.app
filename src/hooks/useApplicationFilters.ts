@@ -55,10 +55,10 @@ export const getComputedStageName = (r: any): string => {
     const hasGcn = checkNotEmpty(r.gcnReceivedDate);
 
     if (r.status === 'Completed' || r.currentStep === 'Hoan_Tat' || hasHandover) {
-      return 'HOÀN TẤT';
+      return '9. HOÀN TẤT';
     }
     else if (hasGcn) {
-      return 'CHỜ BÀN GIAO';
+      return '8. CHỜ BÀN GIAO';
     }
     else {
       return '1. ĐANG CHUẨN BỊ';
@@ -67,7 +67,7 @@ export const getComputedStageName = (r: any): string => {
 
   // Priority 1: Completed
   if (r.status === 'Completed' || r.currentStep === 'Hoan_Tat') {
-    return 'HOÀN TẤT';
+    return '9. HOÀN TẤT';
   }
   // Priority 2: WaitingHandover
   else if (r.status === 'WaitingHandover' || [
@@ -75,21 +75,21 @@ export const getComputedStageName = (r: any): string => {
     'S7_2_Ban_Giao_Khach', 'GD5_Cho_PTT_TiepNhan_BG', 
     'GD6_Cho_BG_Khach'
   ].includes(r.currentStep)) {
-    return 'CHỜ BÀN GIAO';
+    return '8. CHỜ BÀN GIAO';
   }
   // Priority 3: GCN_Issued
   else if (r.status === 'GCN_Issued' || [
     'S6_Nhan_So_GCN', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_GCN'
   ].includes(r.currentStep)) {
-    return 'ĐÃ CÓ GCN';
+    return '7. ĐÃ CÓ GCN';
   }
   // Priority 4: TaxCompleted / TaxPaid
-  else if (r.status === 'TaxPaid' || r.status === 'TaxCompleted' ||
-           r.currentStep === 'S5_1_PTDA_TiepNhan') {
+  else if ((r.status === 'TaxPaid' || r.status === 'TaxCompleted' ||
+           r.currentStep === 'S5_1_PTDA_TiepNhan') && !r.isRejected) {
     return '6. ĐÃ NỘP THUẾ';
   }
   // Priority 5: AWAITING_FINANCE (CHỜ HOÀN THÀNH NVTC)
-  else if (r.taxNotificationDate || r.taxNotificationReceivedDate) {
+  else if ((r.taxNotificationDate || r.taxNotificationReceivedDate) && !r.isRejected) {
     return '5. CHỜ HOÀN THÀNH NVTC';
   }
   else if ([
@@ -99,7 +99,7 @@ export const getComputedStageName = (r: any): string => {
     return '5. CHỜ HOÀN THÀNH NVTC';
   }
   // Priority 6: SUBMITTED / TAX_WARNING (phân loại theo SLA)
-  else if (r.status === 'Submitted' || r.status === 'TaxPending' || r.submissionDate) {
+  else if ((r.status === 'Submitted' || r.status === 'TaxPending' || r.submissionDate) && !r.isRejected) {
     if (r.submissionDate && !r.taxNotificationDate && !r.taxNotificationReceivedDate) {
       const daysDiff = (today.getTime() - new Date(r.submissionDate).getTime()) / (1000*60*60*24);
       if (daysDiff > submissionSLA) {
@@ -120,7 +120,7 @@ export const getComputedStageName = (r: any): string => {
     r.currentStep === 'S2_KT_Ban_giao' ||
     r.currentStep === 'S2_KT_Tiep_Nhan' ||
     r.currentStep === 'GD1_Cho_KT_TiepNhan' ||
-    (r.accountingHandoverDate && !r.submissionDate)
+    (r.accountingHandoverDate && !r.submissionDate && !r.isRejected)
   ) {
     return '2. CHỜ NỘP VPĐK';
   }
@@ -202,10 +202,10 @@ export function useApplicationFilters(
         if (activeStatus === 'WaitingVPDK' && computedStage !== '2. CHỜ NỘP VPĐK') return false;
         if (activeStatus === 'TaxNoticePending' && computedStage !== '4. CHỜ THÔNG BÁO THUẾ') return false;
         if (activeStatus === 'TaxPending' && computedStage !== '5. CHỜ HOÀN THÀNH NVTC') return false;
-        if (activeStatus === 'WaitingHandover' && computedStage !== 'CHỜ BÀN GIAO') return false;
+        if (activeStatus === 'WaitingHandover' && computedStage !== '8. CHỜ BÀN GIAO') return false;
         if (activeStatus === 'TaxPaid' && computedStage !== '6. ĐÃ NỘP THUẾ') return false;
         if (activeStatus === 'Submitted' && computedStage !== '3. ĐÃ NỘP VPĐK') return false;
-        if (activeStatus === 'Completed' && computedStage !== 'HOÀN TẤT') return false;
+        if (activeStatus === 'Completed' && computedStage !== '9. HOÀN TẤT') return false;
         if (!['Processing', 'WaitingVPDK', 'TaxPending', 'TaxNoticePending', 'WaitingHandover', 'TaxPaid', 'Submitted', 'Completed'].includes(activeStatus) && a.status !== activeStatus) return false;
       }
 
@@ -259,9 +259,9 @@ export function useApplicationFilters(
           case '4. CHỜ THÔNG BÁO THUẾ':
           case '5. CHỜ HOÀN THÀNH NVTC':
           case '6. ĐÃ NỘP THUẾ':
-          case 'ĐÃ CÓ GCN':
-          case 'CHỜ BÀN GIAO':
-          case 'HOÀN TẤT':
+          case '7. ĐÃ CÓ GCN':
+          case '8. CHỜ BÀN GIAO':
+          case '9. HOÀN TẤT':
             if (computedStage !== activeDashboardFilter) return false;
             break;
 

@@ -42,6 +42,170 @@ export const updateAppIssue = (
 
 export const RECORD_LIGHT_SELECT = 'id, unit_code, project_name, customer_name, contract_signer_type, phone_number, property_type, loan_status, is_self_service, current_step, status, received_date, contract_signing_date, submission_date, tax_notification_date, tax_receipt_date, gcn_signed_date, gcn_received_date, customer_handover_date, accounting_handover_date, ptda_handover_date, bank_commitment_deadline, submission_location, vpdk_code, issue_type, issue_severity, issue_notes, is_rejected, workflow_type, created_at, assigned_to, tax_payment_status, scanned_files, rejection_count, rejection_reason, commitment_date, assigned_to_id, assigned_to_name, tax_vpdk_submission_date, gcn_number';
 
+// Module-level thay vì useRef — Zustand không phải React component nên không dùng hook.
+// selfUpdateIds lưu các id vừa được chính client này cập nhật để Realtime listener
+// nhận diện và bỏ qua, tránh echo lại thay đổi của chính mình.
+const selfUpdateIds = new Set<number>();
+
+export const registerSelfUpdate = (idOrIds: (number | string) | (number | string)[]) => {
+  const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
+  ids.forEach(id => {
+    const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
+    if (!isNaN(numericId)) {
+      selfUpdateIds.add(numericId);
+      setTimeout(() => {
+        selfUpdateIds.delete(numericId);
+      }, 5000);
+    }
+  });
+};
+
+export const isSelfUpdate = (id: number | string): boolean => {
+  const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
+  if (isNaN(numericId)) return false;
+  if (selfUpdateIds.has(numericId)) {
+    selfUpdateIds.delete(numericId);
+    return true;
+  }
+  return false;
+};
+
+export async function fetchRecordDetail(recordId: string | number): Promise<{
+  history: ApplicationStepHistory[];
+  auditTrail: AuditTrailEntry[];
+  fullApp?: Partial<Application>;
+}> {
+  const result: {
+    history: ApplicationStepHistory[];
+    auditTrail: AuditTrailEntry[];
+    fullApp?: Partial<Application>;
+  } = { history: [], auditTrail: [] };
+
+  const isNumeric = typeof recordId === 'number' || (typeof recordId === 'string' && /^\d+$/.test(recordId.trim()));
+  const targetId = isNumeric ? Number(recordId) : String(recordId);
+
+  try {
+    const { data: historyData, error: historyError } = await supabase
+      .from('record_history')
+      .select('*')
+      .eq('record_id', targetId)
+      .order('created_at', { ascending: true });
+    
+    if (!historyError && historyData && historyData.length > 0) {
+      result.history = historyData.map((h: any) => ({
+        id: h.id,
+        stepName: h.step_name,
+        dept: h.dept,
+        receivedDate: h.received_date,
+        completedDate: h.completed_date,
+        note: h.note,
+        performedBy: h.performed_by,
+        performedByName: h.performed_by_name,
+      }));
+    }
+  } catch (err) {
+    console.error('Full failure fetching history:', err);
+  }
+
+  try {
+    const { data: auditData, error: auditError } = await supabase
+      .from('record_audit_trail')
+      .select('*')
+      .eq('record_id', targetId)
+      .order('timestamp', { ascending: false });
+    
+    if (!auditError && auditData && auditData.length > 0) {
+      result.auditTrail = auditData.map((a: any) => ({
+        id: a.id,
+        userId: a.user_id,
+        userName: a.user_name,
+        action: a.action,
+        changes: a.changes,
+        timestamp: a.timestamp,
+      }));
+    }
+  } catch (err) {
+    console.error('Full failure fetching auditTrail:', err);
+  }
+
+  try {
+    const res = await supabase
+      .from('records')
+      .select('*')
+      .eq('id', targetId)
+      .maybeSingle();
+    
+    if (res.data) {
+      result.fullApp = mapFromSnakeCase(res.data);
+    }
+  } catch (err) {
+    console.error('Failed to fetch fullApp:', err);
+  }
+
+  return result;
+}
+
+export async function syncRecordToSupabase(app: Application) {
+  const snakeData = mapToSnakeCase(app);
+  const { data, error } = await supabase.from('records').upsert(snakeData).select(RECORD_LIGHT_SELECT);
+  if (error) throw error;
+  let savedApp = app;
+  if (data && data.length > 0) {
+    savedApp = mapFromSnakeCase(data[0]);
+  }
+
+  if (app.history && app.history.length > 0) {
+    const historyPromises = app.history.map(h => {
+      if (!h.id) return Promise.resolve();
+      return supabase.from('record_history').upsert({
+        id: h.id,
+        record_id: String(savedApp.id),
+        step_name: h.stepName,
+        dept: h.dept,
+        received_date: h.receivedDate,
+        completed_date: h.completedDate || null,
+        note: h.note || '',
+        performed_by: h.performedBy || null,
+        performed_by_name: h.performedByName || null,
+      }, { onConflict: 'id' });
+    });
+    await Promise.all(historyPromises);
+  }
+
+  if (app.auditTrail && app.auditTrail.length > 0) {
+    const auditPromises = app.auditTrail.map(a => {
+      if (!a.id) return Promise.resolve();
+      return supabase.from('record_audit_trail').upsert({
+        id: a.id,
+        record_id: String(savedApp.id),
+        user_id: a.userId,
+        user_name: a.userName,
+        action: a.action,
+        changes: a.changes || '',
+        timestamp: a.timestamp,
+      }, { onConflict: 'id' });
+    });
+    await Promise.all(auditPromises);
+  }
+
+  if (savedApp.id) {
+    try {
+      const detail = await fetchRecordDetail(savedApp.id);
+      savedApp.history = (detail.history && detail.history.length > 0) ? detail.history : (app.history || []);
+      savedApp.auditTrail = (detail.auditTrail && detail.auditTrail.length > 0) ? detail.auditTrail : (app.auditTrail || []);
+    } catch (err) {
+      console.warn('Could not fetch record details in sync, using in-memory values:', err);
+      savedApp.history = app.history || [];
+      savedApp.auditTrail = app.auditTrail || [];
+    }
+  } else {
+    savedApp.history = app.history || [];
+    savedApp.auditTrail = app.auditTrail || [];
+  }
+
+  return savedApp;
+}
+
 export const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allApplications: Application[], showToast?: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void) => {
   if (appsToSync.length === 0) return allApplications;
   try {
@@ -285,21 +449,8 @@ interface DataState {
   setIsAuthLoading: (loading: boolean) => void;
 
   fetchInitialData: (showToast: (msg: string, type: 'error' | 'success' | 'warning' | 'info') => void) => Promise<void>;
-  
-  initRealtime: (
-    currentUser: UserProfile,
-    userRole: string,
-    assignedNames: string[],
-    editAppRef: React.MutableRefObject<Application | null>,
-    isEditingRef: React.MutableRefObject<boolean>,
-    selfUpdateRef: React.MutableRefObject<Set<number>>,
-    setConflictWarning: (msg: string) => void,
-    setSelectedApp: (updater: (prev: Application | null) => Application | null) => void,
-    setTotalCount: (updater: (prev: number) => number) => void,
-    setRealtimeStatus: (status: 'connected' | 'connecting' | 'error') => void,
-    setRealtimeReconnectKey: (updater: (prev: number) => number) => void,
-    showToast: (msg: string, type: 'error' | 'success' | 'warning' | 'info') => void
-  ) => () => void;
+  syncRecord: (app: Application) => Promise<Application>;
+  bulkSync: (appsToSync: Application[], allApplications: Application[]) => Promise<Application[]>;
 
   reportIssue: (
     apps: Application[],
@@ -307,23 +458,21 @@ interface DataState {
     issueSeverity: string,
     issueNote: string
   ) => Promise<{ success: boolean; message: string }>;
-  resolveIssue: (appId: string, localSyncRecord: (app: Application) => Promise<Application>) => Promise<{ success: boolean; message: string }>;
-  resolveError: (app: Application, localSyncRecord: (app: Application) => Promise<Application>) => Promise<{ success: boolean; message: string; finalApp?: Application }>;
+  resolveIssue: (appId: string) => Promise<{ success: boolean; message: string }>;
+  resolveError: (app: Application) => Promise<{ success: boolean; message: string; finalApp?: Application }>;
   bulkResolveIssues: (selectedIds: Set<string | number>) => Promise<{ success: boolean; message: string }>;
-  proposeException: (appId: string, reason: string, localSyncRecord: (app: Application) => Promise<Application>) => Promise<{ success: boolean; message: string; finalApp?: Application }>;
-  approveException: (appId: string, notes: string, localSyncRecord: (app: Application) => Promise<Application>) => Promise<{ success: boolean; message: string; finalApp?: Application }>;
+  proposeException: (appId: string, reason: string) => Promise<{ success: boolean; message: string; finalApp?: Application }>;
+  approveException: (appId: string, notes: string) => Promise<{ success: boolean; message: string; finalApp?: Application }>;
   stepTransition: (
     app: Application,
     nextStep: StepName,
     note: string | undefined,
-    localSyncRecord: (app: Application) => Promise<Application>,
     deleteAllNotificationsForRecord: (recordId: string | number) => Promise<void>
   ) => Promise<{ success: boolean; message: string; type?: 'error' | 'warning'; requiresHandoverDate?: boolean; finalApp?: Application }>;
   
   rejectApp: (
     app: Application,
     reason: string,
-    localSyncRecord: (app: Application) => Promise<Application>,
     createNotification: (noti: Partial<AppNotification>) => Promise<void>
   ) => Promise<{ success: boolean; message: string; finalApp?: Application }>;
   
@@ -340,7 +489,6 @@ interface DataState {
     location: string | undefined,
     refCode: string | undefined,
     ktHandoverDate: string | undefined,
-    localBulkSync: (appsToSync: Application[], allApplications: Application[]) => Promise<Application[]>,
     bulkNotifyNextDepartment: (appsToSync: Application[], targetStep: StepName) => Promise<{ success: boolean; skippedCount: number; error?: any } | undefined>,
     bulkDeleteNotificationsForRecords: (recordIds: (string | number)[]) => Promise<void>
   ) => Promise<{
@@ -354,13 +502,11 @@ interface DataState {
   }>;
 
   createApp: (
-    newApp: Partial<Application>,
-    localRegisterSelfUpdate: (id: string | number) => void
+    newApp: Partial<Application>
   ) => Promise<{ success: boolean; message: string; app?: Application }>;
 
   updateApp: (
-    app: Application,
-    localSyncRecord: (app: Application) => Promise<Application>
+    app: Application
   ) => Promise<{ success: boolean; message: string; finalApp?: Application }>;
 
   deleteApp: (
@@ -371,8 +517,7 @@ interface DataState {
 
   quickSave: (
     id: string,
-    quickEditData: Record<string, any>,
-    localSyncRecord: (app: Application) => Promise<Application>
+    quickEditData: Record<string, any>
   ) => Promise<{ success: boolean; message: string; finalApp?: Application }>;
 
   createUser: (
@@ -528,154 +673,21 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  initRealtime: (
-    currentUser,
-    userRole,
-    assignedNames,
-    editAppRef,
-    isEditingRef,
-    selfUpdateRef,
-    setConflictWarning,
-    setSelectedApp,
-    setTotalCount,
-    setRealtimeStatus,
-    setRealtimeReconnectKey,
-    showToast
-  ) => {
-    let active = true;
-    let recordsChannel: any = null;
-    let notiChannel: any = null;
-    let retryTimeout: any;
-    let retryCount = 0;
-    const MAX_RETRY = 5;
+  syncRecord: async (app) => {
+    const finalApp = await syncRecordToSupabase(app);
+    if (finalApp?.id) {
+      registerSelfUpdate(finalApp.id);
+    }
+    return finalApp;
+  },
 
-    const channelId = `rt-records-${currentUser.id}`;
-    
-    recordsChannel = supabase
-      .channel(channelId)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'records' },
-        (payload) => {
-          if (!active) return;
-          const { eventType, new: newRow, old: oldRow } = payload;
-          const state = get();
-
-          if (eventType !== 'DELETE') {
-            const projectName = newRow?.project_name;
-            const isAllowed = userRole === 'ADMIN' || 
-              userRole === 'DIRECTOR' ||
-              !projectName ||
-              assignedNames.includes(projectName);
-            if (!isAllowed) return; 
-          }
-
-          if (eventType === 'INSERT') {
-            const newApp = mapFromSnakeCase(newRow);
-            if (selfUpdateRef.current.has(newApp.id as number)) {
-              selfUpdateRef.current.delete(newApp.id as number);
-              return;
-            }
-
-            state.setApplications(prev => {
-              if (prev.some(a => a.id === newApp.id)) return prev;
-              showToast(`📋 Hồ sơ mới: ${newApp.unitCode} vừa được tạo`, 'info');
-              return [newApp, ...prev];
-            });
-            state.setDashboardApps(prev => {
-              if (prev.some(a => a.id === newApp.id)) return prev;
-              return [newApp, ...prev];
-            });
-            setTotalCount(prev => prev + 1);
-          }
-          else if (eventType === 'UPDATE') {
-            const prevApp = state.applications.find(a => a.id === newRow.id) || state.dashboardApps.find(a => a.id === newRow.id);
-            const updatedApp = mapFromSnakeCase(newRow, prevApp);
-            
-            if (selfUpdateRef.current.has(updatedApp.id as number)) {
-              selfUpdateRef.current.delete(updatedApp.id as number);
-              return; 
-            }
-
-            state.setApplications(prev => prev.map(a => a.id === updatedApp.id ? updatedApp : a));
-            state.setDashboardApps(prev => prev.map(a => a.id === updatedApp.id ? updatedApp : a));
-
-            showToast(`📋 Hồ sơ ${updatedApp.unitCode} vừa được cập nhật bởi người khác`, 'info');
-
-            setSelectedApp((prev: Application | null) => {
-              if (!prev || prev.id !== updatedApp.id) return prev;
-              if (isEditingRef.current) {
-                const serverTime = new Date(updatedApp.updatedAt || 0);
-                const localTime = new Date(editAppRef.current?.updatedAt || 0);
-                if (serverTime > localTime) {
-                  setConflictWarning(
-                    `Hồ sơ này vừa được cập nhật lúc ${serverTime.toLocaleTimeString('vi-VN')}. Lưu thay đổi của bạn sẽ ghi đè dữ liệu mới.`
-                  );
-                }
-              }
-              return updatedApp;
-            });
-          }
-          else if (eventType === 'DELETE') {
-            const deletedId = oldRow.id;
-            if (selfUpdateRef.current.has(deletedId as number)) {
-              selfUpdateRef.current.delete(deletedId as number);
-              return; 
-            }
-
-            state.setApplications(prev => prev.filter(a => a.id !== deletedId));
-            state.setDashboardApps(prev => prev.filter(a => a.id !== deletedId));
-            setTotalCount(prev => Math.max(0, prev - 1));
-            setSelectedApp((prev: Application | null) => prev?.id === deletedId ? null : prev);
-          }
-        }
-      )
-      .subscribe((status, err) => {
-        if (!active) return;
-        if (status === 'SUBSCRIBED') {
-          setRealtimeStatus('connected');
-          retryCount = 0;
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setRealtimeStatus('error');
-          retryCount++;
-          if (retryCount <= MAX_RETRY) {
-            const delay = Math.min(30000, 3000 * Math.pow(2, retryCount - 1));
-            retryTimeout = setTimeout(() => {
-              if (active) setRealtimeReconnectKey(p => p + 1);
-            }, delay);
-          }
-        }
-      });
-
-    const notiChannelId = `rt-noti-${currentUser.id}`;
-    notiChannel = supabase
-      .channel(notiChannelId)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${String(currentUser.id)}`
-        },
-        (payload) => {
-          if (!active) return;
-          const newNoti = mapNotificationFromSnakeCase(payload.new);
-          get().setNotifications(prev => {
-            if (prev.some(n => n.id === newNoti.id)) return prev;
-            return [newNoti, ...prev];
-          });
-          showToast(`🔔 Thông báo mới: ${newNoti.title}`, 'info');
-        }
-      )
-      .subscribe();
-
-    return () => {
-      active = false;
-      if (retryTimeout) clearTimeout(retryTimeout);
-      supabase.removeChannel(recordsChannel);
-      supabase.removeChannel(notiChannel);
-    };
+  bulkSync: async (appsToSync, allApplications) => {
+    const finalApps = await bulkSyncRecordsToSupabase(appsToSync, allApplications);
+    const syncedIds = finalApps
+      .filter(fa => appsToSync.some(a => a.id === fa.id))
+      .map(fa => fa.id);
+    registerSelfUpdate(syncedIds);
+    return finalApps;
   },
 
   reportIssue: async (apps, issueType, issueSeverity, issueNote) => {
@@ -734,7 +746,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  resolveIssue: async (appId, localSyncRecord) => {
+  resolveIssue: async (appId) => {
     try {
       const { applications, setApplications, setDashboardApps, stepConfig } = get();
       const app = applications.find(a => a.id === appId);
@@ -773,7 +785,7 @@ export const useDataStore = create<DataState>((set, get) => ({
         auditTrail: [auditEntry, ...(app.auditTrail || [])]
       };
 
-      const finalApp = await localSyncRecord(updatedAppWithAudit);
+      const finalApp = await get().syncRecord(updatedAppWithAudit);
 
       setApplications(prev => prev.map(a => a.id === appId ? finalApp : a));
       setDashboardApps(prev => prev.map(a => a.id === appId ? finalApp : a));
@@ -785,7 +797,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  resolveError: async (app, localSyncRecord) => {
+  resolveError: async (app) => {
     try {
       const { setApplications, stepConfig } = get();
       const { currentUser, userRole } = useAuthStore.getState();
@@ -814,7 +826,7 @@ export const useDataStore = create<DataState>((set, get) => ({
         history: newHistory
       };
 
-      const finalApp = await localSyncRecord(updatedApp);
+      const finalApp = await get().syncRecord(updatedApp);
       setApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
 
       return { success: true, message: 'Đã phục hồi trạng thái và đồng bộ Supabase thành công.', finalApp };
@@ -882,7 +894,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  proposeException: async (appId, reason, localSyncRecord) => {
+  proposeException: async (appId, reason) => {
     try {
       const { applications, setApplications, setDashboardApps, stepConfig } = get();
       const { currentUser, userRole } = useAuthStore.getState();
@@ -924,7 +936,7 @@ export const useDataStore = create<DataState>((set, get) => ({
         auditTrail: [auditEntry, ...(app.auditTrail || [])]
       };
 
-      const finalApp = await localSyncRecord(updatedAppWithAudit);
+      const finalApp = await get().syncRecord(updatedAppWithAudit);
       setApplications(prev => prev.map(a => a.id === appId ? finalApp : a));
       setDashboardApps(prev => prev.map(a => a.id === appId ? finalApp : a));
 
@@ -935,7 +947,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  approveException: async (appId, notes, localSyncRecord) => {
+  approveException: async (appId, notes) => {
     try {
       const { applications, setApplications, setDashboardApps, stepConfig } = get();
       const { currentUser, userRole } = useAuthStore.getState();
@@ -986,7 +998,7 @@ export const useDataStore = create<DataState>((set, get) => ({
         auditTrail: [auditEntry, ...(app.auditTrail || [])]
       };
 
-      const finalApp = await localSyncRecord(updatedAppWithAudit);
+      const finalApp = await get().syncRecord(updatedAppWithAudit);
       setApplications(prev => prev.map(a => a.id === appId ? finalApp : a));
       setDashboardApps(prev => prev.map(a => a.id === appId ? finalApp : a));
 
@@ -997,7 +1009,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  stepTransition: async (app, nextStep, note, localSyncRecord, deleteAllNotificationsForRecord) => {
+  stepTransition: async (app, nextStep, note, deleteAllNotificationsForRecord) => {
     const { currentUser, userRole } = useAuthStore.getState();
     const { setApplications, setDashboardApps, stepConfig } = get();
 
@@ -1078,7 +1090,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     };
 
     try {
-      const finalApp = await localSyncRecord(updatedApp);
+      const finalApp = await get().syncRecord(updatedApp);
 
       if (targetStep === 'Hoan_Tat') {
         await deleteAllNotificationsForRecord(app.id);
@@ -1098,7 +1110,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  rejectApp: async (app, reason, localSyncRecord, createNotification) => {
+  rejectApp: async (app, reason, createNotification) => {
     const { currentUser, userRole } = useAuthStore.getState();
     const { users, stepConfig, setApplications, setDashboardApps } = get();
 
@@ -1149,7 +1161,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       );
       await Promise.all(promises);
 
-      const finalApp = await localSyncRecord(updatedApp);
+      const finalApp = await get().syncRecord(updatedApp);
       const oldId = app.id;
 
       setApplications(prev => prev.map(a => a.id === oldId ? finalApp : a));
@@ -1309,7 +1321,6 @@ export const useDataStore = create<DataState>((set, get) => ({
     location,
     refCode,
     ktHandoverDate,
-    localBulkSync,
     bulkNotifyNextDepartment,
     bulkDeleteNotificationsForRecords
   ) => {
@@ -1485,7 +1496,7 @@ export const useDataStore = create<DataState>((set, get) => ({
         return original && original.currentStep !== app.currentStep;
       });
 
-      const finalApps = await localBulkSync(appsToSync, updatedApps);
+      const finalApps = await get().bulkSync(appsToSync, updatedApps);
       setApplications(finalApps);
       setDashboardApps(prev => {
         const next = [...prev];
@@ -1533,7 +1544,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  createApp: async (newApp, localRegisterSelfUpdate) => {
+  createApp: async (newApp) => {
     const { currentUser } = useAuthStore.getState();
     const { projects, stepConfig, setApplications, setDashboardApps } = get();
 
@@ -1610,7 +1621,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
       const appToAdd = mapFromSnakeCase(data[0]);
       if (appToAdd?.id) {
-        localRegisterSelfUpdate(appToAdd.id);
+        registerSelfUpdate(appToAdd.id);
 
         if (appToAddTemp.history?.length > 0) {
           const historyPromises = appToAddTemp.history.map((h: any) => {
@@ -1666,11 +1677,11 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  updateApp: async (app, localSyncRecord) => {
+  updateApp: async (app) => {
     try {
       const auditEntry = createAuditEntry('Cập nhật thông tin', false, 1, app.unitCode, 'Chỉnh sửa chi tiết hồ sơ');
       const updatedApp = { ...app, auditTrail: [auditEntry, ...(app.auditTrail || [])] };
-      const finalApp = await localSyncRecord(updatedApp);
+      const finalApp = await get().syncRecord(updatedApp);
       const { setApplications, setDashboardApps } = get();
       setApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
       setDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
@@ -1705,7 +1716,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  quickSave: async (id, quickEditData, localSyncRecord) => {
+  quickSave: async (id, quickEditData) => {
     const { applications } = get();
     const app = applications.find(a => a.id === id);
     if (!app) return { success: false, message: 'Không tìm thấy hồ sơ.' };
@@ -1715,7 +1726,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     if (updatedApp.status !== 'Error') updatedApp.status = app.status;
 
     try {
-      const finalApp = await localSyncRecord(updatedApp);
+      const finalApp = await get().syncRecord(updatedApp);
       const { setApplications, setDashboardApps } = get();
       setApplications(prev => prev.map(a => a.id === id ? finalApp : a));
       setDashboardApps(prev => prev.map(a => a.id === id ? finalApp : a));

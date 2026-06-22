@@ -127,7 +127,7 @@ import ImportPreviewModal from './components/modals/ImportPreviewModal';
 import { ApplicationDetailModal } from './components/modals/ApplicationDetailModal';
 import { CreateApplicationModal } from './components/modals/CreateApplicationModal';
 import { useModalStore } from './stores/useModalStore';
-import { useDataStore, bulkSyncRecordsToSupabase, createAuditEntry, updateAppIssue } from './stores/useDataStore';
+import { useDataStore, bulkSyncRecordsToSupabase, createAuditEntry, updateAppIssue, isSelfUpdate, registerSelfUpdate } from './stores/useDataStore';
 import { UserManagementModal } from './components/modals/UserManagementModal';
 import { Sidebar } from './components/Sidebar';
 import { DashboardTab } from './components/tabs/DashboardTab';
@@ -282,70 +282,6 @@ const mapNotificationFromSnakeCase = (item: any): AppNotification => {
   };
 };
 
-async function syncRecordToSupabase(app: Application) {
-  const snakeData = mapToSnakeCase(app);
-  const { data, error } = await supabase.from('records').upsert(snakeData).select(RECORD_LIGHT_SELECT);
-  if (error) throw error;
-  let savedApp = app;
-  if (data && data.length > 0) {
-    savedApp = mapFromSnakeCase(data[0]);
-  }
-
-  // Ghi history mới nhất vào bảng riêng
-  if (app.history && app.history.length > 0) {
-    const historyPromises = app.history.map(h => {
-      if (!h.id) return Promise.resolve();
-      return supabase.from('record_history').upsert({
-        id: h.id,
-        record_id: String(savedApp.id),
-        step_name: h.stepName,
-        dept: h.dept,
-        received_date: h.receivedDate,
-        completed_date: h.completedDate || null,
-        note: h.note || '',
-        performed_by: h.performedBy || null,
-        performed_by_name: h.performedByName || null,
-      }, { onConflict: 'id' });
-    });
-    await Promise.all(historyPromises);
-  }
-
-  // Ghi audit entry mới nhất vào bảng riêng
-  if (app.auditTrail && app.auditTrail.length > 0) {
-    const auditPromises = app.auditTrail.map(a => {
-      if (!a.id) return Promise.resolve();
-      return supabase.from('record_audit_trail').upsert({
-        id: a.id,
-        record_id: String(savedApp.id),
-        user_id: a.userId,
-        user_name: a.userName,
-        action: a.action,
-        changes: a.changes || '',
-        timestamp: a.timestamp,
-      }, { onConflict: 'id' });
-    });
-    await Promise.all(auditPromises);
-  }
-
-  // Fetch detailed history and auditTrail to enrich savedApp
-  if (savedApp.id) {
-    try {
-      const detail = await fetchRecordDetail(savedApp.id);
-      // Ensure we don't overwrite with empty if detail fetch failed but in-memory has data
-      savedApp.history = (detail.history && detail.history.length > 0) ? detail.history : (app.history || []);
-      savedApp.auditTrail = (detail.auditTrail && detail.auditTrail.length > 0) ? detail.auditTrail : (app.auditTrail || []);
-    } catch (err) {
-      console.warn('Could not fetch record details in sync, using in-memory values:', err);
-      savedApp.history = app.history || [];
-      savedApp.auditTrail = app.auditTrail || [];
-    }
-  } else {
-    savedApp.history = app.history || [];
-    savedApp.auditTrail = app.auditTrail || [];
-  }
-
-  return savedApp;
-}
 
 async function fetchRecordDetail(recordId: string | number): Promise<{
   history: ApplicationStepHistory[];
@@ -534,45 +470,15 @@ export default function App() {
     isLoadingConfig, setIsLoadingConfig,
     isInitialLoading, setIsInitialLoading,
     isAuthLoading, setIsAuthLoading,
-    fetchInitialData, initRealtime, reportIssue,
+    fetchInitialData, reportIssue,
     resolveIssue, resolveError, bulkResolveIssues, proposeException, approveException,
     stepTransition, rejectApp, bulkRejectApps,
     executeBulkStepTransition: executeBulkStepTransitionAction,
     createApp, updateApp, deleteApp, quickSave,
+    syncRecord, bulkSync,
     createUser, updateUser, deleteUser, resetUserPassword, updatePassword
   } = useDataStore();
   const { toast, showToast } = useToast();
-  const selfUpdateRef = useRef<Set<number>>(new Set());
-
-  const registerSelfUpdate = useCallback((idOrIds: (number | string) | (number | string)[]) => {
-    const ids = Array.isArray(idOrIds) ? idOrIds : [idOrIds];
-    ids.forEach(id => {
-      const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
-      if (!isNaN(numericId)) {
-        selfUpdateRef.current.add(numericId);
-        setTimeout(() => {
-          selfUpdateRef.current.delete(numericId);
-        }, 5000);
-      }
-    });
-  }, []);
-
-  const localSyncRecord = useCallback(async (app: Application) => {
-    const finalApp = await syncRecordToSupabase(app);
-    if (finalApp && finalApp.id) {
-      registerSelfUpdate(finalApp.id);
-    }
-    return finalApp;
-  }, [registerSelfUpdate]);
-
-  const localBulkSync = useCallback(async (appsToSync: Application[], allApplications: Application[], showToastArg?: any) => {
-    const finalApps = await bulkSyncRecordsToSupabase(appsToSync, allApplications, showToastArg || showToast);
-    const syncedIds = finalApps
-      .filter(fa => appsToSync.some(a => a.unitCode === fa.unitCode && a.projectName === fa.projectName))
-      .map(fa => fa.id);
-    registerSelfUpdate(syncedIds);
-    return finalApps;
-  }, [registerSelfUpdate, showToast]);
   
   const [search, setSearch] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
@@ -1240,9 +1146,8 @@ export default function App() {
             if (eventType === 'INSERT') {
               const newApp = mapFromSnakeCase(newRow);
               
-              const isSelfUpdated = selfUpdateRef.current.has(newApp.id as number);
+              const isSelfUpdated = isSelfUpdate(newApp.id as number);
               if (isSelfUpdated) {
-                selfUpdateRef.current.delete(newApp.id as number);
                 return;
               }
 
@@ -1267,9 +1172,8 @@ export default function App() {
               const prevApp = applications.find(a => a.id === newRow.id) || dashboardApps.find(a => a.id === newRow.id);
               const updatedApp = mapFromSnakeCase(newRow, prevApp);
               
-              const isSelfUpdated = selfUpdateRef.current.has(updatedApp.id as number);
+              const isSelfUpdated = isSelfUpdate(updatedApp.id as number);
               if (isSelfUpdated) {
-                selfUpdateRef.current.delete(updatedApp.id as number);
                 return; // SKIP local update because it is already synchronized locally
               }
 
@@ -1307,9 +1211,8 @@ export default function App() {
             else if (eventType === 'DELETE') {
               const deletedId = oldRow.id;
               
-              const isSelfDeleted = selfUpdateRef.current.has(deletedId as number);
+              const isSelfDeleted = isSelfUpdate(deletedId as number);
               if (isSelfDeleted) {
-                selfUpdateRef.current.delete(deletedId as number);
                 return; // SKIP local update
               }
 
@@ -2435,7 +2338,7 @@ export default function App() {
   } = useBulkActions({
     applications,
     setApplications,
-    bulkSyncRecordsToSupabase: localBulkSync,
+    bulkSyncRecordsToSupabase: bulkSync,
     updateAppIssue,
     showToast,
     setIsSavingApp,
@@ -2686,7 +2589,7 @@ export default function App() {
       return;
     }
     setIsSavingApp(true);
-    const result = await quickSave(id, quickEditData, localSyncRecord);
+    const result = await quickSave(id, quickEditData);
     if (result.success && result.finalApp) {
       if (selectedApp?.id === id) setSelectedApp(result.finalApp);
     }
@@ -2783,8 +2686,8 @@ export default function App() {
       { key: 'taxNotificationDate', label: 'Ngày TB Thuế' },
       { key: 'taxReceiptDate', label: 'Ngày nộp thuế/NVTC' },
       { key: 'gcnSignedDate', label: 'Ngày ký GCN' },
-      { key: 'ptdaHandoverDate', label: 'Ngày PTDA bàn giao' },
       { key: 'gcnReceivedDate', label: 'Ngày nhận GCN' },
+      { key: 'ptdaHandoverDate', label: 'Ngày PTDA bàn giao' },
       { key: 'customerHandoverDate', label: 'Ngày BG Khách' }
     ];
 
@@ -2795,8 +2698,8 @@ export default function App() {
       { key: 'taxNotificationDate', label: 'Ngày TB Thuế' },
       { key: 'taxReceiptDate', label: 'Ngày nộp thuế/NVTC' },
       { key: 'gcnSignedDate', label: 'Ngày ký GCN' },
-      { key: 'ptdaHandoverDate', label: 'Ngày PTDA bàn giao' },
       { key: 'gcnReceivedDate', label: 'Ngày nhận GCN' },
+      { key: 'ptdaHandoverDate', label: 'Ngày PTDA bàn giao' },
       { key: 'customerHandoverDate', label: 'Ngày BG Khách' }
     ];
 
@@ -3222,7 +3125,7 @@ export default function App() {
     setHighlightedAppId,
     setActiveTab,
     visibleProjects,
-    bulkSyncRecordsToSupabase: localBulkSync,
+    bulkSyncRecordsToSupabase: bulkSync,
     supabase,
     userRole
   });
@@ -3496,7 +3399,7 @@ export default function App() {
   const handleUpdateApp = async () => {
     if (!editApp || !selectedApp) return;
     setIsSavingApp(true);
-    const result = await updateApp(editApp, localSyncRecord);
+    const result = await updateApp(editApp);
     if (result.success && result.finalApp) {
       setSelectedApp(result.finalApp);
       setEditApp(null);
@@ -3570,7 +3473,7 @@ export default function App() {
     const app = overrideApp || editApp || selectedApp;
     if (!app) return;
 
-    const result = await stepTransition(app, nextStep, note, localSyncRecord, deleteAllNotificationsForRecord);
+    const result = await stepTransition(app, nextStep, note, deleteAllNotificationsForRecord);
 
     if (result.requiresHandoverDate) {
       setSelfServiceHandoverModal({ app, nextStep });
@@ -3690,7 +3593,6 @@ export default function App() {
       location,
       refCode,
       ktHandoverDate,
-      localBulkSync,
       bulkNotifyNextDepartment,
       bulkDeleteNotificationsForRecords
     );
@@ -3840,7 +3742,7 @@ export default function App() {
         ...updatedApp,
         auditTrail: [auditEntry, ...(updatedApp.auditTrail || [])]
       };
-      const finalWithAudit = await localSyncRecord(appWithAudit);
+      const finalWithAudit = await syncRecord(appWithAudit);
 
       handleSetApplications(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
       handleSetDashboardApps(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
@@ -3894,7 +3796,7 @@ export default function App() {
             ...updatedApp,
             auditTrail: [auditEntry, ...(updatedApp.auditTrail || [])]
           };
-          const finalWithAudit = await localSyncRecord(appWithAudit);
+          const finalWithAudit = await syncRecord(appWithAudit);
 
           handleSetApplications(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
           handleSetDashboardApps(prev => prev.map(a => a.id === app.id ? finalWithAudit : a));
@@ -3962,7 +3864,7 @@ export default function App() {
         }));
 
       // 4. Batch update to Supabase
-      const updatedApplications = await localBulkSync(appsToUpdate, applications);
+      const updatedApplications = await bulkSync(appsToUpdate, applications);
       
       handleSetApplications(updatedApplications);
       handleSetDashboardApps(prev => prev.map(a => {
@@ -4024,7 +3926,7 @@ export default function App() {
 
     setIsSavingApp(true);
     try {
-      const finalApp = await localSyncRecord(updatedApp);
+      const finalApp = await syncRecord(updatedApp);
 
       handleSetApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
       setSelectedApp(finalApp);
@@ -4044,7 +3946,7 @@ export default function App() {
     const app = editApp || selectedApp;
     if (!app) return;
     setIsSavingApp(true);
-    const result = await resolveError(app, localSyncRecord);
+    const result = await resolveError(app);
     if (result.success && result.finalApp) {
       setSelectedApp(result.finalApp);
     }
@@ -4053,12 +3955,12 @@ export default function App() {
   };
 
   const handleResolveIssue = async (appId: string) => {
-    const result = await resolveIssue(appId, localSyncRecord);
+    const result = await resolveIssue(appId);
     showToast(result.message, result.success ? 'success' : 'error');
   };
 
   const handleProposeException = async (appId: string, reason: string) => {
-    const result = await proposeException(appId, reason, localSyncRecord);
+    const result = await proposeException(appId, reason);
     if (result.success && result.finalApp) {
       setSelectedApp(result.finalApp);
     }
@@ -4066,7 +3968,7 @@ export default function App() {
   };
 
   const handleApproveException = async (appId: string, notes: string) => {
-    const result = await approveException(appId, notes, localSyncRecord);
+    const result = await approveException(appId, notes);
     if (result.success && result.finalApp) {
       setSelectedApp(result.finalApp);
     }
@@ -4078,7 +3980,7 @@ export default function App() {
     if (!app) return;
 
     setIsSavingApp(true);
-    const result = await rejectApp(app, reason, localSyncRecord, createNotification);
+    const result = await rejectApp(app, reason, createNotification);
 
     if (result.success && result.finalApp) {
       setSelectedApp(result.finalApp);
@@ -4447,7 +4349,7 @@ export default function App() {
     setFormErrors({});
     setIsSavingApp(true);
 
-    const result = await createApp(newApp, registerSelfUpdate);
+    const result = await createApp(newApp);
 
     if (!result.success) {
       showToast(result.message, 'error');
@@ -4709,7 +4611,7 @@ useEffect(() => {
             ...prev
           ]);
           try {
-            await localSyncRecord(updated);
+            await syncRecord(updated);
           } catch (err) {
             console.error('Error syncing mobile update:', err);
           }
