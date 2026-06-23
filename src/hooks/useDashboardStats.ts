@@ -377,7 +377,7 @@ export function useDashboardStats(
       }
     });
 
-    const createStageItem = (name: string, list: Application[], color: string, statusId: UnitStatus) => {
+    const createStageItem = (name: string, list: Application[], color: string, statusId: UnitStatus, isSub: boolean = false) => {
       const errorCount = list.filter(a => {
         return (a.status as string) === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None');
       }).length;
@@ -389,21 +389,48 @@ export function useDashboardStats(
         labelAnchor: 0.01, // Giá trị ảo cực nhỏ, chỉ dùng để neo LabelList, không ảnh hưởng tỷ lệ trực quan
         color,
         statusId,
-        list
+        list,
+        isSub
       };
     };
 
-    return [
-      createStageItem('1. ĐANG CHUẨN BỊ', groups['1. ĐANG CHUẨN BỊ'], '#94a3b8', 'Processing'),
-      createStageItem('2. CHỜ NỘP VPĐK', groups['2. CHỜ NỘP VPĐK'], '#f59e0b', 'WaitingVPDK'),
-      createStageItem('3. ĐÃ NỘP VPĐK', groups['3. ĐÃ NỘP VPĐK'], '#3b82f6', 'Submitted'),
-      createStageItem('4. CHỜ THÔNG BÁO THUẾ', groups['4. CHỜ THÔNG BÁO THUẾ'], '#f97316', 'TaxPending'),
-      createStageItem('5. CHỜ HOÀN THÀNH NVTC', groups['5. CHỜ HOÀN THÀNH NVTC'], '#8b5cf6', 'TaxPending'),
-      createStageItem('6. ĐÃ NỘP THUẾ', groups['6. ĐÃ NỘP THUẾ'], '#10b981', 'TaxCompleted'),
-      createStageItem('7. ĐÃ CÓ GCN', groups['7. ĐÃ CÓ GCN'], '#06b6d4', 'GCN_Issued'),
-      createStageItem('8. CHỜ BÀN GIAO', groups['8. CHỜ BÀN GIAO'], '#6366f1', 'WaitingHandover'),
-      createStageItem('9. HOÀN TẤT', groups['9. HOÀN TẤT'], '#22c55e', 'Completed')
+    const waitVPDK = groups['2. CHỜ NỘP VPĐK'] || [];
+    const waitVPDK_KT = waitVPDK.filter(a => {
+      const stepDef = stepConfig?.[a.currentStep] || INITIAL_STEP_CONFIG[a.currentStep];
+      return stepDef?.dept === 'KT';
+    });
+    
+    // PTDA only accounts for Quy trình 2
+    const waitVPDK_PTDA = waitVPDK.filter(a => {
+      const stepDef = stepConfig?.[a.currentStep] || INITIAL_STEP_CONFIG[a.currentStep];
+      const isQT2 = a.workflowType === 'Quy_trinh_2' || (a as any).workflow_type === 'Quy_trinh_2';
+      return stepDef?.dept === 'PTDA' && isQT2;
+    });
+
+    const hasQT2 = appsList.some(a => a.workflowType === 'Quy_trinh_2' || (a as any).workflow_type === 'Quy_trinh_2');
+
+    const result = [
+      createStageItem('1. ĐANG CHUẨN BỊ', groups['1. ĐANG CHUẨN BỊ'] || [], '#94a3b8', 'Processing'),
+      createStageItem('2. CHỜ NỘP VPĐK', waitVPDK, '#f59e0b', 'WaitingVPDK')
     ];
+
+    result.push(createStageItem('   ↳ 2A. HỒ SƠ TẠI KẾ TOÁN', waitVPDK_KT, '#fbbf24', 'WaitingVPDK', true)); // Lighter amber
+
+    if (hasQT2) {
+      result.push(createStageItem('   ↳ 2B. HỒ SƠ TẠI PTDA', waitVPDK_PTDA, '#fcd34d', 'WaitingVPDK', true)); // Even lighter amber
+    }
+
+    result.push(
+      createStageItem('3. ĐÃ NỘP VPĐK', groups['3. ĐÃ NỘP VPĐK'] || [], '#3b82f6', 'Submitted'),
+      createStageItem('4. CHỜ THÔNG BÁO THUẾ', groups['4. CHỜ THÔNG BÁO THUẾ'] || [], '#f97316', 'TaxPending'),
+      createStageItem('5. CHỜ HOÀN THÀNH NVTC', groups['5. CHỜ HOÀN THÀNH NVTC'] || [], '#8b5cf6', 'TaxPending'),
+      createStageItem('6. ĐÃ NỘP THUẾ', groups['6. ĐÃ NỘP THUẾ'] || [], '#10b981', 'TaxCompleted'),
+      createStageItem('7. ĐÃ CÓ GCN', groups['7. ĐÃ CÓ GCN'] || [], '#06b6d4', 'GCN_Issued'),
+      createStageItem('8. CHỜ BÀN GIAO', groups['8. CHỜ BÀN GIAO'] || [], '#6366f1', 'WaitingHandover'),
+      createStageItem('9. HOÀN TẤT', groups['9. HOÀN TẤT'] || [], '#22c55e', 'Completed')
+    );
+
+    return result;
   };
 
   const chartData = useMemo(() => {

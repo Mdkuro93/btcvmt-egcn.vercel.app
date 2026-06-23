@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, 
-  LineChart, Line, AreaChart, Area, Legend, PieChart, Pie, Cell, LabelList 
+  LineChart, Line, AreaChart, Area, Legend, PieChart, Pie, Cell, LabelList, Rectangle 
 } from 'recharts';
 import DashboardAlerts from '../DashboardAlerts';
 
@@ -306,9 +306,25 @@ export const DashboardTab = ({
                                dataKey="name"
                                axisLine={false} 
                                tickLine={false} 
-                               width={140}
-                               tick={{ fontSize: 11, fill: theme === 'light' ? '#475569' : '#94a3b8', fontWeight: 900, textAnchor: 'start' }} 
-                               dx={-130}
+                               width={180}
+                               tick={({ x, y, payload }: any) => {
+                                 const isSub = payload.value.includes('↳');
+                                 const fill = theme === 'light' ? (isSub ? '#94a3b8' : '#475569') : (isSub ? '#64748b' : '#94a3b8');
+                                 return (
+                                   <text 
+                                     x={x - 170} 
+                                     y={y} 
+                                     dy={4} 
+                                     fill={fill} 
+                                     fontSize={isSub ? 9 : 11} 
+                                     fontWeight={isSub ? 800 : 900} 
+                                     textAnchor="start"
+                                     xmlSpace="preserve"
+                                   >
+                                     {payload.value}
+                                   </text>
+                                 );
+                               }}
                             />
                             <ReTooltip 
                               cursor={{ fill: theme === 'light' ? 'rgba(30, 41, 59, 0.05)' : 'rgba(255,255,255,0.05)' }}
@@ -351,20 +367,35 @@ export const DashboardTab = ({
                               stackId="a"
                               barSize={24} 
                               minPointSize={5}
-                              radius={[0, 0, 0, 0]} 
+                              shape={(props: any) => {
+                                const { fill, x, y, width, height, payload } = props;
+                                const isSub = payload && payload.isSub;
+                                if (!height) return null;
+                                const h = isSub ? 10 : height; // Thinner sub-bars
+                                const cy = isSub ? y + (height - h) / 2 : y;
+                                const opacity = isSub ? 0.7 : 1;
+                                return <Rectangle {...props} x={x} y={cy} width={width} height={h} fill={fill} fillOpacity={opacity} radius={[0, 0, 0, 0]} className="transition-all duration-300" />;
+                              }}
                             >
                               {progressChartData.map((entry: any, index: number) => (
                                 <Cell key={`dashboard-progress-normal-cell-${entry.name || 'unnamed'}-${index}`} fill={entry.color} />
                               ))}
-
                             </Bar>
                             <Bar 
                               dataKey="error" 
                               stackId="a"
                               fill="#f43f5e"
                               barSize={24} 
-                              radius={[0, 12, 12, 0]} 
                               className="shadow-[0_0_15px_rgba(244,63,94,0.3)]"
+                              shape={(props: any) => {
+                                const { fill, x, y, width, height, payload } = props;
+                                const isSub = payload && payload.isSub;
+                                if (!height || width === 0) return null;
+                                const h = isSub ? 10 : height;
+                                const cy = isSub ? y + (height - h) / 2 : y;
+                                const opacity = isSub ? 0.7 : 1;
+                                return <Rectangle {...props} x={x} y={cy} width={width} height={h} fill={fill} fillOpacity={opacity} radius={isSub ? [0, 4, 4, 0] : [0, 12, 12, 0]} className="transition-all duration-300" />;
+                              }}
                             />
                             <Bar dataKey="labelAnchor" stackId="a" fill="transparent" isAnimationActive={false}>
                               <LabelList

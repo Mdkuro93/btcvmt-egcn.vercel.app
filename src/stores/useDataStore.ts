@@ -472,6 +472,7 @@ interface DataState {
   
   rejectApp: (
     app: Application,
+    targetStepId: StepName,
     reason: string,
     createNotification: (noti: Partial<AppNotification>) => Promise<void>
   ) => Promise<{ success: boolean; message: string; finalApp?: Application }>;
@@ -806,23 +807,37 @@ export const useDataStore = create<DataState>((set, get) => ({
         {
           id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           stepName: 'Khắc phục lỗi',
+          stepKey: 'RESOLVED',
           dept: userRole as Dept,
           receivedDate: new Date().toISOString(),
-          note: 'Đã khắc phục',
+          note: 'Đã khắc phục xong và trả lại luồng xử lý',
           performedBy: currentUser?.id,
           performedByName: currentUser?.name
         },
         ...app.history
       ];
 
-      const updatedApp = {
+      let targetStepId = app.currentStep;
+      let targetStatus = stepConfig[app.currentStep]?.status || INITIAL_STEP_CONFIG[app.currentStep]?.status || 'Processing';
+
+      if (app.rejectedFromStepId) {
+        const fallbackConfig = stepConfig[app.rejectedFromStepId] || INITIAL_STEP_CONFIG[app.rejectedFromStepId];
+        if (fallbackConfig) {
+          targetStepId = app.rejectedFromStepId;
+          targetStatus = fallbackConfig.status;
+        }
+      }
+
+      const updatedApp: Application = {
         ...app,
-        status: (stepConfig[app.currentStep]?.status || 'Processing') as any,
+        currentStep: targetStepId,
+        status: targetStatus as any,
         issueType: 'None' as const,
         issueSeverity: 'Minor' as const,
         issueNotes: '',
         issueStatus: 'RESOLVED' as const,
         isRejected: false,
+        rejectedFromStepId: undefined, // Xoá vết quay lại
         history: newHistory
       };
 
@@ -850,15 +865,29 @@ export const useDataStore = create<DataState>((set, get) => ({
 
     try {
       const updatedApps = appsToResolve.map(app => {
-        const stepCfg = stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep];
+        let targetStepId = app.currentStep;
+        let targetStatus = stepConfig[app.currentStep]?.status || INITIAL_STEP_CONFIG[app.currentStep]?.status || 'Processing';
+        let targetDept = stepConfig[app.currentStep]?.dept || INITIAL_STEP_CONFIG[app.currentStep]?.dept;
+
+        if (app.rejectedFromStepId) {
+          const fallbackConfig = stepConfig[app.rejectedFromStepId] || INITIAL_STEP_CONFIG[app.rejectedFromStepId];
+          if (fallbackConfig) {
+            targetStepId = app.rejectedFromStepId;
+            targetStatus = fallbackConfig.status;
+            targetDept = fallbackConfig.dept;
+          }
+        }
+
+        const stepCfg = stepConfig[targetStepId] || INITIAL_STEP_CONFIG[targetStepId];
 
         const newHistory = [
           {
             id: `resolve-${Date.now()}-${app.id}`,
-            stepName: stepCfg.label,
+            stepName: 'Khắc phục lỗi',
+            stepKey: 'RESOLVED',
             dept: userRole as Dept,
             receivedDate: new Date().toISOString(),
-            note: 'Đã khắc phục xong sai sót/vướng mắc. Sẵn sàng chuyển bước tiếp theo.',
+            note: 'Đã khắc phục xong và trả lại luồng xử lý',
             performedBy: currentUser?.id,
             performedByName: currentUser?.name
           },
@@ -869,12 +898,14 @@ export const useDataStore = create<DataState>((set, get) => ({
 
         return {
           ...app,
-          status: stepCfg.status,
+          currentStep: targetStepId,
+          status: targetStatus as any,
           isRejected: false,
           issueType: 'None' as const,
           issueSeverity: 'Minor' as const,
           issueNotes: '',
           issueStatus: 'RESOLVED' as const,
+          rejectedFromStepId: undefined, // Xoá vết quay lại
           history: newHistory,
           auditTrail: [auditEntry, ...(app.auditTrail || [])]
         };
@@ -1110,7 +1141,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  rejectApp: async (app, reason, createNotification) => {
+  rejectApp: async (app, targetStepId, reason, createNotification) => {
     const { currentUser, userRole } = useAuthStore.getState();
     const { users, stepConfig, setApplications, setDashboardApps } = get();
 
@@ -1119,26 +1150,30 @@ export const useDataStore = create<DataState>((set, get) => ({
       return { success: false, message: 'Bạn không có quyền Trả về / Yêu cầu bổ sung hồ sơ.' };
     }
 
-    const stepKeys = Object.keys(stepConfig);
-    const currentIndex = stepKeys.indexOf(app.currentStep);
-    const prevStep = currentIndex > 0 ? stepKeys[currentIndex - 1] as StepName : app.currentStep;
+    const prevStepConfig = stepConfig[targetStepId] || INITIAL_STEP_CONFIG[targetStepId];
+    if (!prevStepConfig) {
+      return { success: false, message: 'Không tìm thấy cấu hình của bước đích.' };
+    }
 
     const newHistory = [
       {
         id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         stepName: 'Yêu cầu chỉnh sửa / Bổ sung',
+        stepKey: 'REJECTED',
         dept: userRole as Dept,
         receivedDate: new Date().toISOString(),
-        note: `Hồ sơ sai sót/cần bổ sung: ${reason}`,
+        note: `Hồ sơ bị trả về bước "${prevStepConfig.label}" với lý do: ${reason}`,
         performedBy: currentUser?.id,
         performedByName: currentUser?.name
       },
       ...app.history
     ];
 
-    const updatedApp = {
+    const updatedApp: Application = {
       ...updateAppIssue(app, reason, 'Sai sót Khác'),
-      currentStep: prevStep,
+      currentStep: targetStepId,
+      status: prevStepConfig.status,
+      rejectedFromStepId: app.currentStep,
       rejectionCount: (app.rejectionCount || 0) + 1,
       isRejected: true,
       rejectionReason: reason,
@@ -1146,7 +1181,6 @@ export const useDataStore = create<DataState>((set, get) => ({
     };
 
     try {
-      const prevStepConfig = stepConfig[prevStep] || INITIAL_STEP_CONFIG[prevStep];
       const targetDept = prevStepConfig.dept;
       const targetUsers = users.filter(u => u.dept === targetDept && u.id !== currentUser?.id);
 

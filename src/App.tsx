@@ -3875,12 +3875,12 @@ export default function App() {
     showToast(result.message, result.success ? 'success' : 'error');
   };
 
-  const handleRejectApp = async (reason: string) => {
+  const handleRejectApp = async (targetStepId: string, reason: string) => {
     const app = editApp || selectedApp;
     if (!app) return;
 
     setIsSavingApp(true);
-    const result = await rejectApp(app, reason, createNotification);
+    const result = await rejectApp(app, targetStepId as StepName, reason, createNotification);
 
     if (result.success && result.finalApp) {
       setSelectedApp(result.finalApp);

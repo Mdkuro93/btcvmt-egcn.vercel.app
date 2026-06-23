@@ -2317,12 +2317,7 @@ export const ApplicationDetailModal = ({
                                 "Lý do trả hồ sơ / quay lại bước trước:",
                               );
                               if (reason) {
-                                if (currentIdx === 1) handleRejectApp(reason);
-                                else
-                                  handleStepTransition(
-                                    returnStep as StepName,
-                                    reason,
-                                  );
+                                handleRejectApp(returnStep, reason);
                               }
                             }}
                             className={cn(

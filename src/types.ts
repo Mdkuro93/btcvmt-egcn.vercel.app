@@ -173,6 +173,7 @@ export type Application = {
   estimatedCompletionDate?: string;
   rejectionCount?: number; // Số lần hồ sơ bị trả về
   isRejected?: boolean; // Trạng thái đang bị trả về chờ sửa
+  rejectedFromStepId?: StepName; // Vết quay lại khi khắc phục xong
   rejectionReason?: string; // Lý do trả hồ sơ
   commitmentDate?: string;
   scannedFiles?: ScannedFile[];
