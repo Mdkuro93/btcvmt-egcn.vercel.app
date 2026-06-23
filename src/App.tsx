@@ -2677,113 +2677,6 @@ export default function App() {
     { key: 'customerHandoverDate', label: 'Ngày BG Khách' }
   ];
 
-  function validateDateSequence(app: Partial<Application>) {
-    const dates = [
-      { key: 'receivedDate', label: 'Ngày nhận HS' },
-      { key: 'accountingHandoverDate', label: 'Ngày KT tiếp nhận' },
-      { key: 'contractSigningDate', label: 'Ngày ký HĐCN' },
-      { key: 'submissionDate', label: 'Ngày nộp VPĐK' },
-      { key: 'taxNotificationDate', label: 'Ngày TB Thuế' },
-      { key: 'taxReceiptDate', label: 'Ngày nộp thuế/NVTC' },
-      { key: 'gcnSignedDate', label: 'Ngày ký GCN' },
-      { key: 'gcnReceivedDate', label: 'Ngày nhận GCN' },
-      { key: 'ptdaHandoverDate', label: 'Ngày PTDA bàn giao' },
-      { key: 'customerHandoverDate', label: 'Ngày BG Khách' }
-    ];
-
-    const chronoDates = [
-      { key: 'receivedDate', label: 'Ngày nhận HS' },
-      { key: 'accountingHandoverDate', label: 'Ngày KT tiếp nhận' },
-      { key: 'submissionDate', label: 'Ngày nộp VPĐK' },
-      { key: 'taxNotificationDate', label: 'Ngày TB Thuế' },
-      { key: 'taxReceiptDate', label: 'Ngày nộp thuế/NVTC' },
-      { key: 'gcnSignedDate', label: 'Ngày ký GCN' },
-      { key: 'gcnReceivedDate', label: 'Ngày nhận GCN' },
-      { key: 'ptdaHandoverDate', label: 'Ngày PTDA bàn giao' },
-      { key: 'customerHandoverDate', label: 'Ngày BG Khách' }
-    ];
-
-    // Helper to check if a value is empty or invalid
-    const isDateEmptyOrInvalid = (val: any) => {
-      if (!val || val === '---' || typeof val !== 'string' || val.trim() === '') {
-        return true;
-      }
-      const d = new Date(val);
-      return isNaN(d.getTime());
-    };
-
-    // Find the latest non-empty date index in the expected chronology (excluding contractSigningDate)
-    let maxFilledIdx = -1;
-    for (let i = chronoDates.length - 1; i >= 0; i--) {
-      const val = app[chronoDates[i].key as keyof Application];
-      if (!isDateEmptyOrInvalid(val)) {
-        maxFilledIdx = i;
-        break;
-      }
-    }
-
-    // If dates are filled, run chronological checks
-    if (maxFilledIdx > 0) {
-      // Check if any date before maxFilledIdx is empty/invalid
-      let hasBypass = false;
-      for (let i = 0; i < maxFilledIdx; i++) {
-        const val = app[chronoDates[i].key as keyof Application];
-        if (isDateEmptyOrInvalid(val)) {
-          // BYPASS validation! There are missing preceding milestones, allowing input without blocking
-          hasBypass = true;
-          break;
-        }
-      }
-
-      if (!hasBypass) {
-        // Perform chronological order checks: d2 >= d1
-        // Filter out fields that are present and have valid date strings up to maxFilledIdx
-        const activeDates = chronoDates
-          .slice(0, maxFilledIdx + 1)
-          .map(d => ({ ...d, value: app[d.key as keyof Application] }))
-          .filter(d => !isDateEmptyOrInvalid(d.value));
-
-        for (let i = 0; i < activeDates.length - 1; i++) {
-          const d1 = activeDates[i];
-          const d2 = activeDates[i+1];
-          
-          const date1 = new Date(d1.value as string);
-          const date2 = new Date(d2.value as string);
-          
-          if (!isNaN(date1.getTime()) && !isNaN(date2.getTime())) {
-            // Normalize to midnight for pure date comparison
-            date1.setHours(0, 0, 0, 0);
-            date2.setHours(0, 0, 0, 0);
-            
-            if (date2 < date1) {
-              return `${d2.label} (${formatDate(d2.value as string)}) không được nhỏ hơn ${d1.label} (${formatDate(d1.value as string)})`;
-            }
-          }
-        }
-      }
-    }
-
-    // Check future date
-    const today = new Date();
-    today.setHours(23, 59, 59, 999);
-    for (const d of dates) {
-      const val = app[d.key as keyof Application];
-      if (isDateEmptyOrInvalid(val)) {
-        continue;
-      }
-      if (d.key === 'bankCommitmentDeadline' || d.key === 'commitmentDate') {
-        continue;
-      }
-      const date = new Date(val as string);
-      date.setHours(0, 0, 0, 0);
-      if (!isNaN(date.getTime()) && date > today) {
-        return `⚠️ Lưu ý: ${d.label} (${formatDate(val as string)}) là ngày trong tương lai`;
-      }
-    }
-
-    return null;
-  }
-
   const handleSpreadsheetChange = (id: string, field: string, value: string) => {
     setSpreadsheetChanges(prev => ({
       ...prev,
@@ -3398,6 +3291,13 @@ export default function App() {
 
   const handleUpdateApp = async () => {
     if (!editApp || !selectedApp) return;
+
+    const err = validateDateSequence(editApp);
+    if (err) {
+      showToast(err, 'error');
+      return;
+    }
+
     setIsSavingApp(true);
     const result = await updateApp(editApp);
     if (result.success && result.finalApp) {

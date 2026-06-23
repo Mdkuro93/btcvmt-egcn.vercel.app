@@ -1,4 +1,5 @@
 import { STEP_CONFIG } from '../constants';
+import { calculateWorkingDays, SLA_CONFIG } from './dateUtils';
 
 const DEFAULT_STEP_CONFIG = STEP_CONFIG;
 const DEFAULT_SLA_CONFIG = Object.values(DEFAULT_STEP_CONFIG).reduce((acc: any, s: any) => {
@@ -42,6 +43,7 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
     }
 
     const sla = finalSlaConfig[config.label] || config.slaDays || 10;
+    let activeSla = sla;
 
     let stepStartTime: number = 0;
     const history = app.history || [];
@@ -51,8 +53,22 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
 
     // Check if the current step is completed in system logs
     if (matchedHistory && matchedHistory.completedDate) {
-      // Step already completed: hide active warning from UI immediately
-      return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
+      let sTime = 0;
+      const idMatch = String(matchedHistory.id).match(/^hist-(\d+)-/);
+      if (idMatch) {
+        sTime = parseInt(idMatch[1], 10);
+      } else if (matchedHistory.receivedDate) {
+        sTime = new Date(matchedHistory.receivedDate).getTime();
+      }
+
+      if (sTime > 0) {
+        const workingDays = calculateWorkingDays(new Date(sTime), new Date(matchedHistory.completedDate));
+        if (workingDays > activeSla) {
+          const daysLate = parseFloat((workingDays - activeSla).toFixed(1));
+          return { isOverdue: true, daysLate, daysLeft: 0, urgency: 'overdue' as const, isStepCompleted: true };
+        }
+      }
+      return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const, isStepCompleted: true };
     }
 
     const isDateValid = (d: any) => d && d !== '---' && d !== 'None' && String(d).trim() !== '';
@@ -73,7 +89,7 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
     // SPECIAL LOGIC FOR STEP 2 (CHỜ NỘP VPĐK) - AS REQUESTED BY USER
     if (isKTHandoverStep) {
       const ktPtdaDate = app.ktHandoverToPtdaDate || app.kt_handover_to_ptda_date;
-      let activeSla = sla || 3;
+      activeSla = sla || 3;
       let targetStartDateStr: string | undefined;
 
       if (isDateValid(ktPtdaDate)) {
@@ -108,10 +124,8 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
       }
 
       if (targetStartDateStr) {
-        const startTime = new Date(targetStartDateStr).getTime();
-        const now = new Date().getTime();
-        const elapsedDays = Math.max(0, now - startTime) / (1000 * 60 * 60 * 24);
-        const daysLeft = Math.max(0, parseFloat((activeSla - elapsedDays).toFixed(1)));
+        const elapsedDays = calculateWorkingDays(targetStartDateStr, new Date());
+        const daysLeft = Math.max(0, parseFloat((activeSla - Math.max(0, elapsedDays)).toFixed(1)));
         
         const urgency: 'overdue' | 'urgent' | 'warning' | 'normal' =
           elapsedDays > activeSla ? 'overdue' :
@@ -134,7 +148,7 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
     const isGD1ChuanBi = currentStep === 'GD1_ChuanBi' || currentStep === 'GĐ1_ChuanBi' || currentStep === 'S1_ChuanBi';
     
     if (isGD1ChuanBi) {
-      let activeSla = sla;
+      activeSla = sla;
       let targetStartDateStr: string | undefined;
 
       const propType = app.propertyType || app.property_type;
@@ -175,9 +189,8 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
 
         stepStartTime = new Date(targetStartDateStr).getTime();
 
-        const now = new Date().getTime();
-        const elapsedDays = Math.max(0, now - stepStartTime) / (1000 * 60 * 60 * 24);
-        const daysLeft = Math.max(0, parseFloat((activeSla - elapsedDays).toFixed(1)));
+        const elapsedDays = calculateWorkingDays(targetStartDateStr, new Date());
+        const daysLeft = Math.max(0, parseFloat((activeSla - Math.max(0, elapsedDays)).toFixed(1)));
         
         const urgency: 'overdue' | 'urgent' | 'warning' | 'normal' =
           elapsedDays > activeSla ? 'overdue' :
@@ -272,6 +285,10 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
           if (isDateValid(val)) {
             comparisonDate = val;
             break;
+          } else {
+            if (i > 0 && i < startIdx) {
+              activeSla += SLA_CONFIG.MAC_DINH_BUOC;
+            }
           }
         }
       }
@@ -282,7 +299,7 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
         comparisonDate === (app.contractSigningDate || app.contract_signing_date) ||
         comparisonDate === (app.receivedDate || app.received_date);
       if (isEarlyMilestone && startIdx >= 1) {
-        return { isOverdue: false, daysLate: 0, daysLeft: sla, urgency: 'normal' as const };
+        return { isOverdue: false, daysLate: 0, daysLeft: activeSla, urgency: 'normal' as const };
       }
 
       // If still no date found, use received_date as last resort
@@ -302,19 +319,18 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
       }
     }
 
-    const now = new Date().getTime();
     // Minute-precise duration elapsed
-    const elapsedDays = Math.max(0, now - stepStartTime) / (1000 * 60 * 60 * 24);
+    const elapsedDays = calculateWorkingDays(new Date(stepStartTime), new Date());
 
-    const daysLeft = Math.max(0, parseFloat((sla - elapsedDays).toFixed(1)));
+    const daysLeft = Math.max(0, parseFloat((activeSla - Math.max(0, elapsedDays)).toFixed(1)));
     const urgency: 'overdue' | 'urgent' | 'warning' | 'normal' =
-      elapsedDays > sla ? 'overdue' :
+      elapsedDays > activeSla ? 'overdue' :
       daysLeft <= 1 ? 'urgent' :
       daysLeft <= 3 ? 'warning' : 'normal';
 
-    if (elapsedDays > sla) {
+    if (elapsedDays > activeSla) {
       // Calculate float days late precisely
-      const daysLate = parseFloat((elapsedDays - sla).toFixed(1));
+      const daysLate = parseFloat((elapsedDays - activeSla).toFixed(1));
       return { isOverdue: true, daysLate, label: `Trễ ${config.label}`, daysLeft: 0, urgency: 'overdue' as const };
     }
 
@@ -348,3 +364,17 @@ export function getFinalStatus(app: any) {
 export function isOverdue(app: any, stepConfig?: any, slaConfig?: any): boolean {
   return calculateSLA(app, stepConfig, slaConfig).isOverdue;
 }
+
+export const computeUltimateStatus = (app: any): string => {
+  const isV = (val: any) => val && val !== '---' && val !== 'None' && String(val).trim() !== '';
+
+  if (isV(app.customerHandoverDate) || app.status === 'Completed' || app.currentStep === 'Hoan_Tat') return '9. HOÀN TẤT';
+  if (isV(app.gcnReceivedDate) || isV(app.ptdaHandoverDate)) return '8. CHỜ BÀN GIAO';
+  if (isV(app.gcnSignedDate)) return '7. ĐÃ CÓ GCN';
+  if (isV(app.taxReceiptDate)) return '6. ĐÃ NỘP THUẾ';
+  if (isV(app.taxNotificationDate) || isV(app.taxNotificationReceivedDate)) return '5. CHỜ HOÀN THÀNH NVTC';
+  if (isV(app.submissionDate)) return '3. ĐÃ NỘP VPĐK';
+  if (isV(app.ktHandoverToPtdaDate) || isV(app.accountingHandoverDate) || app.status === 'WaitingVPDK') return '2. CHỜ NỘP VPĐK';
+
+  return '1. ĐANG CHUẨN BỊ';
+};

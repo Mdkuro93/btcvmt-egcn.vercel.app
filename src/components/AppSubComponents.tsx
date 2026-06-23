@@ -4,7 +4,7 @@ import { ArrowRight, ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Application, UnitStatus } from '../types';
 import { formatDate } from '../utils/dateUtils';
-import { calculateSLA } from '../utils/statusEngine';
+import { calculateSLA, computeUltimateStatus } from '../utils/statusEngine';
 import { determineStatusFromStep } from '../utils/appUtils';
 import { STEP_CONFIG as INITIAL_STEP_CONFIG } from '../constants';
 
@@ -39,80 +39,42 @@ export const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 
 
 export const StatusBadge = ({ status, app, variant = 'default' }: { status: UnitStatus | string; app?: Application; variant?: 'default' | 'compact' }) => {
   let effectiveStatus: string = status;
+  let label: string = status;
+
   if (app) {
-    let baseStatus = app.status;
-    if (baseStatus === 'Error') {
-      baseStatus = determineStatusFromStep(app.currentStep, INITIAL_STEP_CONFIG);
-    }
-
-    if (baseStatus === 'WaitingHandover' || baseStatus === 'Completed') {
-      effectiveStatus = app.customerHandoverDate ? 'Completed' : 'WaitingHandover';
-    } else if (app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK') {
-      const isActuallySubmitted = !!app.submissionDate;
-      if (app.currentStep === 'S3_Nop_VPDK') {
-        effectiveStatus = isActuallySubmitted ? 'Submitted' : 'WaitingVPDK_Step3';
-      } else {
-        effectiveStatus = isActuallySubmitted ? 'Submitted' : 'WaitingVPDK';
-      }
-      
-      if (isActuallySubmitted && app.submissionDate) {
-        const subDate = new Date(app.submissionDate);
-        const daysDiff = (new Date().getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
-        if (daysDiff > 7 && !app.taxNotificationDate) effectiveStatus = 'TaxPending';
-      }
-    } else if (app.currentStep === 'GD3_Nop_VPDK') {
-      // Dynamic logic for tax notification wait
-      if (app.taxNotificationDate) {
-        effectiveStatus = 'TaxNotificationReceived';
-      } else if (app.submissionDate) {
-        const subDate = new Date(app.submissionDate);
-        const daysDiff = (new Date().getTime() - subDate.getTime()) / (1000 * 60 * 60 * 24);
-        effectiveStatus = daysDiff > 7 ? 'TaxPending' : 'Submitted';
-      } else {
-        effectiveStatus = 'WaitingVPDK_Step3';
-      }
-    } else if (app.currentStep === 'S5_Tai_Chinh_Khach_Hang' || app.currentStep === 'GD4_Cho_Nop_NVTC' || app.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo') {
-      if (app.taxReceiptDate) {
-        effectiveStatus = 'TaxPaid';
-      } else if (app.taxNotificationDate) {
-        effectiveStatus = 'TaxNotificationReceived';
-      } else {
-        effectiveStatus = 'TaxPaymentPending_Dynamic';
-      }
-    } else if (['S5_1_PTDA_TiepNhan'].includes(app.currentStep)) {
-       effectiveStatus = 'TaxPaid';
-    } else if (['S6_Nhan_So_GCN', 'GD5_Cho_Ky_In_GCN'].includes(app.currentStep)) {
-      effectiveStatus = app.gcnSignedDate ? 'GCN_Issued' : 'GCN_SignPending_Dynamic';
-    } else if (['S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach', 'GD6_Cho_BG_Khach', 'GD5_Cho_PTT_TiepNhan_BG'].includes(app.currentStep)) {
-       effectiveStatus = app.customerHandoverDate ? 'Completed' : 'WaitingHandover';
-    } else {
-      effectiveStatus = baseStatus;
-    }
+    const ultimate = computeUltimateStatus(app);
+    label = ultimate;
+    
+    const ultimateToKey: Record<string, string> = {
+      '1. ĐANG CHUẨN BỊ': 'Processing',
+      '2. CHỜ NỘP VPĐK': 'WaitingVPDK',
+      '3. ĐÃ NỘP VPĐK': 'Submitted',
+      '4. CHỜ THÔNG BÁO THUẾ': 'TaxPending',
+      '5. CHỜ HOÀN THÀNH NVTC': 'TaxNotificationReceived',
+      '6. ĐÃ NỘP THUẾ': 'TaxPaid',
+      '7. ĐÃ CÓ GCN': 'GCN_Issued',
+      '8. CHỜ BÀN GIAO': 'WaitingHandover',
+      '9. HOÀN TẤT': 'Completed'
+    };
+    effectiveStatus = ultimateToKey[ultimate] || 'Processing';
   }
 
-  if (effectiveStatus === 'Error' && app) {
-    effectiveStatus = determineStatusFromStep(app.currentStep, INITIAL_STEP_CONFIG);
-  }
-
-  const configs: Record<string, { label: string, classes: string }> = {
-    Processing: { label: '1. Đang chuẩn bị', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
-    WaitingVPDK: { label: '2. Chờ nộp VPĐK', classes: 'bg-amber-500/10 text-amber-600 border border-amber-500/20' },
-    WaitingVPDK_Step3: { label: '3. CHỜ NỘP VPĐK', classes: 'bg-amber-500/10 text-amber-600 border border-amber-500/20' },
-    Submitted: { label: '3. ĐÃ NỘP VPĐK', classes: 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 shadow-[0_0_10px_rgba(99,102,241,0.1)]' },
-    TaxPending: { label: '4. CHỜ THÔNG BÁO THUẾ', classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20 animate-pulse' },
-    TaxNotificationReceived: { label: '5. CHỜ HOÀN THÀNH NVTC', classes: 'bg-sky-500/10 text-sky-600 border border-sky-500/20 shadow-[0_0_10px_rgba(14,165,233,0.1)]' },
-    TaxPaymentPending_Dynamic: { label: 'CHỜ NỘP THUẾ', classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20' },
-    TaxCompleted: { label: 'Đã hoàn thành NVTC', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
-    TaxPaid: { label: '6. ĐÃ NỘP THUẾ', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]' },
-    GCN_SignPending_Dynamic: { label: 'CHỜ BÀN GIAO', classes: 'bg-amber-500/10 text-amber-600 border border-amber-500/20 shadow-[-1px_1px_10px_rgba(245,158,11,0.15)] animate-pulse' },
-    GCN_Issued: { label: 'Đã ra GCN', classes: 'bg-sky-500/10 text-sky-600 border border-sky-500/20' },
-    WaitingHandover: { label: 'CHỜ BÀN GIAO', classes: 'bg-amber-500/10 text-amber-600 border border-amber-500/20 animate-pulse' },
-    Completed: { label: 'Hoàn tất', classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
-    Error: { label: 'Sai sót/Vướng', classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20' },
-    Draft: { label: 'Nháp', classes: 'bg-slate-500/10 text-slate-600 border border-slate-500/20' },
+  const configs: Record<string, { classes: string }> = {
+    Processing: { classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
+    WaitingVPDK: { classes: 'bg-amber-500/10 text-amber-600 border border-amber-500/20' },
+    Submitted: { classes: 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 shadow-[0_0_10px_rgba(99,102,241,0.1)]' },
+    TaxPending: { classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20 animate-pulse' },
+    TaxNotificationReceived: { classes: 'bg-sky-500/10 text-sky-600 border border-sky-500/20 shadow-[0_0_10px_rgba(14,165,233,0.1)]' },
+    TaxPaid: { classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]' },
+    GCN_Issued: { classes: 'bg-sky-500/10 text-sky-600 border border-sky-500/20' },
+    WaitingHandover: { classes: 'bg-amber-500/10 text-amber-600 border border-amber-500/20 animate-pulse' },
+    Completed: { classes: 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' },
+    Error: { classes: 'bg-rose-500/10 text-rose-600 border border-rose-500/20' },
+    Draft: { classes: 'bg-slate-500/10 text-slate-600 border border-slate-500/20' },
   };
 
   let config = configs[effectiveStatus] || configs.Processing;
+  let displayLabel = app ? label : status;
 
   if (app) {
     const slaResult = calculateSLA(app);
@@ -121,7 +83,6 @@ export const StatusBadge = ({ status, app, variant = 'default' }: { status: Unit
 
     if (hasIssue || isOverdue) {
       config = {
-        label: config.label,
         classes: 'bg-rose-500/12 text-rose-500 border border-rose-500/30 font-black animate-pulse'
       };
     }
@@ -133,7 +94,7 @@ export const StatusBadge = ({ status, app, variant = 'default' }: { status: Unit
       "whitespace-nowrap inline-block", 
       config.classes
     )}>
-      {config.label}
+      {displayLabel}
     </span>
   );
 };

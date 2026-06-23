@@ -206,6 +206,25 @@ export function validateDateSequence(app: Partial<Application>): string | null {
     .map(d => ({ ...d, value: app[d.key as keyof Application] }))
     .filter(d => !isDateEmptyOrInvalid(d.value));
 
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  for (const d of activeDates) {
+    const dVal = new Date(d.value as string);
+    dVal.setHours(0, 0, 0, 0);
+    if (dVal > now) {
+      return `${d.label} không được lớn hơn ngày hiện tại`;
+    }
+  }
+
+  if (!isDateEmptyOrInvalid(app.contractSigningDate)) {
+    const cDate = new Date(app.contractSigningDate!);
+    cDate.setHours(0, 0, 0, 0);
+    if (cDate > now) {
+      return `Ngày ký HĐCN không được lớn hơn ngày hiện tại`;
+    }
+  }
+
   for (let i = 0; i < activeDates.length - 1; i++) {
     const d1 = activeDates[i];
     const d2 = activeDates[i+1];

@@ -6,7 +6,7 @@ import { diffDays } from '../utils/dateUtils';
 import { Application, KPI, Project, Dept, UnitStatus } from '../types';
 import { STEP_CONFIG as INITIAL_STEP_CONFIG } from '../constants';
 import { RotateCcw, Clock, AlertTriangle, AlertCircle, History as HistoryIcon } from 'lucide-react';
-import { getFinalStatus, isOverdue } from '../utils/statusEngine';
+import { getFinalStatus, isOverdue, computeUltimateStatus } from '../utils/statusEngine';
 
 export function useDashboardStats(
   selectedProjectId: string | null,
@@ -356,108 +356,24 @@ export function useDashboardStats(
   
 
   const computeChartData = (appsList: Application[]) => {
-    const today = new Date();
-    const submissionSLA = 
-      slaConfig?.['Nộp VPĐK'] ?? 
-      slaConfig?.['S3_Nop_VPDK'] ?? 
-      slaConfig?.['GD3_Nop_VPDK'] ?? 7; // Mặc định 7 ngày theo yêu cầu
-
-    const stages = {
-      PREPARING: [] as Application[], 
-      AWAITING_SUBMISSION: [] as Application[], 
-      SUBMITTED: [] as Application[], 
-      TAX_WARNING: [] as Application[], 
-      AWAITING_FINANCE: [] as Application[], 
-      TAX_PAID: [] as Application[],
-      GCN_READY: [] as Application[], 
-      WAITING_HANDOVER: [] as Application[],
-      COMPLETED: [] as Application[] 
+    const groups: Record<string, Application[]> = {
+      '1. ĐANG CHUẨN BỊ': [],
+      '2. CHỜ NỘP VPĐK': [],
+      '3. ĐÃ NỘP VPĐK': [],
+      '4. CHỜ THÔNG BÁO THUẾ': [],
+      '5. CHỜ HOÀN THÀNH NVTC': [],
+      '6. ĐÃ NỘP THUẾ': [],
+      '7. ĐÃ CÓ GCN': [],
+      '8. CHỜ BÀN GIAO': [],
+      '9. HOÀN TẤT': []
     };
 
     appsList.forEach(r => {
-      // Ưu tiên cao nhất: Diện tự làm sổ
-      if (r.isSelfService) {
-        const hasHandover = r.customerHandoverDate && r.customerHandoverDate !== '---' && r.customerHandoverDate !== 'None' && String(r.customerHandoverDate).trim() !== '';
-        const hasGcn = r.gcnReceivedDate && r.gcnReceivedDate !== '---' && r.gcnReceivedDate !== 'None' && String(r.gcnReceivedDate).trim() !== '';
-
-        // Hoàn tất: có Ngày BG GCN Khách hoặc trạng thái hệ thống ghi nhận là Completed / Hoan_Tat
-        if (r.status === 'Completed' || (r.currentStep as string) === 'Hoan_Tat' || hasHandover) {
-          stages.COMPLETED.push(r);
-        }
-        // Đang chờ bàn giao khách (đã có GCN thực tế)
-        else if (hasGcn) {
-          stages.WAITING_HANDOVER.push(r);
-        }
-        // Đang chuẩn bị (trống cả ngày nhận GCN và ngày giao khách)
-        else {
-          stages.PREPARING.push(r);
-        }
-        return;
-      }
-
-      // Ưu tiên 1: Completed luôn thắng
-      if (r.status === 'Completed' || r.currentStep === 'Hoan_Tat') {
-        stages.COMPLETED.push(r);
-      }
-      // Ưu tiên 2: WaitingHandover
-      else if (r.status === 'WaitingHandover' || [
-        'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 
-        'S7_2_Ban_Giao_Khach', 'GD5_Cho_PTT_TiepNhan_BG', 
-        'GD6_Cho_BG_Khach'
-      ].includes(r.currentStep)) {
-        stages.WAITING_HANDOVER.push(r);
-      }
-      // Ưu tiên 3: GCN_Issued
-      else if (r.status === 'GCN_Issued' || [
-        'S6_Nhan_So_GCN', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_GCN'
-      ].includes(r.currentStep)) {
-        stages.GCN_READY.push(r);
-      }
-      // Ưu tiên 4: TaxCompleted / TaxPaid
-      else if ((r.status === 'TaxPaid' || r.status === 'TaxCompleted' ||
-               r.currentStep === 'S5_1_PTDA_TiepNhan') && !r.isRejected) {
-        stages.TAX_PAID.push(r);
-      }
-      // Ưu tiên 5: AWAITING_FINANCE (CHỜ HOÀN THÀNH NVTC)
-      else if ((r.taxNotificationDate || r.taxNotificationReceivedDate) && !r.isRejected) {
-        stages.AWAITING_FINANCE.push(r);
-      }
-      else if ([
-        'S5_Tai_Chinh_Khach_Hang', 'GD4_Cho_Nop_NVTC', 
-        'GD4_Cho_KT_TiepNhan_LaySo'
-      ].includes(r.currentStep)) {
-        stages.AWAITING_FINANCE.push(r);
-      }
-      // Ưu tiên 6: SUBMITTED / TAX_WARNING (phân loại theo SLA)
-      else if ((r.status === 'Submitted' || r.status === 'TaxPending' ||
-               r.submissionDate) && !r.isRejected) {
-        if (r.submissionDate && !r.taxNotificationDate && !r.taxNotificationReceivedDate) {
-          const daysDiff = (today.getTime() - 
-            new Date(r.submissionDate).getTime()) / (1000*60*60*24);
-          if (daysDiff > submissionSLA)
-            stages.TAX_WARNING.push(r);
-          else
-            stages.SUBMITTED.push(r);
-        } else if (r.taxNotificationDate || r.taxNotificationReceivedDate) {
-          stages.AWAITING_FINANCE.push(r);
-        } else {
-          stages.SUBMITTED.push(r);
-        }
-      }
-      // Ưu tiên 7: AWAITING_SUBMISSION (CHỜ NỘP VPĐK / CHỜ KT TIẾP NHẬN)
-      else if (
-        r.status === 'WaitingVPDK' ||
-        (r.currentStep as string) === 'GD2_Cho_Nop_VPDK' ||
-        (r.currentStep as string) === 'S2_KT_Ban_giao' ||
-        (r.currentStep as string) === 'S2_KT_Tiep_Nhan' ||
-        (r.currentStep as string) === 'GD1_Cho_KT_TiepNhan' ||
-        (r.accountingHandoverDate && !r.submissionDate && !r.isRejected)
-      ) {
-        stages.AWAITING_SUBMISSION.push(r);
-      }
-      // Mặc định: PREPARING
-      else {
-        stages.PREPARING.push(r);
+      const stageName = computeUltimateStatus(r);
+      if (groups[stageName]) {
+        groups[stageName].push(r);
+      } else {
+        groups['1. ĐANG CHUẨN BỊ'].push(r);
       }
     });
 
@@ -478,15 +394,15 @@ export function useDashboardStats(
     };
 
     return [
-      createStageItem('1. ĐANG CHUẨN BỊ', stages.PREPARING, '#94a3b8', 'Processing'),
-      createStageItem('2. CHỜ NỘP VPĐK', stages.AWAITING_SUBMISSION, '#f59e0b', 'WaitingVPDK'),
-      createStageItem('3. ĐÃ NỘP VPĐK', stages.SUBMITTED, '#3b82f6', 'Submitted'),
-      createStageItem('4. CHỜ THÔNG BÁO THUẾ', stages.TAX_WARNING, '#f97316', 'TaxPending'),
-      createStageItem('5. CHỜ HOÀN THÀNH NVTC', stages.AWAITING_FINANCE, '#8b5cf6', 'TaxPending'),
-      createStageItem('6. ĐÃ NỘP THUẾ', stages.TAX_PAID, '#10b981', 'TaxCompleted'),
-      createStageItem('7. ĐÃ CÓ GCN', stages.GCN_READY, '#06b6d4', 'GCN_Issued'),
-      createStageItem('8. CHỜ BÀN GIAO', stages.WAITING_HANDOVER, '#6366f1', 'WaitingHandover'),
-      createStageItem('9. HOÀN TẤT', stages.COMPLETED, '#22c55e', 'Completed')
+      createStageItem('1. ĐANG CHUẨN BỊ', groups['1. ĐANG CHUẨN BỊ'], '#94a3b8', 'Processing'),
+      createStageItem('2. CHỜ NỘP VPĐK', groups['2. CHỜ NỘP VPĐK'], '#f59e0b', 'WaitingVPDK'),
+      createStageItem('3. ĐÃ NỘP VPĐK', groups['3. ĐÃ NỘP VPĐK'], '#3b82f6', 'Submitted'),
+      createStageItem('4. CHỜ THÔNG BÁO THUẾ', groups['4. CHỜ THÔNG BÁO THUẾ'], '#f97316', 'TaxPending'),
+      createStageItem('5. CHỜ HOÀN THÀNH NVTC', groups['5. CHỜ HOÀN THÀNH NVTC'], '#8b5cf6', 'TaxPending'),
+      createStageItem('6. ĐÃ NỘP THUẾ', groups['6. ĐÃ NỘP THUẾ'], '#10b981', 'TaxCompleted'),
+      createStageItem('7. ĐÃ CÓ GCN', groups['7. ĐÃ CÓ GCN'], '#06b6d4', 'GCN_Issued'),
+      createStageItem('8. CHỜ BÀN GIAO', groups['8. CHỜ BÀN GIAO'], '#6366f1', 'WaitingHandover'),
+      createStageItem('9. HOÀN TẤT', groups['9. HOÀN TẤT'], '#22c55e', 'Completed')
     ];
   };
 
