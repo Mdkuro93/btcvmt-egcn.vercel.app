@@ -48,8 +48,13 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
     let stepStartTime: number = 0;
     const history = app.history || [];
 
+    const normalizeString = (s: string) => s ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, '') : '';
     // Find the latest history entry for the current step config label
-    const matchedHistory = history.find((h: any) => h.stepName === config.label);
+    const matchedHistory = history.find((h: any) => 
+      h.stepKey === currentStep || 
+      h.currentStep === currentStep || 
+      normalizeString(h.stepName) === normalizeString(config.label)
+    );
 
     // Check if the current step is completed in system logs
     if (matchedHistory && matchedHistory.completedDate) {
@@ -100,24 +105,33 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
         const propType = app.propertyType || app.property_type;
         const loaiCH = app.productType || app.loaiCanHo || app.product_type;
         const isCanHo = propType === 'Can_Ho' || loaiCH === 'Căn hộ' || loaiCH === 'Can_Ho';
+        const accountingHandoverDate = app.accountingHandoverDate || app.accounting_handover_date;
 
         if (isCanHo) {
-          activeSla = 45;
           const handoverAptDate = app.handoverApartmentDate || app.handover_apartment_date;
           if (isDateValid(handoverAptDate)) {
+            activeSla = 45;
             targetStartDateStr = handoverAptDate;
+          } else if (isDateValid(accountingHandoverDate)) {
+            // Có ngày bàn giao kế toán, kích hoạt đồng hồ đếm SLA (3 ngày hoặc 5 ngày)
+            activeSla = sla || 3;
+            targetStartDateStr = accountingHandoverDate;
           } else {
-            // Không trễ nếu chưa có ngày nghiệm thu
+            // Không trễ nếu chưa có ngày nghiệm thu & chưa bàn giao KT
             return { isOverdue: false, daysLate: 0, daysLeft: 45, urgency: 'normal' as const };
           }
         } else {
           // Đất nền
-          activeSla = 25;
           const signingDate = app.contractSigningDate || app.contract_signing_date;
           if (isDateValid(signingDate)) {
+            activeSla = 25;
             targetStartDateStr = signingDate;
+          } else if (isDateValid(accountingHandoverDate)) {
+            // Có ngày bàn giao kế toán, kích hoạt đồng hồ đếm SLA (3/5 ngày)
+            activeSla = sla || 3;
+            targetStartDateStr = accountingHandoverDate;
           } else {
-            // Không trễ nếu chưa có ngày HĐMB
+            // Không trễ nếu chưa có ngày HĐMB & chưa bàn giao KT
             return { isOverdue: false, daysLate: 0, daysLeft: 25, urgency: 'normal' as const };
           }
         }
@@ -141,7 +155,16 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
     }
 
     if (isSubmissionStep && isDateValid(submissionDate)) return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
-    if (isTaxStep && isDateValid(taxReceiptDate)) return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
+    
+    if (isTaxStep) {
+      if (isDateValid(taxReceiptDate)) {
+        return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
+      }
+      if (!isDateValid(taxNotiDate)) {
+        return { isOverdue: false, daysLate: 0, daysLeft: activeSla, urgency: 'normal' as const };
+      }
+    }
+    
     if (isGCNIssuanceStep && (isDateValid(gcnReceived) || isDateValid(gcnSigned))) return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
 
     // Step-specific custom SLA logic (GD1_ChuanBi / S1_ChuanBi)
@@ -153,27 +176,30 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
 
       const propType = app.propertyType || app.property_type;
       const isCanHo = propType === 'Can_Ho';
+      
+      const rDate = (matchedHistory && matchedHistory.receivedDate) ? matchedHistory.receivedDate : (app.receivedDate || app.received_date);
 
       if (isCanHo) {
         activeSla = 45;
         const handoverAptDate = app.handoverApartmentDate || app.handover_apartment_date;
         if (isDateValid(handoverAptDate)) {
           targetStartDateStr = handoverAptDate;
+        } else if (isDateValid(rDate)) {
+          targetStartDateStr = rDate;
         } else {
-          // No handover date -> Do not compute SLA, return normal
+          // No handover date and no received date -> Do not compute SLA, return normal
           return { isOverdue: false, daysLate: 0, daysLeft: 45, urgency: 'normal' as const };
         }
       } else {
         // Dat_Nen
         activeSla = 25;
         const signingDate = app.contract_signing_date || app.contractSigningDate;
-        const rDate = app.receivedDate || app.received_date;
         if (isDateValid(signingDate)) {
           targetStartDateStr = signingDate;
         } else if (isDateValid(rDate)) {
           targetStartDateStr = rDate;
         } else {
-          // No signing/received date -> Do not compute SLA, return normal
+          // No signing date and no received date -> Do not compute SLA, return normal
           return { isOverdue: false, daysLate: 0, daysLeft: 25, urgency: 'normal' as const };
         }
       }
@@ -277,27 +303,25 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
       const startIdx = milestoneOrder.indexOf(fieldKey);
       
       if (startIdx !== -1) {
+        const toCamelCase = (str: string) => str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
         // Search backwards from the current step's milestone
         for (let i = startIdx; i >= 0; i--) {
           const k = milestoneOrder[i];
-          const camelK = k.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-          const val = (app[k] || app[camelK]) as string | undefined;
+          const camelK = toCamelCase(k);
+          const val = app[k] || app[camelK];
           if (isDateValid(val)) {
             comparisonDate = val;
             break;
-          } else {
-            if (i > 0 && i < startIdx) {
-              activeSla += SLA_CONFIG.MAC_DINH_BUOC;
-            }
           }
         }
       }
 
       // Final Guard: If Step is > Step 1, and we only found contract_signing_date or received_date, 
       // but the step requires a later milestone that is missing, treat as normal (not overdue).
-      const isEarlyMilestone = 
+      const isEarlyMilestone = !!comparisonDate && (
         comparisonDate === (app.contractSigningDate || app.contract_signing_date) ||
-        comparisonDate === (app.receivedDate || app.received_date);
+        comparisonDate === (app.receivedDate || app.received_date)
+      );
       if (isEarlyMilestone && startIdx >= 1) {
         return { isOverdue: false, daysLate: 0, daysLeft: activeSla, urgency: 'normal' as const };
       }
