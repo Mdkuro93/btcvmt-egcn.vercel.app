@@ -55,6 +55,22 @@ export const DashboardTab = ({
     loanRatioTotal
   } = dashboardStatsProps || {};
 
+  const getChartItemYOffset = (name: string, isSub: boolean) => {
+    let offset = 0;
+    if (isSub) {
+      if (name.includes('2A')) offset = -14;
+      else if (name.includes('2B')) offset = -28;
+    } else {
+      if (/^[3-9]\./.test(name)) {
+        const has2A = progressChartData?.some((d: any) => d.name?.includes('2A'));
+        const has2B = progressChartData?.some((d: any) => d.name?.includes('2B'));
+        if (has2B) offset = -28;
+        else if (has2A) offset = -14;
+      }
+    }
+    return offset;
+  };
+
   return (
 <>
             {activeTab === 'dashboard' && (
@@ -309,11 +325,18 @@ export const DashboardTab = ({
                                width={180}
                                tick={({ x, y, payload }: any) => {
                                  const isSub = payload.value.includes('↳');
-                                 const fill = theme === 'light' ? (isSub ? '#94a3b8' : '#475569') : (isSub ? '#64748b' : '#94a3b8');
+                                 
+                                 // Fix text contrast
+                                 const fill = theme === 'light' 
+                                   ? (isSub ? '#64748b' : '#1e293b') // slate-500 : slate-800
+                                   : (isSub ? '#cbd5e1' : '#f8fafc'); // slate-300 : slate-50
+                                 
+                                 const yOffset = getChartItemYOffset(payload.value, isSub);
+
                                  return (
                                    <text 
                                      x={x - 170} 
-                                     y={y} 
+                                     y={y + yOffset} 
                                      dy={4} 
                                      fill={fill} 
                                      fontSize={isSub ? 9 : 11} 
@@ -372,7 +395,10 @@ export const DashboardTab = ({
                                 const isSub = payload && payload.isSub;
                                 if (!height) return null;
                                 const h = isSub ? 10 : height; // Thinner sub-bars
-                                const cy = isSub ? y + (height - h) / 2 : y;
+                                
+                                const yOffset = getChartItemYOffset(payload.name, isSub);
+                                
+                                const cy = (isSub ? y + (height - h) / 2 : y) + yOffset;
                                 const opacity = isSub ? 0.7 : 1;
                                 return <Rectangle {...props} x={x} y={cy} width={width} height={h} fill={fill} fillOpacity={opacity} radius={[0, 0, 0, 0]} className="transition-all duration-300" />;
                               }}
@@ -392,7 +418,10 @@ export const DashboardTab = ({
                                 const isSub = payload && payload.isSub;
                                 if (!height || width === 0) return null;
                                 const h = isSub ? 10 : height;
-                                const cy = isSub ? y + (height - h) / 2 : y;
+                                
+                                const yOffset = getChartItemYOffset(payload.name, isSub);
+                                
+                                const cy = (isSub ? y + (height - h) / 2 : y) + yOffset;
                                 const opacity = isSub ? 0.7 : 1;
                                 return <Rectangle {...props} x={x} y={cy} width={width} height={h} fill={fill} fillOpacity={opacity} radius={isSub ? [0, 4, 4, 0] : [0, 12, 12, 0]} className="transition-all duration-300" />;
                               }}
@@ -400,12 +429,29 @@ export const DashboardTab = ({
                             <Bar dataKey="labelAnchor" stackId="a" fill="transparent" isAnimationActive={false}>
                               <LabelList
                                 dataKey="value"
-                                position="right"
-                                offset={10}
-                                style={{
-                                  fontSize: 12,
-                                  fontWeight: 900,
-                                  fill: theme === 'dark' ? '#f8fafc' : '#1e293b'
+                                content={(props: any) => {
+                                  const { x, y, value, index, height } = props;
+                                  const item = progressChartData[index];
+                                  if (!item) return null;
+                                  
+                                  const isSub = item.isSub;
+                                  const yOffset = getChartItemYOffset(item.name, isSub);
+                                  
+                                  // Recharts positions `y` at top of bar, we add half height roughly to center it
+                                  const textY = y + (height || 24) / 2 + 4 + yOffset;
+                                  
+                                  return (
+                                    <text
+                                      x={x + 10}
+                                      y={textY}
+                                      fill={theme === 'dark' ? '#f8fafc' : '#1e293b'}
+                                      fontSize={isSub ? 10 : 12}
+                                      fontWeight={900}
+                                      className="transition-all duration-300"
+                                    >
+                                      {value}
+                                    </text>
+                                  );
                                 }}
                               />
                             </Bar>

@@ -450,7 +450,7 @@ export function useDashboardStats(
   const loanPieData = useMemo(() => {
     const loanRecords = dashboardApps ? dashboardApps.filter((a: Application) => a.loanStatus === 'Co_Vay') : [];
     const loanAppsCount = loanRecords.length;
-    return chartData.map(d => {
+    return chartData.filter(d => !d.isSub).map(d => {
       const filteredList = d.list.filter(a => a.loanStatus === 'Co_Vay');
       const count = filteredList.length;
       return {
@@ -465,7 +465,7 @@ export function useDashboardStats(
   const overallPieData = useMemo(() => {
     const records = dashboardApps || [];
     const totalApps = records.length;
-    return chartData.map(d => ({
+    return chartData.filter(d => !d.isSub).map(d => ({
       name: d.name,
       value: d.value,
       percentage: totalApps > 0 ? Math.round((d.value / totalApps) * 100) : 0,
