@@ -12,8 +12,140 @@ import {
   LineChart, Line, AreaChart, Area, Legend, PieChart, Pie, Cell, LabelList, Rectangle 
 } from 'recharts';
 import DashboardAlerts from '../DashboardAlerts';
+import { ErrorBoundary } from '../ErrorBoundary';
+import { Application, Project, UnitStatus } from '../../types';
 
-export const DashboardTab = ({
+export interface DeptStatItem {
+  dept?: string;
+  label: string;
+  color: string;
+  avgDays: number | string;
+  count: number;
+  issueExcludedCount: number;
+}
+
+export interface LoanRatioStatItem {
+  name: string;
+  value: number;
+  color: string;
+}
+
+export interface ChartDataItem {
+  name: string;
+  value: number;
+  color: string;
+  list: Application[];
+  isSub?: boolean;
+}
+
+export interface ProgressChartDataItem {
+  name: string;
+  value: number;
+  normal: number;
+  error: number;
+  color: string;
+  isSub?: boolean;
+  labelAnchor?: number;
+}
+
+export interface LoanPieDataItem {
+  name: string;
+  value: number;
+  percentage: number;
+  color: string;
+}
+
+export interface OverallPieDataItem {
+  name: string;
+  value: number;
+  percentage: number;
+  color: string;
+}
+
+export interface DashboardKPIs {
+  total: number;
+  overdue: number;
+  error: number;
+  loanCount?: number;
+  regularCount?: number;
+}
+
+export interface PTTAStat {
+  totalAllVisibleRecords: number;
+}
+
+export interface KTStat {
+  totalAllVisibleRecords: number;
+  received: number;
+  processing: number;
+  taxPending: number;
+}
+
+export interface PTDAStat {
+  totalAllVisibleRecords: number;
+  received: number;
+  daNopVPDK: number;
+  noTax: number;
+  noTaxPaid: number;
+  gcnWaiting: number;
+}
+
+export interface AdminStat {
+  deptStats: DeptStatItem[];
+}
+
+export interface RoleKPIs {
+  ptt: PTTAStat;
+  kt: KTStat;
+  ptda: PTDAStat;
+  admin: AdminStat;
+  loanRatioStats: LoanRatioStatItem[];
+}
+
+export interface DashboardStatsProps {
+  kpis: DashboardKPIs;
+  roleKpis: RoleKPIs;
+  stats?: unknown;
+  chartData: ChartDataItem[];
+  progressChartData: ProgressChartDataItem[];
+  loanPieData: LoanPieDataItem[];
+  overallPieData: OverallPieDataItem[];
+  overallPieTotal: number;
+  loanRatioTotal: number;
+}
+
+export interface DashboardTabProps {
+  stats: DashboardStatsProps;
+  activeTab: 'applications' | 'users' | 'resources' | 'settings' | 'dashboard' | 'reports' | string;
+  userRole?: string;
+  dashboardApps: Application[];
+  applications?: Application[];
+  theme: 'light' | 'dark';
+  dashboardFilter: string;
+  handleDashboardClick: (stageName: string) => void;
+  monthlySlaData?: unknown;
+  projectPerformance?: unknown;
+  selectedProject?: Project | null;
+  setActiveTab: (tab: 'applications' | 'users' | 'resources' | 'settings' | 'dashboard' | 'reports' | any) => void;
+  setFilterStatus: (status: 'ALL' | UnitStatus | any) => void;
+  setDashboardFilter: (filter: string) => void;
+  setFilterSLAStatus: (slaStatus: 'OVERDUE' | 'ALL' | any) => void;
+  setFilterIssue: (issue: 'ERROR' | 'ALL' | any) => void;
+  setSearch: (search: string) => void;
+  projectRegionFilter: string;
+  setProjectRegionFilter: (region: string) => void;
+  REGION_ORDER: string[];
+  visibleProjects: Project[];
+  setSelectedProjectId: (id: string | any) => void;
+  selectedProjectId: string | number | null;
+  isManagement: boolean;
+  setReportType: (type: 'ERROR' | 'LOAN' | 'PERFORMANCE' | 'SLA' | 'PROJECT' | 'REGION' | any) => void;
+  dashboardTab: string;
+  setDashboardTab: (tab: 'ALL' | 'SELF_SERVICE' | 'LOAN') => void;
+  showToast: (message: string, type?: 'success' | 'info' | 'error' | 'warning' | any) => void;
+}
+
+export const DashboardTab = React.memo(({
   stats: dashboardStatsProps,
   activeTab,
   userRole,
@@ -42,7 +174,7 @@ export const DashboardTab = ({
   dashboardTab,
   setDashboardTab,
   showToast
-}: any) => {
+}: DashboardTabProps) => {
   const {
     kpis,
     roleKpis,
@@ -55,6 +187,14 @@ export const DashboardTab = ({
     loanRatioTotal
   } = dashboardStatsProps || {};
 
+  const safeProgressChartData = progressChartData ?? [];
+  const safeChartData = chartData ?? [];
+  const safeOverallPieData = overallPieData ?? [];
+  const safeLoanPieData = loanPieData ?? [];
+  const safeLoanRatioStats = roleKpis?.loanRatioStats ?? [];
+  const safeDeptStats = roleKpis?.admin?.deptStats ?? [];
+  const safeVisibleProjects = visibleProjects ?? [];
+
   const getChartItemYOffset = (name: string, isSub: boolean) => {
     let offset = 0;
     if (isSub) {
@@ -62,8 +202,8 @@ export const DashboardTab = ({
       else if (name.includes('2B')) offset = -28;
     } else {
       if (/^[3-9]\./.test(name)) {
-        const has2A = progressChartData?.some((d: any) => d.name?.includes('2A'));
-        const has2B = progressChartData?.some((d: any) => d.name?.includes('2B'));
+        const has2A = safeProgressChartData.some((d: any) => d.name?.includes('2A'));
+        const has2B = safeProgressChartData.some((d: any) => d.name?.includes('2B'));
         if (has2B) offset = -28;
         else if (has2A) offset = -14;
       }
@@ -106,7 +246,7 @@ export const DashboardTab = ({
                     />
                     <StatCard 
                       title="CHƯA NỘP NVTC" 
-                      value={chartData.find(c => c.name === 'CHỜ HOÀN THÀNH NVTC')?.value || 0} 
+                      value={safeChartData.find(c => c.name === 'CHỜ HOÀN THÀNH NVTC')?.value || 0} 
                       icon={Clock} 
                       colorClass="bg-warning shadow-warning/40" 
                       delay={0.4} 
@@ -116,7 +256,7 @@ export const DashboardTab = ({
                     />
                     <StatCard 
                       title="CHỜ BÀN GIAO KHÁCH" 
-                      value={chartData.find(c => c.name === 'CHỜ BÀN GIAO')?.value || 0} 
+                      value={safeChartData.find(c => c.name === 'CHỜ BÀN GIAO')?.value || 0} 
                       icon={UserCheck} 
                       colorClass="bg-purple-500 shadow-purple-500/40" 
                       delay={0.5} 
@@ -299,10 +439,15 @@ export const DashboardTab = ({
                       </div>
                     </div>
                     <div className="h-[500px] w-full mt-4 relative z-10">
+                      <ErrorBoundary fallback={
+                        <div className="h-[500px] w-full flex items-center justify-center text-rose-500 font-bold border border-rose-500/10 rounded-3xl bg-rose-500/5">
+                          Không thể tải biểu đồ
+                        </div>
+                      }>
                         <ResponsiveContainer width="100%" height={500}>
                            <BarChart 
                              layout="vertical"
-                             data={progressChartData?.map((d: any) => ({ ...d, labelAnchor: 0.01 }))} 
+                             data={safeProgressChartData.map((d: any) => ({ ...d, labelAnchor: 0.01 }))} 
                              margin={{ top: 20, right: 60, left: 10, bottom: 5 }}
                              barGap={0}
                              onClick={(data: any) => {
@@ -403,7 +548,7 @@ export const DashboardTab = ({
                                 return <Rectangle {...props} x={x} y={cy} width={width} height={h} fill={fill} fillOpacity={opacity} radius={[0, 0, 0, 0]} className="transition-all duration-300" />;
                               }}
                             >
-                              {progressChartData.map((entry: any, index: number) => (
+                              {safeProgressChartData.map((entry: any, index: number) => (
                                 <Cell key={`dashboard-progress-normal-cell-${entry.name || 'unnamed'}-${index}`} fill={entry.color} />
                               ))}
                             </Bar>
@@ -431,7 +576,7 @@ export const DashboardTab = ({
                                 dataKey="value"
                                 content={(props: any) => {
                                   const { x, y, value, index, height } = props;
-                                  const item = progressChartData[index];
+                                  const item = safeProgressChartData[index];
                                   if (!item) return null;
                                   
                                   const isSub = item.isSub;
@@ -457,6 +602,7 @@ export const DashboardTab = ({
                             </Bar>
                           </BarChart>
              </ResponsiveContainer>
+           </ErrorBoundary>
           </div>
                     </div>
 
@@ -494,49 +640,55 @@ export const DashboardTab = ({
                           Tỉ lệ Trạng thái
                         </h3>
                         <div className="h-[180px] w-full relative">
-                          <ResponsiveContainer width="100%" height={180}>
-                            <PieChart>
-                              <Pie 
-                                data={overallPieData} 
-                                cx="50%" 
-                                cy="50%" 
-                                innerRadius={55} 
-                                outerRadius={75} 
-                                paddingAngle={6} 
-                                dataKey="value"
-                                stroke="none"
-                              >
-                                {overallPieData.map((entry: any, index: number) => (
-                                  <Cell 
-                                    key={`dashboard-overall-pie-cell-${entry.name || 'unnamed'}-${index}`} 
-                                    fill={entry.color} 
-                                    className="hover:opacity-80 transition-opacity cursor-pointer outline-none" 
-                                  />
-                                ))}
-                              </Pie>
-                              <ReTooltip content={({ active, payload }) => {
-                                if (active && payload && payload.length) {
-                                  const data = payload[0].payload;
-                                  return (
-                                    <div className={cn(
-                                       "p-3 rounded-xl text-[10px] font-black border backdrop-blur-md shadow-2xl", 
-                                       theme === 'light' ? "bg-white border-slate-200 text-slate-800 shadow-indigo-100" : "bg-slate-900 border-slate-800 text-white"
-                                    )}>
-                                      <div className="flex items-center gap-2 mb-1">
-                                         <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: data.color }} />
-                                         {data.name}
+                          <ErrorBoundary fallback={
+                            <div className="h-[180px] w-full flex items-center justify-center text-rose-500 font-bold border border-rose-500/10 rounded-3xl bg-rose-500/5">
+                              Không thể tải biểu đồ
+                            </div>
+                          }>
+                            <ResponsiveContainer width="100%" height={180}>
+                              <PieChart>
+                                <Pie 
+                                  data={safeOverallPieData} 
+                                  cx="50%" 
+                                  cy="50%" 
+                                  innerRadius={55} 
+                                  outerRadius={75} 
+                                  paddingAngle={6} 
+                                  dataKey="value"
+                                  stroke="none"
+                                >
+                                  {safeOverallPieData.map((entry: any, index: number) => (
+                                    <Cell 
+                                      key={`dashboard-overall-pie-cell-${entry.name || 'unnamed'}-${index}`} 
+                                      fill={entry.color} 
+                                      className="hover:opacity-80 transition-opacity cursor-pointer outline-none" 
+                                    />
+                                  ))}
+                                </Pie>
+                                <ReTooltip content={({ active, payload }) => {
+                                  if (active && payload && payload.length) {
+                                    const data = payload[0].payload;
+                                    return (
+                                      <div className={cn(
+                                         "p-3 rounded-xl text-[10px] font-black border backdrop-blur-md shadow-2xl", 
+                                         theme === 'light' ? "bg-white border-slate-200 text-slate-800 shadow-indigo-100" : "bg-slate-900 border-slate-800 text-white"
+                                      )}>
+                                        <div className="flex items-center gap-2 mb-1">
+                                           <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: data.color }} />
+                                           {data.name}
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                           <span className="opacity-50 font-bold uppercase tracking-tighter">Phần trăm:</span>
+                                           <span>{data.percentage}%</span>
+                                        </div>
                                       </div>
-                                      <div className="flex justify-between gap-4">
-                                         <span className="opacity-50 font-bold uppercase tracking-tighter">Phần trăm:</span>
-                                         <span>{data.percentage}%</span>
-                                      </div>
-                                    </div>
-                                  );
-                                }
-                                return null;
-                              }} />
-                            </PieChart>
-                          </ResponsiveContainer>
+                                    );
+                                  }
+                                  return null;
+                                }} />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </ErrorBoundary>
                           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
                               <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">Tổng quy mô</p>
                               <p className={cn("text-xl font-black mt-1", theme === 'dark' ? "text-white" : "text-slate-800")}>
@@ -558,12 +710,12 @@ export const DashboardTab = ({
                                {/* Ratio Stats */}
                                <div className="flex flex-col gap-4">
                                   <div className="text-center text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2">Tỷ lệ Vay / Vốn tự có</div>
-                                  {roleKpis.loanRatioStats.length > 0 ? (
+                                  {safeLoanRatioStats.length > 0 ? (
                                     <div className="h-[150px] w-full relative">
                                        <ResponsiveContainer width="100%" height={150}>
                                          <PieChart>
-                                           <Pie data={roleKpis.loanRatioStats} cx="50%" cy="50%" innerRadius={40} outerRadius={50} paddingAngle={2} dataKey="value" stroke="none">
-                                             {roleKpis.loanRatioStats.map((entry: any, index: number) => (
+                                           <Pie data={safeLoanRatioStats} cx="50%" cy="50%" innerRadius={40} outerRadius={50} paddingAngle={2} dataKey="value" stroke="none">
+                                             {safeLoanRatioStats.map((entry: any, index: number) => (
                                                <Cell key={`dashboard-loan-ratio-cell-${entry.name || 'unnamed'}-${index}`} fill={entry.color} />
                                              ))}
                                            </Pie>
@@ -588,12 +740,12 @@ export const DashboardTab = ({
                                {/* Status Stats */}
                                <div className="flex flex-col gap-4 border-l border-slate-800/10 pl-4 w-full">
                                   <div className="text-center text-[10px] font-black uppercase text-slate-500 tracking-widest mb-2">Tiến độ hồ sơ vay</div>
-                                  {loanPieData.length > 0 ? (
+                                  {safeLoanPieData.length > 0 ? (
                                     <div className="h-[150px] w-full relative">
                                        <ResponsiveContainer width="100%" height={150}>
                                          <PieChart>
                                            <Pie 
-                                              data={loanPieData} 
+                                              data={safeLoanPieData} 
                                               cx="50%" 
                                               cy="50%" 
                                               innerRadius={40} 
@@ -602,7 +754,7 @@ export const DashboardTab = ({
                                               dataKey="value" 
                                               stroke="none"
                                            >
-                                             {loanPieData.map((entry: any, index: number) => (
+                                             {safeLoanPieData.map((entry: any, index: number) => (
                                                <Cell 
                                                  key={`dashboard-loan-status-cell-${entry.name || 'unnamed'}-${index}`} 
                                                  fill={entry.color} 
@@ -671,7 +823,7 @@ export const DashboardTab = ({
                     </div>
                     <div className="p-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {roleKpis.admin.deptStats.map((dept: any, idx: number) => (
+                        {safeDeptStats.map((dept: any, idx: number) => (
                           <div key={`dashboard-admin-dept-card-${dept.dept || dept.label}-${idx}`} className={cn(
                             "p-4 rounded-[2rem] border transition-all hover:bg-slate-800/10 duration-300",
                             theme === 'light' ? "bg-slate-50 border-slate-100 shadow-sm" : "bg-slate-800/40 border-slate-700/30 shadow-xl"
@@ -756,7 +908,7 @@ export const DashboardTab = ({
                         </tr>
                       </thead>
                       <tbody className={cn("divide-y", theme === 'light' ? "divide-slate-50" : "divide-slate-800/50")}>
-                        {visibleProjects
+                        {safeVisibleProjects
                           .filter(p => projectRegionFilter === 'ALL' || p.region === projectRegionFilter)
                           .map((p: any, index: number) => {
                             const projectApps = dashboardApps.filter(a => a.projectName === p.name);
@@ -832,4 +984,4 @@ export const DashboardTab = ({
 
 </>
   );
-};
+});

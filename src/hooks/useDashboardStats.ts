@@ -59,8 +59,8 @@ export function useDashboardStats(
       // Aggregating by logical status from Step Config to include errors in their stages
       processing: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'Processing').length,
       waitingVPDK: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'WaitingVPDK').length,
-      submitted: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'Submitted').length,
-      taxPending: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'TaxPending').length,
+      submitted: dashboardApps.filter(a => computeUltimateStatus(a) === '3. ĐÃ NỘP VPĐK').length,
+      taxPending: dashboardApps.filter(a => computeUltimateStatus(a) === '4. CHỜ THÔNG BÁO THUẾ').length,
       taxCompleted: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'TaxCompleted').length,
       gcnIssued: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'GCN_Issued').length,
       completed: dashboardApps.filter(a => (stepConfig[a.currentStep]?.status || INITIAL_STEP_CONFIG[a.currentStep]?.status) === 'Completed').length,

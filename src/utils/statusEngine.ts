@@ -397,7 +397,17 @@ export const computeUltimateStatus = (app: any): string => {
   if (isV(app.gcnSignedDate)) return '7. ĐÃ CÓ GCN';
   if (isV(app.taxReceiptDate)) return '6. ĐÃ NỘP THUẾ';
   if (isV(app.taxNotificationDate) || isV(app.taxNotificationReceivedDate)) return '5. CHỜ HOÀN THÀNH NVTC';
-  if (isV(app.submissionDate)) return '3. ĐÃ NỘP VPĐK';
+  const subDate = app.submissionDate || app.submission_date;
+  if (isV(subDate)) {
+    const taxNoti = app.taxNotificationDate || app.tax_notification_date;
+    const taxNotiReceived = app.taxNotificationReceivedDate || app.tax_notification_received_date;
+    if (!taxNoti && !taxNotiReceived) {
+      const daysDiff = (new Date().getTime() - new Date(subDate).getTime()) / (1000 * 60 * 60 * 24);
+      // Nếu quá 7 ngày phân loại vào nhóm Chờ thông báo thuế, lưu ý không làm ảnh hưởng đến ngày tính SLA gốc của hồ sơ
+      if (daysDiff > 7) return '4. CHỜ THÔNG BÁO THUẾ';
+    }
+    return '3. ĐÃ NỘP VPĐK';
+  }
   if (isV(app.ktHandoverToPtdaDate) || isV(app.accountingHandoverDate) || app.status === 'WaitingVPDK') return '2. CHỜ NỘP VPĐK';
 
   return '1. ĐANG CHUẨN BỊ';

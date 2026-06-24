@@ -7,6 +7,8 @@ import {
   StepName,
   IssueType,
   IssueSeverity,
+  ScannedFile,
+  UnitStatus,
 } from "../../types";
 import { cn } from "../../lib/utils";
 import {
@@ -88,6 +90,68 @@ const formatLogTime = (timeStr: string) => {
   }
 };
 
+export interface ApplicationDetailModalProps {
+  selectedApp: Application | null;
+  editApp: Application | null;
+  setSelectedApp: (app: Application | null) => void;
+  isEditing: boolean;
+  setIsEditing: (editing: boolean) => void;
+  theme: "light" | "dark";
+  userCanEdit: boolean;
+  userRole: string;
+  currentUser: UserProfile | null;
+  stepConfig: Record<
+    string,
+    {
+      label: string;
+      description?: string;
+      dept: Dept;
+      status: UnitStatus;
+      slaDays?: number;
+      active: boolean;
+    }
+  >;
+  expandedSections: string[];
+  setExpandedSections: React.Dispatch<React.SetStateAction<string[]>> | ((sections: string[]) => void);
+  detailTab: "History" | "Issues" | "Documents";
+  setDetailTab: React.Dispatch<React.SetStateAction<"History" | "Issues" | "Documents">> | ((tab: "History" | "Issues" | "Documents") => void);
+  handleFieldChange: (field: keyof Application, value: any) => void;
+  conflictWarning: string | null;
+  handleUpdateApp: () => void;
+  handleDeleteApp: (id: string, unitCode: string) => void;
+  setIsHandoverTicketOpen: (open: boolean) => void;
+  handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleDeleteFile: (fileId: string) => void;
+  setPreviewFile: (file: ScannedFile | null) => void;
+  handleResolveIssue: (appId: string) => void;
+  handleProposeException: (appId: string, reason: string) => void;
+  handleApproveException: (appId: string, notes: string) => void;
+  calculateDaysBetweenDates: (d1: string, d2: string) => string | number;
+  formatDate: (dateStr: string) => string;
+  handleSingleOrBulkReportIssue: (apps: Application[]) => void;
+  handleRejectApp: (targetStepId: string, reason: string) => void;
+  handleStepTransition: (nextStep: StepName, note?: string, overrideApp?: Application) => void;
+  handleBulkStepTransition: (nextStep: StepName, overrideIds?: (string | number)[]) => void;
+  handleResolveError: () => void;
+  setEditApp: (app: Application | null) => void;
+  setConflictWarning: (warning: string | null) => void;
+  isManagement: boolean;
+  isReportIssueFormOpen: boolean;
+  setIsReportIssueFormOpen: (open: boolean) => void;
+  reportIssueType: IssueType;
+  setReportIssueType: React.Dispatch<React.SetStateAction<IssueType>> | ((type: IssueType) => void);
+  reportIssueSeverity: IssueSeverity;
+  setReportIssueSeverity: React.Dispatch<React.SetStateAction<IssueSeverity>> | ((severity: IssueSeverity) => void);
+  reportIssueNote: string;
+  setReportIssueNote: (note: string) => void;
+  isFieldEditable: (field: string, app?: Application) => boolean;
+  isFieldVisible: (field: string, app?: Application) => boolean;
+  toggleSection: (section: string) => void;
+  setPrintHandoverApps: (apps: Application[]) => void;
+  setIsPrintingHandover: (printing: boolean) => void;
+  slaConfig: Record<string, number>;
+}
+
 export const ApplicationDetailModal = ({
   selectedApp,
   editApp,
@@ -138,7 +202,7 @@ export const ApplicationDetailModal = ({
   setPrintHandoverApps,
   setIsPrintingHandover,
   slaConfig,
-}: any) => {
+}: ApplicationDetailModalProps) => {
   const currentApp = editApp || selectedApp;
 
   const [proposeOpen, setProposeOpen] = React.useState(false);
@@ -400,7 +464,7 @@ export const ApplicationDetailModal = ({
                                 )
                               )
                                 return;
-                              handleResolveIssue((editApp || selectedApp).id);
+                              handleResolveIssue((editApp || selectedApp).id as string);
                             }}
                             className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
@@ -609,7 +673,7 @@ export const ApplicationDetailModal = ({
                     <button
                       onClick={() =>
                         handleDeleteApp(
-                          (editApp || selectedApp).id,
+                          (editApp || selectedApp).id as string,
                           (editApp || selectedApp).unitCode,
                         )
                       }
@@ -1166,7 +1230,7 @@ export const ApplicationDetailModal = ({
                                 )}
                                 {((editApp || selectedApp).propertyType ===
                                   "Can_Ho" ||
-                                  (editApp || selectedApp).property_type ===
+                                  (editApp || (selectedApp as any)).property_type ===
                                     "Can_Ho") && (
                                   <DetailCard
                                     theme={theme}
@@ -2644,7 +2708,7 @@ export const ApplicationDetailModal = ({
                       disabled={!proposeReason.trim()}
                       onClick={async () => {
                         await handleProposeException(
-                          currentApp.id,
+                          currentApp.id as string,
                           proposeReason,
                         );
                         setProposeOpen(false);
@@ -2747,7 +2811,7 @@ export const ApplicationDetailModal = ({
                       disabled={!approveNotes.trim()}
                       onClick={async () => {
                         await handleApproveException(
-                          currentApp.id,
+                          currentApp.id as string,
                           approveNotes || "Lãnh đạo phê duyệt ngoại lệ.",
                         );
                         setApproveOpen(false);

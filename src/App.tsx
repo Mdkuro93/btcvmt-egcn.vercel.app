@@ -430,6 +430,8 @@ const parseExcelDate = (value: any): string | undefined => {
 
 // HandoverRecord template moved to components/
 
+const EMPTY_ARRAY: never[] = [];
+
 export default function App() {
   const { currentUser, userRole, setCurrentUser } = useAuthStore();
 
@@ -789,25 +791,28 @@ export default function App() {
     }
   }, [slaConfig]);
 
-  const handleDashboardClick = (filter: string) => {
+  const handleDashboardClick = useCallback((filter: string) => {
     setActiveTab('applications');
     setDashboardFilter(prev => prev === filter ? 'ALL' : filter);
     setFilterStatus('ALL');
     setFilterIssue('ALL');
     setFilterSLAStatus('ALL');
     setFilterDept('ALL');
-    if (dashboardTab === 'SELF_SERVICE') {
-      setFilterSelfService('YES');
-      setFilterLoanStatus('ALL');
-    } else if (dashboardTab === 'LOAN') {
-      setFilterSelfService('ALL');
-      setFilterLoanStatus('Co_Vay');
-    } else {
-      setFilterSelfService('ALL');
-      setFilterLoanStatus('ALL');
-    }
+    setDashboardTab(currentTab => {
+      if (currentTab === 'SELF_SERVICE') {
+        setFilterSelfService('YES');
+        setFilterLoanStatus('ALL');
+      } else if (currentTab === 'LOAN') {
+        setFilterSelfService('ALL');
+        setFilterLoanStatus('Co_Vay');
+      } else {
+        setFilterSelfService('ALL');
+        setFilterLoanStatus('ALL');
+      }
+      return currentTab;
+    });
     setSearch('');
-  };
+  }, []);
 
   // handoverTemplate moved to store
 
@@ -4002,10 +4007,9 @@ export default function App() {
     if (field === 'isSelfService' && value === true) {
       const app = editApp || selectedApp;
       if (app && !app.isSelfService) {
-        const firstStep: StepName = app.workflowType === 'Quy_trinh_2' 
-          ? 'S1_ChuanBi' 
+        const firstStep: StepName = app.workflowType === 'Quy_trinh_2'
+          ? 'S1_ChuanBi'
           : 'GD1_ChuanBi';
-
         askConfirm(
           'Đổi sang Khách tự làm sổ',
           `Hồ sơ sẽ được đặt lại về bước đầu (${firstStep === 'S1_ChuanBi' ? 'S1 - Chuẩn bị' : 'GĐ1 - Chuẩn bị'}).\n` +
@@ -4014,19 +4018,15 @@ export default function App() {
           () => {
             const auditEntry = createAuditEntry(
               'Đổi loại hồ sơ: Công ty làm sổ → Khách tự làm sổ',
-              false,
-              1,
-              app.unitCode,
+              false, 1, app.unitCode,
               `Hồ sơ được đặt lại về bước đầu (${firstStep === 'S1_ChuanBi' ? 'S1 - Chuẩn bị' : 'GĐ1 - Chuẩn bị'}) để xử lý theo quy trình tự làm sổ.`
             );
-
             const historyItem: any = {
               id: Math.random().toString(36).substr(2, 9),
               timestamp: new Date().toISOString(),
               user: userRole,
               action: `Đổi loại hồ sơ: Công ty làm sổ → Khách tự làm sổ. Reset về bước: ${firstStep}`,
             };
-
             if (editApp) {
               const nextApp: Application = {
                 ...editApp,
@@ -4060,17 +4060,72 @@ export default function App() {
       }
     }
 
+    // Helper: tách biệt 2 quy trình khi so sánh bước
+    const GD_ORDER = [
+      'GD1_ChuanBi','GD1_Cho_KT_TiepNhan','GD2_Cho_Nop_VPDK',
+      'GD3_Nop_VPDK','GD4_Cho_Nop_NVTC','GD4_Cho_KT_TiepNhan_LaySo',
+      'GD5_Cho_Ky_In_GCN','GD5_Cho_GCN','GD5_Cho_PTT_TiepNhan_BG',
+      'GD6_Cho_BG_Khach','Hoan_Tat'
+    ];
+    const S_ORDER = [
+      'S1_ChuanBi','S2_KT_Tiep_Nhan','S2_KT_Ban_giao','S3_Nop_VPDK',
+      'S5_Tai_Chinh_Khach_Hang','S5_1_PTDA_TiepNhan','S6_Nhan_So_GCN',
+      'S7_PTDA_Ban_Giao','S7_1_PTT_Tiep_Nhan','S7_2_Ban_Giao_Khach'
+    ];
+    const DATE_LABELS: Record<string, string> = {
+      gcnSignedDate: 'Ngày trình ký/In GCN',
+      taxReceiptDate: 'Ngày nhận GNT',
+      submissionDate: 'Ngày nộp VPĐK',
+      taxNotificationDate: 'Ngày ban hành thông báo thuế',
+      gcnReceivedDate: 'Ngày nhận sổ',
+    };
+    const DATE_FIELDS = Object.keys(DATE_LABELS);
+
+    // Helper: tạo history entry khi cập nhật ngày (dù có nhảy bước hay không)
+    const makeDateHistoryItem = (label: string, val: string | null, unitCode: string) => ({
+      id: `hist-${Date.now()}-${Math.random().toString(36).substr(2,5)}`,
+      stepName: label,
+      dept: 'PTT' as const,
+      receivedDate: new Date().toISOString(),
+      performedBy: userRole || 'SYSTEM_AUTO',
+      performedByName: userRole || 'Hệ thống tự động',
+      note: val ? `Điền ${label}: ${val}` : `Xóa trống ${label}`,
+    });
+
+    // Helper: tự động nhảy bước nếu ngày mới suy diễn được bước cao hơn
+    const syncStep = (nextApp: any, sourceHistory: any[]) => {
+      if (typeof inferStepFromDates !== 'function') return;
+      const inferred = inferStepFromDates(nextApp, slaConfig, 'RUNTIME');
+      const currentStep = nextApp.currentStep;
+      const inferredStep = inferred.currentStep;
+      const isGD = GD_ORDER.includes(currentStep) && GD_ORDER.includes(inferredStep);
+      const isS  = S_ORDER.includes(currentStep)  && S_ORDER.includes(inferredStep);
+      const shouldUpdate =
+        (isGD && GD_ORDER.indexOf(inferredStep) > GD_ORDER.indexOf(currentStep)) ||
+        (isS  && S_ORDER.indexOf(inferredStep)  > S_ORDER.indexOf(currentStep));
+      if (shouldUpdate) {
+        const stepHistoryItem: any = {
+          id: `hist-${Date.now()}-${Math.random().toString(36).substr(2,5)}`,
+          stepName: inferredStep,
+          dept: stepConfig[inferredStep]?.dept || 'PTT',
+          receivedDate: new Date().toISOString(),
+          performedBy: userRole || 'SYSTEM_AUTO',
+          performedByName: userRole || 'Hệ thống tự động',
+          note: `Tự động chuyển bước từ ${currentStep} → ${inferredStep} do cập nhật ngày`,
+        };
+        nextApp.history     = [stepHistoryItem, ...sourceHistory];
+        nextApp.currentStep = inferredStep;
+        nextApp.status      = inferred.status;
+      }
+    };
+
     if (editApp) {
       const nextApp = { ...editApp, [field]: value };
-      
-      // Auto-promote status to TaxCompleted if taxReceiptDate is added and current step expects it
+
       if (field === 'taxReceiptDate' && value && stepConfig[editApp.currentStep]?.status === 'TaxCompleted') {
         nextApp.status = 'TaxCompleted';
       }
-      
-      // Removed auto-promote currentStep from date logic in RUNTIME mode
-      
-      // Check Lệch Tiến Độ Thực Tế cho GCN
+
       if (field === 'gcnReceivedDate' && value) {
         const isBypassed = nextApp.checklist?.['bypass_gcn'] === true;
         const isEarly = !isBypassed && ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => nextApp.currentStep.startsWith(prefix));
@@ -4085,8 +4140,6 @@ export default function App() {
         }
       }
 
-      // Auto-promote for Self Service or Normal applications accordingly
-      // ONLY change status, DO NOT auto-derive currentStep
       if (nextApp.isSelfService) {
         if (nextApp.customerHandoverDate || nextApp.status === 'Completed' || nextApp.currentStep === 'Hoan_Tat') {
           nextApp.status = 'Completed';
@@ -4096,13 +4149,11 @@ export default function App() {
           nextApp.status = 'Processing';
         }
       } else {
-        // Only update status appropriately without modifying step
         if (nextApp.status !== 'Error') {
           nextApp.status = determineStatusFromStep(nextApp.currentStep);
         }
       }
 
-      // Auto-update issue type if notes are added
       if (field === 'issueNotes' && value) {
         if (!editApp.issueType || editApp.issueType === 'None') {
           nextApp.issueType = 'Sai sót Khác';
@@ -4110,18 +4161,14 @@ export default function App() {
         nextApp.status = 'Error';
         nextApp.issueStatus = 'OPEN';
         nextApp.issueResolvedAt = null;
-        if (!nextApp.issueCreatedAt) {
-          nextApp.issueCreatedAt = new Date().toISOString();
-        }
+        if (!nextApp.issueCreatedAt) nextApp.issueCreatedAt = new Date().toISOString();
       }
 
       if (field === 'issueType') {
         if (value && value !== 'None') {
           nextApp.issueStatus = 'OPEN';
           nextApp.issueResolvedAt = null;
-          if (!nextApp.issueCreatedAt) {
-            nextApp.issueCreatedAt = new Date().toISOString();
-          }
+          if (!nextApp.issueCreatedAt) nextApp.issueCreatedAt = new Date().toISOString();
         } else {
           nextApp.issueStatus = 'RESOLVED';
           nextApp.issueResolvedAt = new Date().toISOString();
@@ -4131,7 +4178,7 @@ export default function App() {
       if (field === 'issueSeverity') {
         // issueSeverity is updated automatically via handleFieldChange above
       }
-      
+
       if (field === 'currentStep') {
         const historyItem: any = {
           id: Math.random().toString(36).substr(2, 9),
@@ -4140,20 +4187,31 @@ export default function App() {
           action: `Chuyển trạng thái sang: ${value}`,
         };
         nextApp.history = [historyItem, ...(editApp.history || [])];
+      } else if (DATE_FIELDS.includes(field as string)) {
+        const label = DATE_LABELS[field as string];
+        // Ghi auditTrail dù có nhảy bước hay không
+        const auditEntry = createAuditEntry(
+          `Cập nhật ${label}`, false, 1, editApp.unitCode,
+          value ? `Điền ${label}: ${value}` : `Xóa trống ${label}`
+        );
+        nextApp.auditTrail = [auditEntry, ...(editApp.auditTrail || [])];
+        // Ghi history dù có nhảy bước hay không (fix kẽ hở 1)
+        const dateHistoryItem = makeDateHistoryItem(label, value, editApp.unitCode);
+        nextApp.history = [dateHistoryItem, ...(editApp.history || [])];
+        // Thử nhảy bước nếu điều kiện thỏa (có thể ghi đè history với step mới)
+        syncStep(nextApp, nextApp.history);
       }
-      
+
       setEditApp(nextApp);
     } else if (selectedApp) {
       handleSetApplications(prev => prev.map(app => {
         if (app.id === selectedApp.id) {
           const nextApp = { ...app, [field]: value };
-          
-          // Auto-promote status to TaxCompleted if taxReceiptDate is added and current step expects it
+
           if (field === 'taxReceiptDate' && value && stepConfig[app.currentStep]?.status === 'TaxCompleted') {
             nextApp.status = 'TaxCompleted';
           }
 
-          // Check Lệch Tiến Độ Thực Tế cho GCN
           if (field === 'gcnReceivedDate' && value) {
             const isBypassed = nextApp.checklist?.['bypass_gcn'] === true;
             const isEarly = !isBypassed && ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => nextApp.currentStep.startsWith(prefix));
@@ -4168,7 +4226,6 @@ export default function App() {
             }
           }
 
-          // Auto-promote for Self Service or Normal applications accordingly
           if (nextApp.isSelfService) {
             if (nextApp.customerHandoverDate || nextApp.status === 'Completed' || nextApp.currentStep === 'Hoan_Tat') {
               nextApp.status = 'Completed';
@@ -4190,18 +4247,14 @@ export default function App() {
             nextApp.status = 'Error';
             nextApp.issueStatus = 'OPEN';
             nextApp.issueResolvedAt = null;
-            if (!nextApp.issueCreatedAt) {
-              nextApp.issueCreatedAt = new Date().toISOString();
-            }
+            if (!nextApp.issueCreatedAt) nextApp.issueCreatedAt = new Date().toISOString();
           }
 
           if (field === 'issueType') {
             if (value && value !== 'None') {
               nextApp.issueStatus = 'OPEN';
               nextApp.issueResolvedAt = null;
-              if (!nextApp.issueCreatedAt) {
-                nextApp.issueCreatedAt = new Date().toISOString();
-              }
+              if (!nextApp.issueCreatedAt) nextApp.issueCreatedAt = new Date().toISOString();
             } else {
               nextApp.issueStatus = 'RESOLVED';
               nextApp.issueResolvedAt = new Date().toISOString();
@@ -4210,6 +4263,19 @@ export default function App() {
 
           if (field === 'issueSeverity') {
             // Updated via generic handler
+          } else if (DATE_FIELDS.includes(field as string)) {
+            const label = DATE_LABELS[field as string];
+            // Ghi auditTrail dù có nhảy bước hay không
+            const auditEntry = createAuditEntry(
+              `Cập nhật ${label}`, false, 1, app.unitCode,
+              value ? `Điền ${label}: ${value}` : `Xóa trống ${label}`
+            );
+            nextApp.auditTrail = [auditEntry, ...(app.auditTrail || [])];
+            // Ghi history dù có nhảy bước hay không (fix kẽ hở 1)
+            const dateHistoryItem = makeDateHistoryItem(label, value, app.unitCode);
+            nextApp.history = [dateHistoryItem, ...(app.history || [])];
+            // Thử nhảy bước nếu điều kiện thỏa (fix kẽ hở 2)
+            syncStep(nextApp, nextApp.history);
           }
 
           setSelectedApp(nextApp);
@@ -4861,8 +4927,8 @@ useEffect(() => {
                 theme={theme}
                 dashboardFilter={dashboardFilter}
                 handleDashboardClick={handleDashboardClick}
-                monthlySlaData={[]}
-                projectPerformance={[]}
+                monthlySlaData={EMPTY_ARRAY}
+                projectPerformance={EMPTY_ARRAY}
                 selectedProject={selectedProject}
                 setActiveTab={setActiveTab}
                 setFilterStatus={setFilterStatus}

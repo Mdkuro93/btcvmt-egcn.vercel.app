@@ -7,6 +7,7 @@ interface State {
 
 interface Props {
   children: ReactNode;
+  fallback?: ReactNode;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -30,6 +31,9 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
       return (
         <div style={{
           minHeight: '100vh',
