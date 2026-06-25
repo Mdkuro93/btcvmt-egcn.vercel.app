@@ -195,22 +195,6 @@ export const DashboardTab = React.memo(({
   const safeDeptStats = roleKpis?.admin?.deptStats ?? [];
   const safeVisibleProjects = visibleProjects ?? [];
 
-  const getChartItemYOffset = (name: string, isSub: boolean) => {
-    let offset = 0;
-    if (isSub) {
-      if (name.includes('2A')) offset = -14;
-      else if (name.includes('2B')) offset = -28;
-    } else {
-      if (/^[3-9]\./.test(name)) {
-        const has2A = safeProgressChartData.some((d: any) => d.name?.includes('2A'));
-        const has2B = safeProgressChartData.some((d: any) => d.name?.includes('2B'));
-        if (has2B) offset = -28;
-        else if (has2A) offset = -14;
-      }
-    }
-    return offset;
-  };
-
   return (
 <>
             {activeTab === 'dashboard' && (
@@ -475,13 +459,11 @@ export const DashboardTab = React.memo(({
                                  const fill = theme === 'light' 
                                    ? (isSub ? '#64748b' : '#1e293b') // slate-500 : slate-800
                                    : (isSub ? '#cbd5e1' : '#f8fafc'); // slate-300 : slate-50
-                                 
-                                 const yOffset = getChartItemYOffset(payload.value, isSub);
 
                                  return (
                                    <text 
                                      x={x - 170} 
-                                     y={y + yOffset} 
+                                     y={y} 
                                      dy={4} 
                                      fill={fill} 
                                      fontSize={isSub ? 9 : 11} 
@@ -541,9 +523,7 @@ export const DashboardTab = React.memo(({
                                 if (!height) return null;
                                 const h = isSub ? 10 : height; // Thinner sub-bars
                                 
-                                const yOffset = getChartItemYOffset(payload.name, isSub);
-                                
-                                const cy = (isSub ? y + (height - h) / 2 : y) + yOffset;
+                                const cy = isSub ? y + (height - h) / 2 : y;
                                 const opacity = isSub ? 0.7 : 1;
                                 return <Rectangle {...props} x={x} y={cy} width={width} height={h} fill={fill} fillOpacity={opacity} radius={[0, 0, 0, 0]} className="transition-all duration-300" />;
                               }}
@@ -564,9 +544,7 @@ export const DashboardTab = React.memo(({
                                 if (!height || width === 0) return null;
                                 const h = isSub ? 10 : height;
                                 
-                                const yOffset = getChartItemYOffset(payload.name, isSub);
-                                
-                                const cy = (isSub ? y + (height - h) / 2 : y) + yOffset;
+                                const cy = isSub ? y + (height - h) / 2 : y;
                                 const opacity = isSub ? 0.7 : 1;
                                 return <Rectangle {...props} x={x} y={cy} width={width} height={h} fill={fill} fillOpacity={opacity} radius={isSub ? [0, 4, 4, 0] : [0, 12, 12, 0]} className="transition-all duration-300" />;
                               }}
@@ -580,10 +558,9 @@ export const DashboardTab = React.memo(({
                                   if (!item) return null;
                                   
                                   const isSub = item.isSub;
-                                  const yOffset = getChartItemYOffset(item.name, isSub);
                                   
                                   // Recharts positions `y` at top of bar, we add half height roughly to center it
-                                  const textY = y + (height || 24) / 2 + 4 + yOffset;
+                                  const textY = y + (height || 24) / 2 + 4;
                                   
                                   return (
                                     <text

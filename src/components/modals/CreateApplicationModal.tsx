@@ -4,7 +4,17 @@ import { Application, UserProfile, Project } from '../../types';
 import { cn } from '../../lib/utils';
 import { X, Home, Map as MapIcon, User, Key, Save, ChevronDown, Clock, Check, FileText } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
-
+interface CreateApplicationModalProps {
+  isCreateModalOpen: boolean;
+  setIsCreateModalOpen: (open: boolean) => void;
+  theme: 'light' | 'dark';
+  newApp: Partial<Application>;
+  setNewApp: (app: Partial<Application>) => void;
+  formErrors: Record<string, string>;
+  projects?: Project[];
+  handleCreateApp: () => void;
+  isSavingApp: boolean;
+}
 export const CreateApplicationModal = ({
   isCreateModalOpen,
   setIsCreateModalOpen,
@@ -16,7 +26,7 @@ export const CreateApplicationModal = ({
   projects,
   handleCreateApp,
   isSavingApp
-}: any) => {
+}: CreateApplicationModalProps) => {
 
   const displayProjects = visibleProjects || projects || [];
   const { showToast } = useToast();

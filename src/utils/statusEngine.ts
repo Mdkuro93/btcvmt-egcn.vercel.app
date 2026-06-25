@@ -86,6 +86,24 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
     const taxNotiDate = app.taxNotificationDate || app.tax_notification_date;
     const taxReceiptDate = app.taxNoticeProvisionDate || app.tax_notice_provision_date || app.taxReceiptDate || app.tax_receipt_date;
 
+    if (isDateValid(gcnSigned) || isDateValid(gcnReceived)) {
+      // Danh sách các bước thuộc giai đoạn sau GCN (Bàn giao & Hoàn tất)
+      const postGCNSteps = [
+        'S7_1_PTT_Tiep_Nhan', 'S7_PTDA_Ban_Giao', 'S7_2_Ban_Giao_Khach',
+        'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Cho_BG_Khach', 'Hoan_Tat'
+      ];
+      // Nếu currentStep hiện tại của hồ sơ chưa lọt vào các bước hậu GCN, trả về không trễ hạn
+      if (!postGCNSteps.includes(currentStep)) {
+        return {
+          isOverdue: false,
+          daysLate: 0,
+          daysLeft: 0,
+          urgency: 'normal' as const,
+          status: 'In-Progress'
+        }; // Đảm bảo cấu trúc trả về khớp với SLAResult của hệ thống
+      }
+    }
+
     const isKTHandoverStep = currentStep === 'S2_KT_Tiep_Nhan' || currentStep === 'S2_KT_Ban_giao' || currentStep === 'GD2_Cho_Nop_VPDK' || currentStep === 'GD1_Cho_KT_TiepNhan';
     const isSubmissionStep = currentStep === 'S3_Nop_VPDK' || currentStep === 'GD3_Nop_VPDK';
     const isTaxStep = currentStep === 'S5_Tai_Chinh_Khach_Hang' || currentStep === 'GD4_Cho_Nop_NVTC' || currentStep === 'GD4_Cho_KT_TiepNhan_LaySo';

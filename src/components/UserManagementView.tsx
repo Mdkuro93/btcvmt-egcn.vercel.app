@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Key, Settings, Trash2, Search, Filter, Users, Briefcase } from 'lucide-react';
+import { Plus, Key, Settings, Trash2, Search, Filter, Users, Briefcase, Building2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { UserProfile, Dept, UserPermission } from '../types';
+import { useDataStore } from '../stores/useDataStore';
 
 interface UserManagementViewProps {
   users: UserProfile[];
@@ -23,6 +24,8 @@ const UserManagementView = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDept, setFilterDept] = useState<string>('ALL');
   const [filterRole, setFilterRole] = useState<string>('ALL');
+  const [filterProject, setFilterProject] = useState<string>('ALL');
+  const projects = useDataStore(state => state.projects);
 
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
@@ -32,10 +35,11 @@ const UserManagementView = ({
       
       const matchesDept = filterDept === 'ALL' || user.dept === filterDept;
       const matchesRole = filterRole === 'ALL' || user.permission === filterRole;
+      const matchesProject = filterProject === 'ALL' || (user.assignedProjectIds && user.assignedProjectIds.includes(filterProject));
 
-      return matchesSearch && matchesDept && matchesRole;
+      return matchesSearch && matchesDept && matchesRole && matchesProject;
     });
-  }, [users, searchTerm, filterDept, filterRole]);
+  }, [users, searchTerm, filterDept, filterRole, filterProject]);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -54,10 +58,10 @@ const UserManagementView = ({
 
       {/* Filter Section */}
       <div className={cn(
-        "p-4 rounded-[2rem] border transition-all flex flex-col md:flex-row items-center gap-4",
+        "p-4 rounded-[2rem] border transition-all flex flex-col lg:flex-row flex-wrap items-center gap-4",
         theme === 'light' ? "bg-white border-slate-200 shadow-sm" : "bg-slate-900/40 border-slate-800"
       )}>
-        <div className="relative flex-1 w-full">
+        <div className="relative flex-1 w-full min-w-[200px]">
           <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
           <input 
             type="text"
@@ -73,8 +77,8 @@ const UserManagementView = ({
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <div className="relative flex-1 md:w-48">
+        <div className="flex items-center gap-2 w-full lg:w-auto flex-wrap md:flex-nowrap">
+          <div className="relative flex-1 md:w-40 xl:w-48">
             <Briefcase size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <select
               value={filterDept}
@@ -98,7 +102,7 @@ const UserManagementView = ({
             <Filter size={12} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           </div>
 
-          <div className="relative flex-1 md:w-48">
+          <div className="relative flex-1 md:w-40 xl:w-48">
             <Users size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <select
               value={filterRole}
@@ -114,6 +118,26 @@ const UserManagementView = ({
               <option value="FULL">Toàn quyền</option>
               <option value="EDIT">Được sửa</option>
               <option value="VIEW">Chỉ xem</option>
+            </select>
+            <Filter size={12} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          </div>
+
+          <div className="relative flex-1 md:w-40 xl:w-48">
+            <Building2 size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <select
+              value={filterProject}
+              onChange={(e) => setFilterProject(e.target.value)}
+              className={cn(
+                "w-full pl-10 pr-8 py-3 rounded-2xl text-xs font-bold appearance-none border focus:ring-2 transition-all outline-none cursor-pointer truncate",
+                theme === 'light' 
+                  ? "bg-slate-50 border-slate-100 text-slate-800 focus:ring-amber-200" 
+                  : "bg-slate-800/50 border-slate-700 text-white focus:ring-amber-500/20"
+              )}
+            >
+              <option value="ALL">Tất cả dự án</option>
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
             </select>
             <Filter size={12} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           </div>
@@ -235,6 +259,7 @@ const UserManagementView = ({
                   setSearchTerm('');
                   setFilterDept('ALL');
                   setFilterRole('ALL');
+                  setFilterProject('ALL');
                 }}
                 className="mt-6 text-amber-600 dark:text-festive-gold text-xs font-black uppercase tracking-widest hover:underline"
               >
