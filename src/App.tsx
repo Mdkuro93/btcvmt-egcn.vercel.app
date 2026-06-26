@@ -8,22 +8,11 @@ import { calculateSLA } from './utils/statusEngine';
 import { diffDays } from './utils/dateUtils';
 import { buildFlags } from './utils/flagUtils';
 import { mapFromSnakeCase, mapToSnakeCase, mapUserFromSnakeCase, mapUserToSnakeCase, safeParse, mapNotificationToSnakeCase } from './utils/mappers';
-import { calculateDaysDiff, calculateDaysBetweenDates, getPhaseIndex, getTaxStatus, getOverdueInfo, inferStepFromDates, validateDateSequence } from './utils/appUtils';
+import { calculateDaysDiff, calculateDaysBetweenDates, getPhaseIndex, getTaxStatus, getOverdueInfo, inferStepFromDates, validateDateSequence, validateSkippedSteps, generateUUID } from './utils/appUtils';
 import { WorkflowEngine } from './utils/workflowEngine';
 import { StatCard, StatusBadge, DetailCard, FestiveBranding, PrintStyles } from './components/AppSubComponents';
 
 import { useExcelImport } from './hooks/useExcelImport';
-// Helper to generate valid UUID v4
-const generateUUID = (): string => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-};
 
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, Cell,
@@ -127,7 +116,7 @@ import ImportPreviewModal from './components/modals/ImportPreviewModal';
 import { ApplicationDetailModal } from './components/modals/ApplicationDetailModal';
 import { CreateApplicationModal } from './components/modals/CreateApplicationModal';
 import { useModalStore } from './stores/useModalStore';
-import { useDataStore, bulkSyncRecordsToSupabase, createAuditEntry, updateAppIssue, isSelfUpdate, registerSelfUpdate } from './stores/useDataStore';
+import { useDataStore, bulkSyncRecordsToSupabase, createAuditEntry, updateAppIssue, isSelfUpdate, registerSelfUpdate, fetchRecordDetail } from './stores/useDataStore';
 import { UserManagementModal } from './components/modals/UserManagementModal';
 import { Sidebar } from './components/Sidebar';
 import { DashboardTab } from './components/tabs/DashboardTab';
@@ -283,84 +272,7 @@ const mapNotificationFromSnakeCase = (item: any): AppNotification => {
 };
 
 
-async function fetchRecordDetail(recordId: string | number): Promise<{
-  history: ApplicationStepHistory[];
-  auditTrail: AuditTrailEntry[];
-  fullApp?: Partial<Application>;
-}> {
-  const result: {
-    history: ApplicationStepHistory[];
-    auditTrail: AuditTrailEntry[];
-    fullApp?: Partial<Application>;
-  } = { history: [], auditTrail: [] };
-
-  // ✅ FIX: 6. Tại hàm fetchRecordDetail: Tối ưu bằng cách kiểm tra kiểu dữ liệu của ID trước khi gọi query, tránh cơ chế fallback thử sai ép kiểu gọi DB 2 lần gây lãng phí round-trip.
-  const isNumeric = typeof recordId === 'number' || (typeof recordId === 'string' && /^\d+$/.test(recordId.trim()));
-  const targetId = isNumeric ? Number(recordId) : String(recordId);
-
-  // 1. Fetch record_history
-  try {
-    const { data: historyData, error: historyError } = await supabase
-      .from('record_history')
-      .select('*')
-      .eq('record_id', targetId)
-      .order('created_at', { ascending: true });
-    
-    if (!historyError && historyData && historyData.length > 0) {
-      result.history = historyData.map((h: any) => ({
-        id: h.id,
-        stepName: h.step_name,
-        dept: h.dept,
-        receivedDate: h.received_date,
-        completedDate: h.completed_date,
-        note: h.note,
-        performedBy: h.performed_by,
-        performedByName: h.performed_by_name,
-      }));
-    }
-  } catch (err) {
-    console.error('Full failure fetching history:', err);
-  }
-
-  // 2. Fetch record_audit_trail
-  try {
-    const { data: auditData, error: auditError } = await supabase
-      .from('record_audit_trail')
-      .select('*')
-      .eq('record_id', targetId)
-      .order('timestamp', { ascending: false });
-    
-    if (!auditError && auditData && auditData.length > 0) {
-      result.auditTrail = auditData.map((a: any) => ({
-        id: a.id,
-        userId: a.user_id,
-        userName: a.user_name,
-        action: a.action,
-        changes: a.changes,
-        timestamp: a.timestamp,
-      }));
-    }
-  } catch (err) {
-    console.error('Full failure fetching auditTrail:', err);
-  }
-
-  // 3. Fetch fullApp from records
-  try {
-    const res = await supabase
-      .from('records')
-      .select('*')
-      .eq('id', targetId)
-      .maybeSingle();
-    
-    if (res.data) {
-      result.fullApp = mapFromSnakeCase(res.data);
-    }
-  } catch (err) {
-    console.error('Failed to fetch fullApp:', err);
-  }
-
-  return result;
-}
+// Function deleted as it is imported from useDataStore.ts
 
 const formatExcelDate = (val: string | Date | undefined) => {
   if (!val) return '';
@@ -1173,7 +1085,6 @@ export default function App() {
             }
 
             else if (eventType === 'UPDATE') {
-              // ✅ FIX: 1. Tại hàm Realtime UPDATE: Sửa hàm mapFromSnakeCase để thực hiện MERGE mảng history/auditTrail từ trạng thái cũ (state cũ) trước khi set ứng dụng, tránh việc payload rỗng của realtime xóa sạch lịch sử trong RAM hiển thị.
               const prevApp = applications.find(a => a.id === newRow.id) || dashboardApps.find(a => a.id === newRow.id);
               const updatedApp = mapFromSnakeCase(newRow, prevApp);
               
@@ -1209,8 +1120,30 @@ export default function App() {
                     );
                   }
                 }
-                return updatedApp;
+                
+                // Giữ lại history/auditTrail từ RAM; fetch lại bất đồng bộ bên dưới
+                return {
+                  ...updatedApp,
+                  history:    (prev.history?.length || 0) > 0 ? prev.history    : updatedApp.history,
+                  auditTrail: (prev.auditTrail?.length || 0) > 0 ? prev.auditTrail : updatedApp.auditTrail,
+                };
               });
+
+              // Bất đồng bộ fetch lại history thật từ DB
+              if (selectedAppRef.current?.id === newRow.id) {
+                fetchRecordDetail(String(newRow.id), newRow.unit_code)
+                  .then(detail => {
+                    setSelectedApp(prev => {
+                      if (!prev || prev.id !== newRow.id) return prev;
+                      return {
+                        ...prev,
+                        history:    detail.history.length    > 0 ? detail.history    : prev.history,
+                        auditTrail: detail.auditTrail.length > 0 ? detail.auditTrail : prev.auditTrail,
+                      };
+                    });
+                  })
+                  .catch(() => {}); // silent fallback — giữ nguyên RAM
+              }
             }
 
             else if (eventType === 'DELETE') {
@@ -2252,6 +2185,17 @@ export default function App() {
     selectedAppRef.current = selectedApp;
   }, [isEditing, editApp, selectedApp]);
 
+  // Keep selectedApp in sync with applications array for background sync updates
+  useEffect(() => {
+    if (selectedAppRef.current) {
+      const updated = applications.find(a => a.id === selectedAppRef.current?.id);
+      // We do a simple reference check here, because Zustand returns a new object if modified.
+      if (updated && updated !== selectedAppRef.current) {
+        setSelectedApp(updated);
+      }
+    }
+  }, [applications]);
+
   const handleSelectApp = useCallback(async (app: Application | null) => {
     setConflictWarning(null);
     if (!app) {
@@ -2261,7 +2205,7 @@ export default function App() {
     // Mở modal ngay với data hiện có (không chờ)
     setSelectedApp({ ...app, history: app.history || [], auditTrail: app.auditTrail || [] });
     // Fetch history + audit + full record bất đồng bộ
-    const detail = await fetchRecordDetail(app.id!);
+    const detail = await fetchRecordDetail(app.id!, app.unitCode);
     setSelectedApp(prev => {
       if (prev?.id !== app.id) return prev;
       
@@ -2893,7 +2837,7 @@ export default function App() {
             workflowType: updated.workflowType || inheritedWorkflowType,
             currentStep: updated.currentStep || initialStep,
             status: updated.status || initialStatus,
-            receivedDate: updated.receivedDate || nowStr,
+            receivedDate: updated.receivedDate || '',
             taxPaymentStatus: updated.taxPaymentStatus || 'Unpaid',
             submissionLocation: updated.submissionLocation,
             isSelfService: typeof updated.isSelfService === 'boolean' ? updated.isSelfService : false,
@@ -3123,7 +3067,7 @@ export default function App() {
         "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Số GCNQSDĐ", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)", 
         "Hạn GCN cam kết", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT",
         "Nơi nộp", "Mã VPĐK", "Ngày nộp hồ sơ", "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", 
-        "Ngày GCN đã ký", "Ngày GCN đã nhận", "Ngày BG KT", "Ngày BG GCN Khách"
+        "Ngày GCN đã ký", "Ngày GCN đã nhận", "Ngày KT bàn giao PTDA", "Ngày nộp hồ sơ NVTC vào VPĐK", "Ngày cấp TB Thuế", "Ngày BG KT", "Ngày BG GCN Khách"
       ];
       data = sourceApps.map(app => [
         app.projectName,
@@ -3148,6 +3092,9 @@ export default function App() {
         formatExcelDate(app.taxReceiptDate),
         formatExcelDate(app.gcnSignedDate),
         formatExcelDate(app.gcnReceivedDate),
+        formatExcelDate(app.ktHandoverToPtdaDate),
+        formatExcelDate(app.taxVpdkSubmissionDate),
+        formatExcelDate(app.taxNoticeProvisionDate),
         formatExcelDate(app.ptdaHandoverDate),
         formatExcelDate(app.customerHandoverDate)
       ]);
@@ -3183,7 +3130,7 @@ export default function App() {
     } else if (userRole === 'KT' || userRole === 'MANAGER_KT') {
       headers = [
         "Dự án", "Mã lô/căn", "Khách hàng", "Nơi nộp (Phường/TP)", "Mã HS/Số phiếu hẹn VPĐK", "Ngày nộp VPĐK", 
-        "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", "Ngày nhận GCN", "Ngày BG P.TDA", 
+        "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", "Ngày nhận GCN", "Ngày BG P.TDA", "Ngày KT bàn giao PTDA", "Ngày nộp hồ sơ NVTC vào VPĐK", "Ngày cấp TB Thuế", 
         "Phân loại sai sót", "Mức độ sai sót", "Ghi chú sai sót"
       ];
       data = sourceApps.map(app => [
@@ -3198,6 +3145,9 @@ export default function App() {
         formatExcelDate(app.taxReceiptDate),
         formatExcelDate(app.gcnReceivedDate),
         formatExcelDate(app.ptdaHandoverDate),
+        formatExcelDate(app.ktHandoverToPtdaDate),
+        formatExcelDate(app.taxVpdkSubmissionDate),
+        formatExcelDate(app.taxNoticeProvisionDate),
         app.issueType || '',
         app.issueSeverity || '',
         app.issueNotes || ''
@@ -3208,6 +3158,8 @@ export default function App() {
         "Ngày TB Thuế",
         "Ngày cấp TB Thuế", 
         "Ngày đóng thuế",
+        "Ngày KT bàn giao PTDA",
+        "Ngày nộp hồ sơ NVTC vào VPĐK",
         "Ngày trình ký GCN",
         "Ngày nhận GCN thực tế",
         "Phân loại sai sót",
@@ -3220,6 +3172,8 @@ export default function App() {
         formatExcelDate(app.taxNotificationDate),
         formatExcelDate(app.taxNoticeProvisionDate),
         formatExcelDate(app.taxReceiptDate),
+        formatExcelDate(app.ktHandoverToPtdaDate),
+        formatExcelDate(app.taxVpdkSubmissionDate),
         formatExcelDate(app.gcnSignedDate),
         formatExcelDate(app.gcnReceivedDate),
         app.issueType && app.issueType !== 'None' ? app.issueType : '',
@@ -3232,7 +3186,7 @@ export default function App() {
         "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Số GCNQSDĐ", "Vay ngân hàng", "Loại tài sản", 
         "Hạn cam kết vay", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Tự làm sổ", "Ngày bàn giao sang KT",
         "Nơi nộp", "Mã HS VPĐK", "Ngày nộp VPĐK", "Ngày TB Thuế", "Ngày nhận TB Thuế", 
-        "Ngày nhận NVTC", "Ngày trình ký GCN", "Ngày nhận GCN thực tế", "Ngày BG Pkt", "Ngày BG Khách"
+        "Ngày nhận NVTC", "Ngày KT bàn giao PTDA", "Ngày nộp hồ sơ NVTC vào VPĐK", "Ngày cấp TB Thuế", "Ngày trình ký GCN", "Ngày nhận GCN thực tế", "Ngày BG Pkt", "Ngày BG Khách"
       ];
       data = sourceApps.map(app => [
         app.projectName,
@@ -3255,6 +3209,9 @@ export default function App() {
         formatExcelDate(app.taxNotificationDate),
         formatExcelDate(app.taxNotificationReceivedDate),
         formatExcelDate(app.taxReceiptDate),
+        formatExcelDate(app.ktHandoverToPtdaDate),
+        formatExcelDate(app.taxVpdkSubmissionDate),
+        formatExcelDate(app.taxNoticeProvisionDate),
         formatExcelDate(app.gcnSignedDate),
         formatExcelDate(app.gcnReceivedDate),
         formatExcelDate(app.ptdaHandoverDate),
@@ -3760,7 +3717,7 @@ export default function App() {
           ...app,
           scannedFiles: [...(app.scannedFiles || []), newSharedFile],
           auditTrail: [{
-            id: Math.random().toString(36).substr(2, 9),
+            id: generateUUID(),
             timestamp: new Date().toISOString(),
             userId: currentUser?.dept || 'System',
             userName: currentUser?.dept || 'Hệ thống',
@@ -4022,7 +3979,7 @@ export default function App() {
               `Hồ sơ được đặt lại về bước đầu (${firstStep === 'S1_ChuanBi' ? 'S1 - Chuẩn bị' : 'GĐ1 - Chuẩn bị'}) để xử lý theo quy trình tự làm sổ.`
             );
             const historyItem: any = {
-              id: Math.random().toString(36).substr(2, 9),
+              id: generateUUID(),
               timestamp: new Date().toISOString(),
               user: userRole,
               action: `Đổi loại hồ sơ: Công ty làm sổ → Khách tự làm sổ. Reset về bước: ${firstStep}`,
@@ -4083,7 +4040,7 @@ export default function App() {
 
     // Helper: tạo history entry khi cập nhật ngày (dù có nhảy bước hay không)
     const makeDateHistoryItem = (label: string, val: string | null, unitCode: string) => ({
-      id: `hist-${Date.now()}-${Math.random().toString(36).substr(2,5)}`,
+      id: generateUUID(),
       stepName: label,
       dept: 'PTT' as const,
       receivedDate: new Date().toISOString(),
@@ -4105,7 +4062,7 @@ export default function App() {
         (isS  && S_ORDER.indexOf(inferredStep)  > S_ORDER.indexOf(currentStep));
       if (shouldUpdate) {
         const stepHistoryItem: any = {
-          id: `hist-${Date.now()}-${Math.random().toString(36).substr(2,5)}`,
+          id: generateUUID(),
           stepName: inferredStep,
           dept: stepConfig[inferredStep]?.dept || 'PTT',
           receivedDate: new Date().toISOString(),
@@ -4181,7 +4138,7 @@ export default function App() {
 
       if (field === 'currentStep') {
         const historyItem: any = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: generateUUID(),
           timestamp: new Date().toISOString(),
           user: userRole,
           action: `Chuyển trạng thái sang: ${value}`,
@@ -5297,8 +5254,8 @@ useEffect(() => {
         isCreateModalOpen={isCreateModalOpen}
         setIsCreateModalOpen={setIsCreateModalOpen}
         theme={theme}
-        newApp={newApp}
-        setNewApp={setNewApp}
+        newApp={newApp as Partial<Application>}
+        setNewApp={setNewApp as any}
         formErrors={formErrors}
         projects={visibleProjects}
         handleCreateApp={handleCreateApp}

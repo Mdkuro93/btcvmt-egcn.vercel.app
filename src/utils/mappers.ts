@@ -112,6 +112,7 @@ export const mapFromSnakeCase = (item: Record<string, any>, oldApp?: any): Appli
     submissionDate: str(val('submission_date', 'submissionDate')),
     gcnReceivedDate: str(val('gcn_received_date', 'gcnReceivedDate')),
     ptdaHandoverDate: str(val('ptda_handover_date', 'ptdaHandoverDate')),
+    ktHandoverToPtdaDate: str(val('kt_handover_to_ptda_date', 'ktHandoverToPtdaDate')),
     customerHandoverDate,
     isHandedOver: bool(val('is_handed_over', 'isHandedOver')),
     handoverDate: str(val('handover_date', 'handoverDate')),
@@ -219,6 +220,7 @@ export const mapToSnakeCase = (app: Application): Record<string, any> => {
     submission_date: app.submissionDate,
     gcn_received_date: app.gcnReceivedDate,
     ptda_handover_date: app.ptdaHandoverDate,
+    kt_handover_to_ptda_date: app.ktHandoverToPtdaDate,
     customer_handover_date: app.customerHandoverDate,
     is_handed_over: app.isHandedOver,
     handover_date: app.handoverDate,
@@ -258,7 +260,7 @@ export const mapToSnakeCase = (app: Application): Record<string, any> => {
                         key.endsWith('_at') || 
                         key.includes('date') || 
                         key.includes('deadline');
-    if (isDateField && (data[key] === '' || data[key] === 'null')) {
+    if (isDateField && (data[key] === '' || data[key] === 'null' || data[key] === '---' || String(data[key]).toLowerCase() === 'none')) {
       data[key] = null;
     }
   });

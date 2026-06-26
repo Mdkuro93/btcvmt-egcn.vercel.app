@@ -5,13 +5,13 @@ import { mapFromSnakeCase, safeParse, mapToSnakeCase, mapNotificationToSnakeCase
 import { STEP_CONFIG as INITIAL_STEP_CONFIG, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS } from '../constants';
 import { useAuthStore } from './useAuthStore';
 import { WorkflowEngine } from '../utils/workflowEngine';
-import { validateDateSequence } from '../utils/appUtils';
+import { validateDateSequence, generateUUID } from '../utils/appUtils';
 
 export const createAuditEntry = (action: string, isBulk: boolean, count: number, unitCode: string, detail?: string): AuditTrailEntry => {
   const { currentUser } = useAuthStore.getState();
   const mode = isBulk ? '[Hàng loạt]' : '[Thủ công]';
   return {
-    id: `audit-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    id: generateUUID(),
     userId: currentUser?.id || 'admin',
     userName: currentUser?.name || 'Admin',
     timestamp: new Date().toISOString(),
@@ -26,7 +26,21 @@ export const updateAppIssue = (
   type: IssueType = 'Sai sót Khác',
   severity: IssueSeverity = 'Moderate'
 ): Application => {
-  const auditEntry = createAuditEntry('Ghi nhận vướng mắc', false, 1, app.unitCode, `Loại: ${type}. Ghi chú: ${note}`);
+  const { currentUser } = useAuthStore.getState();
+  const nowStr = new Date().toISOString();
+
+  const historyEntry: ApplicationStepHistory = {
+    id: generateUUID(),
+    stepName: `Ghi nhận vướng mắc: ${type}`,
+    dept: (currentUser?.dept as Dept) || 'PTT',
+    receivedDate: nowStr,
+    note: `Loại: ${type} | Mức độ: ${severity} | Ghi chú: ${note}`,
+    performedBy: currentUser?.id,
+    performedByName: currentUser?.name || 'Hệ thống'
+  };
+
+  const auditEntry = createAuditEntry('Ghi nhận vướng mắc', false, 1, app.unitCode,
+    `Loại: ${type}. Ghi chú: ${note}`);
 
   return {
     ...app,
@@ -35,7 +49,8 @@ export const updateAppIssue = (
     issueType: type,
     issueSeverity: severity,
     issueStatus: 'OPEN',
-    issueCreatedAt: new Date().toISOString(),
+    issueCreatedAt: nowStr,
+    history: [historyEntry, ...(app.history || [])],
     auditTrail: [auditEntry, ...(app.auditTrail || [])]
   };
 };
@@ -70,7 +85,7 @@ export const isSelfUpdate = (id: number | string): boolean => {
   return false;
 };
 
-export async function fetchRecordDetail(recordId: string | number): Promise<{
+export async function fetchRecordDetail(recordId: string | number, unitCode?: string): Promise<{
   history: ApplicationStepHistory[];
   auditTrail: AuditTrailEntry[];
   fullApp?: Partial<Application>;
@@ -81,15 +96,22 @@ export async function fetchRecordDetail(recordId: string | number): Promise<{
     fullApp?: Partial<Application>;
   } = { history: [], auditTrail: [] };
 
-  const isNumeric = typeof recordId === 'number' || (typeof recordId === 'string' && /^\d+$/.test(recordId.trim()));
-  const targetId = isNumeric ? Number(recordId) : String(recordId);
+  const targetId = String(recordId);
 
   try {
-    const { data: historyData, error: historyError } = await supabase
+    let query = supabase
       .from('record_history')
-      .select('*')
-      .eq('record_id', targetId)
-      .order('created_at', { ascending: true });
+      .select('*');
+      
+    if (unitCode) {
+      query = query.or(`record_id.eq.${targetId},record_id.eq.${unitCode}`);
+    } else {
+      query = query.eq('record_id', targetId);
+    }
+    
+    const { data: historyData, error: historyError } = await query
+      .order('received_date', { ascending: false })
+      .order('id', { ascending: false });
     
     if (!historyError && historyData && historyData.length > 0) {
       result.history = historyData.map((h: any) => ({
@@ -101,17 +123,28 @@ export async function fetchRecordDetail(recordId: string | number): Promise<{
         note: h.note,
         performedBy: h.performed_by,
         performedByName: h.performed_by_name,
+        status: h.status,
       }));
+    } else if (historyError) {
+      // Suppress red error overlay in dev by using console.warn instead of console.error
+      console.warn('[fetchRecordDetail] Lỗi khi tải lịch sử hồ sơ:', historyError);
     }
   } catch (err) {
-    console.error('Full failure fetching history:', err);
+    console.warn('[fetchRecordDetail] Full failure fetching history:', err);
   }
 
   try {
-    const { data: auditData, error: auditError } = await supabase
+    let auditQuery = supabase
       .from('record_audit_trail')
-      .select('*')
-      .eq('record_id', targetId)
+      .select('*');
+      
+    if (unitCode) {
+      auditQuery = auditQuery.or(`record_id.eq.${targetId},record_id.eq.${unitCode}`);
+    } else {
+      auditQuery = auditQuery.eq('record_id', targetId);
+    }
+    
+    const { data: auditData, error: auditError } = await auditQuery
       .order('timestamp', { ascending: false });
     
     if (!auditError && auditData && auditData.length > 0) {
@@ -123,9 +156,11 @@ export async function fetchRecordDetail(recordId: string | number): Promise<{
         changes: a.changes,
         timestamp: a.timestamp,
       }));
+    } else if (auditError) {
+      console.warn('[fetchRecordDetail] Lỗi tải audit trail:', auditError);
     }
   } catch (err) {
-    console.error('Full failure fetching auditTrail:', err);
+    console.warn('[fetchRecordDetail] Full failure fetching auditTrail:', err);
   }
 
   try {
@@ -139,7 +174,7 @@ export async function fetchRecordDetail(recordId: string | number): Promise<{
       result.fullApp = mapFromSnakeCase(res.data);
     }
   } catch (err) {
-    console.error('Failed to fetch fullApp:', err);
+    console.warn('Failed to fetch fullApp:', err);
   }
 
   return result;
@@ -159,7 +194,7 @@ export async function syncRecordToSupabase(app: Application) {
       if (!h.id) return Promise.resolve();
       return supabase.from('record_history').upsert({
         id: h.id,
-        record_id: String(savedApp.id),
+        record_id: savedApp.id,
         step_name: h.stepName,
         dept: h.dept,
         received_date: h.receivedDate,
@@ -169,15 +204,19 @@ export async function syncRecordToSupabase(app: Application) {
         performed_by_name: h.performedByName || null,
       }, { onConflict: 'id' });
     });
-    await Promise.all(historyPromises);
+const hResults = await Promise.allSettled(historyPromises);
+    hResults.forEach(r => {
+      if (r.status === 'rejected') console.warn('[syncRecord] Lỗi ghi history:', r.reason);
+      if (r.status === 'fulfilled' && (r.value as any)?.error) console.warn('[syncRecord] Lỗi upsert history:', (r.value as any).error);
+    });
   }
 
   if (app.auditTrail && app.auditTrail.length > 0) {
     const auditPromises = app.auditTrail.map(a => {
-      if (!a.id) return Promise.resolve();
+      if (!a.id) return Promise.resolve(null);
       return supabase.from('record_audit_trail').upsert({
         id: a.id,
-        record_id: String(savedApp.id),
+        record_id: savedApp.id,
         user_id: a.userId,
         user_name: a.userName,
         action: a.action,
@@ -185,14 +224,18 @@ export async function syncRecordToSupabase(app: Application) {
         timestamp: a.timestamp,
       }, { onConflict: 'id' });
     });
-    await Promise.all(auditPromises);
+    const aResults = await Promise.allSettled(auditPromises);
+    aResults.forEach(r => {
+      if (r.status === 'rejected') console.warn('[syncRecord] Lỗi ghi auditTrail:', r.reason);
+      if (r.status === 'fulfilled' && (r.value as any)?.error) console.warn('[syncRecord] Lỗi upsert auditTrail:', (r.value as any).error);
+    });
   }
 
   if (savedApp.id) {
     try {
-      const detail = await fetchRecordDetail(savedApp.id);
-      savedApp.history = (detail.history && detail.history.length > 0) ? detail.history : (app.history || []);
-      savedApp.auditTrail = (detail.auditTrail && detail.auditTrail.length > 0) ? detail.auditTrail : (app.auditTrail || []);
+      const detail = await fetchRecordDetail(savedApp.id, savedApp.unitCode);
+      savedApp.history = detail.history;
+      savedApp.auditTrail = detail.auditTrail;
     } catch (err) {
       console.warn('Could not fetch record details in sync, using in-memory values:', err);
       savedApp.history = app.history || [];
@@ -306,7 +349,7 @@ export const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allAp
                 historyPromises.push(
                   supabase.from('record_history').upsert({
                     id: h.id,
-                    record_id: String(returnedApp.id),
+                    record_id: returnedApp.id,
                     step_name: h.stepName,
                     dept: h.dept,
                     received_date: h.receivedDate,
@@ -326,7 +369,7 @@ export const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allAp
                 auditPromises.push(
                   supabase.from('record_audit_trail').upsert({
                     id: a.id,
-                    record_id: String(returnedApp.id),
+                    record_id: returnedApp.id,
                     user_id: a.userId,
                     user_name: a.userName,
                     action: a.action,
@@ -702,7 +745,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     try {
       const updatedApps = apps.map(app => {
         const logEntry: ApplicationStepHistory = {
-          id: Math.random().toString(36).substr(2, 9),
+          id: generateUUID(),
           stepName: app.currentStep,
           dept: (
             userRole === 'ADMIN' ? 'ADMIN' :
@@ -758,7 +801,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
       const newHistory = [
         {
-          id: `resolve-${Date.now()}`,
+          id: generateUUID(),
           stepName: stepCfg.label,
           dept: userRole as Dept,
           receivedDate: new Date().toISOString(),
@@ -805,7 +848,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
       const newHistory = [
         {
-          id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          id: generateUUID(),
           stepName: 'Khắc phục lỗi',
           stepKey: 'RESOLVED',
           dept: userRole as Dept,
@@ -995,7 +1038,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
       const newHistory = [
         {
-          id: `approve-${Date.now()}`,
+          id: generateUUID(),
           stepName: stepCfg.label,
           dept: userRole as Dept,
           receivedDate: new Date().toISOString(),
@@ -1059,7 +1102,20 @@ export const useDataStore = create<DataState>((set, get) => ({
     const isMovingForward = nextIdx > currentIdx;
 
     const fullNow = new Date().toISOString();
-    const prevHistory = [...app.history];
+    // Fetch lịch sử đầy đủ từ DB trước khi tạo entry mới
+    let prevHistory = [...(app.history || [])];
+    try {
+      const freshDetail = await fetchRecordDetail(app.id!, app.unitCode);
+      if (freshDetail.history && freshDetail.history.length > 0) {
+        // Dùng DB history nếu đầy đủ hơn RAM
+        prevHistory = freshDetail.history.length >= prevHistory.length
+          ? freshDetail.history
+          : prevHistory;
+      }
+    } catch (e) {
+      // Fallback về RAM nếu fetch thất bại
+      console.warn('[stepTransition] Không fetch được history từ DB, dùng RAM:', e);
+    }
     if (prevHistory.length > 0) {
       prevHistory[0] = { ...prevHistory[0], completedDate: fullNow };
     }
@@ -1072,7 +1128,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
     const newHistory = [
       {
-        id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: generateUUID(),
         stepName: targetStepLabel,
         dept: nextDeptLabel,
         receivedDate: fullNow,
@@ -1121,22 +1177,31 @@ export const useDataStore = create<DataState>((set, get) => ({
     };
 
     try {
-      const finalApp = await get().syncRecord(updatedApp);
+      const { setApplications, setDashboardApps } = get();
+      
+      // Optimistic update
+      setApplications(prev => prev.map(a => a.id === app.id ? updatedApp : a));
+      setDashboardApps(prev => prev.map(a => a.id === app.id ? updatedApp : a));
 
-      if (targetStep === 'Hoan_Tat') {
-        await deleteAllNotificationsForRecord(app.id);
-      }
-
-      setApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
-      setDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
+      // Background sync
+      get().syncRecord(updatedApp).then(async (finalApp) => {
+        if (targetStep === 'Hoan_Tat') {
+          await deleteAllNotificationsForRecord(app.id);
+        }
+        const { setApplications: setA, setDashboardApps: setD } = get();
+        setA(prev => prev.map(a => a.id === app.id ? finalApp : a));
+        setD(prev => prev.map(a => a.id === app.id ? finalApp : a));
+      }).catch(error => {
+        console.error('Supabase transition error:', error);
+      });
 
       return {
         success: true,
         message: `Đã chuyển hồ sơ sang bước: ${(stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label} (Đã đồng bộ Supabase)`,
-        finalApp
+        finalApp: updatedApp
       };
     } catch (error) {
-      console.error('Supabase transition error:', error);
+      console.error('Optimistic update error:', error);
       return { success: false, message: 'Lỗi đồng bộ Supabase. Hồ sơ chưa được chuyển bước — vui lòng thử lại.' };
     }
   },
@@ -1157,7 +1222,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
     const newHistory = [
       {
-        id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: generateUUID(),
         stepName: 'Yêu cầu chỉnh sửa / Bổ sung',
         stepKey: 'REJECTED',
         dept: userRole as Dept,
@@ -1239,7 +1304,7 @@ export const useDataStore = create<DataState>((set, get) => ({
           auditTrail: [auditEntry, ...(app.auditTrail || [])],
           history: [
             {
-              id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              id: generateUUID(),
               stepName: 'Yêu cầu chỉnh sửa / Bổ sung',
               dept: userRole as Dept,
               receivedDate: new Date().toISOString(),
@@ -1414,6 +1479,30 @@ export const useDataStore = create<DataState>((set, get) => ({
         return { success: false, message: `Lỗi trình tự ngày: ${chronoErrors[0]}`, type: 'error' };
       }
 
+      // Fetch history từ DB cho tất cả records sắp update (chạy song song, 1 lần)
+      const historyMap = new Map<string, ApplicationStepHistory[]>();
+      const appsToFetch = applications.filter(app => selectedAppIds.includes(app.id));
+      
+      // Batching: chia thành nhóm 50 để tránh overload Supabase khi bulk lớn
+      const BATCH_SIZE = 50;
+      for (let i = 0; i < appsToFetch.length; i += BATCH_SIZE) {
+        const batch = appsToFetch.slice(i, i + BATCH_SIZE);
+        await Promise.allSettled(
+          batch.map(async (app) => {
+            try {
+              // Truyền cả unitCode vì fetchRecordDetail có thể query bằng unitCode
+              const detail = await fetchRecordDetail(app.id!, app.unitCode);
+              if (detail && detail.history && detail.history.length > 0) {
+                // Dùng String() để đảm bảo key đồng nhất (app.id có thể là number hoặc string)
+                historyMap.set(String(app.id), detail.history);
+              }
+            } catch (e) {
+              // Fallback về RAM nếu fetch lỗi — không block toàn bộ bulk
+            }
+          })
+        );
+      }
+
       let actuallyUpdatedCount = 0;
 
       const updatedApps = applications.map(app => {
@@ -1461,7 +1550,11 @@ export const useDataStore = create<DataState>((set, get) => ({
 
         let targetStep = recordNextStep;
 
-        const prevHistory = [...appWithDate.history];
+        // Ưu tiên history từ DB (đầy đủ hơn RAM); fallback về RAM nếu fetch miss
+        const dbHistory = historyMap.get(String(app.id));
+        const prevHistory = dbHistory && dbHistory.length > 0
+          ? [...dbHistory]
+          : [...appWithDate.history];
         if (prevHistory.length > 0) {
           prevHistory[0] = { ...prevHistory[0], completedDate: nowStr };
         }
@@ -1473,7 +1566,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
         const newHistory = [
           {
-            id: `hist-${Date.now()}-${appWithDate.id}`,
+            id: generateUUID(),
             stepName: (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label,
             dept: nextDeptLabel,
             receivedDate: new Date().toISOString(),
@@ -1603,9 +1696,9 @@ export const useDataStore = create<DataState>((set, get) => ({
       const inheritedWorkflowType = parentProject?.workflowType || 'Quy_trinh_1';
       const initialStep: StepName = inheritedWorkflowType === 'Quy_trinh_2' ? 'S1_ChuanBi' : 'GD1_ChuanBi';
       const initialStatus = (stepConfig as any)[initialStep]?.status || 'Processing';
-      const newId = crypto.randomUUID();
-      const histId = crypto.randomUUID();
-      const auditId = crypto.randomUUID();
+      const newId = generateUUID();
+      const histId = generateUUID();
+      const auditId = generateUUID();
 
       const appToAddTemp: any = {
         unitCode: newApp.unitCode,
@@ -1662,7 +1755,7 @@ export const useDataStore = create<DataState>((set, get) => ({
             if (!h.id) return Promise.resolve();
             return supabase.from('record_history').upsert({
               id: h.id,
-              record_id: String(appToAdd.id),
+              record_id: appToAdd.id,
               step_name: h.stepName,
               dept: h.dept,
               received_date: h.receivedDate,
@@ -1683,7 +1776,7 @@ export const useDataStore = create<DataState>((set, get) => ({
             if (!a.id) return Promise.resolve();
             return supabase.from('record_audit_trail').upsert({
               id: a.id,
-              record_id: String(appToAdd.id),
+              record_id: appToAdd.id,
               user_id: a.userId,
               user_name: a.userName,
               action: a.action,
@@ -1755,16 +1848,47 @@ export const useDataStore = create<DataState>((set, get) => ({
     const app = applications.find(a => a.id === id);
     if (!app) return { success: false, message: 'Không tìm thấy hồ sơ.' };
 
-    const auditEntry = createAuditEntry('Cập nhật nhanh', false, 1, app.unitCode);
-    const updatedApp = { ...app, ...quickEditData, auditTrail: [auditEntry, ...(app.auditTrail || [])] };
+    const { currentUser } = useAuthStore.getState();
+    const nowStr = new Date().toISOString();
+
+    const historyEntry: ApplicationStepHistory = {
+      id: generateUUID(),
+      stepName: `Cập nhật nhanh: ${Object.keys(quickEditData).join(', ')}`,
+      dept: (currentUser?.dept as Dept) || 'PTT',
+      receivedDate: nowStr,
+      note: `Chỉnh sửa nhanh các trường: ${Object.keys(quickEditData).join(', ')}`,
+      performedBy: currentUser?.id,
+      performedByName: currentUser?.name || 'Hệ thống'
+    };
+
+    const auditEntry = createAuditEntry('Cập nhật nhanh', false, 1, app.unitCode,
+      `Chỉnh sửa nhanh: ${Object.keys(quickEditData).join(', ')}`);
+
+    const updatedApp = {
+      ...app,
+      ...quickEditData,
+      history: [historyEntry, ...(app.history || [])],
+      auditTrail: [auditEntry, ...(app.auditTrail || [])]
+    };
     if (updatedApp.status !== 'Error') updatedApp.status = app.status;
 
     try {
-      const finalApp = await get().syncRecord(updatedApp);
       const { setApplications, setDashboardApps } = get();
-      setApplications(prev => prev.map(a => a.id === id ? finalApp : a));
-      setDashboardApps(prev => prev.map(a => a.id === id ? finalApp : a));
-      return { success: true, message: 'Cập nhật nhanh và đồng bộ Supabase thành công!', finalApp };
+      
+      // Optimistic update
+      setApplications(prev => prev.map(a => a.id === id ? updatedApp : a));
+      setDashboardApps(prev => prev.map(a => a.id === id ? updatedApp : a));
+
+      // Background sync
+      get().syncRecord(updatedApp).then(finalApp => {
+        const { setApplications: setA, setDashboardApps: setD } = get();
+        setA(prev => prev.map(a => a.id === id ? finalApp : a));
+        setD(prev => prev.map(a => a.id === id ? finalApp : a));
+      }).catch(error => {
+        console.error('Supabase quickSave error:', error);
+      });
+
+      return { success: true, message: 'Cập nhật nhanh và đồng bộ Supabase thành công!', finalApp: updatedApp };
     } catch (error) {
       console.error('Quick save error:', error);
       return { success: false, message: 'Lỗi khi cập nhật nhanh lên Supabase.' };

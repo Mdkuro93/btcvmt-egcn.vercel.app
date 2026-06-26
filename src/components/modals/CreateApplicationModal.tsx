@@ -14,6 +14,7 @@ interface CreateApplicationModalProps {
   projects?: Project[];
   handleCreateApp: () => void;
   isSavingApp: boolean;
+  visibleProjects?: Project[];
 }
 export const CreateApplicationModal = ({
   isCreateModalOpen,

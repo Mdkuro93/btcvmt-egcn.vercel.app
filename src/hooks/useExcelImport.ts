@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { Application, StepName, UnitStatus, IssueSeverity } from '../types';
 import { formatDate } from '../utils/dateUtils';
 import { mapFromSnakeCase } from '../utils/mappers';
-import { calculateDaysDiff, calculateDaysBetweenDates, getPhaseIndex, getTaxStatus, getOverdueInfo, inferStepFromDates, determineStatusFromStep, validateSkippedSteps } from '../utils/appUtils';
+import { calculateDaysDiff, calculateDaysBetweenDates, getPhaseIndex, getTaxStatus, getOverdueInfo, inferStepFromDates, determineStatusFromStep, validateSkippedSteps, generateUUID } from '../utils/appUtils';
 import { STEP_CONFIG as INITIAL_STEP_CONFIG, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS } from '../constants';
 
 export function useExcelImport({
@@ -130,7 +130,7 @@ export function useExcelImport({
         "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Số GCNQSDĐ", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)", 
         "Hạn GCN cam kết", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT",
         "Nơi nộp", "Mã VPĐK", "Ngày nộp hồ sơ", "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", 
-        "Ngày GCN đã ký", "Ngày GCN đã nhận", "Ngày BG KT", "Ngày BG GCN Khách",
+        "Ngày GCN đã ký", "Ngày GCN đã nhận", "Ngày KT bàn giao PTDA", "Ngày nộp hồ sơ NVTC vào VPĐK", "Ngày BG KT", "Ngày BG GCN Khách",
         "Phân loại sai sót", "Mức độ sai sót", "Ghi chú sai sót"
       ];
       data = sourceApps.map((app: Application) => [
@@ -156,7 +156,9 @@ export function useExcelImport({
         app.taxReceiptDate ? (formatDate(app.taxReceiptDate) === '---' ? '' : formatDate(app.taxReceiptDate)) : '',
         app.gcnSignedDate ? (formatDate(app.gcnSignedDate) === '---' ? '' : formatDate(app.gcnSignedDate)) : '',
         app.gcnReceivedDate ? (formatDate(app.gcnReceivedDate) === '---' ? '' : formatDate(app.gcnReceivedDate)) : '',
-        app.accountingHandoverDate ? (formatDate(app.accountingHandoverDate) === '---' ? '' : formatDate(app.accountingHandoverDate)) : '',
+        app.ktHandoverToPtdaDate ? (formatDate(app.ktHandoverToPtdaDate) === '---' ? '' : formatDate(app.ktHandoverToPtdaDate)) : '',
+        app.taxVpdkSubmissionDate ? (formatDate(app.taxVpdkSubmissionDate) === '---' ? '' : formatDate(app.taxVpdkSubmissionDate)) : '',
+        app.ptdaHandoverDate ? (formatDate(app.ptdaHandoverDate) === '---' ? '' : formatDate(app.ptdaHandoverDate)) : '',
         app.customerHandoverDate ? (formatDate(app.customerHandoverDate) === '---' ? '' : formatDate(app.customerHandoverDate)) : '',
         (app.issueType && app.issueType !== 'None') ? app.issueType : '',
         app.issueSeverity || '',
@@ -359,6 +361,8 @@ export function useExcelImport({
           taxNotificationReceivedDate: findCol(['ngay nhan tb thue', 'nhan tb thue', 'ngay nhan thong bao thue', 'nhan thong bao thue'], [], true),
           taxNoticeProvisionDate: findCol(['ngay cap tb thue', 'cung cap tb thue', 'ngay cung cap tb thue', 'ngay dong thue', 'dong thue'], ['cap tb thue', 'cung cap tb thue', 'dong thue']),
           taxReceiptDate: findCol(['ngay nop thue', 'nop thue', 'ngay dong thue', 'dong thue'], ['dong thue', 'nop thue']),
+          ktHandoverToPtdaDate: findCol(['ngay kt ban giao ptda', 'kt ban giao ptda'], ['kt ban giao ptda']),
+          taxVpdkSubmissionDate: findCol(['ngay nop ho so nvtc vao vpdk', 'nop ho so nvtc vao vpdk', 'nop nvtc vpdk'], ['nop nvtc vao vpdk', 'ho so nvtc']),
           gcnSignedDate: findCol(['ngay trinh ky gcn', 'trinh ky gcn', 'gcn da ky', 'ngay gcn da ky'], [], true),
           gcnReceivedDate: findCol(['ngay nhan gcn thuc te', 'ngay gcn da nhan', 'ngay nhan gcn', 'nhan gcn'], [], true),
           ptdaHandoverDate: findCol(['ngay bg p.tda', 'bg p.tda', 'bg p_tda', 'ban giao p.tda'], ['bg p.tda', 'bg ptda']),
@@ -371,20 +375,24 @@ export function useExcelImport({
 
         const getRowVal = (row: any[], field: keyof typeof colMap) => {
           const idx = colMap[field];
-          if (idx === -1 || idx === undefined || idx >= row.length) return undefined;
-          return row[idx];
+          if (idx === -1 || idx === undefined) return undefined; // Column is missing entirely from excel
+          if (idx >= row.length) return ''; // Column exists but cell is empty
+          const val = row[idx];
+          if (val === undefined || val === null) return '';
+          return val;
         };
 
         const getRowStr = (row: any[], field: keyof typeof colMap): string | undefined => {
           const val = getRowVal(row, field);
-          if (val === undefined || val === null) return undefined;
+          if (val === undefined) return undefined;
           return val.toString().trim();
         };
 
         const getRowDate = (row: any[], field: keyof typeof colMap): string | undefined => {
           const val = getRowVal(row, field);
-          if (val === undefined || val === null) return undefined;
-          return parseDateFromExcel(val) || undefined;
+          if (val === undefined) return undefined; // missing column
+          if (val === '') return ''; // empty cell
+          return parseDateFromExcel(val) || ''; // return empty string if invalid or unparseable to clear it
         };
 
         excelData.slice(1).forEach((row, idx) => {
@@ -487,15 +495,15 @@ export function useExcelImport({
              }
 
              const commDate = getRowDate(row, 'commitmentDate');
-             if (commDate && commDate !== existingApp.commitmentDate) {
+             if (commDate !== undefined && commDate !== existingApp.commitmentDate) {
                 updatedApp.commitmentDate = commDate;
-                changes.push(`Hạn GCN: ${existingApp.commitmentDate || 'Trống'} -> ${commDate}`);
+                changes.push(`Hạn GCN: ${existingApp.commitmentDate || 'Trống'} -> ${commDate || 'Trống'}`);
              }
 
              const bankCommitment = getRowDate(row, 'bankCommitmentDeadline');
-             if (bankCommitment && bankCommitment !== existingApp.bankCommitmentDeadline) {
+             if (bankCommitment !== undefined && bankCommitment !== existingApp.bankCommitmentDeadline) {
                 updatedApp.bankCommitmentDeadline = bankCommitment;
-                changes.push(`Hạn cam kết vay: ${existingApp.bankCommitmentDeadline || 'Trống'} -> ${bankCommitment}`);
+                changes.push(`Hạn cam kết vay: ${existingApp.bankCommitmentDeadline || 'Trống'} -> ${bankCommitment || 'Trống'}`);
              }
 
              const recDate = getRowDate(row, 'receivedDate');
@@ -504,9 +512,9 @@ export function useExcelImport({
                  updatedApp.handoverApartmentDate = handoverApDate;
                  changes.push(`Bàn giao căn hộ: ${existingApp.handoverApartmentDate || 'Trống'} -> ${handoverApDate || 'Trống'}`);
               }
-             if (recDate && recDate !== existingApp.receivedDate) {
+             if (recDate !== undefined && recDate !== existingApp.receivedDate) {
                 updatedApp.receivedDate = recDate;
-                changes.push(`Ngày nhận HS: ${existingApp.receivedDate || 'Trống'} -> ${recDate}`);
+                changes.push(`Ngày nhận HS: ${existingApp.receivedDate || 'Trống'} -> ${recDate || 'Trống'}`);
               }
 
               const selfServiceVal = getRowStr(row, 'isSelfService');
@@ -554,45 +562,51 @@ export function useExcelImport({
              }
 
              const subDate = getRowDate(row, 'submissionDate');
-             if (subDate && subDate !== existingApp.submissionDate) {
+             if (subDate !== undefined && subDate !== existingApp.submissionDate) {
                 updatedApp.submissionDate = subDate;
-                changes.push(`Ngày nộp VPĐK: ${existingApp.submissionDate || 'Trống'} -> ${subDate}`);
+                changes.push(`Ngày nộp VPĐK: ${existingApp.submissionDate || 'Trống'} -> ${subDate || 'Trống'}`);
+             }
+
+             const taxVpdkDate = getRowDate(row, 'taxVpdkSubmissionDate');
+             if (taxVpdkDate !== undefined && taxVpdkDate !== existingApp.taxVpdkSubmissionDate) {
+                updatedApp.taxVpdkSubmissionDate = taxVpdkDate;
+                changes.push(`Ngày nộp hồ sơ NVTC vào VPĐK: ${existingApp.taxVpdkSubmissionDate || 'Trống'} -> ${taxVpdkDate || 'Trống'}`);
              }
 
              const taxNotifDate = getRowDate(row, 'taxNotificationDate');
-             if (taxNotifDate && taxNotifDate !== existingApp.taxNotificationDate) {
+             if (taxNotifDate !== undefined && taxNotifDate !== existingApp.taxNotificationDate) {
                 updatedApp.taxNotificationDate = taxNotifDate;
-                changes.push(`Ngày TB Thuế: ${existingApp.taxNotificationDate || 'Trống'} -> ${taxNotifDate}`);
+                changes.push(`Ngày TB Thuế: ${existingApp.taxNotificationDate || 'Trống'} -> ${taxNotifDate || 'Trống'}`);
              }
 
              const taxNotifRecDate = getRowDate(row, 'taxNotificationReceivedDate');
-             if (taxNotifRecDate && taxNotifRecDate !== existingApp.taxNotificationReceivedDate) {
+             if (taxNotifRecDate !== undefined && taxNotifRecDate !== existingApp.taxNotificationReceivedDate) {
                 updatedApp.taxNotificationReceivedDate = taxNotifRecDate;
-                changes.push(`Ngày nhận TB Thuế: ${existingApp.taxNotificationReceivedDate || 'Trống'} -> ${taxNotifRecDate}`);
+                changes.push(`Ngày nhận TB Thuế: ${existingApp.taxNotificationReceivedDate || 'Trống'} -> ${taxNotifRecDate || 'Trống'}`);
              }
 
              const taxNoticeProv = getRowDate(row, 'taxNoticeProvisionDate');
-             if (taxNoticeProv && taxNoticeProv !== existingApp.taxNoticeProvisionDate) {
+             if (taxNoticeProv !== undefined && taxNoticeProv !== existingApp.taxNoticeProvisionDate) {
                 updatedApp.taxNoticeProvisionDate = taxNoticeProv;
-                changes.push(`Ngày cung cấp TB Thuế: ${existingApp.taxNoticeProvisionDate || 'Trống'} -> ${taxNoticeProv}`);
+                changes.push(`Ngày cung cấp TB Thuế: ${existingApp.taxNoticeProvisionDate || 'Trống'} -> ${taxNoticeProv || 'Trống'}`);
              }
 
              const taxReceipt = getRowDate(row, 'taxReceiptDate');
-             if (taxReceipt && taxReceipt !== existingApp.taxReceiptDate) {
+             if (taxReceipt !== undefined && taxReceipt !== existingApp.taxReceiptDate) {
                 updatedApp.taxReceiptDate = taxReceipt;
-                changes.push(`Ngày đóng thuế: ${existingApp.taxReceiptDate || 'Trống'} -> ${taxReceipt}`);
+                changes.push(`Ngày đóng thuế: ${existingApp.taxReceiptDate || 'Trống'} -> ${taxReceipt || 'Trống'}`);
              }
 
              const gSignedDate = getRowDate(row, 'gcnSignedDate');
-             if (gSignedDate && gSignedDate !== existingApp.gcnSignedDate) {
+             if (gSignedDate !== undefined && gSignedDate !== existingApp.gcnSignedDate) {
                 updatedApp.gcnSignedDate = gSignedDate;
-                changes.push(`Ngày trình ký/ký GCN: ${existingApp.gcnSignedDate || 'Trống'} -> ${gSignedDate}`);
+                changes.push(`Ngày trình ký/ký GCN: ${existingApp.gcnSignedDate || 'Trống'} -> ${gSignedDate || 'Trống'}`);
              }
 
              const gReceivedDate = getRowDate(row, 'gcnReceivedDate');
-             if (gReceivedDate && gReceivedDate !== existingApp.gcnReceivedDate) {
+             if (gReceivedDate !== undefined && gReceivedDate !== existingApp.gcnReceivedDate) {
                 updatedApp.gcnReceivedDate = gReceivedDate;
-                changes.push(`Ngày nhận GCN thực tế: ${existingApp.gcnReceivedDate || 'Trống'} -> ${gReceivedDate}`);
+                changes.push(`Ngày nhận GCN thực tế: ${existingApp.gcnReceivedDate || 'Trống'} -> ${gReceivedDate || 'Trống'}`);
 
                 const isBypassed = updatedApp.checklist?.['bypass_gcn'] === true;
                 const isEarly = !isBypassed && ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => updatedApp.currentStep.startsWith(prefix));
@@ -605,25 +619,35 @@ export function useExcelImport({
                 }
              }
 
+             const ktHandoverPtda = getRowDate(row, 'ktHandoverToPtdaDate');
+             if (ktHandoverPtda !== undefined && ktHandoverPtda !== existingApp.ktHandoverToPtdaDate) {
+                updatedApp.ktHandoverToPtdaDate = ktHandoverPtda;
+                changes.push(`Ngày KT bàn giao PTDA: ${existingApp.ktHandoverToPtdaDate || 'Trống'} -> ${ktHandoverPtda || 'Trống'}`);
+             }
+
              const ptdaHandover = getRowDate(row, 'ptdaHandoverDate');
-             if (ptdaHandover && ptdaHandover !== existingApp.ptdaHandoverDate) {
+             if (ptdaHandover !== undefined && ptdaHandover !== existingApp.ptdaHandoverDate) {
                 updatedApp.ptdaHandoverDate = ptdaHandover;
-                changes.push(`Ngày BG P.TDA: ${existingApp.ptdaHandoverDate || 'Trống'} -> ${ptdaHandover}`);
+                changes.push(`Ngày BG P.TDA: ${existingApp.ptdaHandoverDate || 'Trống'} -> ${ptdaHandover || 'Trống'}`);
              }
 
              let custHandoverDate = getRowDate(row, 'customerHandoverDate');
-             if (!custHandoverDate) {
+             if (custHandoverDate === undefined) {
                 const bgKhachStr = getRowStr(row, 'customerHandoverDate');
                 if (bgKhachStr !== undefined) {
                   const lowerBgKhach = bgKhachStr.toLowerCase();
-                  if (lowerBgKhach === 'có' || lowerBgKhach === 'co' || lowerBgKhach === 'da giao' || lowerBgKhach === 'da ban giao' || lowerBgKhach === 'đã giao' || lowerBgKhach === 'đã bàn giao' || lowerBgKhach === 'x') {
-                    custHandoverDate = undefined;
+                  if (lowerBgKhach === 'không' || lowerBgKhach === 'khong' || lowerBgKhach === 'chưa' || lowerBgKhach === 'chua' || lowerBgKhach === '---') {
+                    custHandoverDate = '';
+                  } else if (lowerBgKhach === 'có' || lowerBgKhach === 'co' || lowerBgKhach === 'da giao' || lowerBgKhach === 'da ban giao' || lowerBgKhach === 'đã giao' || lowerBgKhach === 'đã bàn giao' || lowerBgKhach === 'x') {
+                    custHandoverDate = existingApp.customerHandoverDate;
+                  } else {
+                     custHandoverDate = parseDateFromExcel(bgKhachStr) || '';
                   }
                 }
              }
-             if (custHandoverDate && custHandoverDate !== existingApp.customerHandoverDate) {
+             if (custHandoverDate !== undefined && custHandoverDate !== existingApp.customerHandoverDate) {
                 updatedApp.customerHandoverDate = custHandoverDate;
-                changes.push(`Ngày BG Khách: ${existingApp.customerHandoverDate || 'Trống'} -> ${custHandoverDate}`);
+                changes.push(`Ngày BG Khách: ${existingApp.customerHandoverDate || 'Trống'} -> ${custHandoverDate || 'Trống'}`);
              }
 
              const isType = getRowStr(row, 'issueType');
@@ -683,7 +707,7 @@ export function useExcelImport({
                 }
                 
                 const auditEntry = {
-                  id: `audit-${Date.now()}-${updatedApp.unitCode}-${Math.random().toString(36).substring(2,9)}`,
+                  id: generateUUID(),
                   action: 'Import Excel',
                   timestamp: new Date().toISOString(),
                   isBulk: true,
@@ -763,7 +787,7 @@ export function useExcelImport({
                workflowType: inheritedWorkflowType,
                 history: [
                   {
-                    id: `hist-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    id: generateUUID(),
                     stepName: initialStepLabel,
                     dept: 'PTT',
                     receivedDate: new Date().toISOString(),
@@ -779,6 +803,9 @@ export function useExcelImport({
              
              const subDate = getRowDate(row, 'submissionDate');
              if (subDate) newApp.submissionDate = subDate;
+
+             const taxVpdkDate = getRowDate(row, 'taxVpdkSubmissionDate');
+             if (taxVpdkDate) newApp.taxVpdkSubmissionDate = taxVpdkDate;
              
              const tNotifDate = getRowDate(row, 'taxNotificationDate');
              if (tNotifDate) newApp.taxNotificationDate = tNotifDate;
@@ -797,6 +824,9 @@ export function useExcelImport({
 
              const gReceivedDate = getRowDate(row, 'gcnReceivedDate');
              if (gReceivedDate) newApp.gcnReceivedDate = gReceivedDate;
+
+             const ktHandoverPtda = getRowDate(row, 'ktHandoverToPtdaDate');
+             if (ktHandoverPtda) newApp.ktHandoverToPtdaDate = ktHandoverPtda;
 
              const ptdaHand = getRowDate(row, 'ptdaHandoverDate');
              if (ptdaHand) newApp.ptdaHandoverDate = ptdaHand;
@@ -831,7 +861,7 @@ export function useExcelImport({
              }
 
              const auditEntry = {
-               id: `audit-${Date.now()}-${newApp.unitCode}-${Math.random().toString(36).substring(2,9)}`,
+               id: generateUUID(),
                action: 'Import Excel (Tạo mới)',
                timestamp: new Date().toISOString(),
                isBulk: true,
