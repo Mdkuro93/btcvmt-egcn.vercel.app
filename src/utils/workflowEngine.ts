@@ -108,18 +108,6 @@ export const WorkflowEngine = {
 
       // 4. Bắt buộc dữ kiện theo từng rẽ nhánh quy trình:
 
-      // --- FIX #3: Validate bắt buộc khi Self-Service jump về Hoan_Tat ---
-      if (isJump && finalStep === 'Hoan_Tat') {
-        if (!app.customerHandoverDate) {
-          return {
-            success: false,
-            type: 'warning',
-            requiresHandoverDate: true,
-            message: 'Vui lòng nhập Ngày bàn giao GCN cho khách để hoàn tất hồ sơ tự làm sổ.'
-          };
-        }
-      }
-
       if (app.workflowType === 'Quy_trinh_2') {
         if (app.currentStep === 'S2_KT_Ban_giao' && finalStep === 'S3_Nop_VPDK') {
           if (!app.ktHandoverToPtdaDate) {
@@ -167,14 +155,14 @@ export const WorkflowEngine = {
           (app.currentStep === 'GD2_Cho_Nop_VPDK' && finalStep === 'GD3_Nop_VPDK') ||
           (app.currentStep === 'GD1_Cho_KT_TiepNhan' && finalStep === 'GD3_Nop_VPDK')
         ) {
-          if (!app.contractSigningDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày ký HĐ trước khi chuyển.' };
+          if (!app.contractSigningDate || app.contractSigningDate === '---') return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày ký HĐ trước khi chuyển.' };
         }
         if ((app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK') && (finalStep === 'S5_Tai_Chinh_Khach_Hang' || finalStep === 'GD3_Nop_VPDK')) {
-          if (!app.submissionDate) return { success: false, type: 'warning', message: 'Yêu cầu: Ngày nộp VPĐK phải được cập nhật.' };
+          if (!app.submissionDate || app.submissionDate === '---') return { success: false, type: 'warning', message: 'Yêu cầu: Ngày nộp VPĐK phải được cập nhật.' };
         }
 
         if (app.currentStep === 'GD3_Nop_VPDK' && finalStep === 'GD4_Cho_Nop_NVTC') {
-          if (!app.taxNotificationDate && !app.taxNotificationReceivedDate) {
+          if ((!app.taxNotificationDate || app.taxNotificationDate === '---') && (!app.taxNotificationReceivedDate || app.taxNotificationReceivedDate === '---')) {
             return {
               success: false,
               type: 'warning',
@@ -185,11 +173,11 @@ export const WorkflowEngine = {
 
         // Validate milestone cuối Quy trình 1
         if (finalStep === 'GD5_Cho_Ky_In_GCN') {
-          if (!app.taxReceiptDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày nộp thuế/NVTC trước khi chuyển sang bước GCN.' };
+          if (!app.taxReceiptDate || app.taxReceiptDate === '---') return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày nộp thuế/NVTC trước khi chuyển sang bước GCN.' };
         }
         if (finalStep === 'GD5_Cho_GCN') {
-          if (!app.taxReceiptDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày nộp thuế/NVTC trước khi chuyển sang bước GCN.' };
-          if (!app.gcnSignedDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày trình ký/In GCN trước khi chuyển sang bước GCN.' };
+          if (!app.taxReceiptDate || app.taxReceiptDate === '---') return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày nộp thuế/NVTC trước khi chuyển sang bước GCN.' };
+          if (!app.gcnSignedDate || app.gcnSignedDate === '---') return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày trình ký/In GCN trước khi chuyển sang bước GCN.' };
         }
         if (app.currentStep === 'GD5_Cho_GCN' && finalStep === 'GD5_Cho_PTT_TiepNhan_BG') {
           if (!app.gcnSignedDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày trình ký/In GCN trước khi chuyển.' };

@@ -4,6 +4,7 @@ import { Application, Project, UserProfile, AppNotification, Dept, ApplicationSt
 import { mapFromSnakeCase, safeParse, mapToSnakeCase, mapNotificationToSnakeCase, mapUserToSnakeCase, mapUserFromSnakeCase } from '../utils/mappers';
 import { STEP_CONFIG as INITIAL_STEP_CONFIG, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS } from '../constants';
 import { useAuthStore } from './useAuthStore';
+import { useModalStore } from './useModalStore';
 import { WorkflowEngine } from '../utils/workflowEngine';
 import { validateDateSequence, generateUUID } from '../utils/appUtils';
 
@@ -501,7 +502,7 @@ interface DataState {
     issueSeverity: string,
     issueNote: string
   ) => Promise<{ success: boolean; message: string }>;
-  resolveIssue: (appId: string) => Promise<{ success: boolean; message: string }>;
+  resolveIssue: (appId: string) => Promise<{ success: boolean; message: string; finalApp?: Application }>;
   resolveError: (app: Application) => Promise<{ success: boolean; message: string; finalApp?: Application }>;
   bulkResolveIssues: (selectedIds: Set<string | number>) => Promise<{ success: boolean; message: string }>;
   proposeException: (appId: string, reason: string) => Promise<{ success: boolean; message: string; finalApp?: Application }>;
@@ -719,9 +720,6 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   syncRecord: async (app) => {
     const finalApp = await syncRecordToSupabase(app);
-    if (finalApp?.id) {
-      registerSelfUpdate(finalApp.id);
-    }
     return finalApp;
   },
 
@@ -767,7 +765,17 @@ export const useDataStore = create<DataState>((set, get) => ({
           issueType: issueType as any,
           issueSeverity: issueSeverity as any,
           issueNotes: issueNote,
-          history: [logEntry, ...(app.history || [])]
+          history: [logEntry, ...(app.history || [])],
+          auditTrail: [
+            createAuditEntry(
+              'Báo cáo sai sót',
+              apps.length > 1,
+              apps.length,
+              app.unitCode,
+              `[${issueSeverity}] ${issueNote.substring(0, 80)}`
+            ),
+            ...(app.auditTrail || [])
+          ]
         };
       });
 
@@ -834,7 +842,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       setApplications(prev => prev.map(a => a.id === appId ? finalApp : a));
       setDashboardApps(prev => prev.map(a => a.id === appId ? finalApp : a));
 
-      return { success: true, message: 'Đã xác nhận khắc phục xong vướng mắc.' };
+      return { success: true, message: 'Đã xác nhận khắc phục xong vướng mắc.', finalApp };
     } catch (error) {
       console.error(error);
       return { success: false, message: 'Lỗi khi cập nhật trạng thái.' };
@@ -1184,6 +1192,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       setDashboardApps(prev => prev.map(a => a.id === app.id ? updatedApp : a));
 
       // Background sync
+      registerSelfUpdate(app.id!);
       get().syncRecord(updatedApp).then(async (finalApp) => {
         if (targetStep === 'Hoan_Tat') {
           await deleteAllNotificationsForRecord(app.id);
@@ -1191,6 +1200,12 @@ export const useDataStore = create<DataState>((set, get) => ({
         const { setApplications: setA, setDashboardApps: setD } = get();
         setA(prev => prev.map(a => a.id === app.id ? finalApp : a));
         setD(prev => prev.map(a => a.id === app.id ? finalApp : a));
+
+        // Cập nhật selectedApp nếu user đang xem hồ sơ này
+        const { selectedApp: currentSelected, setSelectedApp } = useModalStore.getState();
+        if (currentSelected?.id === app.id) {
+          setSelectedApp(finalApp);
+        }
       }).catch(error => {
         console.error('Supabase transition error:', error);
       });
@@ -1220,6 +1235,25 @@ export const useDataStore = create<DataState>((set, get) => ({
       return { success: false, message: 'Không tìm thấy cấu hình của bước đích.' };
     }
 
+    // Fetch lịch sử đầy đủ (bao gồm history và audit trail) từ DB trước khi thêm entry mới
+    let prevHistory = [...(app.history || [])];
+    let prevAuditTrail = [...(app.auditTrail || [])];
+    try {
+      const freshDetail = await fetchRecordDetail(app.id!, app.unitCode);
+      if (freshDetail.history && freshDetail.history.length > 0) {
+        prevHistory = freshDetail.history.length >= prevHistory.length
+          ? freshDetail.history
+          : prevHistory;
+      }
+      if (freshDetail.auditTrail && freshDetail.auditTrail.length > 0) {
+        prevAuditTrail = freshDetail.auditTrail.length >= prevAuditTrail.length
+          ? freshDetail.auditTrail
+          : prevAuditTrail;
+      }
+    } catch (e) {
+      console.warn('[rejectApp] Không fetch được history/auditTrail từ DB, dùng RAM:', e);
+    }
+
     const newHistory = [
       {
         id: generateUUID(),
@@ -1231,7 +1265,7 @@ export const useDataStore = create<DataState>((set, get) => ({
         performedBy: currentUser?.id,
         performedByName: currentUser?.name
       },
-      ...app.history
+      ...prevHistory
     ];
 
     const updatedApp: Application = {
@@ -1243,6 +1277,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       isRejected: true,
       rejectionReason: reason,
       history: newHistory,
+      auditTrail: [...prevAuditTrail]
     };
 
     try {
@@ -1288,6 +1323,21 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
 
     try {
+      const detailResults = await Promise.allSettled(
+        appsToReject.map(a => fetchRecordDetail(a.id!, a.unitCode))
+      );
+      const historyMap: Record<string, { history: any[], auditTrail: any[] }> = {};
+      appsToReject.forEach((a, i) => {
+        const r = detailResults[i];
+        const fresh = r.status === 'fulfilled' ? r.value : null;
+        const ramHistory = a.history || [];
+        const ramAudit = a.auditTrail || [];
+        historyMap[String(a.id)] = {
+          history: fresh?.history?.length >= ramHistory.length ? fresh.history : ramHistory,
+          auditTrail: fresh?.auditTrail?.length >= ramAudit.length ? fresh.auditTrail : ramAudit,
+        };
+      });
+
       const updatedApps = appsToReject.map(app => {
         const stepKeys = Object.keys(stepConfig);
         const currentIndex = stepKeys.indexOf(app.currentStep);
@@ -1295,13 +1345,16 @@ export const useDataStore = create<DataState>((set, get) => ({
 
         const auditEntry = createAuditEntry('Yêu cầu chỉnh sửa / Bổ sung', true, 1, app.unitCode, `Hồ sơ sai sót/cần bổ sung: ${reason}`);
 
+        const currentHistory = historyMap[String(app.id)].history;
+        const currentAuditTrail = historyMap[String(app.id)].auditTrail;
+
         return {
           ...updateAppIssue(app, reason, 'Sai sót Khác'),
           currentStep: prevStep,
           rejectionCount: (app.rejectionCount || 0) + 1,
           isRejected: true,
           rejectionReason: reason,
-          auditTrail: [auditEntry, ...(app.auditTrail || [])],
+          auditTrail: [auditEntry, ...currentAuditTrail],
           history: [
             {
               id: generateUUID(),
@@ -1312,7 +1365,7 @@ export const useDataStore = create<DataState>((set, get) => ({
               performedBy: currentUser?.id,
               performedByName: currentUser?.name
             },
-            ...app.history
+            ...currentHistory
           ]
         };
       });
@@ -1433,6 +1486,8 @@ export const useDataStore = create<DataState>((set, get) => ({
 
     const { currentUser, userRole } = useAuthStore.getState();
     const { applications, stepConfig, setApplications, setDashboardApps } = get();
+    
+    const canSkipSequential = ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole);
 
     const nowStr = new Date().toISOString().split('T')[0];
     const updatedCount = selectedAppIds.length;
@@ -1454,14 +1509,14 @@ export const useDataStore = create<DataState>((set, get) => ({
         }
 
         const nextIdx = workflowSteps.indexOf(recordNextStep);
-        if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
+        if (!canSkipSequential) {
           if (nextIdx !== currentIdx + 1 && !isJump) continue;
         }
 
         let appWithDateForCheck = { ...app };
         if (bulkTransitionField && dateValue) {
           const existingValue = (app as any)[bulkTransitionField.key];
-          const hasExistingValue = existingValue !== null && existingValue !== undefined && existingValue !== '';
+          const hasExistingValue = existingValue !== null && existingValue !== undefined && existingValue !== '' && existingValue !== '---' && existingValue !== 'undefined' && existingValue !== 'null';
           (appWithDateForCheck as any)[bulkTransitionField.key] = hasExistingValue ? existingValue : dateValue;
         }
 
@@ -1519,6 +1574,11 @@ export const useDataStore = create<DataState>((set, get) => ({
         }
 
         let recordNextStep = nextStep;
+        const { finalStep, isJump } = WorkflowEngine.determineTargetStep(appWithDate, nextStep);
+        if (isJump) {
+          recordNextStep = finalStep;
+        }
+
         const transitionCheck = WorkflowEngine.validateTransition(appWithDate, nextStep, userRole);
         if (transitionCheck.success && transitionCheck.nextStep) {
           recordNextStep = transitionCheck.nextStep;
@@ -1527,10 +1587,8 @@ export const useDataStore = create<DataState>((set, get) => ({
         const nextIdx = workflowSteps.indexOf(recordNextStep);
         const isMovingForward = nextIdx > currentIdx;
 
-        if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
-          if (nextIdx !== currentIdx + 1 && recordNextStep !== transitionCheck.nextStep) {
-            return app;
-          }
+        if (!canSkipSequential && nextIdx !== currentIdx + 1 && !isJump) {
+          return app;
         }
 
         actuallyUpdatedCount++;
@@ -1851,6 +1909,17 @@ export const useDataStore = create<DataState>((set, get) => ({
     const { currentUser } = useAuthStore.getState();
     const nowStr = new Date().toISOString();
 
+    let baseHistory = [...(app.history || [])];
+    try {
+      const freshDetail = await fetchRecordDetail(app.id!, app.unitCode);
+      if (freshDetail.history.length > 0) {
+        baseHistory = freshDetail.history.length >= baseHistory.length
+          ? freshDetail.history : baseHistory;
+      }
+    } catch (e) {
+      console.warn('[quickSave] Dùng RAM history:', e);
+    }
+
     const historyEntry: ApplicationStepHistory = {
       id: generateUUID(),
       stepName: `Cập nhật nhanh: ${Object.keys(quickEditData).join(', ')}`,
@@ -1867,7 +1936,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     const updatedApp = {
       ...app,
       ...quickEditData,
-      history: [historyEntry, ...(app.history || [])],
+      history: [historyEntry, ...baseHistory],
       auditTrail: [auditEntry, ...(app.auditTrail || [])]
     };
     if (updatedApp.status !== 'Error') updatedApp.status = app.status;
@@ -1880,10 +1949,16 @@ export const useDataStore = create<DataState>((set, get) => ({
       setDashboardApps(prev => prev.map(a => a.id === id ? updatedApp : a));
 
       // Background sync
+      registerSelfUpdate(app.id!);
       get().syncRecord(updatedApp).then(finalApp => {
         const { setApplications: setA, setDashboardApps: setD } = get();
         setA(prev => prev.map(a => a.id === id ? finalApp : a));
         setD(prev => prev.map(a => a.id === id ? finalApp : a));
+        
+        const { selectedApp: currentSelected, setSelectedApp } = useModalStore.getState();
+        if (currentSelected?.id === String(id) || currentSelected?.id === id) {
+          setSelectedApp(finalApp);
+        }
       }).catch(error => {
         console.error('Supabase quickSave error:', error);
       });

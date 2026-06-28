@@ -3818,6 +3818,9 @@ export default function App() {
 
   const handleResolveIssue = async (appId: string) => {
     const result = await resolveIssue(appId);
+    if (result.success && result.finalApp) {
+      setSelectedApp(result.finalApp);
+    }
     showToast(result.message, result.success ? 'success' : 'error');
   };
 

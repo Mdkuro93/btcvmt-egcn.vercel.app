@@ -47,7 +47,7 @@ export function useBulkActions({
     try {
       const nowStr = new Date().toISOString();
       const updatedApps = applications.map(app => {
-        if (selectedAppIds.includes(app.id)) {
+        if (selectedAppIds.map(String).includes(String(app.id))) {
           // ✅ FIX: Lỗi 2 - Ghi nhận history và audit trail cho cập nhật ghi chú hàng loạt
           const historyEntry: ApplicationStepHistory = {
             id: generateUUID(),
@@ -78,7 +78,7 @@ export function useBulkActions({
         return app;
       });
 
-      const appsToSync = updatedApps.filter(app => selectedAppIds.includes(app.id));
+      const appsToSync = updatedApps.filter(app => selectedAppIds.map(String).includes(String(app.id)));
 
       // Perform bulk upsert to database-sync layer
       const finalApps = await bulkSyncRecordsToSupabase(appsToSync, updatedApps);
@@ -101,7 +101,7 @@ export function useBulkActions({
     setIsSavingApp(true);
 
     try {
-      const appsToUpdate = applications.filter(app => selectedAppIds.includes(app.id));
+      const appsToUpdate = applications.filter(app => selectedAppIds.map(String).includes(String(app.id)));
       const updatedApps = appsToUpdate.map(app => 
         updateAppIssue(app, bulkIssueNote, bulkIssueType, bulkIssueSeverity)
       );
@@ -131,7 +131,7 @@ export function useBulkActions({
       
       const nowStr = new Date().toISOString();
       const updatedApps = applications.map(app => {
-        if (!selectedAppIds.includes(app.id)) return app;
+        if (!selectedAppIds.map(String).includes(String(app.id))) return app;
 
         // ✅ FIX: Lỗi 3 - Ghi nhận history và audit trail cho gán hồ sơ hàng loạt
         const historyEntry: ApplicationStepHistory = {
@@ -162,7 +162,7 @@ export function useBulkActions({
         };
       });
       
-      const appsToSync = updatedApps.filter(app => selectedAppIds.includes(app.id));
+      const appsToSync = updatedApps.filter(app => selectedAppIds.map(String).includes(String(app.id)));
       const finalApps = await bulkSyncRecordsToSupabase(appsToSync, updatedApps);
       setApplications(finalApps);
       showToast(`Đã gán ${selectedAppIds.length} hồ sơ cho ${assignedUser.name}`, 'success');

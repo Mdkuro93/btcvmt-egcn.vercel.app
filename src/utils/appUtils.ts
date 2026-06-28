@@ -209,8 +209,17 @@ export function validateDateSequence(app: Partial<Application>): string | null {
   ];
 
   const isDateEmptyOrInvalid = (val: any) => {
-    if (!val || val === '---' || typeof val !== 'string' || val.trim() === '') return true;
-    return isNaN(new Date(val).getTime());
+    if (!val || typeof val !== 'string') return true;
+    const trimmed = val.trim();
+    if (trimmed === '' || trimmed === '---' || trimmed.toLowerCase() === 'undefined' || trimmed.toLowerCase() === 'null') return true;
+    
+    const d = new Date(trimmed);
+    const time = d.getTime();
+    
+    // Invalid date OR Unix Epoch 0 artifact
+    if (isNaN(time) || time === 0) return true;
+    
+    return false;
   };
 
   const activeDates = chronoDates
@@ -245,6 +254,10 @@ export function validateDateSequence(app: Partial<Application>): string | null {
     date2.setHours(0, 0, 0, 0);
     
     if (date2 < date1) {
+      // Bỏ qua lỗi nếu là hồ sơ cũ bị gán nhầm Ngày nhận HS thành ngày hiện tại
+      if (d1.key === 'receivedDate' && app.workflowType !== undefined) {
+        continue;
+      }
       return `${d2.label} không được nhỏ hơn ${d1.label}`;
     }
   }
@@ -254,8 +267,8 @@ export function validateDateSequence(app: Partial<Application>): string | null {
     const hdDate = new Date(app.contractSigningDate!);
     ktDate.setHours(0,0,0,0);
     hdDate.setHours(0,0,0,0);
-    if (hdDate < ktDate) {
-      return `⚠️ Ngày ký HĐCN (${app.contractSigningDate}) nhỏ hơn ngày KT tiếp nhận (${app.accountingHandoverDate}). Vui lòng kiểm tra lại nếu là hồ sơ đặc thù.`;
+    if (hdDate > ktDate) {
+      return `Ngày ký HĐCN (${app.contractSigningDate}) không được lớn hơn ngày KT tiếp nhận (${app.accountingHandoverDate})`;
     }
   }
 

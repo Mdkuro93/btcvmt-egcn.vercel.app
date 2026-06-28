@@ -11,6 +11,7 @@ import {
   UnitStatus,
 } from "../../types";
 import { cn } from "../../lib/utils";
+import { fetchRecordDetail } from "../../stores/useDataStore";
 import {
   X,
   CheckCircle,
@@ -93,7 +94,7 @@ const formatLogTime = (timeStr: string) => {
 export interface ApplicationDetailModalProps {
   selectedApp: Application | null;
   editApp: Application | null;
-  setSelectedApp: (app: Application | null) => void;
+  setSelectedApp: (updater: Application | null | ((prev: Application | null) => Application | null)) => void;
   isEditing: boolean;
   setIsEditing: (editing: boolean) => void;
   theme: "light" | "dark";
@@ -209,6 +210,30 @@ export const ApplicationDetailModal = ({
   const [proposeReason, setProposeReason] = React.useState("");
   const [approveOpen, setApproveOpen] = React.useState(false);
   const [approveNotes, setApproveNotes] = React.useState("");
+  const [isHistoryLoading, setIsHistoryLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    const app = selectedApp || editApp;
+    if (detailTab !== 'History') return;
+    if (!app?.id) return;
+    if ((app.history?.length || 0) > 0 || (app.auditTrail?.length || 0) > 0) return;
+
+    setIsHistoryLoading(true);
+    fetchRecordDetail(app.id, app.unitCode)
+      .then(detail => {
+        if (detail.history.length > 0 || detail.auditTrail.length > 0) {
+          setSelectedApp(prev => {
+            if (!prev || prev.id !== app.id) return prev;
+            return {
+              ...prev,
+              history: detail.history.length > 0 ? detail.history : prev.history,
+              auditTrail: detail.auditTrail.length > 0 ? detail.auditTrail : prev.auditTrail,
+            };
+          });
+        }
+      })
+      .finally(() => setIsHistoryLoading(false));
+  }, [detailTab, selectedApp?.id, editApp?.id]);
 
   const detailBackdropRef = React.useRef<HTMLDivElement>(null);
   const mousedownOnDetailBackdrop = React.useRef(false);
@@ -1945,7 +1970,7 @@ export const ApplicationDetailModal = ({
                                           colSpan={3}
                                           className="p-10 text-center text-[10px] text-slate-500 font-black uppercase tracking-widest"
                                         >
-                                          Chưa có lịch sử xử lý
+                                          {isHistoryLoading ? 'Đang tải lịch sử...' : 'Chưa có lịch sử xử lý'}
                                         </td>
                                       </tr>
                                     );
