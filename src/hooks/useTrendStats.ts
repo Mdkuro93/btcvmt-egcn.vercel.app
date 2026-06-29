@@ -1,16 +1,15 @@
-import { useMemo } from 'react';
 import { Application } from '../types';
-import { STEP_CONFIG } from '../constants';
+import { TrendPeriod, TrendQueryResult } from './useTrendQueries';
 
-export type TrendPeriod = 'week' | 'month' | 'quarter' | 'year';
+export type { TrendPeriod };
 
 export interface TrendValue {
   current: number;
   previous: number;
   delta: number;
   pctChange: number | null;
-  newIn: number;      // Tăng mới trong kỳ
-  resolvedIn: number; // Đã xử lý/hoàn tất trong kỳ
+  newIn: number;
+  resolvedIn: number;
 }
 
 export interface TrendStats {
@@ -18,61 +17,7 @@ export interface TrendStats {
   overdue: TrendValue;
   error: TrendValue;
   loan: TrendValue;
-}
-
-function getPeriodBounds(period: TrendPeriod, offset: 0 | -1): { start: Date; end: Date } {
-  const now = new Date();
-  if (period === 'week') {
-    const day = now.getDay();
-    const diffToMon = day === 0 ? -6 : 1 - day;
-    const monday = new Date(now);
-    monday.setHours(0, 0, 0, 0);
-    monday.setDate(now.getDate() + diffToMon + offset * 7);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    sunday.setHours(23, 59, 59, 999);
-    return { start: monday, end: sunday };
-  }
-  if (period === 'month') {
-    const m = now.getMonth() + offset;
-    return {
-      start: new Date(now.getFullYear(), m, 1, 0, 0, 0, 0),
-      end: new Date(now.getFullYear(), m + 1, 0, 23, 59, 59, 999),
-    };
-  }
-  if (period === 'quarter') {
-    const q = Math.floor(now.getMonth() / 3) + offset;
-    const sm = q * 3;
-    return {
-      start: new Date(now.getFullYear(), sm, 1, 0, 0, 0, 0),
-      end: new Date(now.getFullYear(), sm + 3, 0, 23, 59, 59, 999),
-    };
-  }
-  const y = now.getFullYear() + offset;
-  return {
-    start: new Date(y, 0, 1, 0, 0, 0, 0),
-    end: new Date(y, 11, 31, 23, 59, 59, 999),
-  };
-}
-
-function inRange(dateStr: string | undefined | null, start: Date, end: Date): boolean {
-  if (!dateStr) return false;
-  const d = new Date(dateStr);
-  return d >= start && d <= end;
-}
-
-// Ước tính ngày bắt đầu trễ = receivedDate + slaDays của bước hiện tại
-function estimateOverdueStartDate(app: Application): Date | null {
-  const slaDays = STEP_CONFIG[app.currentStep]?.slaDays;
-  if (!slaDays || !app.receivedDate) return null;
-  const d = new Date(app.receivedDate);
-  d.setDate(d.getDate() + slaDays);
-  return d;
-}
-
-// Hồ sơ được coi là "hoàn tất trong kỳ" nếu customerHandoverDate nằm trong kỳ
-function resolvedInPeriod(app: Application, start: Date, end: Date): boolean {
-  return inRange(app.customerHandoverDate, start, end);
+  loading: boolean;
 }
 
 function makeTrendValue(
@@ -86,85 +31,61 @@ function makeTrendValue(
   return { current, previous, delta, pctChange, newIn, resolvedIn };
 }
 
-export function useTrendStats(apps: Application[], period: TrendPeriod): TrendStats {
-  return useMemo(() => {
-    const cur  = getPeriodBounds(period, 0);
-    const prev = getPeriodBounds(period, -1);
+export function buildTrendStats(
+  apps: Application[],
+  queryResult: TrendQueryResult
+): TrendStats {
+  const { current: cur, previous: prev, loading } = queryResult;
 
-    // ── TOTAL ──────────────────────────────────────────────
-    // current: tổng đang xử lý (không tính Completed)
-    const totalCur = apps.filter(a => a.status !== 'Completed').length;
-    // newIn: hồ sơ được tiếp nhận mới trong kỳ này
-    const totalNewIn = apps.filter(a => inRange(a.receivedDate, cur.start, cur.end)).length;
-    // resolvedIn: hồ sơ hoàn tất trong kỳ này
-    const totalResolved = apps.filter(a => resolvedInPeriod(a, cur.start, cur.end)).length;
-    // previous: ước tính = current + đã hoàn tất kỳ trước - tiếp nhận mới kỳ trước
-    const totalNewPrev     = apps.filter(a => inRange(a.receivedDate, prev.start, prev.end)).length;
-    const totalResolvedPrev = apps.filter(a => resolvedInPeriod(a, prev.start, prev.end)).length;
-    const totalPrev = Math.max(0, totalCur + totalResolvedPrev - totalNewPrev);
+  // ── TOTAL ─────────────────────────────────────────────
+  const totalCur  = apps.filter(a => a.status !== 'Completed').length;
+  // previous: ước tính tổng active kỳ trước
+  // = kỳ này + hồ sơ đã hoàn tất kỳ này (đã "rời" danh sách active)
+  //          - hồ sơ mới kỳ này (chưa có kỳ trước)
+  //          + hồ sơ mới kỳ trước (đã được tạo kỳ trước)
+  //          - hồ sơ đã hoàn tất kỳ trước (đã rời kỳ trước)
+  const totalPrev = Math.max(0,
+    totalCur
+    + cur.completed   // cộng lại hồ sơ đã hoàn tất kỳ này
+    - cur.newIn       // trừ hồ sơ mới tạo kỳ này
+    + prev.newIn      // cộng hồ sơ mới tạo kỳ trước
+    - prev.completed  // trừ hồ sơ đã hoàn tất kỳ trước
+  );
 
-    // ── OVERDUE ────────────────────────────────────────────
-    const overdueCur = apps.filter(a => a._sla?.isOverdue ?? false).length;
-    // newIn: hồ sơ ước tính bắt đầu trễ trong kỳ này
-    const overdueNewIn = apps.filter(a => {
-      if (!(a._sla?.isOverdue)) return false;
-      const overdueStart = estimateOverdueStartDate(a);
-      return overdueStart ? inRange(overdueStart.toISOString(), cur.start, cur.end) : false;
-    }).length;
-    // resolvedIn: hồ sơ trễ đã được hoàn tất trong kỳ này
-    // (ước tính: hoàn tất trong kỳ VÀ thời gian xử lý > slaDays của bước đó)
-    const overdueResolved = apps.filter(a => {
-      if (!resolvedInPeriod(a, cur.start, cur.end)) return false;
-      const slaDays = STEP_CONFIG[a.currentStep]?.slaDays ?? 999;
-      const received = new Date(a.receivedDate);
-      const handover = new Date(a.customerHandoverDate!);
-      const elapsed = Math.round((handover.getTime() - received.getTime()) / 86400000);
-      return elapsed > slaDays * 2; // ước tính: mất gấp đôi SLA = từng trễ
-    }).length;
-    // previous: ước tính tương tự
-    const overdueNewPrev = apps.filter(a => {
-      if (!(a._sla?.isOverdue)) return false;
-      const overdueStart = estimateOverdueStartDate(a);
-      return overdueStart ? inRange(overdueStart.toISOString(), prev.start, prev.end) : false;
-    }).length;
-    const overduePrev = Math.max(0, overdueCur + overdueResolved - overdueNewIn + overdueNewPrev);
+  // ── OVERDUE ───────────────────────────────────────────
+  const overdueCur  = apps.filter(a => a._sla?.isOverdue ?? false).length;
+  // previous: không có query → dùng tỷ lệ hiện tại làm ước tính
+  const overdueRate = totalCur > 0 ? overdueCur / totalCur : 0;
+  const overduePrev = Math.max(0, Math.round(
+    overdueRate * (totalCur + cur.completed - cur.newIn + prev.newIn - prev.completed)
+  ));
 
-    // ── ERROR ──────────────────────────────────────────────
-    const errorCur = apps.filter(a => a.status === 'Error').length;
-    // newIn: hồ sơ sai sót tiếp nhận trong kỳ này
-    const errorNewIn = apps.filter(a =>
-      a.status === 'Error' && inRange(a.receivedDate, cur.start, cur.end)
-    ).length;
-    // resolvedIn: hồ sơ từng Error nhưng đã hoàn tất trong kỳ
-    const errorResolved = apps.filter(a =>
-      resolvedInPeriod(a, cur.start, cur.end) && !!a.issueType
-    ).length;
-    const errorNewPrev = apps.filter(a =>
-      a.status === 'Error' && inRange(a.receivedDate, prev.start, prev.end)
-    ).length;
-    const errorResolvedPrev = apps.filter(a =>
-      resolvedInPeriod(a, prev.start, prev.end) && !!a.issueType
-    ).length;
-    const errorPrev = Math.max(0, errorCur + errorResolvedPrev - errorNewPrev);
+  // ── ERROR ─────────────────────────────────────────────
+  const errorCur  = apps.filter(a => a.status === 'Error').length;
+  // newIn: từ query (hồ sơ mới trong kỳ có issue_type)
+  // previous: errorCur - newIn_kỳNày + newIn_kỳTrước
+  const errorPrev = Math.max(0,
+    errorCur
+    + cur.completed   // hồ sơ Error đã được resolve xong kỳ này
+    - cur.newInError  // hồ sơ Error mới phát sinh kỳ này
+    + prev.newInError // hồ sơ Error kỳ trước
+  );
 
-    // ── LOAN ───────────────────────────────────────────────
-    const loanCur    = apps.filter(a => a.loanStatus === 'Co_Vay').length;
-    const loanNewIn  = apps.filter(a =>
-      a.loanStatus === 'Co_Vay' && inRange(a.receivedDate, cur.start, cur.end)
-    ).length;
-    const loanResolved = apps.filter(a =>
-      a.loanStatus === 'Co_Vay' && resolvedInPeriod(a, cur.start, cur.end)
-    ).length;
-    const loanNewPrev = apps.filter(a =>
-      a.loanStatus === 'Co_Vay' && inRange(a.receivedDate, prev.start, prev.end)
-    ).length;
-    const loanPrev = Math.max(0, loanCur + loanResolved - loanNewIn + loanNewPrev);
+  // ── LOAN ──────────────────────────────────────────────
+  const loanCur  = apps.filter(a => a.loanStatus === 'Co_Vay').length;
+  const loanPrev = Math.max(0,
+    loanCur
+    + cur.completed   // proxy: hồ sơ vay đã hoàn tất kỳ này
+    - cur.newInLoan   // hồ sơ vay mới kỳ này
+    + prev.newInLoan  // hồ sơ vay mới kỳ trước
+    - prev.completed  // hồ sơ vay đã hoàn tất kỳ trước
+  );
 
-    return {
-      total:   makeTrendValue(totalCur,   totalPrev,   totalNewIn,    totalResolved),
-      overdue: makeTrendValue(overdueCur, overduePrev, overdueNewIn,  overdueResolved),
-      error:   makeTrendValue(errorCur,   errorPrev,   errorNewIn,    errorResolved),
-      loan:    makeTrendValue(loanCur,    loanPrev,    loanNewIn,     loanResolved),
-    };
-  }, [apps, period]);
+  return {
+    total:   makeTrendValue(totalCur,   totalPrev,   cur.newIn,       cur.completed),
+    overdue: makeTrendValue(overdueCur, overduePrev, 0,               0),
+    error:   makeTrendValue(errorCur,   errorPrev,   cur.newInError,  prev.newInError),
+    loan:    makeTrendValue(loanCur,    loanPrev,    cur.newInLoan,   prev.newInLoan),
+    loading,
+  };
 }

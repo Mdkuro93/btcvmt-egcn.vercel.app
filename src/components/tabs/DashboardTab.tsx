@@ -7,7 +7,8 @@ import {
   Building, Clock, FileText, CheckCircle, AlertTriangle, Play, FastForward, Inbox, ChevronDown, Check, Target, Activity, Zap,
   Building2, MapPin, Layers, Wallet, Filter, AlertCircle, CreditCard, ChevronRight, UserCheck, CheckCircle2, Files, BarChart3, CalendarDays
 } from 'lucide-react';
-import { useTrendStats, TrendPeriod } from '../../hooks/useTrendStats';
+import { useTrendQueries, TrendPeriod } from '../../hooks/useTrendQueries';
+import { buildTrendStats } from '../../hooks/useTrendStats';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, 
   LineChart, Line, AreaChart, Area, Legend, PieChart, Pie, Cell, LabelList, Rectangle 
@@ -189,7 +190,11 @@ export const DashboardTab = React.memo(({
   } = dashboardStatsProps || {};
 
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('month');
-  const trendStats = useTrendStats(dashboardApps ?? [], trendPeriod);
+  const trendQueryResult = useTrendQueries(
+    trendPeriod,
+    selectedProject?.name ?? null
+  );
+  const trendStats = buildTrendStats(dashboardApps ?? [], trendQueryResult);
 
   const safeProgressChartData = progressChartData ?? [];
   const safeChartData = chartData ?? [];
@@ -298,6 +303,11 @@ export const DashboardTab = React.memo(({
                           {p === 'week' ? 'Tuần' : p === 'month' ? 'Tháng' : p === 'quarter' ? 'Quý' : 'Năm'}
                         </button>
                       ))}
+                      {trendStats.loading && (
+                        <span className="text-[10px] text-slate-400 animate-pulse ml-1">
+                          Đang tải...
+                        </span>
+                      )}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                       <StatCard

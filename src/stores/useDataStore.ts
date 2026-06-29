@@ -1489,7 +1489,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     
     const canSkipSequential = ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole);
 
-    const nowStr = new Date().toISOString().split('T')[0];
+    const nowStr = new Date().toISOString();
     const updatedCount = selectedAppIds.length;
 
     try {
@@ -1710,8 +1710,9 @@ export const useDataStore = create<DataState>((set, get) => ({
         finalMessage = `Đã chuyển bước ${actuallyUpdatedCount} hồ sơ thành công, nhưng KHÔNG gửi được thông báo cho bộ phận tiếp theo. Vui lòng kiểm tra lại danh sách nhân sự phòng ban.`;
         finalType = 'warning';
       } else if (notifyResult && notifyResult.skippedCount > 0) {
-        finalMessage = `Đã xử lý hàng loạt ${actuallyUpdatedCount} hồ sơ thành công. Lưu ý: ${notifyResult.skippedCount} người nhận thông báo dự kiến đã không còn trong hệ thống.`;
-        finalType = 'warning';
+        // Chỉ log ra console, không hiện toast vàng gây lo lắng cho user
+        // vì chuyển bước đã thành công hoàn toàn, chỉ là thông báo không đến được 1 số user đã bị xóa
+        console.warn(`[bulkTransition] Bỏ qua ${notifyResult.skippedCount} thông báo do user không còn trong hệ thống.`);
       }
 
       return {
