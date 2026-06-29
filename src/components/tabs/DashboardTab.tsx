@@ -1,12 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { StatCard } from '../AppSubComponents';
 import { 
   Building, Clock, FileText, CheckCircle, AlertTriangle, Play, FastForward, Inbox, ChevronDown, Check, Target, Activity, Zap,
-  Building2, MapPin, Layers, Wallet, Filter, AlertCircle, CreditCard, ChevronRight, UserCheck, CheckCircle2, Files, BarChart3
+  Building2, MapPin, Layers, Wallet, Filter, AlertCircle, CreditCard, ChevronRight, UserCheck, CheckCircle2, Files, BarChart3, CalendarDays
 } from 'lucide-react';
+import { useTrendStats, TrendPeriod } from '../../hooks/useTrendStats';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, 
   LineChart, Line, AreaChart, Area, Legend, PieChart, Pie, Cell, LabelList, Rectangle 
@@ -187,6 +188,9 @@ export const DashboardTab = React.memo(({
     loanRatioTotal
   } = dashboardStatsProps || {};
 
+  const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('month');
+  const trendStats = useTrendStats(dashboardApps ?? [], trendPeriod);
+
   const safeProgressChartData = progressChartData ?? [];
   const safeChartData = chartData ?? [];
   const safeOverallPieData = overallPieData ?? [];
@@ -272,56 +276,91 @@ export const DashboardTab = React.memo(({
                 )}
 
                  {(isManagement || !userRole) && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    <StatCard 
-                      title="Tổng số hồ sơ đang xử lý" 
-                      value={kpis.total} 
-                      icon={Building2} 
-                      colorClass="bg-indigo-600 shadow-indigo-600/40" 
-                      delay={0.1} 
-                      theme={theme} 
-                      isActive={dashboardFilter === 'PROCESSING_TOTAL'}
-                      onClick={() => handleDashboardClick('PROCESSING_TOTAL')}
-                    />
-                    <StatCard 
-                      title="BÁO CÁO TRỄ HẠN" 
-                      value={kpis.overdue} 
-                      icon={AlertCircle} 
-                      colorClass="bg-warning shadow-warning/40" 
-                      delay={0.2} 
-                      theme={theme} 
-                      isActive={dashboardFilter === 'OVERDUE'}
-                      onClick={() => {
-                        setActiveTab('reports');
-                        setReportType('SLA');
-                      }}
-                    />
-                    <StatCard 
-                      title="BÁO CÁO SAI SÓT" 
-                      value={kpis.error} 
-                      icon={AlertCircle} 
-                      colorClass="bg-error shadow-error/40" 
-                      delay={0.3} 
-                      theme={theme} 
-                      isActive={dashboardFilter === 'ERROR'}
-                      onClick={() => {
-                        setActiveTab('reports');
-                        setReportType('ERROR');
-                      }}
-                    />
-                    <StatCard 
-                      title="BÁO CÁO HỒ SƠ VAY" 
-                      value={kpis?.loanCount || 0} 
-                      icon={CreditCard} 
-                      colorClass="bg-blue-600 shadow-blue-600/40" 
-                      delay={0.4} 
-                      theme={theme} 
-                      isActive={dashboardFilter === 'LOAN'}
-                      onClick={() => {
-                        setActiveTab('reports');
-                        setReportType('LOAN');
-                      }}
-                    />
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <CalendarDays size={13} className={theme === 'dark' ? 'text-slate-400' : 'text-slate-400'} />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        So sánh kỳ trước:
+                      </span>
+                      {(['week', 'month', 'quarter', 'year'] as TrendPeriod[]).map(p => (
+                        <button
+                          key={p}
+                          onClick={() => setTrendPeriod(p)}
+                          className={cn(
+                            'px-3 py-0.5 rounded-full text-[11px] font-bold transition-all border-0 cursor-pointer',
+                            trendPeriod === p
+                              ? 'bg-indigo-600 text-white'
+                              : theme === 'dark'
+                                ? 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                          )}
+                        >
+                          {p === 'week' ? 'Tuần' : p === 'month' ? 'Tháng' : p === 'quarter' ? 'Quý' : 'Năm'}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      <StatCard
+                        title="Tổng số hồ sơ đang xử lý"
+                        value={kpis.total}
+                        icon={Building2}
+                        colorClass="bg-indigo-600 shadow-indigo-600/40"
+                        delay={0.1} theme={theme}
+                        isActive={dashboardFilter === 'PROCESSING_TOTAL'}
+                        onClick={() => handleDashboardClick('PROCESSING_TOTAL')}
+                        delta={trendStats.total.delta}
+                        pctChange={trendStats.total.pctChange}
+                        higherIsBetter={true}
+                        previous={trendStats.total.previous}
+                        newIn={trendStats.total.newIn}
+                        resolvedIn={trendStats.total.resolvedIn}
+                      />
+                      <StatCard
+                        title="Báo cáo trễ hạn"
+                        value={kpis.overdue}
+                        icon={AlertCircle}
+                        colorClass="bg-warning shadow-warning/40"
+                        delay={0.2} theme={theme}
+                        isActive={dashboardFilter === 'OVERDUE'}
+                        onClick={() => { setActiveTab('reports'); setReportType('SLA'); }}
+                        delta={trendStats.overdue.delta}
+                        pctChange={trendStats.overdue.pctChange}
+                        higherIsBetter={false}
+                        previous={trendStats.overdue.previous}
+                        newIn={trendStats.overdue.newIn}
+                        resolvedIn={trendStats.overdue.resolvedIn}
+                      />
+                      <StatCard
+                        title="Báo cáo sai sót"
+                        value={kpis.error}
+                        icon={AlertCircle}
+                        colorClass="bg-error shadow-error/40"
+                        delay={0.3} theme={theme}
+                        isActive={dashboardFilter === 'ERROR'}
+                        onClick={() => { setActiveTab('reports'); setReportType('ERROR'); }}
+                        delta={trendStats.error.delta}
+                        pctChange={trendStats.error.pctChange}
+                        higherIsBetter={false}
+                        previous={trendStats.error.previous}
+                        newIn={trendStats.error.newIn}
+                        resolvedIn={trendStats.error.resolvedIn}
+                      />
+                      <StatCard
+                        title="Báo cáo hồ sơ vay"
+                        value={kpis?.loanCount || 0}
+                        icon={CreditCard}
+                        colorClass="bg-blue-600 shadow-blue-600/40"
+                        delay={0.4} theme={theme}
+                        isActive={dashboardFilter === 'LOAN'}
+                        onClick={() => { setActiveTab('reports'); setReportType('LOAN'); }}
+                        delta={trendStats.loan.delta}
+                        pctChange={trendStats.loan.pctChange}
+                        higherIsBetter={true}
+                        previous={trendStats.loan.previous}
+                        newIn={trendStats.loan.newIn}
+                        resolvedIn={trendStats.loan.resolvedIn}
+                      />
+                    </div>
                   </div>
                 )}
 

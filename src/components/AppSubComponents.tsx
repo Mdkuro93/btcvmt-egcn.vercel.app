@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { motion } from 'motion/react';
-import { ArrowRight, ChevronDown } from 'lucide-react';
+import { ArrowRight, ChevronDown, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Application, UnitStatus } from '../types';
 import { formatDate } from '../utils/dateUtils';
@@ -8,7 +8,7 @@ import { calculateSLA, computeUltimateStatus } from '../utils/statusEngine';
 import { determineStatusFromStep } from '../utils/appUtils';
 import { STEP_CONFIG as INITIAL_STEP_CONFIG } from '../constants';
 
-export const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark', onClick, isActive }: { title: string, value: number | string, icon: any, colorClass: string, delay: number, theme?: 'light' | 'dark', onClick?: () => void, isActive?: boolean }) => (
+export const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 'dark', onClick, isActive, delta, pctChange, higherIsBetter, previous, newIn, resolvedIn }: { title: string, value: number | string, icon: any, colorClass: string, delay: number, theme?: 'light' | 'dark', onClick?: () => void, isActive?: boolean, delta?: number, pctChange?: number | null, higherIsBetter?: boolean, previous?: number, newIn?: number, resolvedIn?: number }) => (
   <motion.div 
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -24,6 +24,50 @@ export const StatCard = ({ title, value, icon: Icon, colorClass, delay, theme = 
     )}
   >
     <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/5 rounded-full blur-2xl"></div>
+    {delta !== undefined && (() => {
+      const up = delta > 0;
+      const down = delta < 0;
+      const TrendIcon = up ? TrendingUp : down ? TrendingDown : Minus;
+      const sign = up ? '+' : '';
+      const pctTxt = pctChange !== null && pctChange !== undefined
+        ? ` (${up ? '+' : ''}${pctChange}%)`
+        : '';
+      const label = delta === 0 ? '±0' : `${sign}${delta}${pctTxt}`;
+      const isGood = (up && higherIsBetter !== false) || (down && higherIsBetter === false);
+      const colorCls = delta === 0
+        ? 'bg-slate-500/25 text-slate-300'
+        : isGood
+          ? 'bg-emerald-500/25 text-emerald-400'
+          : 'bg-rose-500/25 text-rose-400';
+      return (
+        <div className={cn(
+          'absolute top-3 right-3 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold',
+          colorCls
+        )}>
+          <TrendIcon size={10} />
+          <span>{label}</span>
+        </div>
+      );
+    })()}
+    {(previous !== undefined || newIn !== undefined || resolvedIn !== undefined) && (
+      <div className="absolute top-10 right-3 flex flex-col items-end gap-0.5">
+        {previous !== undefined && (
+          <p className="text-[9px] text-slate-400">
+            Kỳ trước: {previous.toLocaleString('vi-VN')}
+          </p>
+        )}
+        {newIn !== undefined && (
+          <p className="text-[9px] text-slate-400">
+            Tăng mới: +{newIn.toLocaleString('vi-VN')}
+          </p>
+        )}
+        {resolvedIn !== undefined && (
+          <p className="text-[9px] text-slate-400">
+            Đã xử lý: {resolvedIn.toLocaleString('vi-VN')}
+          </p>
+        )}
+      </div>
+    )}
     <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transition-transform group-hover:rotate-12", colorClass)}>
       <Icon size={28} className="text-[var(--color-text-primary)]" />
     </div>
