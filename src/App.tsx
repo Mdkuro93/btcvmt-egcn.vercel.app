@@ -438,6 +438,7 @@ export default function App() {
   }, [theme]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'applications' | 'users' | 'resources' | 'reports' | 'settings'>('dashboard');
+  const [allApplicationsForExport, setAllApplicationsForExport] = useState<Application[]>([]);
   const [dashboardTab, setDashboardTab] = useState<'ALL' | 'SELF_SERVICE' | 'LOAN'>('ALL');
   const [reportType, setReportType] = useState<'PROJECT' | 'REGION' | 'LOAN' | 'SLA' | 'PERFORMANCE' | 'ERROR'>('LOAN');
 
@@ -1733,8 +1734,34 @@ export default function App() {
     }
   }, [selectedProjectId, currentUser, projects]);
 
+  const fetchAllApplicationsForExport = async (): Promise<Application[]> => {
+    let allRows: any[] = [];
+    let from = 0;
+    const batchSize = 500;
+    while (true) {
+      let query = supabase.from('records').select(RECORD_LIGHT_SELECT)
+        .range(from, from + batchSize - 1);
+      if (selectedProjectId && selectedProject) {
+        query = query.eq('project_name', selectedProject.name);
+      }
+      const { data, error } = await query;
+      if (error) {
+        console.error('[fetchAllApplicationsForExport] Lỗi:', error);
+        break;
+      }
+      if (!data || data.length === 0) break;
+      allRows = allRows.concat(data);
+      if (data.length < batchSize) break;
+      from += batchSize;
+    }
+    return allRows.map(mapFromSnakeCase);
+  };
 
-
+  useEffect(() => {
+    if (activeTab === 'reports') {
+      fetchAllApplicationsForExport().then(setAllApplicationsForExport);
+    }
+  }, [activeTab, selectedProjectId]);
 
   const deleteAllNotificationsForRecord = async (recordId: string | number) => {
     try {
@@ -1746,8 +1773,8 @@ export default function App() {
       setNotifications(prev => prev.filter(n => n.appId !== recordId));
     } catch (error) {
       console.error('Error deleting notifications for record:', error);
-     showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
-     }
+      showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
+    }
   };
 
   const bulkDeleteNotificationsForRecords = async (recordIds: (string | number)[]) => {
@@ -2106,7 +2133,11 @@ export default function App() {
 
       // 1. New apps needing attention (Step dept matches user dept)
       if (step.dept === role && app.status !== 'Completed') {
-        const isNew = !app.history.find(h => h.performedBy === currentUser.id);
+        // Ước tính "mới" dựa trên receivedDate gần đây (trong 3 ngày)
+        // vì không có history[] trong dashboardApps để check chính xác performedBy
+        const receivedTime = app.receivedDate ? new Date(app.receivedDate).getTime() : 0;
+        const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+        const isNew = receivedTime > 0 && (Date.now() - receivedTime) < threeDaysMs;
         
         if (app.status === 'Error' || app.isRejected || (app.issueType && app.issueType !== 'None')) {
           reminders.push({
@@ -2969,7 +3000,8 @@ export default function App() {
     visibleProjects,
     bulkSyncRecordsToSupabase: bulkSync,
     supabase,
-    userRole
+    userRole,
+    currentUser
   });
 
   // Ensure newApp.projectName is set to a valid project the user has access to
@@ -5107,6 +5139,7 @@ useEffect(() => {
                 className="max-w-7xl mx-auto"
               >
                 <ReportsView 
+                  allApplications={allApplicationsForExport}
                   applications={dashboardApps} 
                   projects={visibleProjects} 
                   regions={regions} 

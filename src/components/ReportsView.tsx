@@ -124,6 +124,7 @@ const StatusBadge = ({ status, app }: { status: UnitStatus | string; app?: Appli
 };
 
 interface ReportsViewProps {
+  allApplications?: Application[];
   applications: Application[];
   projects: Project[];
   regions: string[];
@@ -140,6 +141,7 @@ interface ReportsViewProps {
 }
 
 export default function ReportsView({ 
+  allApplications,
   applications, 
   projects, 
   regions, 
@@ -178,10 +180,12 @@ export default function ReportsView({
     }
 
     // Otherwise, use internal implementation
+    const exportApps = allApplications && allApplications.length > 0 ? allApplications : applications;
+    
     // Lọc theo dự án
     const filteredApps = exportProjectId === 'ALL'
-      ? applications
-      : applications.filter(a => {
+      ? exportApps
+      : exportApps.filter(a => {
           const proj = projects.find(
             p => p.id === exportProjectId
           );

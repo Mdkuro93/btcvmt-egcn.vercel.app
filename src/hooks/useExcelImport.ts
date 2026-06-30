@@ -21,7 +21,8 @@ export function useExcelImport({
   visibleProjects,
   bulkSyncRecordsToSupabase,
   supabase,
-  userRole
+  userRole,
+  currentUser
 }: any) {
   const [isImporting, setIsImporting] = useState(false);
   const [importPreviewData, setImportPreviewData] = useState<{
@@ -713,8 +714,8 @@ export function useExcelImport({
                   isBulk: true,
                   affectedCount: 1,
                   targetInfo: `Căn ${updatedApp.unitCode}`,
-                  user: 'Hệ thống (Import)',
-                  userId: 'system-import',
+                  user: currentUser?.name || 'Hệ thống (Import)',
+                  userId: currentUser?.id || 'system-import',
                   note: `Cập nhật từ Excel. Các thay đổi: ${changes.join(' | ')}`
                 };
                 updatedApp.auditTrail = [auditEntry, ...(updatedApp.auditTrail || [])];
@@ -791,10 +792,19 @@ export function useExcelImport({
                     stepName: initialStepLabel,
                     dept: 'PTT',
                     receivedDate: new Date().toISOString(),
-                    note: 'Khởi tạo hồ sơ mới từ Import Excel'
+                    note: 'Khởi tạo hồ sơ mới từ Import Excel',
+                    performedBy: currentUser?.id,
+                    performedByName: currentUser?.name || 'Hệ thống (Import)'
                   }
                 ],
-                auditTrail: []
+                auditTrail: [{
+                  id: generateUUID(),
+                  userId: currentUser?.id || 'system-import',
+                  userName: currentUser?.name || 'Hệ thống (Import)',
+                  action: 'Tạo hồ sơ mới từ Import Excel',
+                  timestamp: new Date().toISOString(),
+                  changes: ''
+                }]
              };
 
              if (parsedLoc) newApp.submissionLocation = parsedLoc;
@@ -867,11 +877,11 @@ export function useExcelImport({
                isBulk: true,
                affectedCount: 1,
                targetInfo: `Căn ${newApp.unitCode}`,
-               user: 'Hệ thống (Import)',
-               userId: 'system-import',
+               user: currentUser?.name || 'Hệ thống (Import)',
+               userId: currentUser?.id || 'system-import',
                note: `Tạo mới hồ sơ từ Excel`
              };
-             newApp.auditTrail = [auditEntry];
+             newApp.auditTrail = [auditEntry, ...(newApp.auditTrail || [])];
 
              appsToCreate.push({ app: newApp as Application, rowData: row });
           }
