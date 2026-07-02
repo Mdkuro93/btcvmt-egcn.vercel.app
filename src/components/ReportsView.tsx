@@ -261,8 +261,9 @@ export default function ReportsView({
         [`Dự án: ${projectName} | Xuất ngày: ${today}`],
         [],
         ['Mã lô', 'Dự án', 'Khách hàng', 'Trạng thái',
+         'Bước hiện tại',
          'Ngày ký HĐ', 'Ngày nộp VPĐK', 'Ngày hoàn tất',
-         'Số ngày XL', 'SLA (ngày)', 'Đúng hạn?'],
+         'Số ngày XL', 'SLA (ngày)', 'Tình trạng SLA', 'Số ngày trễ'],
         ...filteredApps.map(app => {
           const start = app.contractSigningDate
             ? new Date(app.contractSigningDate) : null;
@@ -274,16 +275,43 @@ export default function ReportsView({
                 /(1000*60*60*24)
               ) : '';
           const sla = slaConfig?.totalSLA || 90;
-          const onTime = days !== ''
-            ? (Number(days) <= sla ? '✓ Đúng hạn' : '✗ Trễ hạn')
-            : 'Chưa HT';
+
+          // Lấy thông tin SLA real-time từ hệ thống
+          const slaInfo = app._sla || calculateSLA(app, stepConfig, slaConfig);
+          const currentStepLabel = (stepConfig?.[app.currentStep] || INITIAL_STEP_CONFIG?.[app.currentStep])?.label || app.currentStep || '';
+
+          // Phân loại tình trạng SLA rõ ràng hơn
+          let slaStatus: string;
+          let daysLate: number | string = '';
+
+          if (app.status === 'Completed' || app.customerHandoverDate) {
+            // Hồ sơ đã hoàn tất: so sánh tổng số ngày xử lý vs SLA cam kết
+            slaStatus = days !== '' && Number(days) <= sla ? '✓ Đúng hạn' : '✗ Trễ hạn';
+          } else if (slaInfo?.isOverdue) {
+            // Hồ sơ đang xử lý và đã trễ hạn tại bước hiện tại
+            slaStatus = '⚠ Đang trễ hạn';
+            daysLate = slaInfo.daysLate || '';
+          } else {
+            // Hồ sơ đang xử lý, chưa trễ
+            const daysLeft = slaInfo?.daysLeft;
+            slaStatus = daysLeft !== undefined && daysLeft <= 3
+              ? `⏳ Sắp trễ (còn ${daysLeft} ngày)`
+              : '✓ Đang xử lý';
+          }
+
           return [
-            app.unitCode, app.projectName, app.customerName,
-            app.status, 
+            app.unitCode,
+            app.projectName,
+            app.customerName,
+            app.status,
+            currentStepLabel,
             formatDate(app.contractSigningDate),
             formatDate(app.submissionDate),
             formatDate(app.customerHandoverDate),
-            days, sla, onTime
+            days !== '' ? days : '',
+            sla,
+            slaStatus,
+            daysLate
           ];
         })
       ];
