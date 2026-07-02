@@ -143,7 +143,7 @@ export const StatusBadge = ({ status, app, variant = 'default' }: { status: Unit
   );
 };
 
-export const DetailCard = ({ label, value, field, valueColor = 'text-[var(--color-text-primary)]', editable = false, type = 'text', options, onChange, isEditing = false, theme = 'dark', isMono = false }: { label: string, value?: string, field?: keyof Application, valueColor?: string, editable?: boolean, type?: string, options?: string[], onChange?: (val: any) => void, isEditing?: boolean, theme?: 'light' | 'dark', isMono?: boolean }) => {
+export const DetailCard = ({ label, value, field, valueColor = 'text-[var(--color-text-primary)]', editable = false, type = 'text', options, onChange, isEditing = false, theme = 'dark', isMono = false, errorMessage }: { label: string, value?: string, field?: keyof Application, valueColor?: string, editable?: boolean, type?: string, options?: string[], onChange?: (val: any) => void, isEditing?: boolean, theme?: 'light' | 'dark', isMono?: boolean, errorMessage?: string }) => {
   const active = editable && isEditing;
   const darkValueColor = valueColor === 'text-[var(--color-text-primary)]' ? 'text-[var(--color-text-primary)]' : valueColor;
   const lightValueColor = valueColor === 'text-[var(--color-text-primary)]' ? 'text-slate-900' : valueColor;
@@ -168,50 +168,62 @@ export const DetailCard = ({ label, value, field, valueColor = 'text-[var(--colo
       </p>
 
       {active ? (
-        <div className="relative z-10">
-          {type === 'select' ? (
-            <div className="relative">
-              <select 
+        <>
+          <div className="relative z-10">
+            {type === 'select' ? (
+              <div className="relative">
+                <select 
+                  className={cn(
+                    "w-full border rounded-xl px-3 py-2 text-xs font-black text-emerald-400 outline-none focus:ring-2 focus:ring-emerald-500/30 appearance-none cursor-pointer",
+                    theme === 'dark' ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
+                  )}
+                  value={value || ''}
+                  onChange={(e) => onChange?.(e.target.value)}
+                >
+                  {options ? (
+                    options.map((opt, idx) => <option key={`${opt}-${idx}`} value={opt}>{opt}</option>)
+                  ) : field === 'submissionLocation' ? (
+                    <>
+                      <option value="PHUONG">Phường/Xã</option>
+                      <option value="TP_DANANG">Tỉnh/Thành phố</option>
+                    </>
+                  ) : field === 'taxPaymentStatus' ? (
+                    <>
+                      <option value="Unpaid">Chưa nộp</option>
+                      <option value="Paid">Đã nộp</option>
+                    </>
+                  ) : null}
+                </select>
+                <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none" />
+              </div>
+            ) : (
+              <input 
+                type={type}
+                max={(type === 'date' && !isDeadlineStr) ? todayStr : undefined}
                 className={cn(
-                  "w-full border rounded-xl px-3 py-2 text-xs font-black text-emerald-400 outline-none focus:ring-2 focus:ring-emerald-500/30 appearance-none cursor-pointer",
-                  theme === 'dark' ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
+                  "w-full border rounded-xl px-3 py-1.5 text-xs font-black text-emerald-400 outline-none focus:ring-2 focus:ring-emerald-500/30",
+                  theme === 'dark' ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200",
+                  isMono && "font-unit"
                 )}
                 value={value || ''}
                 onChange={(e) => onChange?.(e.target.value)}
-              >
-                {options ? (
-                  options.map((opt, idx) => <option key={`${opt}-${idx}`} value={opt}>{opt}</option>)
-                ) : field === 'submissionLocation' ? (
-                  <>
-                    <option value="PHUONG">Phường/Xã</option>
-                    <option value="TP_DANANG">Tỉnh/Thành phố</option>
-                  </>
-                ) : field === 'taxPaymentStatus' ? (
-                  <>
-                    <option value="Unpaid">Chưa nộp</option>
-                    <option value="Paid">Đã nộp</option>
-                  </>
-                ) : null}
-              </select>
-              <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-600 pointer-events-none" />
-            </div>
-          ) : (
-            <input 
-              type={type}
-              max={(type === 'date' && !isDeadlineStr) ? todayStr : undefined}
-              className={cn(
-                "w-full border rounded-xl px-3 py-1.5 text-xs font-black text-emerald-400 outline-none focus:ring-2 focus:ring-emerald-500/30",
-                theme === 'dark' ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200",
-                isMono && "font-unit"
-              )}
-              value={value || ''}
-              onChange={(e) => onChange?.(e.target.value)}
-            />
+              />
+            )}
+          </div>
+          {errorMessage && (
+            <p className="text-[10px] text-rose-400 font-medium mt-1.5 flex items-center gap-1">
+              <span>⚠</span> {errorMessage}
+            </p>
           )}
-        </div>
+        </>
       ) : (
         <p className={cn("text-xs font-bold truncate transition-colors", theme === 'dark' ? darkValueColor : lightValueColor, isMono && "font-unit text-[14px]")}>
           {type === 'date' ? formatDate(value) : (value || '---')}
+        </p>
+      )}
+      {!active && errorMessage && (
+        <p className="text-[10px] text-rose-400 font-medium mt-1 flex items-center gap-1">
+          <span>⚠</span> {errorMessage}
         </p>
       )}
     </div>

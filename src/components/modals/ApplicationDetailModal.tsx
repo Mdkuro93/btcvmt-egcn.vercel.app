@@ -97,6 +97,7 @@ export interface ApplicationDetailModalProps {
   setSelectedApp: (updater: Application | null | ((prev: Application | null) => Application | null)) => void;
   isEditing: boolean;
   setIsEditing: (editing: boolean) => void;
+  dateErrors: Record<string, string>;
   theme: "light" | "dark";
   userCanEdit: boolean;
   userRole: string;
@@ -159,6 +160,7 @@ export const ApplicationDetailModal = ({
   setSelectedApp,
   isEditing,
   setIsEditing,
+  dateErrors,
   theme,
   userCanEdit,
   userRole,
@@ -1220,6 +1222,7 @@ export const ApplicationDetailModal = ({
                                     (editApp || selectedApp).contractSigningDate
                                   }
                                   type="date"
+                                  errorMessage={dateErrors['contractSigningDate']}
                                   editable={isFieldEditable(
                                     "contractSigningDate",
                                   )}
@@ -1241,6 +1244,7 @@ export const ApplicationDetailModal = ({
                                         .bankCommitmentDeadline
                                     }
                                     type="date"
+                                    errorMessage={dateErrors['bankCommitmentDeadline']}
                                     editable={isFieldEditable(
                                       "bankCommitmentDeadline",
                                     )}
@@ -1265,6 +1269,7 @@ export const ApplicationDetailModal = ({
                                         .handoverApartmentDate
                                     }
                                     type="date"
+                                    errorMessage={dateErrors['handoverApartmentDate']}
                                     editable={isFieldEditable(
                                       "handoverApartmentDate",
                                     )}
@@ -1428,6 +1433,7 @@ export const ApplicationDetailModal = ({
                                         .ktHandoverToPtdaDate
                                     }
                                     type="date"
+                                    errorMessage={dateErrors['ktHandoverToPtdaDate']}
                                     editable={isFieldEditable(
                                       "ktHandoverToPtdaDate",
                                     )}
@@ -1451,6 +1457,7 @@ export const ApplicationDetailModal = ({
                                     (editApp || selectedApp).contractSigningDate
                                   }
                                   type="date"
+                                  errorMessage={dateErrors['contractSigningDate']}
                                   editable={isFieldEditable(
                                     "contractSigningDate",
                                   )}
@@ -1539,6 +1546,7 @@ export const ApplicationDetailModal = ({
                                     (editApp || selectedApp).submissionDate
                                   }
                                   type="date"
+                                  errorMessage={dateErrors['submissionDate']}
                                   editable={isFieldEditable("submissionDate")}
                                   isEditing={isEditing}
                                   onChange={(val) =>
@@ -1567,6 +1575,7 @@ export const ApplicationDetailModal = ({
                                     (editApp || selectedApp).taxNotificationDate
                                   }
                                   type="date"
+                                  errorMessage={dateErrors['taxNotificationDate']}
                                   editable={isFieldEditable(
                                     "taxNotificationDate",
                                   )}
@@ -1622,6 +1631,7 @@ export const ApplicationDetailModal = ({
                                     (editApp || selectedApp).taxReceiptDate
                                   }
                                   type="date"
+                                  errorMessage={dateErrors['taxReceiptDate']}
                                   editable={isFieldEditable("taxReceiptDate")}
                                   isEditing={isEditing}
                                   onChange={(val) =>
@@ -1648,6 +1658,7 @@ export const ApplicationDetailModal = ({
                                   label="Ngày trình ký/In GCN"
                                   value={(editApp || selectedApp).gcnSignedDate}
                                   type="date"
+                                  errorMessage={dateErrors['gcnSignedDate']}
                                   editable={isFieldEditable("gcnSignedDate")}
                                   isEditing={isEditing}
                                   onChange={(val) =>
@@ -1661,6 +1672,7 @@ export const ApplicationDetailModal = ({
                                     (editApp || selectedApp).gcnReceivedDate
                                   }
                                   type="date"
+                                  errorMessage={dateErrors['gcnReceivedDate']}
                                   editable={isFieldEditable("gcnReceivedDate")}
                                   isEditing={isEditing}
                                   onChange={(val) =>
@@ -1698,6 +1710,7 @@ export const ApplicationDetailModal = ({
                                     (editApp || selectedApp).ptdaHandoverDate
                                   }
                                   type="date"
+                                  errorMessage={dateErrors['ptdaHandoverDate']}
                                   editable={isFieldEditable("ptdaHandoverDate")}
                                   isEditing={isEditing}
                                   onChange={(val) =>
@@ -1716,6 +1729,7 @@ export const ApplicationDetailModal = ({
                                       .customerHandoverDate
                                   }
                                   type="date"
+                                  errorMessage={dateErrors['customerHandoverDate']}
                                   editable={isFieldEditable(
                                     "customerHandoverDate",
                                   )}

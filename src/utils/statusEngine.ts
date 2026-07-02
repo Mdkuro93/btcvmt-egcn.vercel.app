@@ -410,6 +410,46 @@ export function isOverdue(app: any, stepConfig?: any, slaConfig?: any): boolean 
 export const computeUltimateStatus = (app: any): string => {
   const isV = (val: any) => val && val !== '---' && val !== 'None' && String(val).trim() !== '';
 
+  // Nếu hồ sơ đang bị trả về (isRejected=true), ưu tiên dùng currentStep
+  // để tránh bị xếp nhầm nhóm do các field ngày cột mốc cũ vẫn còn giá trị
+  if (app.isRejected || app.is_rejected) {
+    const step = app.currentStep || app.current_step || '';
+    const PREPARING_STEPS = [
+      'S1_ChuanBi', 'GD1_ChuanBi'
+    ];
+    const WAITING_VPDK_STEPS = [
+      'S2_KT_Tiep_Nhan', 'S2_KT_Ban_giao',
+      'GD1_Cho_KT_TiepNhan', 'GD2_Cho_Nop_VPDK'
+    ];
+    const SUBMITTED_STEPS = [
+      'S3_Nop_VPDK', 'GD3_Nop_VPDK'
+    ];
+    const TAX_PENDING_STEPS = [
+      'S5_Tai_Chinh_Khach_Hang', 'GD4_Cho_Nop_NVTC', 'GD4_Cho_KT_TiepNhan_LaySo'
+    ];
+    const TAX_COMPLETED_STEPS = [
+      'S5_1_PTDA_TiepNhan'
+    ];
+    const GCN_STEPS = [
+      'S6_Nhan_So_GCN', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_GCN'
+    ];
+    const HANDOVER_STEPS = [
+      'S7_PTDA_Ban_Giao', 'S7_1_PTT_Tiep_Nhan', 'S7_2_Ban_Giao_Khach',
+      'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Cho_BG_Khach'
+    ];
+
+    if (PREPARING_STEPS.includes(step))     return '1. ĐANG CHUẨN BỊ';
+    if (WAITING_VPDK_STEPS.includes(step))  return '2. CHỜ NỘP VPĐK';
+    if (SUBMITTED_STEPS.includes(step))     return '3. ĐÃ NỘP VPĐK';
+    if (TAX_PENDING_STEPS.includes(step))   return '4. CHỜ THÔNG BÁO THUẾ';
+    if (TAX_COMPLETED_STEPS.includes(step)) return '6. ĐÃ NỘP THUẾ';
+    if (GCN_STEPS.includes(step))           return '7. ĐÃ CÓ GCN';
+    if (HANDOVER_STEPS.includes(step))      return '8. CHỜ BÀN GIAO';
+    if (step === 'Hoan_Tat')                return '9. HOÀN TẤT';
+    // Fallback nếu không map được step
+    return '1. ĐANG CHUẨN BỊ';
+  }
+
   if (isV(app.customerHandoverDate) || app.status === 'Completed' || app.currentStep === 'Hoan_Tat') return '9. HOÀN TẤT';
   if (isV(app.gcnReceivedDate) || isV(app.ptdaHandoverDate)) return '8. CHỜ BÀN GIAO';
   if (isV(app.gcnSignedDate)) return '7. ĐÃ CÓ GCN';

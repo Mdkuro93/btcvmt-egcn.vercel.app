@@ -4,11 +4,15 @@ import { supabase } from '../lib/supabase';
 export type TrendPeriod = 'week' | 'month' | 'quarter' | 'year';
 
 export interface PeriodStats {
-  newIn: number;        // Hồ sơ tiếp nhận mới trong kỳ
-  completed: number;    // Hồ sơ hoàn tất trong kỳ
-  newInOverdue: number; // Hồ sơ mới có trễ hạn trong kỳ (proxy: thời gian xử lý dài)
-  newInError: number;   // Hồ sơ mới có sai sót trong kỳ
-  newInLoan: number;    // Hồ sơ vay mới trong kỳ
+  newIn: number;
+  completed: number;
+  newInOverdue: number;
+  newInError: number;
+  newInLoan: number;
+  totalActive: number;
+  totalOverdue: number;
+  totalError: number;
+  totalLoan: number;
 }
 
 export interface TrendQueryResult {
@@ -16,103 +20,143 @@ export interface TrendQueryResult {
   previous: PeriodStats;
   loading: boolean;
   error: string | null;
+  hasSnapshot: boolean;
 }
 
-function getPeriodBounds(period: TrendPeriod, offset: 0 | -1): { start: string; end: string } {
+const EMPTY_STATS: PeriodStats = {
+  newIn: 0, completed: 0, newInOverdue: 0,
+  newInError: 0, newInLoan: 0,
+  totalActive: 0, totalOverdue: 0, totalError: 0, totalLoan: 0,
+};
+
+function getCurrentPeriodLabel(period: TrendPeriod): string {
   const now = new Date();
-  let startDate: Date;
-  let endDate: Date;
-
   if (period === 'week') {
-    const day = now.getDay();
-    const diffToMon = day === 0 ? -6 : 1 - day;
-    startDate = new Date(now);
-    startDate.setHours(0, 0, 0, 0);
-    startDate.setDate(now.getDate() + diffToMon + offset * 7);
-    endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 6);
-    endDate.setHours(23, 59, 59, 999);
-  } else if (period === 'month') {
-    const m = now.getMonth() + offset;
-    startDate = new Date(now.getFullYear(), m, 1, 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear(), m + 1, 0, 23, 59, 59, 999);
-  } else if (period === 'quarter') {
-    const q = Math.floor(now.getMonth() / 3) + offset;
-    const sm = q * 3;
-    startDate = new Date(now.getFullYear(), sm, 1, 0, 0, 0, 0);
-    endDate = new Date(now.getFullYear(), sm + 3, 0, 23, 59, 59, 999);
-  } else {
-    const y = now.getFullYear() + offset;
-    startDate = new Date(y, 0, 1, 0, 0, 0, 0);
-    endDate = new Date(y, 11, 31, 23, 59, 59, 999);
+    // ISO week number
+    const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2,'0')}`;
   }
+  if (period === 'month') {
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2,'0')}`;
+  }
+  if (period === 'quarter') {
+    return `${now.getFullYear()}-Q${Math.floor(now.getMonth() / 3) + 1}`;
+  }
+  return `${now.getFullYear()}`;
+}
 
+function getPreviousPeriodLabel(period: TrendPeriod): string {
+  const now = new Date();
+  if (period === 'week') {
+    const prev = new Date(now);
+    prev.setDate(now.getDate() - 7);
+    const d = new Date(Date.UTC(prev.getFullYear(), prev.getMonth(), prev.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2,'0')}`;
+  }
+  if (period === 'month') {
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2,'0')}`;
+  }
+  if (period === 'quarter') {
+    const currQ = Math.floor(now.getMonth() / 3);
+    const prevQ = currQ === 0 ? 3 : currQ - 1;
+    const prevYear = currQ === 0 ? now.getFullYear() - 1 : now.getFullYear();
+    return `${prevYear}-Q${prevQ + 1}`;
+  }
+  return `${now.getFullYear() - 1}`;
+}
+
+async function fetchSnapshot(
+  periodType: TrendPeriod,
+  periodLabel: string,
+  projectName?: string | null
+): Promise<PeriodStats | null> {
+  let query = supabase
+    .from('kpi_snapshots')
+    .select('*')
+    .eq('period_type', periodType)
+    .eq('period_label', periodLabel)
+    .eq('project_name', projectName || 'ALL')
+    .order('snapshot_date', { ascending: false })
+    .limit(1);
+
+  const { data, error } = await query;
+  if (error || !data || data.length === 0) return null;
+
+  const row = data[0];
   return {
-    start: startDate.toISOString(),
-    end: endDate.toISOString(),
+    newIn: row.new_in || 0,
+    completed: row.completed_in || 0,
+    newInOverdue: 0,
+    newInError: row.total_error || 0,
+    newInLoan: row.total_loan || 0,
+    totalActive: row.total_active || 0,
+    totalOverdue: row.total_overdue || 0,
+    totalError: row.total_error || 0,
+    totalLoan: row.total_loan || 0,
   };
 }
 
-async function fetchPeriodStats(
+// Fallback: query trực tiếp cho kỳ hiện tại (chưa có snapshot)
+async function fetchCurrentPeriodLive(
   period: TrendPeriod,
-  offset: 0 | -1,
   projectName?: string | null
 ): Promise<PeriodStats> {
-  const { start, end } = getPeriodBounds(period, offset);
+  const now = new Date();
+  let startDate: string;
 
-  // Query 1: Hồ sơ được tạo trong kỳ (dùng created_at)
-  const baseQuery = () => {
-    let q = supabase
-      .from('records')
-      .select('id, status, loan_status, issue_type, created_at', { count: 'exact', head: false })
-      .gte('created_at', start)
-      .lte('created_at', end);
-    if (projectName) q = q.eq('project_name', projectName);
-    return q;
-  };
+  if (period === 'week') {
+    const day = now.getDay() || 7;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - day + 1);
+    monday.setHours(0,0,0,0);
+    startDate = monday.toISOString();
+  } else if (period === 'month') {
+    startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  } else if (period === 'quarter') {
+    const qStart = Math.floor(now.getMonth() / 3) * 3;
+    startDate = new Date(now.getFullYear(), qStart, 1).toISOString();
+  } else {
+    startDate = new Date(now.getFullYear(), 0, 1).toISOString();
+  }
 
-  // Query 2: Hồ sơ sai sót phát sinh trong kỳ (dùng record_history)
-  // Tìm history entry có note chứa '[BÁO SAI SÓT' và receivedDate trong kỳ
-  const errorHistoryQuery = async (): Promise<number> => {
-    try {
-      let q = supabase
-        .from('record_history')
-        .select('record_id', { count: 'exact', head: false })
-        .ilike('note', '[BÁO SAI SÓT%')
-        .gte('received_date', start)
-        .lte('received_date', end);
-      const { data, error } = await q;
-      if (error) {
-        console.warn('[useTrendQueries] Lỗi query record_history:', error);
-        return 0;
-      }
-      // Đếm số record_id duy nhất (tránh đếm trùng nếu 1 hồ sơ bị báo nhiều lần)
-      const uniqueIds = new Set((data ?? []).map(r => r.record_id));
-      return uniqueIds.size;
-    } catch (e) {
-      console.warn('[useTrendQueries] Lỗi query record_history:', e);
-      return 0;
-    }
-  };
+  let q = supabase
+    .from('records')
+    .select('id, status, loan_status, issue_type, created_at', { count: 'exact', head: false })
+    .gte('created_at', startDate)
+    .lte('created_at', now.toISOString());
+  if (projectName) q = q.eq('project_name', projectName);
 
-  // Chạy song song tất cả queries
-  const [allRes, completedRes, loanRes, errorCount] = await Promise.all([
-    baseQuery(),
-    baseQuery().eq('status', 'Completed'),
-    baseQuery().eq('loan_status', 'Co_Vay'),
-    errorHistoryQuery(),
+  const [allRes, loanRes, errorRes] = await Promise.all([
+    q,
+    supabase.from('records').select('id', { count: 'exact', head: false })
+      .gte('created_at', startDate).lte('created_at', now.toISOString())
+      .eq('loan_status', 'Co_Vay'),
+    supabase.from('record_history').select('record_id', { count: 'exact', head: false })
+      .ilike('note', '[BÁO SAI SÓT%')
+      .gte('received_date', startDate).lte('received_date', now.toISOString()),
   ]);
 
-  const allRows = allRes.data ?? [];
-  const completedRows = completedRes.data ?? [];
-  const loanRows = loanRes.data ?? [];
+  const uniqueErrorIds = new Set((errorRes.data ?? []).map(r => r.record_id));
 
   return {
-    newIn: allRows.length,
-    completed: completedRows.length,
+    newIn: allRes.data?.length || 0,
+    completed: 0,
     newInOverdue: 0,
-    newInError: errorCount,  // Từ record_history — chính xác theo thời điểm báo sai sót
-    newInLoan: loanRows.length,
+    newInError: uniqueErrorIds.size,
+    newInLoan: loanRes.data?.length || 0,
+    totalActive: 0,
+    totalOverdue: 0,
+    totalError: 0,
+    totalLoan: 0,
   };
 }
 
@@ -121,34 +165,44 @@ export function useTrendQueries(
   projectName?: string | null
 ): TrendQueryResult {
   const [result, setResult] = useState<TrendQueryResult>({
-    current: { newIn: 0, completed: 0, newInOverdue: 0, newInError: 0, newInLoan: 0 },
-    previous: { newIn: 0, completed: 0, newInOverdue: 0, newInError: 0, newInLoan: 0 },
+    current: EMPTY_STATS,
+    previous: EMPTY_STATS,
     loading: true,
     error: null,
+    hasSnapshot: false,
   });
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-
     debounceRef.current = setTimeout(async () => {
       setResult(prev => ({ ...prev, loading: true, error: null }));
       try {
-        const [current, previous] = await Promise.all([
-          fetchPeriodStats(period, 0, projectName),
-          fetchPeriodStats(period, -1, projectName),
-        ]);
-        setResult({ current, previous, loading: false, error: null });
+        const currentLabel  = getCurrentPeriodLabel(period);
+        const previousLabel = getPreviousPeriodLabel(period);
+
+        // Lấy snapshot kỳ trước (đã có trong DB)
+        const prevSnapshot = await fetchSnapshot(period, previousLabel, projectName);
+
+        // Kỳ hiện tại: ưu tiên snapshot nếu có, fallback query live
+        const currSnapshot = await fetchSnapshot(period, currentLabel, projectName);
+        const currentStats = currSnapshot || await fetchCurrentPeriodLive(period, projectName);
+
+        setResult({
+          current:  currentStats,
+          previous: prevSnapshot || EMPTY_STATS,
+          loading:  false,
+          error:    null,
+          hasSnapshot: !!prevSnapshot,
+        });
       } catch (e) {
-        console.warn('[useTrendQueries] Lỗi fetch trend:', e);
-        setResult(prev => ({ ...prev, loading: false, error: 'Không tải được dữ liệu so sánh' }));
+        console.warn('[useTrendQueries] Lỗi:', e);
+        setResult(prev => ({ ...prev, loading: false, error: 'Không tải được dữ liệu' }));
       }
     }, 300);
 
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [period, projectName]);
 
   return result;

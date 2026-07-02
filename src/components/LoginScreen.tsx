@@ -50,7 +50,7 @@ export default function LoginScreen({
         // Fetch Apps Count from 'records'
         const { count: appsCount, error: appsError } = await supabase
           .from('records')
-          .select('*', { count: 'exact', head: true });
+          .select('*', { count: 'estimated', head: true });
         
         if (!appsError && appsCount !== null) {
           setLiveAppsCount(appsCount);

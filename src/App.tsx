@@ -112,6 +112,7 @@ import SelfServiceHandoverModal from './components/modals/SelfServiceHandoverMod
 import FilePreviewModal from './components/modals/FilePreviewModal';
 import BulkTransitionModal from './components/modals/BulkTransitionModal';
 import BulkIssueModal from './components/modals/BulkIssueModal';
+import BulkRejectModal from './components/modals/BulkRejectModal';
 import ImportPreviewModal from './components/modals/ImportPreviewModal';
 import { ApplicationDetailModal } from './components/modals/ApplicationDetailModal';
 import { CreateApplicationModal } from './components/modals/CreateApplicationModal';
@@ -1282,11 +1283,11 @@ export default function App() {
       timeoutId = setTimeout(() => {
         controller.abort();
         reject(new Error('TIMEOUT'));
-      }, 30000);
+      }, 60000);
     });
 
     try {
-      let query = supabase.from('records').select(RECORD_LIGHT_SELECT, { count: 'exact' });
+      let query = supabase.from('records').select(RECORD_LIGHT_SELECT, { count: 'estimated' });
       
       if (search) {
         query = query.or(`unit_code.ilike.%${search}%,customer_name.ilike.%${search}%,project_name.ilike.%${search}%,phone_number.ilike.%${search}%`);
@@ -1671,7 +1672,7 @@ export default function App() {
       timeoutId = setTimeout(() => {
         controller.abort();
         reject(new Error('TIMEOUT'));
-      }, 30000);
+      }, 60000);
     });
 
     try {
@@ -2190,6 +2191,8 @@ export default function App() {
   }, [activeTab]);
   const [isEditing, setIsEditing] = useState(false);
   const [conflictWarning, setConflictWarning] = useState<string | null>(null);
+  const [dateErrors, setDateErrors] = useState<Record<string, string>>({});
+  const [isBulkRejectModalOpen, setIsBulkRejectModalOpen] = useState(false);
   // const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   // const [isBulkTransitionModalOpen, setIsBulkTransitionModalOpen] = useState(false);
   // const [editUser, setEditUser] = useState<UserProfile | null>(null);
@@ -2325,6 +2328,18 @@ export default function App() {
     users,
     currentUser,
   });
+  const [selectedAppUnitCodes, setSelectedAppUnitCodes] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setSelectedAppUnitCodes(prev => {
+      const next = { ...prev };
+      applications.forEach(a => {
+        if (selectedAppIds.includes(a.id)) next[String(a.id)] = a.unitCode;
+      });
+      return next;
+    });
+  }, [selectedAppIds, applications]);
+
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const tableRowRefs = useRef<(HTMLTableRowElement | null)[]>([]);
 
@@ -2380,6 +2395,7 @@ export default function App() {
         if (selectedApp) {
           setSelectedApp(null);
           setIsEditing(false);
+          setDateErrors({});
           return;
         }
       }
@@ -2606,6 +2622,16 @@ export default function App() {
   const [bulkTransitionLocation, setBulkTransitionLocation] = useState<'PHUONG' | 'TP_DANANG'>('PHUONG');
   const [bulkTransitionRefCode, setBulkTransitionRefCode] = useState('');
   const [bulkTransitionKtHandover, setBulkTransitionKtHandover] = useState(new Date().toISOString().split('T')[0]);
+
+  const availableStepsForBulkReject = useMemo(() => {
+    const firstApp = applications.find(a => selectedAppIds.includes(a.id));
+    if (!firstApp) return [];
+    const workflowSteps = firstApp.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+    const currentIdx = workflowSteps.indexOf(firstApp.currentStep as StepName);
+    return workflowSteps.slice(0, currentIdx)
+      .map(s => ({ value: s, label: (stepConfig[s] || INITIAL_STEP_CONFIG[s])?.label || s }))
+      .reverse();
+  }, [applications, selectedAppIds, stepConfig]);
 
   const bulkTransitionChronoError = useMemo(() => {
     if (!bulkTransitionField || !bulkTransitionValue || selectedAppIds.length === 0) return null;
@@ -3298,6 +3324,7 @@ export default function App() {
       setSelectedApp(result.finalApp);
       setEditApp(null);
       setIsEditing(false);
+      setDateErrors({});
     }
     showToast(result.message, result.success ? 'success' : 'error');
     setIsSavingApp(false);
@@ -3342,6 +3369,7 @@ export default function App() {
           if (selectedApp?.id === id) {
             setSelectedApp(null);
             setIsEditing(false);
+            setDateErrors({});
             setEditApp(null);
           }
         }
@@ -3384,7 +3412,11 @@ export default function App() {
     }
     setEditApp(null);
     setIsEditing(false);
+    setDateErrors({});
     showToast(result.message, 'success');
+    if (result.warningMessage) {
+      setTimeout(() => showToast(result.warningMessage!, 'warning'), 800);
+    }
   };
 
   const handleBulkStepTransition = (nextStep: StepName, overrideIds?: (string | number)[]) => {
@@ -3826,6 +3858,7 @@ export default function App() {
       setSelectedApp(finalApp);
       setEditApp(null);
       setIsEditing(false);
+      setDateErrors({});
       setExpandedSections(prev => prev.includes('OTHER_SECTION') ? prev : [...prev, 'OTHER_SECTION']);
       showToast('Đã ghi nhận sai sót và đồng bộ Supabase thành công.', 'warning');
     } catch (error) {
@@ -3883,19 +3916,21 @@ export default function App() {
       setSelectedApp(result.finalApp);
       setEditApp(null);
       setIsEditing(false);
+      setDateErrors({});
       setExpandedSections(prev => prev.includes('OTHER_SECTION') ? prev : [...prev, 'OTHER_SECTION']);
     }
     showToast(result.message, result.success ? 'warning' : 'error');
     setIsSavingApp(false);
   };
 
-  const handleBulkRejectApps = async (reason: string) => {
+  const handleBulkRejectApps = async (targetStepId: StepName, reason: string) => {
     if (selectedAppIds.length === 0) return;
 
     setIsSavingApp(true);
-    const result = await bulkRejectApps(selectedAppIds, reason);
+    const result = await bulkRejectApps(selectedAppIds, targetStepId, reason);
     if (result.success) {
       setSelectedAppIds([]);
+      setIsBulkRejectModalOpen(false);
     }
     showToast(result.message, result.success ? 'warning' : 'error');
     setIsSavingApp(false);
@@ -3993,6 +4028,57 @@ export default function App() {
     if (['S6_Nhan_So_GCN', 'GD5_Cho_Ky_In_GCN', 'GD5_Cho_GCN'].includes(currentStep)) return 'GCN_Issued';
     if (['S7_1_PTT_Tiep_Nhan', 'S7_PTDA_Ban_Giao', 'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Cho_BG_Khach', 'S7_2_Ban_Giao_Khach'].includes(currentStep)) return 'WaitingHandover';
     return INITIAL_STEP_CONFIG[currentStep]?.status || 'Processing';
+  };
+
+  const DATE_SEQUENCE = [
+    { key: 'contractSigningDate',    label: 'Ngày ký HĐCN' },
+    { key: 'accountingHandoverDate', label: 'Ngày KT tiếp nhận' },
+    { key: 'ktHandoverToPtdaDate',   label: 'Ngày KT bàn giao PTDA' },
+    { key: 'submissionDate',         label: 'Ngày nộp VPĐK' },
+    { key: 'taxNotificationDate',    label: 'Ngày TB Thuế' },
+    { key: 'taxReceiptDate',         label: 'Ngày nhận GNT' },
+    { key: 'gcnSignedDate',          label: 'Ngày trình ký GCN' },
+    { key: 'gcnReceivedDate',        label: 'Ngày nhận GCN' },
+    { key: 'ptdaHandoverDate',       label: 'Ngày bàn giao GCN cho PTT' },
+    { key: 'customerHandoverDate',   label: 'Ngày bàn giao GCN cho KH' },
+  ];
+
+  const validateAllDates = (app: Partial<Application>) => {
+    const errors: Record<string, string> = {};
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Check ngày tương lai
+    DATE_SEQUENCE.forEach(({ key, label }) => {
+      const val = app[key as keyof Application] as string | undefined;
+      if (val && val !== '---') {
+        const d = new Date(val);
+        d.setHours(0, 0, 0, 0);
+        if (d > today) {
+          errors[key] = `${label} không được là ngày trong tương lai`;
+        }
+      }
+    });
+
+    // Check thứ tự chuỗi ngày
+    const activeDates = DATE_SEQUENCE
+      .map(({ key, label }) => ({ key, label, value: app[key as keyof Application] as string }))
+      .filter(({ value }) => value && value !== '---' && value !== '');
+
+    for (let i = 0; i < activeDates.length - 1; i++) {
+      const d1 = activeDates[i];
+      const d2 = activeDates[i + 1];
+      if (!errors[d1.key] && !errors[d2.key]) {
+        const date1 = new Date(d1.value); date1.setHours(0,0,0,0);
+        const date2 = new Date(d2.value); date2.setHours(0,0,0,0);
+        if (date2 < date1) {
+          errors[d2.key] = `Phải sau ${d1.label} (${d1.value.substring(0,10)})`;
+        }
+      }
+    }
+
+    setDateErrors(errors);
+    return errors;
   };
 
   const handleFieldChange = (field: keyof Application, value: any) => {
@@ -4276,6 +4362,11 @@ export default function App() {
         return app;
       }));
     }
+
+    if (DATE_SEQUENCE.some(d => d.key === field)) {
+      const updatedApp = editApp ? { ...editApp, [field]: value } : { ...selectedApp, [field]: value };
+      validateAllDates(updatedApp);
+    }
   };
 
   const handleToggleChecklist = (item: string) => {
@@ -4467,6 +4558,7 @@ useEffect(() => {
           setQuickEditData({});
         } else if (isEditing) {
           setIsEditing(false);
+          setDateErrors({});
           setEditApp(null);
         } else if (isCreateModalOpen) {
           setIsCreateModalOpen(false);
@@ -5067,7 +5159,7 @@ useEffect(() => {
                 isShowFilters={isShowFilters}
                 setDashboardFilter={setDashboardFilter}
                 handleBulkStepTransition={handleBulkStepTransition}
-                handleBulkRejectApps={handleBulkRejectApps}
+                setIsBulkRejectModalOpen={setIsBulkRejectModalOpen}
                 filterDept={filterDept}
                 setFilterDept={setFilterDept}
               />
@@ -5205,6 +5297,7 @@ useEffect(() => {
         setSelectedApp={setSelectedApp}
         isEditing={isEditing}
         setIsEditing={setIsEditing}
+        dateErrors={dateErrors}
         theme={theme}
         userCanEdit={userCanEdit}
         userRole={userRole}
@@ -5389,7 +5482,7 @@ useEffect(() => {
           }
         }}
         selectedCount={selectedAppIds.length}
-        unitCodes={applications.filter(a => selectedAppIds.includes(a.id)).map(a => a.unitCode)}
+        unitCodes={selectedAppIds.map(id => selectedAppUnitCodes[String(id)]).filter(Boolean) as string[]}
         targetStepLabel={bulkTransitionTarget ? (stepConfig[bulkTransitionTarget] || INITIAL_STEP_CONFIG[bulkTransitionTarget]).label : ''}
         targetStep={bulkTransitionTarget}
         updateField={bulkTransitionField}
@@ -5407,12 +5500,22 @@ useEffect(() => {
         isSelfService={applications.filter(a => selectedAppIds.includes(a.id)).some(a => a.isSelfService)}
       />
 
+      <BulkRejectModal
+        isOpen={isBulkRejectModalOpen}
+        onClose={() => setIsBulkRejectModalOpen(false)}
+        onConfirm={handleBulkRejectApps}
+        selectedCount={selectedAppIds.length}
+        unitCodes={selectedAppIds.map(id => selectedAppUnitCodes[String(id)]).filter(Boolean) as string[]}
+        availableSteps={availableStepsForBulkReject}
+        theme={theme}
+      />
+
       <BulkIssueModal
         isOpen={isBulkIssueOpen}
         onClose={() => setIsBulkIssueOpen(false)}
         onConfirm={handleBulkReportIssue}
         selectedCount={selectedAppIds.length}
-        unitCodes={applications.filter(a => selectedAppIds.includes(a.id)).map(a => a.unitCode)}
+        unitCodes={selectedAppIds.map(id => selectedAppUnitCodes[String(id)]).filter(Boolean) as string[]}
         note={bulkIssueNote}
         onChangeNote={setBulkIssueNote}
         issueType={bulkIssueType}

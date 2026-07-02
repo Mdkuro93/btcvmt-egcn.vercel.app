@@ -79,11 +79,7 @@ export const registerSelfUpdate = (idOrIds: (number | string) | (number | string
 export const isSelfUpdate = (id: number | string): boolean => {
   const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
   if (isNaN(numericId)) return false;
-  if (selfUpdateIds.has(numericId)) {
-    selfUpdateIds.delete(numericId);
-    return true;
-  }
-  return false;
+  return selfUpdateIds.has(numericId);
 };
 
 export async function fetchRecordDetail(recordId: string | number, unitCode?: string): Promise<{
@@ -512,7 +508,7 @@ interface DataState {
     nextStep: StepName,
     note: string | undefined,
     deleteAllNotificationsForRecord: (recordId: string | number) => Promise<void>
-  ) => Promise<{ success: boolean; message: string; type?: 'error' | 'warning'; requiresHandoverDate?: boolean; finalApp?: Application }>;
+  ) => Promise<{ success: boolean; message: string; type?: 'error' | 'warning'; requiresHandoverDate?: boolean; finalApp?: Application; warningMessage?: string | null }>;
   
   rejectApp: (
     app: Application,
@@ -523,6 +519,7 @@ interface DataState {
   
   bulkRejectApps: (
     selectedIds: (string | number)[],
+    targetStepId: StepName,
     reason: string
   ) => Promise<{ success: boolean; message: string }>;
 
@@ -1102,6 +1099,9 @@ export const useDataStore = create<DataState>((set, get) => ({
       }
       return { success: false, message: transitionCheck.message || 'Lỗi chuyển bước', type: transitionCheck.type as 'error' | 'warning' };
     }
+    
+    // Lưu warning để trả về sau khi chuyển bước thành công
+    const transitionWarning = transitionCheck.hasWarning ? transitionCheck.message : null;
 
     const targetStep = transitionCheck.nextStep || nextStep;
     const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
@@ -1213,7 +1213,8 @@ export const useDataStore = create<DataState>((set, get) => ({
       return {
         success: true,
         message: `Đã chuyển hồ sơ sang bước: ${(stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label} (Đã đồng bộ Supabase)`,
-        finalApp: updatedApp
+        finalApp: updatedApp,
+        warningMessage: transitionWarning
       };
     } catch (error) {
       console.error('Optimistic update error:', error);
@@ -1308,7 +1309,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  bulkRejectApps: async (selectedIds, reason) => {
+  bulkRejectApps: async (selectedIds, targetStepId, reason) => {
     const { currentUser, userRole } = useAuthStore.getState();
     const { applications, users, stepConfig, setApplications, setDashboardApps } = get();
 
@@ -1338,10 +1339,9 @@ export const useDataStore = create<DataState>((set, get) => ({
         };
       });
 
+      const targetStepConfig = stepConfig[targetStepId] || INITIAL_STEP_CONFIG[targetStepId];
       const updatedApps = appsToReject.map(app => {
-        const stepKeys = Object.keys(stepConfig);
-        const currentIndex = stepKeys.indexOf(app.currentStep);
-        const prevStep = currentIndex > 0 ? stepKeys[currentIndex - 1] as StepName : app.currentStep;
+        const prevStep = targetStepId;
 
         const auditEntry = createAuditEntry('Yêu cầu chỉnh sửa / Bổ sung', true, 1, app.unitCode, `Hồ sơ sai sót/cần bổ sung: ${reason}`);
 
@@ -1351,6 +1351,7 @@ export const useDataStore = create<DataState>((set, get) => ({
         return {
           ...updateAppIssue(app, reason, 'Sai sót Khác'),
           currentStep: prevStep,
+          status: targetStepConfig.status,
           rejectionCount: (app.rejectionCount || 0) + 1,
           isRejected: true,
           rejectionReason: reason,
@@ -1375,12 +1376,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       // Thu thập trước user_id dự kiến để xác thực
       const candidateUserIds = new Set<string>();
       updatedApps.forEach(app => {
-        const stepKeys = Object.keys(stepConfig);
-        const originalApp = applications.find(a => a.id === app.id);
-        const currentIndex = stepKeys.indexOf(originalApp?.currentStep || '');
-        const prevStep = currentIndex > 0 ? stepKeys[currentIndex - 1] as StepName : app.currentStep;
-
-        const prevStepConfig = stepConfig[prevStep] || INITIAL_STEP_CONFIG[prevStep];
+        const prevStepConfig = targetStepConfig;
         const targetDept = prevStepConfig.dept;
         users.filter(u => u.dept === targetDept && u.id !== currentUser?.id)
              .forEach(u => candidateUserIds.add(u.id));
@@ -1404,12 +1400,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       }
 
       const notificationsToInsert = updatedApps.flatMap(app => {
-        const stepKeys = Object.keys(stepConfig);
-        const originalApp = applications.find(a => a.id === app.id);
-        const currentIndex = stepKeys.indexOf(originalApp?.currentStep || '');
-        const prevStep = currentIndex > 0 ? stepKeys[currentIndex - 1] as StepName : app.currentStep;
-
-        const prevStepConfig = stepConfig[prevStep] || INITIAL_STEP_CONFIG[prevStep];
+        const prevStepConfig = targetStepConfig;
         const targetDept = prevStepConfig.dept;
         const targetUsers = users.filter(u => u.dept === targetDept && u.id !== currentUser?.id && validUserIds.has(u.id));
 

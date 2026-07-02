@@ -268,7 +268,7 @@ export function validateDateSequence(app: Partial<Application>): string | null {
     ktDate.setHours(0,0,0,0);
     hdDate.setHours(0,0,0,0);
     if (hdDate > ktDate) {
-      return `Ngày ký HĐCN (${app.contractSigningDate}) không được lớn hơn ngày KT tiếp nhận (${app.accountingHandoverDate})`;
+      return `⚠️ Căn ${app.unitCode}: Ngày ký HĐCN (${app.contractSigningDate?.substring(0,10)}) đang lớn hơn ngày KT tiếp nhận (${app.accountingHandoverDate?.substring(0,10)}). Vui lòng kiểm tra lại — ngày ký HĐ là ngày ký thực tế với khách, không phải ngày nhập liệu hôm nay.`;
     }
   }
 

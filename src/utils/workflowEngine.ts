@@ -15,6 +15,7 @@ export interface TransitionResult {
   nextStep?: StepName;
   updates?: Partial<Application>;
   requiresHandoverDate?: boolean;
+  hasWarning?: boolean;
 }
 
 export const WorkflowEngine = {
@@ -99,10 +100,21 @@ export const WorkflowEngine = {
       // 3. Date Sequences Validation (Tính logic thời gian)
       const chronoError = validateDateSequence(app);
       if (chronoError) {
+        if (chronoError.startsWith('⚠️')) {
+          // Warning: vẫn cho phép chuyển bước nhưng ghi nhận để hiển thị
+          // Trả về success=true kèm warning message để caller hiện toast vàng
+          return {
+            success: true,
+            type: 'warning',
+            message: chronoError,
+            hasWarning: true
+          };
+        }
+        // Hard error: block không cho chuyển bước
         return {
           success: false,
           type: 'warning',
-          message: chronoError.startsWith('⚠️') ? chronoError : `Lỗi trình tự ngày: ${chronoError}`
+          message: `Lỗi trình tự ngày: ${chronoError}`
         };
       }
 

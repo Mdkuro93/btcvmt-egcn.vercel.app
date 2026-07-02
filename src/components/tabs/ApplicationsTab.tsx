@@ -4,7 +4,7 @@ import { cn } from '../../lib/utils';
 import { StatusBadge } from '../AppSubComponents';
 import { Application } from '../../types';
 import { formatDate } from '../../utils/dateUtils';
-import { getNextStep } from '../../constants';
+import { getNextStep, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS } from '../../constants';
 import { calculateSLA } from '../../utils/statusEngine';
 import { 
   Building, Clock, FileText, CheckCircle, AlertTriangle, Play, FastForward, Inbox, ChevronDown, Check, Target, Activity, Zap,
@@ -139,7 +139,7 @@ export const ApplicationsTab = ({
   isShowFilters,
   setDashboardFilter,
   handleBulkStepTransition,
-  handleBulkRejectApps,
+  setIsBulkRejectModalOpen,
   filterDept,
   setFilterDept
 }: any) => {
@@ -563,10 +563,7 @@ export const ApplicationsTab = ({
                                             disabled={!['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'].includes(userRole)}
                                             onClick={() => {
                                               if (!['PTT', 'KT', 'PTDA', 'MANAGER', 'DIRECTOR', 'ADMIN', 'MANAGER_ALL', 'MANAGER_PTT', 'MANAGER_KT', 'MANAGER_PTDA'].includes(userRole)) return;
-                                              const reason = prompt("Lý do trả hồ sơ hàng loạt:");
-                                              if (reason) {
-                                                handleBulkRejectApps(reason);
-                                              }
+                                              setIsBulkRejectModalOpen(true);
                                             }}
                                             className={cn(
                                               "w-10 h-10 rounded-full transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed border text-[10px] font-black uppercase tracking-widest shrink-0",
