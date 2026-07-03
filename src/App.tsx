@@ -243,7 +243,7 @@ const useSelfHealingData = (
 
 const mapProjectFromSnakeCase = (item: any): Project => {
   return {
-    id: item.id,
+    id: String(item.id),
     name: item.name,
     region: item.region,
     totalUnits: item.total_units || 0

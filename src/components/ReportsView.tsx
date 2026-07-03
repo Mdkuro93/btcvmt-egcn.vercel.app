@@ -160,6 +160,7 @@ export default function ReportsView({
   const [selectedLoanProjectIds, setSelectedLoanProjectIds] = useState<string[]>(projects.map(p => p.id));
   const [isChartsReady, setIsChartsReady] = useState(false);
   const [exportProjectId, setExportProjectId] = useState<string>('ALL');
+  const [exportDept, setExportDept] = useState<string>('ALL');
 
   const handleExportExcel = () => {
     // Helper to format date as dd/mm/yyyy
@@ -183,19 +184,47 @@ export default function ReportsView({
     const exportApps = allApplications && allApplications.length > 0 ? allApplications : applications;
     
     // Lọc theo dự án
-    const filteredApps = exportProjectId === 'ALL'
+    const byProject = exportProjectId === 'ALL'
       ? exportApps
       : exportApps.filter(a => {
-          const proj = projects.find(
-            p => p.id === exportProjectId
-          );
+          const proj = projects.find(p => p.id === exportProjectId);
           return proj ? a.projectName === proj.name : true;
+        });
+
+    // Lọc thêm theo bộ phận nếu chọn
+    const DEPT_STEPS: Record<string, string[]> = {
+      PTT: [
+        'S1_ChuanBi','S5_Tai_Chinh_Khach_Hang','S7_1_PTT_Tiep_Nhan','S7_2_Ban_Giao_Khach',
+        'GD1_ChuanBi','GD4_Cho_Nop_NVTC','GD5_Cho_PTT_TiepNhan_BG','GD6_Cho_BG_Khach'
+      ],
+      KT: [
+        'S2_KT_Tiep_Nhan',
+        'GD1_Cho_KT_TiepNhan','GD2_Cho_Nop_VPDK','GD4_Cho_KT_TiepNhan_LaySo',
+        'GD5_Cho_GCN','GD5_Cho_Ky_In_GCN'
+      ],
+      PTDA: [
+        'S2_KT_Ban_giao','S3_Nop_VPDK','S5_1_PTDA_TiepNhan',
+        'S6_Nhan_So_GCN','S7_PTDA_Ban_Giao',
+        'GD3_Nop_VPDK','GD5_Cho_Ky_In_GCN'
+      ],
+    };
+
+    const filteredApps = exportDept === 'ALL'
+      ? byProject
+      : byProject.filter(a => {
+          const deptSteps = DEPT_STEPS[exportDept] || [];
+          return deptSteps.includes(a.currentStep || '');
         });
 
     const projectName = exportProjectId === 'ALL'
       ? 'Tất cả dự án'
       : projects.find(p => p.id === exportProjectId)?.name 
         || '';
+
+    const deptLabel = exportDept === 'ALL' ? '' 
+      : exportDept === 'PTT' ? ' | Bộ phận: Thủ tục (PTT)'
+      : exportDept === 'KT'  ? ' | Bộ phận: Kế toán (KT)'
+      : ' | Bộ phận: Phát triển DA (PTDA)';
 
     const today = new Date().toLocaleDateString('vi-VN');
 
@@ -378,7 +407,7 @@ export default function ReportsView({
       sheetName = 'Báo cáo Tổng hợp';
       rows = [
         ['BÁO CÁO TỔNG HỢP HỒ SƠ GCN'],
-        [`Dự án: ${projectName} | Xuất ngày: ${today}`],
+        [`Dự án: ${projectName}${deptLabel} | Xuất ngày: ${today}`],
         [],
         ['STT', 'Mã lô/căn', 'Dự án', 'Khách hàng',
          'Loại tài sản', 'Vay vốn', 'Tự làm sổ',
@@ -789,6 +818,24 @@ export default function ReportsView({
             ))}
           </select>
 
+          {/* Chọn bộ phận */}
+          <select
+            value={exportDept}
+            onChange={e => setExportDept(e.target.value)}
+            className={cn(
+              "text-xs px-3 py-2 rounded-xl border outline-none",
+              "font-semibold transition-all",
+              theme === 'light'
+                ? "bg-white border-slate-200 text-slate-700"
+                : "bg-slate-700/50 border-slate-600 text-white"
+            )}
+          >
+            <option value="ALL">🏢 Tất cả bộ phận</option>
+            <option value="PTT">📋 PTT — Thủ tục</option>
+            <option value="KT">💰 KT — Kế toán</option>
+            <option value="PTDA">🏗️ PTDA — Phát triển DA</option>
+          </select>
+
           {/* Số hồ sơ sẽ xuất */}
           <span className={cn(
             "text-[10px] font-bold",
@@ -917,6 +964,24 @@ export default function ReportsView({
               {p.name}
             </option>
           ))}
+        </select>
+
+        {/* Chọn bộ phận */}
+        <select
+          value={exportDept}
+          onChange={e => setExportDept(e.target.value)}
+          className={cn(
+            "text-xs px-3 py-2 rounded-xl border outline-none",
+            "font-semibold transition-all",
+            theme === 'light'
+              ? "bg-white border-slate-200 text-slate-700"
+              : "bg-slate-700/50 border-slate-600 text-white"
+          )}
+        >
+          <option value="ALL">🏢 Tất cả bộ phận</option>
+          <option value="PTT">📋 PTT — Thủ tục</option>
+          <option value="KT">💰 KT — Kế toán</option>
+          <option value="PTDA">🏗️ PTDA — Phát triển DA</option>
         </select>
 
         {/* Số hồ sơ sẽ xuất */}

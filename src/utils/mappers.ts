@@ -165,7 +165,7 @@ export const mapUserFromSnakeCase = (item: Record<string, any>): UserProfile => 
     name: item.name,
     dept: item.dept,
     permission: item.permission,
-    assignedProjectIds: item.assigned_project_ids || [],
+    assignedProjectIds: (item.assigned_project_ids || []).map(String),
     email: item.email,
     phoneNumber: item.phone_number,
     status: item.status,
