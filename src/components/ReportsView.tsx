@@ -387,33 +387,65 @@ export default function ReportsView({
          'Ngày nộp VPĐK', 'Ngày nộp hồ sơ NVTC vào VPĐK',
          'Ngày TB Thuế', 'Ngày nhận TB Thuế', 'Ngày cấp TB Thuế', 'Ngày đóng thuế',
          'Ngày trình ký/in GCN', 'Ngày nhận GCN', 'Ngày PTDA bàn giao PTT',
-         'Giai đoạn', 'Trạng thái', 'Ngày bàn giao KH'],
-        ...filteredApps.map((app, i) => [
-          i+1,
-          app.unitCode,
-          app.projectName,
-          app.customerName,
-          app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
-          app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
-          app.isSelfService ? 'Có' : 'Không',
-          formatDate(app.receivedDate),
-          formatDate(app.contractSigningDate),
-          formatDate(app.handoverApartmentDate),
-          formatDate(app.accountingHandoverDate),
-          formatDate(app.ktHandoverToPtdaDate),
-          formatDate(app.submissionDate),
-          formatDate(app.taxVpdkSubmissionDate),
-          formatDate(app.taxNotificationDate),
-          formatDate(app.taxNotificationReceivedDate),
-          formatDate(app.taxNoticeProvisionDate),
-          formatDate(app.taxReceiptDate),
-          formatDate(app.gcnSignedDate),
-          formatDate(app.gcnReceivedDate),
-          formatDate(app.ptdaHandoverDate),
-          app.currentStep,
-          app.status,
-          formatDate(app.customerHandoverDate)
-        ])
+         'Giai đoạn', 'Trạng thái', 'Ngày bàn giao KH',
+         'Bước hiện tại', 'Tình trạng SLA', 'Số ngày trễ', 'Sai sót'],
+        ...filteredApps.map((app, i) => {
+          const slaInfo = app._sla || calculateSLA(app, stepConfig, slaConfig);
+          const currentStepLabel = (stepConfig?.[app.currentStep] 
+            || INITIAL_STEP_CONFIG?.[app.currentStep])?.label 
+            || app.currentStep || '';
+
+          let slaStatus: string;
+          let daysLate: number | string = '';
+          if (app.status === 'Completed' || app.customerHandoverDate) {
+            slaStatus = '✓ Hoàn tất';
+          } else if (slaInfo?.isOverdue) {
+            slaStatus = '⚠ Đang trễ hạn';
+            daysLate = slaInfo.daysLate || '';
+          } else {
+            const daysLeft = slaInfo?.daysLeft;
+            slaStatus = daysLeft !== undefined && daysLeft <= 3
+              ? `⏳ Sắp trễ (còn ${daysLeft} ngày)`
+              : '✓ Đang xử lý';
+          }
+
+          const hasIssue = app.status === 'Error' || 
+            (app.issueType && app.issueType !== 'None');
+          const issueText = hasIssue
+            ? `${app.issueType || 'Sai sót'}: ${app.issueNotes || app.issueType || ''}`
+            : '';
+
+          return [
+            i+1,
+            app.unitCode,
+            app.projectName,
+            app.customerName,
+            app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
+            app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
+            app.isSelfService ? 'Có' : 'Không',
+            formatDate(app.receivedDate),
+            formatDate(app.contractSigningDate),
+            formatDate(app.handoverApartmentDate),
+            formatDate(app.accountingHandoverDate),
+            formatDate(app.ktHandoverToPtdaDate),
+            formatDate(app.submissionDate),
+            formatDate(app.taxVpdkSubmissionDate),
+            formatDate(app.taxNotificationDate),
+            formatDate(app.taxNotificationReceivedDate),
+            formatDate(app.taxNoticeProvisionDate),
+            formatDate(app.taxReceiptDate),
+            formatDate(app.gcnSignedDate),
+            formatDate(app.gcnReceivedDate),
+            formatDate(app.ptdaHandoverDate),
+            app.currentStep,
+            app.status,
+            formatDate(app.customerHandoverDate),
+            currentStepLabel,
+            slaStatus,
+            daysLate,
+            issueText
+          ];
+        })
       ];
     }
 

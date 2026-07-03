@@ -395,17 +395,23 @@ export function useDashboardStats(
     };
 
     const waitVPDK = groups['2. CHỜ NỘP VPĐK'] || [];
-    const waitVPDK_KT = waitVPDK.filter(a => {
-      const stepDef = stepConfig?.[a.currentStep] || INITIAL_STEP_CONFIG[a.currentStep];
-      return stepDef?.dept === 'KT';
-    });
     
     // PTDA only accounts for Quy trình 2
     const waitVPDK_PTDA = waitVPDK.filter(a => {
-      const stepDef = stepConfig?.[a.currentStep] || INITIAL_STEP_CONFIG[a.currentStep];
       const isQT2 = a.workflowType === 'Quy_trinh_2' || (a as any).workflow_type === 'Quy_trinh_2';
-      return stepDef?.dept === 'PTDA' && isQT2;
+      if (!isQT2) return false;
+      
+      const stepDef = stepConfig?.[a.currentStep] || INITIAL_STEP_CONFIG[a.currentStep];
+      if (stepDef?.dept === 'PTDA') return true;
+      
+      // Fallback nếu records bị lệch currentStep nhưng có ngày bàn giao cho PTDA
+      if (a.ktHandoverToPtdaDate && String(a.ktHandoverToPtdaDate).trim() !== '' && String(a.ktHandoverToPtdaDate).trim() !== '---') return true;
+      
+      return false;
     });
+
+    // Kế toán chứa toàn bộ phần còn lại để không bị hụt số liệu
+    const waitVPDK_KT = waitVPDK.filter(a => !waitVPDK_PTDA.includes(a));
 
     const hasQT2 = appsList.some(a => a.workflowType === 'Quy_trinh_2' || (a as any).workflow_type === 'Quy_trinh_2');
 

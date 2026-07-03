@@ -1056,7 +1056,6 @@ export default function App() {
             if (eventType !== 'DELETE') {
               const projectName = newRow?.project_name;
               const isAllowed = userRole === 'ADMIN' || 
-                userRole === 'DIRECTOR' ||
                 !projectName ||
                 assignedNamesRef.current.includes(projectName);
               if (!isAllowed) return; // Bỏ qua nếu không có quyền xem project này
@@ -1297,10 +1296,16 @@ export default function App() {
 
       if (selectedProjectId && selectedProject) {
         query = query.eq('project_name', selectedProject.name);
-      } else if (userRole !== 'ADMIN' && userRole !== 'DIRECTOR' && hasProjectAssignments) {
-        const assignedNames = projects.filter(p => currentUser.assignedProjectIds?.includes(p.id)).map(p => p.name);
-        if (assignedNames.length > 0) {
-          query = query.in('project_name', assignedNames);
+      } else if (userRole !== 'ADMIN') {
+        if (hasProjectAssignments) {
+          const assignedNames = projects.filter(p => currentUser.assignedProjectIds?.includes(p.id)).map(p => p.name);
+          if (assignedNames.length > 0) {
+            query = query.in('project_name', assignedNames);
+          } else {
+            query = query.in('project_name', ['_NO_ACCESS_']);
+          }
+        } else {
+          query = query.in('project_name', ['_NO_ACCESS_']);
         }
       }
       
@@ -1687,13 +1692,17 @@ export default function App() {
         if (currentSelectedProject) {
           query = query.eq('project_name', currentSelectedProject.name);
         }
-      } else if (currentUserRole !== 'ADMIN' && currentUserRole !== 'DIRECTOR') {
+      } else if (currentUserRole !== 'ADMIN') {
         const hasProjectAssignments = currentUser?.assignedProjectIds && currentUser.assignedProjectIds.length > 0;
         if (hasProjectAssignments) {
           const assignedNames = projects.filter(p => currentUser.assignedProjectIds.includes(p.id)).map(p => p.name);
           if (assignedNames.length > 0) {
             query = query.in('project_name', assignedNames);
+          } else {
+            query = query.in('project_name', ['_NO_ACCESS_']);
           }
+        } else {
+          query = query.in('project_name', ['_NO_ACCESS_']);
         }
       }
 
@@ -1742,9 +1751,25 @@ export default function App() {
     while (true) {
       let query = supabase.from('records').select(RECORD_LIGHT_SELECT)
         .range(from, from + batchSize - 1);
+      
+      const currentUserRole = currentUser?.dept || 'PTT';
+      const hasProjectAssignments = currentUser?.assignedProjectIds && currentUser.assignedProjectIds.length > 0;
+
       if (selectedProjectId && selectedProject) {
         query = query.eq('project_name', selectedProject.name);
+      } else if (currentUserRole !== 'ADMIN') {
+        if (hasProjectAssignments) {
+          const assignedNames = projects.filter(p => currentUser.assignedProjectIds?.includes(p.id)).map(p => p.name);
+          if (assignedNames.length > 0) {
+            query = query.in('project_name', assignedNames);
+          } else {
+            query = query.in('project_name', ['_NO_ACCESS_']);
+          }
+        } else {
+          query = query.in('project_name', ['_NO_ACCESS_']);
+        }
       }
+
       const { data, error } = await query;
       if (error) {
         console.error('[fetchAllApplicationsForExport] Lỗi:', error);
@@ -2236,6 +2261,16 @@ export default function App() {
       setSelectedApp(null);
       return;
     }
+
+    // Guard: kiểm tra quyền xem dự án trước khi mở modal
+    if (userRole !== 'ADMIN' && app.projectName) {
+      const hasAccess = visibleProjects.some(p => p.name === app.projectName);
+      if (!hasAccess) {
+        showToast('Bạn không có quyền xem hồ sơ thuộc dự án này.', 'error');
+        return;
+      }
+    }
+
     // Mở modal ngay với data hiện có (không chờ)
     setSelectedApp({ ...app, history: app.history || [], auditTrail: app.auditTrail || [] });
     // Fetch history + audit + full record bất đồng bộ
@@ -2987,7 +3022,7 @@ export default function App() {
 
   const visibleProjects = useMemo(() => {
     let baseProjects = projects;
-    if (userRole !== 'ADMIN' && userRole !== 'DIRECTOR') {
+    if (userRole !== 'ADMIN') {
       baseProjects = projects.filter(p => currentUser?.assignedProjectIds?.includes(p.id));
     }
     

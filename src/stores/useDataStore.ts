@@ -56,7 +56,7 @@ export const updateAppIssue = (
   };
 };
 
-export const RECORD_LIGHT_SELECT = 'id, unit_code, project_name, customer_name, contract_signer_type, phone_number, property_type, loan_status, is_self_service, current_step, status, received_date, contract_signing_date, submission_date, tax_notification_date, tax_receipt_date, gcn_signed_date, gcn_received_date, customer_handover_date, accounting_handover_date, ptda_handover_date, bank_commitment_deadline, submission_location, vpdk_code, issue_type, issue_severity, issue_notes, is_rejected, workflow_type, created_at, assigned_to, tax_payment_status, scanned_files, rejection_count, rejection_reason, commitment_date, assigned_to_id, assigned_to_name, tax_vpdk_submission_date, gcn_number';
+export const RECORD_LIGHT_SELECT = 'id, unit_code, project_name, customer_name, contract_signer_type, phone_number, property_type, loan_status, is_self_service, current_step, status, received_date, contract_signing_date, submission_date, tax_notification_date, tax_receipt_date, gcn_signed_date, gcn_received_date, customer_handover_date, accounting_handover_date, ptda_handover_date, bank_commitment_deadline, submission_location, vpdk_code, issue_type, issue_severity, issue_notes, is_rejected, workflow_type, created_at, assigned_to, tax_payment_status, scanned_files, rejection_count, rejection_reason, commitment_date, assigned_to_id, assigned_to_name, tax_vpdk_submission_date, gcn_number, kt_handover_to_ptda_date, tax_notification_received_date, tax_notice_provision_date, handover_apartment_date';
 
 // Module-level thay vì useRef — Zustand không phải React component nên không dùng hook.
 // selfUpdateIds lưu các id vừa được chính client này cập nhật để Realtime listener
@@ -1164,6 +1164,23 @@ export const useDataStore = create<DataState>((set, get) => ({
 
     const finalStatus = !isMovingForward ? 'Error' : (targetStep === 'S1_ChuanBi' ? 'Error' : targetStatus);
 
+    // Auto-fill ktHandoverToPtdaDate khi KT rời bước S2_KT_Ban_giao
+    if (
+      app.workflowType === 'Quy_trinh_2' &&
+      app.currentStep === 'S2_KT_Ban_giao' &&
+      nextStep === 'S3_Nop_VPDK' &&
+      !app.ktHandoverToPtdaDate
+    ) {
+      // Ưu tiên lấy từ history entry bước hiện tại nếu có
+      const currentHistory = (app.history || []).find(
+        h => h.stepName?.includes('S2_KT_Ban_giao') || 
+             h.stepName?.includes('KT bàn giao') ||
+             h.stepName?.includes('Ban giao')
+      );
+      autoDates.ktHandoverToPtdaDate = 
+        currentHistory?.receivedDate || new Date().toISOString();
+    }
+
     const updatedApp = {
       ...app,
       ...autoDates,
@@ -1593,8 +1610,18 @@ export const useDataStore = create<DataState>((set, get) => ({
           if (refCode !== undefined) appWithDate.vpdkCode = refCode;
         }
 
+        // Khi chuyển ĐẾN S2_KT_Ban_giao: dùng ngày từ bulk modal nếu có
         if (recordNextStep === 'S2_KT_Ban_giao' && ktHandoverDate) {
           appWithDate.ktHandoverToPtdaDate = ktHandoverDate;
+        }
+
+        // Khi chuyển RỜI S2_KT_Ban_giao → S3_Nop_VPDK: tự điền nếu chưa có
+        if (
+          app.currentStep === 'S2_KT_Ban_giao' &&
+          recordNextStep === 'S3_Nop_VPDK' &&
+          !appWithDate.ktHandoverToPtdaDate
+        ) {
+          appWithDate.ktHandoverToPtdaDate = nowStr;
         }
 
         let targetStep = recordNextStep;

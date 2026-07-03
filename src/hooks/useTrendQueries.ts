@@ -77,38 +77,105 @@ function getPreviousPeriodLabel(period: TrendPeriod): string {
 async function fetchSnapshot(
   periodType: TrendPeriod,
   periodLabel: string,
-  projectName?: string | null
+  projectName: string | null,
+  allowedProjectNames?: string[]
 ): Promise<PeriodStats | null> {
-  let query = supabase
-    .from('kpi_snapshots')
-    .select('*')
-    .eq('period_type', periodType)
-    .eq('period_label', periodLabel)
-    .eq('project_name', projectName || 'ALL')
-    .order('snapshot_date', { ascending: false })
-    .limit(1);
+  if (projectName) {
+    // Truy vấn cho 1 dự án cụ thể
+    let query = supabase
+      .from('kpi_snapshots')
+      .select('*')
+      .eq('period_type', periodType)
+      .eq('period_label', periodLabel)
+      .eq('project_name', projectName)
+      .order('snapshot_date', { ascending: false })
+      .limit(1);
+    const { data, error } = await query;
+    if (error || !data || data.length === 0) return null;
+    const row = data[0];
+    return {
+      newIn: row.new_in || 0,
+      completed: row.completed_in || 0,
+      newInOverdue: 0,
+      newInError: row.total_error || 0,
+      newInLoan: row.total_loan || 0,
+      totalActive: row.total_active || 0,
+      totalOverdue: row.total_overdue || 0,
+      totalError: row.total_error || 0,
+      totalLoan: row.total_loan || 0,
+    };
+  }
 
-  const { data, error } = await query;
-  if (error || !data || data.length === 0) return null;
+  // Truy vấn tổng hợp (ALL)
+  if (allowedProjectNames && allowedProjectNames.length > 0) {
+    // Nếu bị giới hạn project (DIRECTOR/MANAGER), tính tổng các project được phép
+    let query = supabase
+      .from('kpi_snapshots')
+      .select('*')
+      .eq('period_type', periodType)
+      .eq('period_label', periodLabel)
+      .in('project_name', allowedProjectNames)
+      .order('snapshot_date', { ascending: false }); // Vẫn order để phòng trường hợp nhiều dòng cùng project, nhưng kpi_snapshots thường chỉ 1 dòng/period/project.
 
-  const row = data[0];
-  return {
-    newIn: row.new_in || 0,
-    completed: row.completed_in || 0,
-    newInOverdue: 0,
-    newInError: row.total_error || 0,
-    newInLoan: row.total_loan || 0,
-    totalActive: row.total_active || 0,
-    totalOverdue: row.total_overdue || 0,
-    totalError: row.total_error || 0,
-    totalLoan: row.total_loan || 0,
-  };
+    const { data, error } = await query;
+    if (error || !data || data.length === 0) return null;
+
+    // Tính tổng
+    const sumStats: PeriodStats = {
+      newIn: 0, completed: 0, newInOverdue: 0, newInError: 0, newInLoan: 0,
+      totalActive: 0, totalOverdue: 0, totalError: 0, totalLoan: 0
+    };
+    // Lọc lấy bản ghi mới nhất cho mỗi project
+    const latestPerProject = new Map<string, any>();
+    data.forEach(row => {
+      if (!latestPerProject.has(row.project_name)) {
+        latestPerProject.set(row.project_name, row);
+      }
+    });
+
+    latestPerProject.forEach(row => {
+      sumStats.newIn += row.new_in || 0;
+      sumStats.completed += row.completed_in || 0;
+      sumStats.newInError += row.total_error || 0;
+      sumStats.newInLoan += row.total_loan || 0;
+      sumStats.totalActive += row.total_active || 0;
+      sumStats.totalOverdue += row.total_overdue || 0;
+      sumStats.totalError += row.total_error || 0;
+      sumStats.totalLoan += row.total_loan || 0;
+    });
+    return sumStats;
+  } else {
+    // Không bị giới hạn (ADMIN) hoặc chưa set -> query 'ALL' (global)
+    let query = supabase
+      .from('kpi_snapshots')
+      .select('*')
+      .eq('period_type', periodType)
+      .eq('period_label', periodLabel)
+      .eq('project_name', 'ALL')
+      .order('snapshot_date', { ascending: false })
+      .limit(1);
+    const { data, error } = await query;
+    if (error || !data || data.length === 0) return null;
+    const row = data[0];
+    return {
+      newIn: row.new_in || 0,
+      completed: row.completed_in || 0,
+      newInOverdue: 0,
+      newInError: row.total_error || 0,
+      newInLoan: row.total_loan || 0,
+      totalActive: row.total_active || 0,
+      totalOverdue: row.total_overdue || 0,
+      totalError: row.total_error || 0,
+      totalLoan: row.total_loan || 0,
+    };
+  }
 }
 
 // Fallback: query trực tiếp cho kỳ hiện tại (chưa có snapshot)
 async function fetchCurrentPeriodLive(
   period: TrendPeriod,
-  projectName?: string | null
+  projectName: string | null,
+  allowedProjectNames?: string[]
 ): Promise<PeriodStats> {
   const now = new Date();
   let startDate: string;
@@ -133,13 +200,24 @@ async function fetchCurrentPeriodLive(
     .select('id, status, loan_status, issue_type, created_at', { count: 'exact', head: false })
     .gte('created_at', startDate)
     .lte('created_at', now.toISOString());
-  if (projectName) q = q.eq('project_name', projectName);
+    
+  let loanQ = supabase
+    .from('records')
+    .select('id', { count: 'exact', head: false })
+    .gte('created_at', startDate).lte('created_at', now.toISOString())
+    .eq('loan_status', 'Co_Vay');
+
+  if (projectName) {
+    q = q.eq('project_name', projectName);
+    loanQ = loanQ.eq('project_name', projectName);
+  } else if (allowedProjectNames && allowedProjectNames.length > 0) {
+    q = q.in('project_name', allowedProjectNames);
+    loanQ = loanQ.in('project_name', allowedProjectNames);
+  }
 
   const [allRes, loanRes, errorRes] = await Promise.all([
     q,
-    supabase.from('records').select('id', { count: 'exact', head: false })
-      .gte('created_at', startDate).lte('created_at', now.toISOString())
-      .eq('loan_status', 'Co_Vay'),
+    loanQ,
     supabase.from('record_history').select('record_id', { count: 'exact', head: false })
       .ilike('note', '[BÁO SAI SÓT%')
       .gte('received_date', startDate).lte('received_date', now.toISOString()),
@@ -162,7 +240,8 @@ async function fetchCurrentPeriodLive(
 
 export function useTrendQueries(
   period: TrendPeriod,
-  projectName?: string | null
+  projectName: string | null,
+  allowedProjectNames?: string[]
 ): TrendQueryResult {
   const [result, setResult] = useState<TrendQueryResult>({
     current: EMPTY_STATS,
@@ -183,11 +262,11 @@ export function useTrendQueries(
         const previousLabel = getPreviousPeriodLabel(period);
 
         // Lấy snapshot kỳ trước (đã có trong DB)
-        const prevSnapshot = await fetchSnapshot(period, previousLabel, projectName);
+        const prevSnapshot = await fetchSnapshot(period, previousLabel, projectName, allowedProjectNames);
 
         // Kỳ hiện tại: ưu tiên snapshot nếu có, fallback query live
-        const currSnapshot = await fetchSnapshot(period, currentLabel, projectName);
-        const currentStats = currSnapshot || await fetchCurrentPeriodLive(period, projectName);
+        const currSnapshot = await fetchSnapshot(period, currentLabel, projectName, allowedProjectNames);
+        const currentStats = currSnapshot || await fetchCurrentPeriodLive(period, projectName, allowedProjectNames);
 
         setResult({
           current:  currentStats,
@@ -203,7 +282,7 @@ export function useTrendQueries(
     }, 300);
 
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [period, projectName]);
+  }, [period, projectName, allowedProjectNames?.join(',')]);
 
   return result;
 }

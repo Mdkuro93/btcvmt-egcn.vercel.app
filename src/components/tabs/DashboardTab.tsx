@@ -192,7 +192,8 @@ export const DashboardTab = React.memo(({
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>('month');
   const trendQueryResult = useTrendQueries(
     trendPeriod,
-    selectedProject?.name ?? null
+    selectedProject?.name ?? null,
+    visibleProjects?.map(p => p.name) ?? []
   );
   const trendStats = buildTrendStats(dashboardApps ?? [], trendQueryResult);
 
