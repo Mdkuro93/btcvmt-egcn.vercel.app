@@ -2255,6 +2255,23 @@ export default function App() {
     }
   }, [applications]);
 
+  const visibleProjects = useMemo(() => {
+    let baseProjects = projects;
+    if (userRole !== 'ADMIN') {
+      baseProjects = projects.filter(p => currentUser?.assignedProjectIds?.includes(p.id));
+    }
+    
+    return [...baseProjects].sort((a, b) => {
+      const idxA = REGION_ORDER.indexOf(a.region || '');
+      const idxB = REGION_ORDER.indexOf(b.region || '');
+      if (idxA === -1 && idxB === -1) return (a.region || '').localeCompare(b.region || '');
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      if (idxA !== idxB) return idxA - idxB;
+      return a.name.localeCompare(b.name);
+    });
+  }, [projects, currentUser, userRole]);
+
   const handleSelectApp = useCallback(async (app: Application | null) => {
     setConflictWarning(null);
     if (!app) {
@@ -2297,8 +2314,8 @@ export default function App() {
       
       return merged;
     });
-  }, []);
-  
+  }, [userRole, visibleProjects, showToast]);
+
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
 
   useEffect(() => {
@@ -3019,23 +3036,6 @@ export default function App() {
   [projects, selectedProjectId]);
 
   const dashboardStats = useDashboardStats(selectedProjectId, selectedProject, dashboardTab);
-
-  const visibleProjects = useMemo(() => {
-    let baseProjects = projects;
-    if (userRole !== 'ADMIN') {
-      baseProjects = projects.filter(p => currentUser?.assignedProjectIds?.includes(p.id));
-    }
-    
-    return [...baseProjects].sort((a, b) => {
-      const idxA = REGION_ORDER.indexOf(a.region || '');
-      const idxB = REGION_ORDER.indexOf(b.region || '');
-      if (idxA === -1 && idxB === -1) return (a.region || '').localeCompare(b.region || '');
-      if (idxA === -1) return 1;
-      if (idxB === -1) return -1;
-      if (idxA !== idxB) return idxA - idxB;
-      return a.name.localeCompare(b.name);
-    });
-  }, [projects, currentUser, userRole]);
 
   const {
     isImporting,
