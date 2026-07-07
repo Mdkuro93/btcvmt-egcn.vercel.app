@@ -508,6 +508,11 @@ export function useExcelImport({
              }
 
              const recDate = getRowDate(row, 'receivedDate');
+             const contractSignDate = getRowDate(row, 'contractSigningDate');
+             if (contractSignDate !== undefined && contractSignDate !== existingApp.contractSigningDate) {
+                updatedApp.contractSigningDate = contractSignDate;
+                changes.push(`Ngày ký HĐCN: ${existingApp.contractSigningDate || 'Trống'} -> ${contractSignDate || 'Trống'}`);
+             }
               const handoverApDate = getRowDate(row, 'handoverApartmentDate');
               if (handoverApDate !== undefined && handoverApDate !== existingApp.handoverApartmentDate) {
                  updatedApp.handoverApartmentDate = handoverApDate;

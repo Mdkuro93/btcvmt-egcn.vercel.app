@@ -3572,25 +3572,45 @@ export default function App() {
       bulkDeleteNotificationsForRecords
     );
 
-    if (!result.success) {
-      if (result.message) {
-        showToast(result.message, (result.type as 'error' | 'warning') || 'error');
+    setIsBulkTransitionModalOpen(false);
+    setBulkTransitionTarget(null);
+    setBulkTransitionField(null);
+    setIsSavingApp(false);
+
+    if (result.updatedCount !== undefined && result.totalSelected !== undefined) {
+      if (result.updatedCount === result.totalSelected && result.updatedCount > 0) {
+        showToast(`Đã chuyển bước thành công cho toàn bộ ${result.updatedCount} căn hộ!`, 'success');
+      } else if (result.updatedCount > 0 && result.errors && result.errors.length > 0) {
+        const errorList = result.errors.slice(0, 3).join('\n') + (result.errors.length > 3 ? '\n...' : '');
+        showToast(
+          `Cập nhật thành công ${result.updatedCount}/${result.totalSelected} căn.\n` +
+          `Có ${result.errors.length} căn bị bỏ qua do vi phạm điều kiện:\n` +
+          errorList,
+          'warning'
+        );
+      } else if (result.updatedCount === 0) {
+        const errorList = result.errors ? (result.errors.slice(0, 3).join('\n') + (result.errors.length > 3 ? '\n...' : '')) : '';
+        showToast(`Không có căn nào đủ điều kiện chuyển bước.\n${errorList}`, 'error');
       }
-      setIsSavingApp(false);
-      return;
+    } else {
+      if (!result.success) {
+        if (result.message) {
+          showToast(result.message, (result.type as 'error' | 'warning') || 'error');
+        }
+        return;
+      }
     }
 
-    if (selectedApp && selectedAppIds.includes(selectedApp.id) && result.finalApps) {
+    if (result.success && selectedApp && selectedAppIds.includes(selectedApp.id) && result.finalApps) {
       const updatedSelected = result.finalApps.find(fa => fa.id === selectedApp.id);
       if (updatedSelected) {
         setSelectedApp(updatedSelected);
       }
     }
 
-    setSelectedAppIds([]);
-    setIsBulkTransitionModalOpen(false);
-    setBulkTransitionTarget(null);
-    setBulkTransitionField(null);
+    if (result.success || (result.updatedCount && result.updatedCount > 0)) {
+      setSelectedAppIds([]);
+    }
 
     if (result.chronoWarnings && result.chronoWarnings.length > 0) {
       showToast(
@@ -3598,9 +3618,6 @@ export default function App() {
         'warning'
       );
     }
-
-    showToast(result.message, (result.type as 'success' | 'warning') || 'success');
-    setIsSavingApp(false);
   };
 
 

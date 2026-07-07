@@ -541,6 +541,9 @@ interface DataState {
     chronoWarnings?: string[];
     notifyResult?: { success: boolean; skippedCount: number } | undefined;
     finalApps?: Application[];
+    errors?: string[];
+    totalSelected?: number;
+    updatedCount?: number;
   }>;
 
   createApp: (
@@ -1104,7 +1107,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     const transitionWarning = transitionCheck.hasWarning ? transitionCheck.message : null;
 
     const targetStep = transitionCheck.nextStep || nextStep;
-    const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+    const workflowSteps = (app.workflowType === 'Quy_trinh_2' || (app.projectName && app.projectName.includes('Quy trình 2'))) ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
     const currentIdx = workflowSteps.indexOf(app.currentStep as StepName);
     const nextIdx = workflowSteps.indexOf(targetStep);
     const isMovingForward = nextIdx > currentIdx;
@@ -1498,49 +1501,11 @@ export const useDataStore = create<DataState>((set, get) => ({
     const canSkipSequential = ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole);
 
     const nowStr = new Date().toISOString();
-    const updatedCount = selectedAppIds.length;
 
     try {
-      const chronoErrors: string[] = [];
+      const transitionErrors: string[] = [];
       const chronoWarnings: string[] = [];
-
-      for (const app of applications) {
-        if (!selectedAppIds.includes(app.id)) continue;
-
-        const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
-        const currentIdx = workflowSteps.indexOf(app.currentStep as StepName);
-
-        let recordNextStep = nextStep;
-        const { finalStep, isJump } = WorkflowEngine.determineTargetStep(app, nextStep);
-        if (isJump) {
-          recordNextStep = finalStep;
-        }
-
-        const nextIdx = workflowSteps.indexOf(recordNextStep);
-        if (!canSkipSequential) {
-          if (nextIdx !== currentIdx + 1 && !isJump) continue;
-        }
-
-        let appWithDateForCheck = { ...app };
-        if (bulkTransitionField && dateValue) {
-          const existingValue = (app as any)[bulkTransitionField.key];
-          const hasExistingValue = existingValue !== null && existingValue !== undefined && existingValue !== '' && existingValue !== '---' && existingValue !== 'undefined' && existingValue !== 'null';
-          (appWithDateForCheck as any)[bulkTransitionField.key] = hasExistingValue ? existingValue : dateValue;
-        }
-
-        const chronoError = validateDateSequence(appWithDateForCheck);
-        if (chronoError) {
-          if (chronoError.startsWith('⚠️')) {
-            chronoWarnings.push(`Căn ${app.unitCode}: ${chronoError}`);
-          } else {
-            chronoErrors.push(`Căn ${app.unitCode}: ${chronoError}`);
-          }
-        }
-      }
-
-      if (chronoErrors.length > 0) {
-        return { success: false, message: `Lỗi trình tự ngày: ${chronoErrors[0]}`, type: 'error' };
-      }
+      let actuallyUpdatedCount = 0;
 
       // Fetch history từ DB cho tất cả records sắp update (chạy song song, 1 lần)
       const historyMap = new Map<string, ApplicationStepHistory[]>();
@@ -1566,18 +1531,17 @@ export const useDataStore = create<DataState>((set, get) => ({
         );
       }
 
-      let actuallyUpdatedCount = 0;
-
       const updatedApps = applications.map(app => {
         if (!selectedAppIds.includes(app.id)) return app;
-
-        const workflowSteps = app.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+        
+        const unitLabel = app.apartmentCode || app.unitCode || 'Hồ sơ';
+        const workflowSteps = (app.workflowType === 'Quy_trinh_2' || (app.projectName && app.projectName.includes('Quy trình 2'))) ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
         const currentIdx = workflowSteps.indexOf(app.currentStep as StepName);
 
         let appWithDate = { ...app };
         if (bulkTransitionField && dateValue) {
           const existingValue = (app as any)[bulkTransitionField.key];
-          const hasExistingValue = existingValue !== null && existingValue !== undefined && existingValue !== '';
+          const hasExistingValue = existingValue !== null && existingValue !== undefined && existingValue !== '' && existingValue !== '---' && existingValue !== 'undefined' && existingValue !== 'null';
           (appWithDate as any)[bulkTransitionField.key] = hasExistingValue ? existingValue : dateValue;
         }
 
@@ -1596,7 +1560,19 @@ export const useDataStore = create<DataState>((set, get) => ({
         const isMovingForward = nextIdx > currentIdx;
 
         if (!canSkipSequential && nextIdx !== currentIdx + 1 && !isJump) {
+          const expectedStep = workflowSteps[currentIdx + 1] || 'Kết thúc';
+          transitionErrors.push(`Căn ${unitLabel}: Sai tuần tự (Yêu cầu bước: ${(stepConfig[expectedStep] || INITIAL_STEP_CONFIG[expectedStep])?.label || expectedStep}).`);
           return app;
+        }
+
+        const chronoError = validateDateSequence(appWithDate);
+        if (chronoError) {
+          if (chronoError.startsWith('⚠️')) {
+            chronoWarnings.push(`Căn ${unitLabel}: ${chronoError}`);
+          } else {
+            transitionErrors.push(`Căn ${unitLabel}: ${chronoError}`);
+            return app; // Bỏ qua cập nhật cho hồ sơ này
+          }
         }
 
         actuallyUpdatedCount++;
@@ -1691,7 +1667,14 @@ export const useDataStore = create<DataState>((set, get) => ({
       });
 
       if (actuallyUpdatedCount === 0) {
-        return { success: false, message: 'Không có hồ sơ nào đủ điều kiện để thực hiện chuyển bước này hàng loạt.', type: 'warning' };
+        return { 
+          success: false, 
+          message: 'Không có hồ sơ nào đủ điều kiện để thực hiện chuyển bước này hàng loạt.', 
+          type: 'warning',
+          errors: transitionErrors,
+          totalSelected: selectedAppIds.length,
+          updatedCount: 0
+        };
       }
 
       const appsToSync = updatedApps.filter(app => {
@@ -1740,7 +1723,10 @@ export const useDataStore = create<DataState>((set, get) => ({
         actuallyUpdatedCount,
         chronoWarnings,
         notifyResult,
-        finalApps
+        finalApps,
+        errors: transitionErrors,
+        totalSelected: selectedAppIds.length,
+        updatedCount: actuallyUpdatedCount
       };
     } catch (error) {
       console.error('Supabase bulk transition error:', error);
