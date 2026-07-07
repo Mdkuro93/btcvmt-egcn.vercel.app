@@ -33,8 +33,6 @@ export const ApplicationsTab = ({
   projects,
   visibleApps,
   displayedApps,
-  selectedRows,
-  setSelectedRows,
   handleSelectApp,
   handleQuickSave,
   handleSpreadsheetChange,
@@ -151,13 +149,15 @@ export const ApplicationsTab = ({
 
   const masterCheckboxRef = React.useRef<HTMLInputElement>(null);
 
+  const selectedSet = React.useMemo(() => new Set(selectedAppIds), [selectedAppIds]);
+
   React.useEffect(() => {
     if (masterCheckboxRef.current) {
-      const allOnPageSelected = currentVisibleApps.length > 0 && currentVisibleApps.every(app => selectedRows.has(app.id));
-      const someOnPageSelected = currentVisibleApps.some(app => selectedRows.has(app.id));
-      masterCheckboxRef.current.indeterminate = !allOnPageSelected && someOnPageSelected;
+      const allOnPageSelected = currentVisibleApps.length > 0 && currentVisibleApps.every(app => selectedSet.has(app.id));
+      const someOnPageSelected = currentVisibleApps.some(app => selectedSet.has(app.id));
+      masterCheckboxRef.current.indeterminate = !allOnPageSelected && selectedAppIds.length > 0;
     }
-  }, [currentVisibleApps, selectedRows]);
+  }, [currentVisibleApps, selectedSet, selectedAppIds]);
 
   return (
 <>
@@ -490,6 +490,15 @@ export const ApplicationsTab = ({
                             "text-[10px] font-black uppercase tracking-wider",
                             theme === 'light' ? "text-slate-600" : "text-slate-500"
                           )}>Đã chọn</span>
+                          <button
+                            onClick={() => setSelectedAppIds([])}
+                            className={cn(
+                              "ml-1 px-2 py-1 rounded text-[10px] font-bold uppercase transition-colors",
+                              theme === 'light' ? "bg-rose-100 text-rose-600 hover:bg-rose-200" : "bg-rose-500/20 text-rose-400 hover:bg-rose-500/40"
+                            )}
+                          >
+                            ✖ Bỏ chọn
+                          </button>
                         </div>
 
                         <div className="flex items-center gap-1">
@@ -699,16 +708,15 @@ export const ApplicationsTab = ({
                               ref={masterCheckboxRef}
                               type="checkbox" 
                               className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-900 accent-festive-gold"
-                              checked={currentVisibleApps.length > 0 && currentVisibleApps.every(app => selectedRows.has(app.id))}
+                              checked={currentVisibleApps.length > 0 && currentVisibleApps.every(app => selectedSet.has(app.id))}
                               onChange={(e) => {
-                                const newSelection = new Set(selectedRows);
                                 if (e.target.checked) {
+                                  const newSelection = new Set(selectedAppIds);
                                   currentVisibleApps.forEach(app => newSelection.add(app.id));
+                                  setSelectedAppIds(Array.from(newSelection));
                                 } else {
-                                  currentVisibleApps.forEach(app => newSelection.delete(app.id));
+                                  setSelectedAppIds([]);
                                 }
-                                setSelectedRows(newSelection);
-                                setSelectedAppIds(Array.from(newSelection));
                               }}
                             />
                           </th>
@@ -767,7 +775,7 @@ export const ApplicationsTab = ({
                           const overdue = getOverdueInfo(app, stepConfig, slaConfig);
                           const isEven = index % 2 === 1;
                           const isFocused = selectedIndex === index;
-                          const isSelected = selectedRows.has(app.id) || selectedAppIds.includes(app.id);
+                          const isSelected = selectedSet.has(app.id);
                           
                           return (
                             <tr 
@@ -793,21 +801,18 @@ export const ApplicationsTab = ({
                                   const visibleApps = currentVisibleApps;
                                   const start = Math.min(lastSelectedIndex, index);
                                   const end = Math.max(lastSelectedIndex, index);
-                                  const newSelection = new Set(selectedRows);
+                                  const newSelection = new Set(selectedAppIds);
                                   for (let i = start; i <= end; i++) {
                                     newSelection.add(visibleApps[i].id);
                                   }
-                                  setSelectedRows(newSelection);
                                   setSelectedAppIds(Array.from(newSelection));
                                 } else if (e.ctrlKey || e.metaKey) {
-                                  const newSelection = new Set(selectedRows);
+                                  const newSelection = new Set(selectedAppIds);
                                   if (newSelection.has(app.id)) newSelection.delete(app.id);
                                   else newSelection.add(app.id);
                                   setSelectedAppIds(Array.from(newSelection));
                                   setLastSelectedIndex(index);
                                 } else {
-                                  const newSelection = new Set([app.id]);
-                                  setSelectedRows(newSelection);
                                   setSelectedAppIds([app.id]);
                                   setLastSelectedIndex(index);
                                 }
@@ -820,13 +825,12 @@ export const ApplicationsTab = ({
                                   className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-900 accent-festive-gold"
                                   checked={isSelected}
                                   onChange={(e) => {
-                                    const newSelection = new Set(selectedRows);
+                                    const newSelection = new Set(selectedAppIds);
                                     if (e.target.checked) {
                                       newSelection.add(app.id);
                                     } else {
                                       newSelection.delete(app.id);
                                     }
-                                    setSelectedRows(newSelection);
                                     setSelectedAppIds(Array.from(newSelection));
                                   }}
                                 />

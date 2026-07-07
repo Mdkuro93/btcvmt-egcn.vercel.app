@@ -191,30 +191,27 @@ export default function ReportsView({
           return proj ? a.projectName === proj.name : true;
         });
 
-    // Lọc thêm theo bộ phận nếu chọn
-    const DEPT_STEPS: Record<string, string[]> = {
-      PTT: [
-        'S1_ChuanBi','S5_Tai_Chinh_Khach_Hang','S7_1_PTT_Tiep_Nhan','S7_2_Ban_Giao_Khach',
-        'GD1_ChuanBi','GD4_Cho_Nop_NVTC','GD5_Cho_PTT_TiepNhan_BG','GD6_Cho_BG_Khach'
-      ],
-      KT: [
-        'S2_KT_Tiep_Nhan',
-        'GD1_Cho_KT_TiepNhan','GD2_Cho_Nop_VPDK','GD4_Cho_KT_TiepNhan_LaySo',
-        'GD5_Cho_GCN','GD5_Cho_Ky_In_GCN'
-      ],
-      PTDA: [
-        'S2_KT_Ban_giao','S3_Nop_VPDK','S5_1_PTDA_TiepNhan',
-        'S6_Nhan_So_GCN','S7_PTDA_Ban_Giao',
-        'GD3_Nop_VPDK','GD5_Cho_Ky_In_GCN'
-      ],
+    // Lọc thêm theo bộ phận nếu chọn — dùng CHÍNH stepConfig đang sống (đồng bộ với
+    // Cài đặt hệ thống > Cấu hình bước), không hard-code riêng một bảng nữa để tránh
+    // lệch dữ liệu giữa Dashboard/SLA và file Excel xuất ra.
+    // Hồ sơ đã "Hoàn tất" (dept cấu hình là ADMIN) được quy về bộ phận đã xử lý bước
+    // cuối cùng trước khi hoàn tất (tra trong lịch sử xử lý), để không bị rơi mất khỏi
+    // báo cáo của cả 3 phòng ban.
+    const getAppDept = (a: Application): string | undefined => {
+      const currentDept = stepConfig[a.currentStep || '']?.dept;
+      if (currentDept && currentDept !== 'ADMIN') return currentDept;
+
+      // Hồ sơ đã hoàn tất hoặc bước không xác định dept nghiệp vụ cụ thể
+      // -> lấy bộ phận PTT/KT/PTDA gần nhất đã xử lý trong lịch sử
+      const lastBusinessHistory = [...(a.history || [])]
+        .reverse()
+        .find(h => h.dept === 'PTT' || h.dept === 'KT' || h.dept === 'PTDA');
+      return lastBusinessHistory?.dept;
     };
 
     const filteredApps = exportDept === 'ALL'
       ? byProject
-      : byProject.filter(a => {
-          const deptSteps = DEPT_STEPS[exportDept] || [];
-          return deptSteps.includes(a.currentStep || '');
-        });
+      : byProject.filter(a => getAppDept(a) === exportDept);
 
     const projectName = exportProjectId === 'ALL'
       ? 'Tất cả dự án'

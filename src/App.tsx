@@ -131,7 +131,7 @@ import { formatDate } from './utils/dateUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { createClient, RealtimeChannel } from '@supabase/supabase-js';
 
-const RECORD_LIGHT_SELECT = 'id, unit_code, project_name, customer_name, contract_signer_type, phone_number, property_type, loan_status, is_self_service, current_step, status, received_date, contract_signing_date, submission_date, tax_notification_date, tax_receipt_date, gcn_signed_date, gcn_received_date, customer_handover_date, accounting_handover_date, ptda_handover_date, bank_commitment_deadline, submission_location, vpdk_code, issue_type, issue_severity, issue_notes, is_rejected, workflow_type, created_at, assigned_to, tax_payment_status, scanned_files, rejection_count, rejection_reason, commitment_date, assigned_to_id, assigned_to_name, tax_vpdk_submission_date, gcn_number';
+const RECORD_LIGHT_SELECT = 'id, unit_code, project_name, customer_name, contract_signer_type, phone_number, property_type, loan_status, is_self_service, current_step, status, received_date, contract_signing_date, submission_date, tax_notification_date, tax_receipt_date, gcn_signed_date, gcn_received_date, customer_handover_date, accounting_handover_date, ptda_handover_date, bank_commitment_deadline, submission_location, vpdk_code, issue_type, issue_severity, issue_notes, is_rejected, workflow_type, created_at, assigned_to, tax_payment_status, scanned_files, rejection_count, rejection_reason, commitment_date, assigned_to_id, assigned_to_name, tax_vpdk_submission_date, gcn_number, kt_handover_to_ptda_date, tax_notification_received_date, tax_notice_provision_date, handover_apartment_date';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
@@ -1613,12 +1613,16 @@ export default function App() {
     } catch (error: any) {
       clearTimeout(timeoutId);
       if (currentRequestId !== fetchRequestIds.current.applications) return;
-      console.error('Error fetching paginated records:', error);
-      if (error?.message === 'TIMEOUT' || error?.name === 'AbortError' || error?.message?.includes('aborted')) {
+      
+      const isAbortOrTimeout = error?.message === 'TIMEOUT' || error?.name === 'AbortError' || error?.message?.includes('aborted');
+      
+      if (!isAbortOrTimeout) {
+        console.error('Error fetching paginated records:', error);
+        showToast('Có lỗi xảy ra khi tải dữ liệu, vui lòng thử lại', 'error');
+      } else if (error?.message === 'TIMEOUT') {
         showToast('Kết nối mạng quá chậm hoặc server bận, vui lòng thử lại sau!', 'warning');
-      } else {
-        showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
       }
+      
       handleSetApplications([]);
       setTotalCount(0);
       // Suppress UI error to keep dashboard smooth
@@ -1720,12 +1724,16 @@ export default function App() {
     } catch (error: any) {
       clearTimeout(timeoutId);
       if (currentRequestId !== fetchRequestIds.current.dashboard) return;
-      console.error('Error fetching dashboard records:', error);
-      if (error?.message === 'TIMEOUT' || error?.name === 'AbortError' || error?.message?.includes('aborted')) {
+      
+      const isAbortOrTimeout = error?.message === 'TIMEOUT' || error?.name === 'AbortError' || error?.message?.includes('aborted');
+      
+      if (!isAbortOrTimeout) {
+        console.error('Error fetching dashboard records:', error);
+        showToast('Có lỗi xảy ra khi tải dữ liệu dashboard, vui lòng thử lại', 'error');
+      } else if (error?.message === 'TIMEOUT') {
         showToast('Kết nối mạng quá chậm hoặc server bận, vui lòng thử lại sau!', 'warning');
-      } else {
-        showToast('Có lỗi xảy ra, vui lòng thử lại', 'error');
       }
+      
       handleSetDashboardApps([]);
     } finally {
       if (currentRequestId === fetchRequestIds.current.dashboard) {
@@ -2404,7 +2412,6 @@ export default function App() {
     }
   }, [selectedIndex, activeTab]);
 
-  const [selectedRows, setSelectedRows] = useState<Set<string | number>>(new Set());
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
   const [projectSearch, setProjectSearch] = useState('');
   // const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
@@ -2493,12 +2500,13 @@ export default function App() {
             if (e.shiftKey && lastSelectedIndex !== null) {
               const start = Math.min(lastSelectedIndex, next);
               const end = Math.max(lastSelectedIndex, next);
-              const newSelection = new Set(selectedRows);
-              for (let i = start; i <= end; i++) {
-                newSelection.add(visibleApps[i].id);
-              }
-              setSelectedRows(newSelection);
-              setSelectedAppIds(Array.from(newSelection));
+              setSelectedAppIds(prevIds => {
+                const newSelection = new Set(prevIds);
+                for (let i = start; i <= end; i++) {
+                  if (visibleApps[i]) newSelection.add(visibleApps[i].id);
+                }
+                return Array.from(newSelection);
+              });
             }
             return next;
           });
@@ -2516,12 +2524,13 @@ export default function App() {
             if (e.shiftKey && lastSelectedIndex !== null) {
               const start = Math.min(lastSelectedIndex, next);
               const end = Math.max(lastSelectedIndex, next);
-              const newSelection = new Set(selectedRows);
-              for (let i = start; i <= end; i++) {
-                newSelection.add(visibleApps[i].id);
-              }
-              setSelectedRows(newSelection);
-              setSelectedAppIds(Array.from(newSelection));
+              setSelectedAppIds(prevIds => {
+                const newSelection = new Set(prevIds);
+                for (let i = start; i <= end; i++) {
+                  if (visibleApps[i]) newSelection.add(visibleApps[i].id);
+                }
+                return Array.from(newSelection);
+              });
             }
             return next;
           });
@@ -2548,30 +2557,35 @@ export default function App() {
           handleSelectApp(visibleApps[selectedIndex]);
         } else if (e.key === ' ' && selectedIndex !== null) {
           e.preventDefault();
-          const appId = visibleApps[selectedIndex].id;
-          setSelectedRows(prev => {
-            const next = new Set(prev);
-            if (next.has(appId)) next.delete(appId);
-            else next.add(appId);
-            setSelectedAppIds(Array.from(next));
-            return next;
-          });
+          const appId = visibleApps[selectedIndex]?.id;
+          if (appId) {
+            setSelectedAppIds(prev => {
+              const next = new Set(prev);
+              if (next.has(appId)) next.delete(appId);
+              else next.add(appId);
+              return Array.from(next);
+            });
+          }
         }
-
         // Ctrl + A: Select all filtered rows
         if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
           e.preventDefault();
-          const allIds = displayedApps.map(a => a.id);
-          setSelectedRows(new Set(allIds));
-          setSelectedAppIds(allIds);
-          showToast(`Đã chọn tất cả ${displayedApps.length} hồ sơ`, 'success');
+          if (selectedAppIds.length === displayedApps.length) {
+            setSelectedAppIds([]);
+            showToast(`Đã bỏ chọn tất cả hồ sơ`, 'info');
+          } else {
+            const allIds = displayedApps.map(a => a.id);
+            setSelectedAppIds(allIds);
+            showToast(`Đã chọn tất cả ${displayedApps.length} hồ sơ`, 'success');
+          }
         }
 
         // Ctrl + C: Copy selected rows to clipboard for Excel
         if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-          if (selectedRows.size > 0) {
+          if (selectedAppIds.length > 0) {
             e.preventDefault();
-            const rowsToCopy = displayedApps.filter(app => selectedRows.has(app.id));
+            const selectedSet = new Set(selectedAppIds);
+            const rowsToCopy = displayedApps.filter(app => selectedSet.has(app.id));
             
             const header = ['Dự án', 'Mã căn', 'Tên khách hàng', 'Trạng thái', 'Tiến độ'].join('\t');
             const dataRows = rowsToCopy.map(r => [
@@ -2592,7 +2606,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedApp, isEditing, currentUser, activeTab, displayedApps, selectedIndex, selectedRows, lastSelectedIndex, currentPage, pageSize, isProjectModalOpen, isUserModalOpen, isBulkTransitionModalOpen, selfServiceHandoverModal, applications]);
+  }, [selectedApp, isEditing, currentUser, activeTab, displayedApps, selectedIndex, selectedAppIds, lastSelectedIndex, currentPage, pageSize, isProjectModalOpen, isUserModalOpen, isBulkTransitionModalOpen, selfServiceHandoverModal, applications]);
 
   // const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [expandedSidebarRegions, setExpandedSidebarRegions] = useState<Record<string, boolean>>({});
@@ -3649,7 +3663,7 @@ export default function App() {
 
   const handleBulkResolveIssues = async () => {
     setIsSavingApp(true);
-    const result = await bulkResolveIssues(selectedRows);
+    const result = await bulkResolveIssues(new Set(selectedAppIds));
     showToast(result.message, result.success ? 'success' : 'error');
     setIsSavingApp(false);
   };
@@ -4564,19 +4578,6 @@ useEffect(() => {
           showToast('Vui lòng chọn hồ sơ để chỉnh sửa.', 'warning');
         }
       }
-      // Ctrl + A (Select All)
-      if ((e.ctrlKey || e.metaKey) && e.key === 'a' && activeTab === 'applications') {
-        // Only trigger if not typing in an input
-        const target = e.target as HTMLElement;
-        if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') {
-          e.preventDefault();
-          if (selectedAppIds.length === displayedApps.length) {
-            setSelectedAppIds([]);
-          } else {
-            setSelectedAppIds(displayedApps.map(a => a.id));
-          }
-        }
-      }
       // Ctrl + P (Print)
       if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
         e.preventDefault();
@@ -5092,8 +5093,6 @@ useEffect(() => {
                 projects={projects}
                 visibleApps={visibleApps}
                 displayedApps={displayedApps}
-                selectedRows={selectedRows}
-                setSelectedRows={setSelectedRows}
                 handleSelectApp={handleSelectApp}
                 handleQuickSave={handleQuickSave}
                 handleSpreadsheetChange={handleSpreadsheetChange}
