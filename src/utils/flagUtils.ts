@@ -40,3 +40,13 @@ export const buildFlags = (app: Partial<Application>): string[] => {
 
   return flags;
 };
+
+/**
+ * Checks if the application is missing core original information
+ * (Ngày ký HĐCN for all types, or Ngày bàn giao căn hộ for apartment types)
+ */
+export const isMissingCoreInfo = (app: Partial<Application>): boolean => {
+  if (!app.contractSigningDate || app.contractSigningDate === '---' || app.contractSigningDate === '') return true;
+  if (app.propertyType === 'Can_Ho' && (!app.handoverApartmentDate || app.handoverApartmentDate === '---' || app.handoverApartmentDate === '')) return true;
+  return false;
+};

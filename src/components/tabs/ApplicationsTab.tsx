@@ -4,6 +4,7 @@ import { cn } from '../../lib/utils';
 import { StatusBadge } from '../AppSubComponents';
 import { Application } from '../../types';
 import { formatDate } from '../../utils/dateUtils';
+import { isMissingCoreInfo } from '../../utils/flagUtils';
 import { getNextStep, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS } from '../../constants';
 import { calculateSLA } from '../../utils/statusEngine';
 import { 
@@ -678,7 +679,6 @@ export const ApplicationsTab = ({
                           <button 
                             onClick={() => {
                               setSelectedAppIds([]);
-                              setSelectedRows(new Set());
                             }}
                             className={cn(
                               "w-10 h-10 rounded-full transition-all flex items-center justify-center border ml-2",
@@ -953,6 +953,11 @@ export const ApplicationsTab = ({
                                       <span className="text-[10px] text-slate-400 dark:text-slate-500 italic">{formatDate(app.receivedDate)}</span>
                                       {app.loanStatus === 'Co_Vay' && <span className="text-[9px] bg-indigo-500/10 text-indigo-500 dark:text-indigo-400 px-1.5 py-0.5 rounded font-medium uppercase">Có vay</span>}
                                       {app.isSelfService && <span className="text-[9px] bg-amber-500/10 text-amber-500 dark:text-amber-400 px-1.5 py-0.5 rounded font-medium uppercase">Tự làm</span>}
+                                      {isMissingCoreInfo(app) && (
+                                        <span className="text-[9px] bg-rose-500/15 text-rose-600 dark:text-rose-400 px-2 py-0.5 rounded-full font-bold animate-pulse inline-flex items-center gap-1 border border-rose-500/20 shadow-[0_0_8px_rgba(244,63,94,0.1)]">
+                                          ⚠️ Nợ thông tin gốc
+                                        </span>
+                                      )}
                                       {app.assignedToName && (
                                         <span className="text-[9px] bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
                                           👤 {app.assignedToName}

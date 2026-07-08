@@ -210,6 +210,26 @@ export const CreateApplicationModal = ({
                       </div>
                       {formErrors.receivedDate && <p className="text-[10px] text-rose-500 font-bold pl-1 italic">{formErrors.receivedDate}</p>}
                     </div>
+                    
+                    <div className="space-y-1.5 flex-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest pl-1">
+                        Ngày ký HĐCN/HĐMB <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative group">
+                        <Clock size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-indigo-500 transition-colors" />
+                        <input 
+                          type="date" 
+                          className={cn(
+                            "w-full pl-10 pr-4 py-3 border rounded-2xl text-sm focus:ring-2 transition-all outline-none",
+                            theme === 'light' ? "bg-white border-slate-200 text-slate-900 focus:bg-white" : "bg-slate-900 border-slate-800 text-slate-200",
+                            formErrors.contractSigningDate ? "border-rose-500 ring-rose-500/20 shadow-[0_0_15px_rgba(244,63,94,0.1)]" : "focus:ring-indigo-500/20"
+                          )}
+                          value={newApp.contractSigningDate || ''}
+                          onChange={(e) => setNewApp({...newApp, contractSigningDate: e.target.value})}
+                        />
+                      </div>
+                      {formErrors.contractSigningDate && <p className="text-[10px] text-rose-500 font-bold pl-1 italic">{formErrors.contractSigningDate}</p>}
+                    </div>
                   </div>
                 </div>
 

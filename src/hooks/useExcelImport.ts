@@ -687,6 +687,12 @@ export function useExcelImport({
                 }
              }
 
+             if (!updatedApp.contractSigningDate) {
+               warnings.push(`Căn ${updatedApp.unitCode}: Thiếu Ngày ký HĐCN/HĐMB.`);
+             }
+             if (updatedApp.propertyType === 'Can_Ho' && !updatedApp.handoverApartmentDate) {
+               warnings.push(`Căn ${updatedApp.unitCode}: Thiếu Ngày bàn giao căn hộ thực tế (Loại tài sản: Căn hộ).`);
+             }
              if (changes.length > 0) {
                 if (updatedApp.status !== 'Error') {
                   const inferred = inferStepFromDates(updatedApp, slaConfig, 'IMPORT');
@@ -860,6 +866,13 @@ export function useExcelImport({
              const gcnNo = getRowStr(row, 'gcnNumber');
              if (gcnNo) newApp.gcnNumber = gcnNo;
 
+             if (!newApp.contractSigningDate) {
+               warnings.push(`Căn ${newApp.unitCode}: Thiếu Ngày ký HĐCN/HĐMB.`);
+             }
+             if (newApp.propertyType === 'Can_Ho' && !newApp.handoverApartmentDate) {
+               warnings.push(`Căn ${newApp.unitCode}: Thiếu Ngày bàn giao căn hộ thực tế (Loại tài sản: Căn hộ).`);
+             }
+
              const inferred = inferStepFromDates(newApp as Application, slaConfig, 'IMPORT');
              
              // THÊM: Validate bước bị nhảy cóc
@@ -921,7 +934,7 @@ export function useExcelImport({
     reader.readAsArrayBuffer(file);
   };
 
-  const handleConfirmImport = async () => {
+  const handleConfirmImport = async (justificationNote?: string) => {
     if (!importPreviewData) return;
     setIsImporting(true);
     try {
@@ -929,6 +942,24 @@ export function useExcelImport({
         ...importPreviewData.toUpdate.map(t => t.app),
         ...importPreviewData.toCreate.map(t => t.app)
       ];
+
+      // THÊM LÝ DO NỢ THÔNG TIN VÀO AUDIT TRAIL
+      if (justificationNote) {
+        anyToSync.forEach(app => {
+          if (!app.contractSigningDate || (app.propertyType === 'Can_Ho' && !app.handoverApartmentDate)) {
+             app.auditTrail = app.auditTrail || [];
+             app.auditTrail.unshift({
+               id: generateUUID(),
+               userId: currentUser?.id || 'system-import',
+               userName: currentUser?.name || 'Hệ thống (Import)',
+               action: 'Bỏ qua cảnh báo thiếu thông tin (Import)',
+               timestamp: new Date().toISOString(),
+               changes: `Lý do nợ thông tin: ${justificationNote}`
+             });
+          }
+        });
+      }
+
       if (anyToSync.length > 0) {
          showToast('Đang lưu dữ liệu lên hệ thống...', 'info');
 

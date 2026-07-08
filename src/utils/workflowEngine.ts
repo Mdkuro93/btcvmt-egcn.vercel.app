@@ -16,6 +16,8 @@ export interface TransitionResult {
   updates?: Partial<Application>;
   requiresHandoverDate?: boolean;
   hasWarning?: boolean;
+  requiresJustification?: boolean;
+  missingFields?: string[];
 }
 
 export const WorkflowEngine = {
@@ -60,7 +62,7 @@ export const WorkflowEngine = {
   /**
    * Kiểm duyệt các điều kiện để được phép chuyển sang bước mong muốn
    */
-  validateTransition(app: Application, requestedNextStep: StepName, userRole: string): TransitionResult {
+  validateTransition(app: Application, requestedNextStep: StepName, userRole: string, skipJustification: boolean = false): TransitionResult {
     // Đảm bảo nhận chính xác tham số workflowType từ app (hỗ trợ cả camelCase và snake_case)
     const storedType = app.workflowType || (app as any).workflow_type;
     if (!storedType) {
@@ -121,6 +123,7 @@ export const WorkflowEngine = {
       // 4. Bắt buộc dữ kiện theo từng rẽ nhánh quy trình:
 
       if (app.workflowType === 'Quy_trinh_2') {
+
         if (app.currentStep === 'S2_KT_Ban_giao' && finalStep === 'S3_Nop_VPDK') {
           if (!app.ktHandoverToPtdaDate) {
             return {
@@ -147,6 +150,8 @@ export const WorkflowEngine = {
           if (!app.ptdaHandoverDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày bàn giao GCN cho PTT.' };
         }
         if (app.currentStep === 'S7_2_Ban_Giao_Khach' && finalStep === 'Hoan_Tat') {
+          if (!app.contractSigningDate || app.contractSigningDate === '---') return { success: false, type: 'warning', message: 'Hồ sơ chưa có Ngày ký HĐCN. Bắt buộc phải bổ sung trước khi Hoàn Tất.' };
+          if (app.propertyType === 'Can_Ho' && (!app.handoverApartmentDate || app.handoverApartmentDate === '---')) return { success: false, type: 'warning', message: 'Hồ sơ chưa có Ngày bàn giao căn hộ thực tế. Bắt buộc phải bổ sung trước khi Hoàn Tất (đối với Căn hộ).' };
           if (!app.customerHandoverDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày BG GCN cho khách để Hoàn Tất.' };
         }
       } else {
@@ -161,14 +166,7 @@ export const WorkflowEngine = {
           }
         }
 
-        // --- FIX #8: Bổ sung validation đầy đủ cho Quy_trinh_1 ở các milestone cuối ---
-        if (
-          (app.currentStep === 'GD1_Cho_KT_TiepNhan' && finalStep === 'GD2_Cho_Nop_VPDK') ||
-          (app.currentStep === 'GD2_Cho_Nop_VPDK' && finalStep === 'GD3_Nop_VPDK') ||
-          (app.currentStep === 'GD1_Cho_KT_TiepNhan' && finalStep === 'GD3_Nop_VPDK')
-        ) {
-          if (!app.contractSigningDate || app.contractSigningDate === '---') return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày ký HĐ trước khi chuyển.' };
-        }
+
         if ((app.currentStep === 'S3_Nop_VPDK' || app.currentStep === 'GD2_Cho_Nop_VPDK') && (finalStep === 'S5_Tai_Chinh_Khach_Hang' || finalStep === 'GD3_Nop_VPDK')) {
           if (!app.submissionDate || app.submissionDate === '---') return { success: false, type: 'warning', message: 'Yêu cầu: Ngày nộp VPĐK phải được cập nhật.' };
         }
@@ -199,6 +197,8 @@ export const WorkflowEngine = {
           if (!app.ptdaHandoverDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày bàn giao GCN cho PTT trước khi chuyển.' };
         }
         if (app.currentStep === 'GD6_Cho_BG_Khach' && finalStep === 'Hoan_Tat') {
+          if (!app.contractSigningDate || app.contractSigningDate === '---') return { success: false, type: 'warning', message: 'Hồ sơ chưa có Ngày ký HĐCN. Bắt buộc phải bổ sung trước khi Hoàn Tất.' };
+          if (app.propertyType === 'Can_Ho' && (!app.handoverApartmentDate || app.handoverApartmentDate === '---')) return { success: false, type: 'warning', message: 'Hồ sơ chưa có Ngày bàn giao căn hộ thực tế. Bắt buộc phải bổ sung trước khi Hoàn Tất (đối với Căn hộ).' };
           if (!app.customerHandoverDate) return { success: false, type: 'warning', message: 'Bắt buộc nhập Ngày BG GCN cho khách để Hoàn Tất.' };
         }
       }

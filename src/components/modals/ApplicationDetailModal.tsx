@@ -53,6 +53,7 @@ import {
   getNextStep,
 } from "../../constants";
 import { getOverdueInfo, getPhaseIndex } from "../../utils/appUtils";
+import { isMissingCoreInfo } from "../../utils/flagUtils";
 
 const formatLogTime = (timeStr: string) => {
   if (!timeStr) return "---";
@@ -410,6 +411,11 @@ export const ApplicationDetailModal = ({
                       status={(editApp || selectedApp).status}
                       app={editApp || selectedApp}
                     />
+                    {isMissingCoreInfo(editApp || selectedApp) && (
+                      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/20 animate-pulse flex items-center gap-1.5 shadow-[0_0_8px_rgba(244,63,94,0.1)]">
+                        ⚠️ Nợ thông tin gốc
+                      </span>
+                    )}
                     <span
                       className={cn(
                         "px-2.5 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5",

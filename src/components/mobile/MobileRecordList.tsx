@@ -6,6 +6,7 @@ import {
 import { cn } from '../../lib/utils';
 import { Application, UserProfile } from '../../types';
 import { STEP_CONFIG } from '../../constants';
+import { isMissingCoreInfo } from '../../utils/flagUtils';
 import { useDataStore } from '../../stores/useDataStore';
 
 interface MobileRecordListProps {
@@ -228,6 +229,11 @@ export default function MobileRecordList({
                          {app.loanStatus === 'Co_Vay' && (
                            <span className="text-[8px] px-2 py-0.5 rounded-md font-black uppercase bg-indigo-500/20 text-indigo-400 border border-indigo-500/20">Có vay</span>
                          )}
+                          {isMissingCoreInfo(app) && (
+                            <span className="text-[8px] px-2 py-0.5 rounded-md font-black uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/20 animate-pulse">
+                              ⚠️ Nợ thông tin gốc
+                            </span>
+                          )}
                          
                          <span className={cn(
                            "text-[8px] px-2 py-0.5 rounded-md font-black uppercase tracking-wider",

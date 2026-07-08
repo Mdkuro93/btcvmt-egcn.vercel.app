@@ -507,8 +507,9 @@ interface DataState {
     app: Application,
     nextStep: StepName,
     note: string | undefined,
-    deleteAllNotificationsForRecord: (recordId: string | number) => Promise<void>
-  ) => Promise<{ success: boolean; message: string; type?: 'error' | 'warning'; requiresHandoverDate?: boolean; finalApp?: Application; warningMessage?: string | null }>;
+    deleteAllNotificationsForRecord: (recordId: string | number) => Promise<void>,
+    skipJustificationCheck?: boolean
+  ) => Promise<{ success: boolean; message: string; type?: 'error' | 'warning'; requiresHandoverDate?: boolean; finalApp?: Application; warningMessage?: string | null; requiresJustification?: boolean; missingFields?: string[] }>;
   
   rejectApp: (
     app: Application,
@@ -1091,14 +1092,39 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
   },
 
-  stepTransition: async (app, nextStep, note, deleteAllNotificationsForRecord) => {
+  stepTransition: async (app, nextStep, note, deleteAllNotificationsForRecord, skipJustificationCheck = false) => {
     const { currentUser, userRole } = useAuthStore.getState();
     const { setApplications, setDashboardApps, stepConfig } = get();
 
-    const transitionCheck = WorkflowEngine.validateTransition(app, nextStep, userRole);
+    // Pre-populate ktHandoverToPtdaDate to current date only (YYYY-MM-DD) for validation when leaving S2_KT_Ban_giao to S3_Nop_VPDK
+    const appWithPrep = { ...app };
+    if (
+      app.workflowType === 'Quy_trinh_2' &&
+      app.currentStep === 'S2_KT_Ban_giao' &&
+      nextStep === 'S3_Nop_VPDK' &&
+      !app.ktHandoverToPtdaDate
+    ) {
+      const currentHistory = (app.history || []).find(
+        h => h.stepName?.includes('S2_KT_Ban_giao') || 
+             h.stepName?.includes('KT bàn giao') ||
+             h.stepName?.includes('Ban giao')
+      );
+      const rawDate = currentHistory?.receivedDate || new Date().toISOString();
+      appWithPrep.ktHandoverToPtdaDate = rawDate.split('T')[0];
+    }
+
+    const transitionCheck = WorkflowEngine.validateTransition(appWithPrep, nextStep, userRole, skipJustificationCheck);
     if (!transitionCheck.success) {
       if (transitionCheck.requiresHandoverDate) {
         return { success: false, message: '', requiresHandoverDate: true };
+      }
+      if (transitionCheck.requiresJustification) {
+        return { 
+          success: false, 
+          message: transitionCheck.message || '', 
+          requiresJustification: true, 
+          missingFields: transitionCheck.missingFields 
+        };
       }
       return { success: false, message: transitionCheck.message || 'Lỗi chuyển bước', type: transitionCheck.type as 'error' | 'warning' };
     }
@@ -1180,12 +1206,12 @@ export const useDataStore = create<DataState>((set, get) => ({
              h.stepName?.includes('KT bàn giao') ||
              h.stepName?.includes('Ban giao')
       );
-      autoDates.ktHandoverToPtdaDate = 
-        currentHistory?.receivedDate || new Date().toISOString();
+      const rawDate = currentHistory?.receivedDate || new Date().toISOString();
+      autoDates.ktHandoverToPtdaDate = rawDate.split('T')[0];
     }
 
     const updatedApp = {
-      ...app,
+      ...appWithPrep,
       ...autoDates,
       currentStep: targetStep,
       status: finalStatus,
@@ -1534,7 +1560,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       const updatedApps = applications.map(app => {
         if (!selectedAppIds.includes(app.id)) return app;
         
-        const unitLabel = app.apartmentCode || app.unitCode || 'Hồ sơ';
+        const unitLabel = app.unitCode || 'Hồ sơ';
         const workflowSteps = (app.workflowType === 'Quy_trinh_2' || (app.projectName && app.projectName.includes('Quy trình 2'))) ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
         const currentIdx = workflowSteps.indexOf(app.currentStep as StepName);
 
@@ -1551,8 +1577,25 @@ export const useDataStore = create<DataState>((set, get) => ({
           recordNextStep = finalStep;
         }
 
+        // Pre-populate ktHandoverToPtdaDate to current date only (YYYY-MM-DD) for validation when leaving S2_KT_Ban_giao to S3_Nop_VPDK
+        if (
+          app.currentStep === 'S2_KT_Ban_giao' &&
+          recordNextStep === 'S3_Nop_VPDK' &&
+          !appWithDate.ktHandoverToPtdaDate
+        ) {
+          appWithDate.ktHandoverToPtdaDate = nowStr.split('T')[0];
+        }
+
         const transitionCheck = WorkflowEngine.validateTransition(appWithDate, nextStep, userRole);
-        if (transitionCheck.success && transitionCheck.nextStep) {
+        if (!transitionCheck.success) {
+          if (transitionCheck.requiresJustification) {
+            transitionErrors.push(`Căn ${unitLabel}: Thiếu thông tin ${transitionCheck.missingFields?.join(', ')}. Vui lòng bổ sung hoặc chuyển từng hồ sơ để giải trình.`);
+          } else {
+            transitionErrors.push(`Căn ${unitLabel}: ${transitionCheck.message || 'Lỗi chuyển bước'}`);
+          }
+          return app;
+        }
+        if (transitionCheck.nextStep) {
           recordNextStep = transitionCheck.nextStep;
         }
 
@@ -1597,7 +1640,7 @@ export const useDataStore = create<DataState>((set, get) => ({
           recordNextStep === 'S3_Nop_VPDK' &&
           !appWithDate.ktHandoverToPtdaDate
         ) {
-          appWithDate.ktHandoverToPtdaDate = nowStr;
+          appWithDate.ktHandoverToPtdaDate = nowStr.split('T')[0];
         }
 
         let targetStep = recordNextStep;
@@ -1657,7 +1700,7 @@ export const useDataStore = create<DataState>((set, get) => ({
             createAuditEntry(
               'Chuyển bước hàng loạt',
               true,
-              updatedCount,
+              actuallyUpdatedCount,
               appWithDate.unitCode,
               `Từ: ${(stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep]).label} -> ${(stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label}`
             ),

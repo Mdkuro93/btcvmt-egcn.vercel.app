@@ -3038,6 +3038,7 @@ export default function App() {
     currentStep: 'S1_ChuanBi' as StepName,
     isSelfService: false,
     commitmentDate: '',
+    contractSigningDate: '',
     handoverApartmentDate: '',
     receivedDate: ''
   });
@@ -3440,16 +3441,18 @@ export default function App() {
     handleStepTransition(nextStep, undefined, updatedApp);
   };
 
-  const handleStepTransition = async (nextStep: StepName, note?: string, overrideApp?: Application) => {
+  const handleStepTransition = async (nextStep: StepName, note?: string, overrideApp?: Application, skipJustificationCheck: boolean = false) => {
     const app = overrideApp || editApp || selectedApp;
     if (!app) return;
 
-    const result = await stepTransition(app, nextStep, note, deleteAllNotificationsForRecord);
+    const result = await stepTransition(app, nextStep, note, deleteAllNotificationsForRecord, skipJustificationCheck);
 
     if (result.requiresHandoverDate) {
       setSelfServiceHandoverModal({ app, nextStep });
       return;
     }
+    
+// Justification blocks for intermediate steps removed as requested
 
     if (!result.success) {
       showToast(result.message, (result.type as 'error' | 'warning') || 'error');
@@ -4454,6 +4457,9 @@ export default function App() {
     if (!newApp.receivedDate) {
       errors.receivedDate = 'Vui lòng nhập Ngày tiếp nhận hồ sơ! Đây là trường bắt buộc để tính toán hiệu suất (SLA) của các phòng ban.';
     }
+    if (!newApp.contractSigningDate) {
+      errors.contractSigningDate = 'Vui lòng chọn Ngày ký HĐCN/HĐMB';
+    }
     if (newApp.propertyType === 'Can_Ho' && !newApp.handoverApartmentDate) {
       errors.handoverApartmentDate = 'Vui lòng chọn ngày bàn giao căn hộ thực tế';
     }
@@ -4490,7 +4496,7 @@ export default function App() {
       projectName: visibleProjects[0]?.name || '',
       propertyType: 'Dat_Nen', loanStatus: 'Khong_Vay',
       submissionLocation: undefined, currentStep: 'S1_ChuanBi',
-      isSelfService: false, commitmentDate: '', handoverApartmentDate: '', receivedDate: ''
+      isSelfService: false, commitmentDate: '', contractSigningDate: '', handoverApartmentDate: '', receivedDate: ''
     });
     setFormErrors({});
     showToast(result.message, 'success');

@@ -7,7 +7,7 @@ import { cn } from '../../lib/utils';
 interface ImportPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => Promise<void>;
+  onConfirm: (justificationNote?: string) => Promise<void>;
   isLoading?: boolean;
   data: {
     toCreate: any[];
@@ -26,6 +26,8 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
   data,
   theme
 }) => {
+  const [justificationNote, setJustificationNote] = React.useState('');
+
   if (!isOpen || !data) return null;
 
   const { toCreate, toUpdate, warnings, errors } = data;
@@ -33,6 +35,8 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
   const duplicateFileWarnings = warnings.filter(w => w.includes('File Excel có mã lô trùng'));
   const crossProjectWarnings = warnings.filter(w => w.includes('đã tồn tại tại dự án khác'));
   const otherWarnings = warnings.filter(w => !w.includes('File Excel có mã lô trùng') && !w.includes('đã tồn tại tại dự án khác'));
+  
+  const requiresJustification = otherWarnings.some(w => w.includes('Thiếu Ngày ký HĐCN') || w.includes('Thiếu Ngày bàn giao căn hộ'));
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
@@ -142,6 +146,23 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
           )}
         </div>
 
+        {requiresJustification && (
+          <div className={cn("p-6 border-t", theme === 'light' ? "border-amber-200 bg-amber-50" : "border-amber-900 bg-amber-950/30")}>
+             <label className={cn("block text-sm font-bold mb-2", theme === 'light' ? "text-amber-800" : "text-amber-400")}>
+               Phát hiện hồ sơ đang thiếu Ngày ký HĐCN hoặc Ngày bàn giao căn hộ. Bạn có chắc chắn muốn tạo mới/cập nhật hồ sơ không? Vui lòng nhập lý do nợ thông tin: <span className="text-rose-500">*</span>
+             </label>
+             <textarea 
+               value={justificationNote}
+               onChange={(e) => setJustificationNote(e.target.value)}
+               className={cn("w-full rounded-xl border p-3 text-sm focus:ring-2 transition-all min-h-[80px]", 
+                 theme === 'light' 
+                   ? "bg-white border-slate-300 focus:border-amber-500 focus:ring-amber-500/20 text-slate-800" 
+                   : "bg-slate-900 border-slate-700 focus:border-amber-500 focus:ring-amber-500/20 text-slate-100"
+               )}
+               placeholder="Nhập lý do nợ thông tin..."
+             />
+          </div>
+        )}
         <div className={cn(
           "p-6 border-t flex justify-end gap-3",
           theme === 'light' ? "border-slate-100 bg-slate-50/50" : "border-slate-800 bg-slate-950/50"
@@ -158,8 +179,8 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
             Hủy bỏ
           </button>
           <button
-            onClick={onConfirm}
-            disabled={isLoading || errors.length > 0 || (toCreate.length === 0 && toUpdate.length === 0)}
+            onClick={() => onConfirm(requiresJustification ? justificationNote : undefined)}
+            disabled={isLoading || errors.length > 0 || (toCreate.length === 0 && toUpdate.length === 0) || (requiresJustification && !justificationNote.trim())}
             className={cn(
               "px-6 py-2.5 rounded-xl font-bold text-sm text-white transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed",
               errors.length > 0 ? "bg-slate-400" : "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/20"
