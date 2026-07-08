@@ -94,16 +94,19 @@ export async function fetchRecordDetail(recordId: string | number, unitCode?: st
   } = { history: [], auditTrail: [] };
 
   const targetId = String(recordId);
+  const isNumeric = (str: string) => /^\d+$/.test(str);
 
   try {
     let query = supabase
       .from('record_history')
       .select('*');
       
-    if (unitCode) {
+    if (unitCode && isNumeric(unitCode) && isNumeric(targetId)) {
       query = query.or(`record_id.eq.${targetId},record_id.eq.${unitCode}`);
+    } else if (isNumeric(targetId)) {
+      query = query.eq('record_id', parseInt(targetId, 10));
     } else {
-      query = query.eq('record_id', targetId);
+      query = query.eq('record_id', -1);
     }
     
     const { data: historyData, error: historyError } = await query
@@ -135,10 +138,12 @@ export async function fetchRecordDetail(recordId: string | number, unitCode?: st
       .from('record_audit_trail')
       .select('*');
       
-    if (unitCode) {
+    if (unitCode && isNumeric(unitCode) && isNumeric(targetId)) {
       auditQuery = auditQuery.or(`record_id.eq.${targetId},record_id.eq.${unitCode}`);
+    } else if (isNumeric(targetId)) {
+      auditQuery = auditQuery.eq('record_id', parseInt(targetId, 10));
     } else {
-      auditQuery = auditQuery.eq('record_id', targetId);
+      auditQuery = auditQuery.eq('record_id', -1);
     }
     
     const { data: auditData, error: auditError } = await auditQuery

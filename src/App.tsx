@@ -2258,7 +2258,25 @@ export default function App() {
       const updated = applications.find(a => a.id === selectedAppRef.current?.id);
       // We do a simple reference check here, because Zustand returns a new object if modified.
       if (updated && updated !== selectedAppRef.current) {
-        setSelectedApp(updated);
+        setSelectedApp(prev => {
+          if (!prev || prev.id !== updated.id) return prev;
+          
+          // Merge updated onto prev, preserving prev's history, auditTrail, and other details
+          const merged = { ...prev, ...updated };
+          
+          merged.history = (prev.history?.length || 0) > 0 ? prev.history : updated.history;
+          merged.auditTrail = (prev.auditTrail?.length || 0) > 0 ? prev.auditTrail : updated.auditTrail;
+          
+          // Keep other detail fields present in prev but not in the lightweight updated object
+          Object.keys(prev).forEach((key) => {
+            const k = key as keyof Application;
+            if (prev[k] !== undefined && updated[k] === undefined) {
+              (merged as any)[k] = prev[k];
+            }
+          });
+          
+          return merged;
+        });
       }
     }
   }, [applications]);
