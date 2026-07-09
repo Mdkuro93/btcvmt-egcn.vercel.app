@@ -1,7 +1,7 @@
 
 import { useMemo } from 'react';
 import { useDataStore } from '../stores/useDataStore';
-import { getOverdueInfo, calculateDaysDiff } from '../utils/appUtils';
+import { getOverdueInfo, calculateDaysDiff, getRecordDept } from '../utils/appUtils';
 import { diffDays } from '../utils/dateUtils';
 import { Application, KPI, Project, Dept, UnitStatus } from '../types';
 import { STEP_CONFIG as INITIAL_STEP_CONFIG } from '../constants';
@@ -109,10 +109,7 @@ export function useDashboardStats(
 
     // KT
     // Tổng số lượng hồ sơ đang thực hiện chưa hoàn thành (all records not complete)
-    const ktTotal = apps.filter(a => {
-      const isSupportSpecial = (a.workflowType === 'Quy_trinh_1' || a.projectName?.includes('hỗ trợ')) && (a.currentStep === 'GD2_Cho_Nop_VPDK' || a.currentStep === 'S3_Nop_VPDK');
-      return isSupportSpecial || (stepConfig[a.currentStep] || INITIAL_STEP_CONFIG[a.currentStep])?.dept === 'KT';
-    }).length;
+    const ktTotal = apps.filter(a => getRecordDept(a, stepConfig) === 'KT').length;
     // Hồ sơ cần tiếp nhận: PTT đã chuyển nhưng KT chưa tiếp nhận
     const ktNeedReceive = apps.filter(a => {
       const isSupportSpecial = (a.workflowType === 'Quy_trinh_1' || a.projectName?.includes('hỗ trợ')) && (a.currentStep === 'GD2_Cho_Nop_VPDK' || a.currentStep === 'S3_Nop_VPDK');
@@ -122,31 +119,35 @@ export function useDashboardStats(
     }).length;
     // Hồ sơ đang xử lý: Đã tiếp nhận nhưng chưa bàn giao PTDA
     const ktProcessing = apps.filter(a => {
-      const isSupportSpecial = (a.workflowType === 'Quy_trinh_1' || a.projectName?.includes('hỗ trợ')) && (a.currentStep === 'GD2_Cho_Nop_VPDK' || a.currentStep === 'S3_Nop_VPDK');
+      const dept = getRecordDept(a, stepConfig);
+      if (dept !== 'KT') return false;
       return a.currentStep === 'S2_KT_Tiep_Nhan' || 
              a.currentStep === 'GD1_Cho_KT_TiepNhan' || 
-             isSupportSpecial || 
+             a.currentStep === 'S2_KT_Ban_giao' ||
+             a.currentStep === 'GD2_Cho_Nop_VPDK' ||
              a.currentStep === 'GD4_Cho_KT_TiepNhan_LaySo' || 
              a.currentStep === 'GD5_Cho_GCN';
     }).length;
     // Hồ sơ sai sót
-    const ktIssues = apps.filter(a => (a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None')) && stepConfig[a.currentStep]?.dept === 'KT').length;
+    const ktIssues = apps.filter(a => (a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None')) && getRecordDept(a, stepConfig) === 'KT').length;
     const ktTaxPending = apps.filter(a => a.taxNotificationDate && !a.taxReceiptDate).length;
 
     // PTDA
-    const ptdaApps = apps.filter(a => stepConfig[a.currentStep]?.dept === 'PTDA');
+    const ptdaApps = apps.filter(a => getRecordDept(a, stepConfig) === 'PTDA');
     
     // User requested logic for daNopVPDK and choThue
     const daNopVPDK = apps.filter(app => app.submissionDate && !app.taxNotificationDate && diffDays(app.submissionDate) <= 7);
     const choThue = apps.filter(app => app.submissionDate && !app.taxNotificationDate && diffDays(app.submissionDate) > 7);
 
     // Hồ sơ đã tiếp nhận: Các hồ sơ tiếp nhận từ KT (đã bao gồm daNopVPDK)
-    const ptdaReceived = apps.filter(a => 
-      a.currentStep === 'S2_KT_Ban_giao' || 
-      a.currentStep === 'S5_1_PTDA_TiepNhan' ||
-      a.currentStep === 'GD2_Cho_Nop_VPDK' ||
-      a.currentStep === 'S3_Nop_VPDK'
-    ).length;
+    const ptdaReceived = apps.filter(a => {
+      const dept = getRecordDept(a, stepConfig);
+      return dept === 'PTDA' && (
+        a.currentStep === 'S2_KT_Ban_giao' || 
+        a.currentStep === 'S3_Nop_VPDK' ||
+        a.currentStep === 'S5_1_PTDA_TiepNhan'
+      );
+    }).length;
     // Chờ TB Thuế: ChoThue must exclude S3_Nop_VPDK
     const ptdaNoTax = choThue.length;
     // Chờ hoàn thành NVTC:
@@ -156,7 +157,7 @@ export function useDashboardStats(
     ).length;
     // Chờ in/ký GCN -> CHỜ BÀN GIAO: 
     const ptdaGcnWaiting = apps.filter(a => a.status === 'WaitingHandover' || a.currentStep === 'GD5_Cho_PTT_TiepNhan_BG').length;
-    const ptdaIssues = apps.filter(a => (a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None')) && stepConfig[a.currentStep]?.dept === 'PTDA').length;
+    const ptdaIssues = apps.filter(a => (a.isRejected || a.status === 'Error' || (a.issueType && a.issueType !== 'None')) && getRecordDept(a, stepConfig) === 'PTDA').length;
     
     const ptdaAppsWithTax = apps.filter(a => a.submissionDate && a.taxNotificationDate);
     const avgTaxWait = ptdaAppsWithTax.length > 0 
@@ -166,17 +167,12 @@ export function useDashboardStats(
             return acc + (end - start);
           }, 0) / ptdaAppsWithTax.length / (1000 * 60 * 60 * 24)
         : 0;
-    const ptdaStuck = apps.filter(a => stepConfig[a.currentStep]?.dept === 'PTDA' && getOverdueInfo(a, stepConfig, slaConfig).isOverdue).length;
+    const ptdaStuck = apps.filter(a => getRecordDept(a, stepConfig) === 'PTDA' && getOverdueInfo(a, stepConfig, slaConfig).isOverdue).length;
 
     // Simplified Bottleneck Stats by Department
     const depts: Dept[] = ['PTT', 'KT', 'PTDA'];
     const deptStats = depts.map(dept => {
-        const appsInDept = apps.filter(a => {
-          const isSupportSpecial = (a.workflowType === 'Quy_trinh_1' || a.projectName?.includes('hỗ trợ')) && (a.currentStep === 'GD2_Cho_Nop_VPDK' || a.currentStep === 'S3_Nop_VPDK');
-          if (dept === 'KT' && isSupportSpecial) return true;
-          if (dept === 'PTDA' && isSupportSpecial) return false; // Force NOT PTDA for this step in support process
-          return (stepConfig[a.currentStep] || INITIAL_STEP_CONFIG[a.currentStep])?.dept === dept;
-        });
+        const appsInDept = apps.filter(a => getRecordDept(a, stepConfig) === dept);
 
         // Filter apps to exclude those with active issues (issueType != null/undefined and is not 'None')
         const appsInDeptForAvg = appsInDept.filter(a => !a.issueType || a.issueType === 'None');
@@ -396,22 +392,11 @@ export function useDashboardStats(
 
     const waitVPDK = groups['2. CHỜ NỘP VPĐK'] || [];
     
-    // PTDA only accounts for Quy trình 2
-    const waitVPDK_PTDA = waitVPDK.filter(a => {
-      const isQT2 = a.workflowType === 'Quy_trinh_2' || (a as any).workflow_type === 'Quy_trinh_2';
-      if (!isQT2) return false;
-      
-      const stepDef = stepConfig?.[a.currentStep] || INITIAL_STEP_CONFIG[a.currentStep];
-      if (stepDef?.dept === 'PTDA') return true;
-      
-      // Fallback nếu records bị lệch currentStep nhưng có ngày bàn giao cho PTDA
-      if (a.ktHandoverToPtdaDate && String(a.ktHandoverToPtdaDate).trim() !== '' && String(a.ktHandoverToPtdaDate).trim() !== '---') return true;
-      
-      return false;
-    });
+    // PTDA only accounts for Quy trình 2 where active department is PTDA
+    const waitVPDK_PTDA = waitVPDK.filter(a => getRecordDept(a, stepConfig) === 'PTDA');
 
     // Kế toán chứa toàn bộ phần còn lại để không bị hụt số liệu
-    const waitVPDK_KT = waitVPDK.filter(a => !waitVPDK_PTDA.includes(a));
+    const waitVPDK_KT = waitVPDK.filter(a => getRecordDept(a, stepConfig) === 'KT');
 
     const hasQT2 = appsList.some(a => a.workflowType === 'Quy_trinh_2' || (a as any).workflow_type === 'Quy_trinh_2');
 

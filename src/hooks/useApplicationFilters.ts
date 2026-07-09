@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { isOverdue, getSLAStatus } from '../utils/statusEngine';
 import { Application } from '../types';
+import { getRecordDept } from '../utils/appUtils';
 
 const getVal = <K extends keyof Application>(
   obj: Application,
@@ -172,9 +173,7 @@ export function useApplicationFilters(
 
       // ================= 1. DEPT FILTER (NEW) =================
       if (activeDept) {
-        const isSupportSpecial = (a.projectName?.includes('hỗ trợ') || a.workflowType === 'Quy_trinh_1') && (a.currentStep === 'GD2_Cho_Nop_VPDK' || a.currentStep === 'S3_Nop_VPDK');
-        const config = (stepConfig || {})[a.currentStep];
-        const dept = isSupportSpecial ? 'KT' : (config?.dept || '---');
+        const dept = getRecordDept(a, stepConfig);
         if (dept !== activeDept) return false;
       }
 

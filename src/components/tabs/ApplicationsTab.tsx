@@ -5,6 +5,7 @@ import { StatusBadge } from '../AppSubComponents';
 import { Application } from '../../types';
 import { formatDate } from '../../utils/dateUtils';
 import { isMissingCoreInfo } from '../../utils/flagUtils';
+import { getRecordDept } from '../../utils/appUtils';
 import { getNextStep, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS } from '../../constants';
 import { calculateSLA } from '../../utils/statusEngine';
 import { 
@@ -1167,8 +1168,7 @@ export const ApplicationsTab = ({
                                   <td className="px-2 py-0 text-center">
                                       {(() => {
                                         const isSupportSpecial = (app?.projectName?.includes('hỗ trợ') || app?.workflowType === 'Quy_trinh_1') && (app?.currentStep === 'GD2_Cho_Nop_VPDK' || app?.currentStep === 'S3_Nop_VPDK');
-                                        const config = (stepConfig[app?.currentStep || ''] || INITIAL_STEP_CONFIG[app?.currentStep || '']);
-                                        const dept = isSupportSpecial ? 'KT' : (config?.dept || '---');
+                                        const dept = getRecordDept(app, stepConfig);
                                         return (
                                           <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
                                             {dept}

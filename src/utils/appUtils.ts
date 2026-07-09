@@ -1,8 +1,30 @@
 import { Application, StepName } from '../types';
 import { calculateSLA, calculateDaysDiff } from './statusEngine';
-import { WORKFLOW_1_STEPS, WORKFLOW_2_STEPS } from '../constants';
+import { WORKFLOW_1_STEPS, WORKFLOW_2_STEPS, STEP_CONFIG } from '../constants';
 
 export { calculateDaysDiff };
+
+export const getRecordDept = (app: any, stepConfig?: any): string => {
+  if (!app) return '---';
+  const currentStep = app.currentStep || app.current_step || '';
+  const finalStepConfig = stepConfig || STEP_CONFIG;
+
+  // 1. Support workflow special cases:
+  const isSupportSpecial = (app.workflowType === 'Quy_trinh_1' || app.projectName?.includes('hỗ trợ')) && 
+                           (currentStep === 'GD2_Cho_Nop_VPDK' || currentStep === 'S3_Nop_VPDK');
+  if (isSupportSpecial) return 'KT';
+
+  // 2. Standard workflow S2_KT_Ban_giao case:
+  if (currentStep === 'S2_KT_Ban_giao') {
+    const handoverDate = app.ktHandoverToPtdaDate || app.kt_handover_to_ptda_date;
+    const hasHandoverDate = handoverDate && String(handoverDate).trim() !== '' && String(handoverDate).trim() !== '---';
+    return hasHandoverDate ? 'PTDA' : 'KT';
+  }
+
+  // 3. Default from step configuration
+  const config = finalStepConfig[currentStep];
+  return config?.dept || '---';
+};
 
 export const generateUUID = (): string => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
