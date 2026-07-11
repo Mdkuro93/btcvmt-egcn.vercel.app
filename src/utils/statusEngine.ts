@@ -410,6 +410,30 @@ export function isOverdue(app: any, stepConfig?: any, slaConfig?: any): boolean 
 export const computeUltimateStatus = (app: any): string => {
   const isV = (val: any) => val && val !== '---' && val !== 'None' && String(val).trim() !== '';
 
+  // Fallback for lightweight select where major milestone dates are empty/missing but status is present
+  const hasNoDates = !isV(app.customerHandoverDate) && 
+                     !isV(app.gcnReceivedDate) && 
+                     !isV(app.ptdaHandoverDate) && 
+                     !isV(app.gcnSignedDate) && 
+                     !isV(app.taxReceiptDate) && 
+                     !isV(app.taxNotificationDate) && 
+                     !isV(app.taxNotificationReceivedDate) && 
+                     !isV(app.submissionDate) &&
+                     !isV(app.ktHandoverToPtdaDate) &&
+                     !isV(app.accountingHandoverDate);
+
+  if (hasNoDates && app.status) {
+    const s = app.status;
+    if (s === 'Completed' || s === 'Hoan_Tat') return '9. HOÀN TẤT';
+    if (s === 'WaitingHandover') return '8. CHỜ BÀN GIAO';
+    if (s === 'GCN_Issued') return '7. ĐÃ CÓ GCN';
+    if (s === 'TaxPaid' || s === 'TaxCompleted') return '6. ĐÃ NỘP THUẾ';
+    if (s === 'TaxPending') return '4. CHỜ THÔNG BÁO THUẾ';
+    if (s === 'Submitted') return '3. ĐÃ NỘP VPĐK';
+    if (s === 'WaitingVPDK') return '2. CHỜ NỘP VPĐK';
+    return '1. ĐANG CHUẨN BỊ';
+  }
+
   // Nếu hồ sơ đang bị trả về (isRejected=true), ưu tiên dùng currentStep
   // để tránh bị xếp nhầm nhóm do các field ngày cột mốc cũ vẫn còn giá trị
   if (app.isRejected || app.is_rejected) {

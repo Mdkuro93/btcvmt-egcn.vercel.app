@@ -56,7 +56,7 @@ export const updateAppIssue = (
   };
 };
 
-export const RECORD_LIGHT_SELECT = 'id, unit_code, project_name, customer_name, contract_signer_type, phone_number, property_type, loan_status, is_self_service, current_step, status, received_date, contract_signing_date, submission_date, tax_notification_date, tax_receipt_date, gcn_signed_date, gcn_received_date, customer_handover_date, accounting_handover_date, ptda_handover_date, bank_commitment_deadline, submission_location, vpdk_code, issue_type, issue_severity, issue_notes, is_rejected, workflow_type, created_at, assigned_to, tax_payment_status, scanned_files, rejection_count, rejection_reason, commitment_date, assigned_to_id, assigned_to_name, tax_vpdk_submission_date, gcn_number, kt_handover_to_ptda_date, tax_notification_received_date, tax_notice_provision_date, handover_apartment_date';
+export const RECORD_LIGHT_SELECT = 'id, unit_code, project_name, customer_name, contract_signer_type, phone_number, property_type, loan_status, is_self_service, current_step, status, received_date, contract_signing_date, submission_date, tax_notification_date, tax_receipt_date, gcn_signed_date, gcn_received_date, customer_handover_date, accounting_handover_date, ptda_handover_date, bank_commitment_deadline, submission_location, vpdk_code, issue_type, issue_severity, issue_notes, is_rejected, workflow_type, created_at, assigned_to, tax_payment_status, scanned_files, rejection_count, rejection_reason, commitment_date, assigned_to_id, assigned_to_name, tax_vpdk_submission_date, gcn_number, kt_handover_to_ptda_date, tax_notification_received_date, tax_notice_provision_date, handover_apartment_date, is_priority, priority_reason';
 
 // Module-level thay vì useRef — Zustand không phải React component nên không dùng hook.
 // selfUpdateIds lưu các id vừa được chính client này cập nhật để Realtime listener
@@ -559,6 +559,18 @@ interface DataState {
   updateApp: (
     app: Application
   ) => Promise<{ success: boolean; message: string; finalApp?: Application }>;
+
+  togglePriority: (
+    appId: string | number,
+    isPriority: boolean,
+    reason: string
+  ) => Promise<{ success: boolean; message: string; finalApp?: Application }>;
+
+  bulkTogglePriority: (
+    appIds: (string | number)[],
+    isPriority: boolean,
+    reason: string
+  ) => Promise<{ success: boolean; message: string }>;
 
   deleteApp: (
     id: string,
@@ -1927,6 +1939,129 @@ export const useDataStore = create<DataState>((set, get) => ({
     } catch (error: any) {
       console.error('Supabase update error:', error);
       return { success: false, message: `Lỗi khi lưu dữ liệu lên Supabase: ${error.message || 'Vui lòng kiểm tra cấu hình.'}` };
+    }
+  },
+
+  togglePriority: async (appId, isPriority, reason) => {
+    try {
+      const { applications, syncRecord, setApplications, setDashboardApps } = get();
+      const { currentUser } = useAuthStore.getState();
+      const app = applications.find(a => a.id === appId);
+      if (!app) {
+        return { success: false, message: 'Không tìm thấy hồ sơ.' };
+      }
+
+      // Create an audit entry
+      const actionName = isPriority ? 'Bật ưu tiên' : 'Gỡ ưu tiên';
+      const detailText = isPriority 
+        ? `Đánh dấu hồ sơ ưu tiên xử lý gấp. Lý do: ${reason}` 
+        : `Gỡ bỏ trạng thái ưu tiên. Lý do: ${reason}`;
+      const auditEntry = createAuditEntry(actionName, false, 1, app.unitCode, detailText);
+
+      // Create updated app
+      const updatedApp = { 
+        ...app, 
+        isPriority, 
+        priorityReason: reason, 
+        auditTrail: [auditEntry, ...(app.auditTrail || [])] 
+      };
+
+      // Sync to database
+      const finalApp = await syncRecord(updatedApp);
+
+      // Save locally
+      setApplications(prev => prev.map(a => a.id === appId ? finalApp : a));
+      setDashboardApps(prev => prev.map(a => a.id === appId ? finalApp : a));
+
+      // Push notification if assigned to another user
+      if (app.assignedToId && app.assignedToId !== currentUser?.id) {
+        const noti = {
+          recipientId: app.assignedToId,
+          title: isPriority ? 'Hồ sơ được đánh dấu ƯU TIÊN' : 'Hồ sơ bị GỠ trạng thái ưu tiên',
+          message: isPriority 
+            ? `Hồ sơ lô ${app.unitCode} đã được đánh dấu ưu tiên với lý do: ${reason}`
+            : `Hồ sơ lô ${app.unitCode} đã bị gỡ ưu tiên. Lý do: ${reason}`,
+          type: isPriority ? 'Urgent' : 'Info',
+          appId: app.id
+        };
+        const snakeNoti = mapNotificationToSnakeCase(noti as any);
+        if ((snakeNoti as any).id) delete (snakeNoti as any).id;
+        await supabase.from('notifications').insert(snakeNoti);
+      }
+
+      return { success: true, message: `Đã ${isPriority ? 'bật' : 'gỡ'} trạng thái ưu tiên thành công!`, finalApp };
+    } catch (error: any) {
+      console.error('togglePriority error:', error);
+      return { success: false, message: `Lỗi khi lưu dữ liệu ưu tiên: ${error.message || ''}` };
+    }
+  },
+
+  bulkTogglePriority: async (appIds, isPriority, reason) => {
+    try {
+      const { applications, setApplications, setDashboardApps } = get();
+      const { currentUser } = useAuthStore.getState();
+      
+      const appsToUpdate = applications.filter(a => appIds.includes(a.id as string | number));
+      if (appsToUpdate.length === 0) {
+        return { success: false, message: 'Không tìm thấy hồ sơ phù hợp.' };
+      }
+
+      const updatedApps = appsToUpdate.map(app => {
+        const actionName = isPriority ? 'Bật ưu tiên' : 'Gỡ ưu tiên';
+        const detailText = isPriority 
+          ? `Đánh dấu hồ sơ ưu tiên xử lý gấp. Lý do: ${reason}` 
+          : `Gỡ bỏ trạng thái ưu tiên. Lý do: ${reason}`;
+        const auditEntry = createAuditEntry(actionName, true, appsToUpdate.length, app.unitCode, detailText);
+        return {
+          ...app,
+          isPriority,
+          priorityReason: reason,
+          auditTrail: [auditEntry, ...(app.auditTrail || [])]
+        };
+      });
+
+      // Synchronize in bulk using bulkSyncRecordsToSupabase
+      const syncedApps = await bulkSyncRecordsToSupabase(updatedApps, applications);
+
+      // Save locally
+      setApplications(prev => prev.map(a => {
+        const found = syncedApps.find(sa => sa.id === a.id);
+        return found ? found : a;
+      }));
+      setDashboardApps(prev => prev.map(a => {
+        const found = syncedApps.find(sa => sa.id === a.id);
+        return found ? found : a;
+      }));
+
+      // Push notification for each app to its assigned user
+      const notificationsToInsert = [];
+      for (const app of updatedApps) {
+        if (app.assignedToId && app.assignedToId !== currentUser?.id) {
+          notificationsToInsert.push({
+            recipientId: app.assignedToId,
+            title: isPriority ? 'Hồ sơ được đánh dấu ƯU TIÊN' : 'Hồ sơ bị GỠ trạng thái ưu tiên',
+            message: isPriority 
+              ? `Hồ sơ lô ${app.unitCode} đã được đánh dấu ưu tiên với lý do: ${reason}`
+              : `Hồ sơ lô ${app.unitCode} đã bị gỡ ưu tiên. Lý do: ${reason}`,
+            type: isPriority ? 'Urgent' : 'Info',
+            appId: app.id
+          });
+        }
+      }
+
+      if (notificationsToInsert.length > 0) {
+        const snakeNotis = notificationsToInsert.map(n => {
+          const s = mapNotificationToSnakeCase(n as any);
+          if ((s as any).id) delete (s as any).id;
+          return s;
+        });
+        await Promise.allSettled(snakeNotis.map(s => supabase.from('notifications').insert(s)));
+      }
+
+      return { success: true, message: `Đã ${isPriority ? 'bật' : 'gỡ'} trạng thái ưu tiên cho ${appsToUpdate.length} hồ sơ thành công!` };
+    } catch (error: any) {
+      console.error('bulkTogglePriority error:', error);
+      return { success: false, message: `Lỗi khi lưu dữ liệu ưu tiên hàng loạt: ${error.message || ''}` };
     }
   },
 

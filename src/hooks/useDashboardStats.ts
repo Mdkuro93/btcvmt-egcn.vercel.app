@@ -374,13 +374,13 @@ export function useDashboardStats(
     });
 
     const createStageItem = (name: string, list: Application[], color: string, statusId: UnitStatus, isSub: boolean = false) => {
-      const errorCount = list.filter(a => {
-        return (a.status as string) === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None');
-      }).length;
+      const errorCount = list.filter(a => a.isRejected === true).length;
+      const priorityCount = list.filter(a => a.isPriority === true).length;
       return {
         name,
         value: list.length,
-        normal: list.length - errorCount,
+        normal: Math.max(0, list.length - errorCount - priorityCount),
+        priority: priorityCount,
         error: errorCount,
         labelAnchor: 0.01, // Giá trị ảo cực nhỏ, chỉ dùng để neo LabelList, không ảnh hưởng tỷ lệ trực quan
         color,

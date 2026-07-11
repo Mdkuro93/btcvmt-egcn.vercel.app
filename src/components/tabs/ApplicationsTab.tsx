@@ -8,10 +8,11 @@ import { isMissingCoreInfo } from '../../utils/flagUtils';
 import { getRecordDept } from '../../utils/appUtils';
 import { getNextStep, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS } from '../../constants';
 import { calculateSLA } from '../../utils/statusEngine';
+import { useDataStore } from '../../stores/useDataStore';
 import { 
   Building, Clock, FileText, CheckCircle, AlertTriangle, Play, FastForward, Inbox, ChevronDown, Check, Target, Activity, Zap,
   Search, Printer, Filter, X, FileSpreadsheet, Trash2, MessageSquare, GitMerge, RotateCcw, User, ArrowUp, ArrowDown, RefreshCcw,
-  Files, ChevronRight, AlertCircle, UserCheck
+  Files, ChevronRight, AlertCircle, UserCheck, Star, Flag
 } from 'lucide-react';
 
 export const ApplicationsTab = ({
@@ -143,6 +144,12 @@ export const ApplicationsTab = ({
   filterDept,
   setFilterDept
 }: any) => {
+
+  const { togglePriority, bulkTogglePriority } = useDataStore();
+  const [priorityDialogApp, setPriorityDialogApp] = React.useState<any>(null);
+  const [priorityReasonInput, setPriorityReasonInput] = React.useState('');
+  const [bulkPriorityDialog, setBulkPriorityDialog] = React.useState<{ isOpen: boolean; isPriority: boolean }>({ isOpen: false, isPriority: true });
+  const [bulkPriorityReasonInput, setBulkPriorityReasonInput] = React.useState('');
 
   const currentVisibleApps = React.useMemo(() => 
     displayedApps.slice(currentPage * pageSize, (currentPage + 1) * pageSize),
@@ -679,6 +686,26 @@ export const ApplicationsTab = ({
 
                           <button 
                             onClick={() => {
+                              const allPriority = selectedAppIds.every(id => {
+                                const a = applications.find(x => String(x.id) === String(id));
+                                return a?.isPriority;
+                              });
+                              setBulkPriorityDialog({ isOpen: true, isPriority: !allPriority });
+                              setBulkPriorityReasonInput('');
+                            }}
+                            className={cn(
+                              "w-10 h-10 rounded-full transition-all flex items-center justify-center border",
+                              theme === 'light' 
+                                ? "bg-amber-50 hover:bg-amber-100 text-amber-600 hover:text-amber-700 border-amber-200" 
+                                : "bg-amber-500/10 hover:bg-amber-500 text-amber-500 hover:text-white border-amber-500/20"
+                            )}
+                            title="Bật/Tắt ưu tiên hàng loạt"
+                          >
+                            <Star size={16} className={cn(selectedAppIds.every(id => applications.find(x => String(x.id) === String(id))?.isPriority) && "fill-current")} />
+                          </button>
+
+                          <button 
+                            onClick={() => {
                               setSelectedAppIds([]);
                             }}
                             className={cn(
@@ -865,7 +892,23 @@ export const ApplicationsTab = ({
                                       }}
                                     />
                                   ) : (
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <button 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setPriorityDialogApp(app);
+                                          setPriorityReasonInput(app.priorityReason || '');
+                                        }}
+                                        className={cn(
+                                          "p-0.5 rounded transition-all hover:scale-110 shrink-0",
+                                          app.isPriority 
+                                            ? "text-amber-500 fill-amber-500 hover:text-amber-600" 
+                                            : "text-slate-400 hover:text-amber-400 opacity-25 hover:opacity-100"
+                                        )}
+                                        title={app.isPriority ? `Ưu tiên: ${app.priorityReason}` : "Đánh dấu ưu tiên"}
+                                      >
+                                        <Star size={12} className={cn(app.isPriority && "drop-shadow-[0_0_4px_rgba(245,158,11,0.5)]")} />
+                                      </button>
                                       <span className={cn("text-[13px] font-medium", theme === 'light' ? "text-slate-900" : "text-white")}>{app.unitCode}</span>
                                       {app.isRejected && app.currentStep === 'S1_ChuanBi' && (
                                         <span className="animate-pulse flex items-center gap-1 text-[9px] bg-rose-500 text-white px-1 py-0.5 rounded-full font-medium uppercase tracking-tight">
@@ -1419,6 +1462,273 @@ export const ApplicationsTab = ({
                     className="flex-[2] py-3 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-600/20"
                   >
                     Xác nhận gán
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {priorityDialogApp && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={cn(
+                "w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border",
+                theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900 border-slate-800"
+              )}
+            >
+              <div className={cn(
+                "px-6 py-4 border-b flex justify-between items-center",
+                theme === 'light' ? "border-slate-100 bg-slate-50" : "border-slate-800 bg-slate-950/20"
+              )}>
+                <h3 className={cn(
+                  "text-sm font-black uppercase tracking-wider flex items-center gap-2",
+                  theme === 'light' ? "text-slate-800" : "text-slate-200"
+                )}>
+                  <Star className="text-amber-500 fill-amber-500" size={16} />
+                  Ưu tiên hồ sơ: {priorityDialogApp.unitCode}
+                </h3>
+                <button
+                  onClick={() => setPriorityDialogApp(null)}
+                  className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
+                    theme === 'light' ? "text-slate-400 hover:bg-slate-100" : "text-slate-500 hover:bg-slate-800"
+                  )}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="p-6">
+                {priorityDialogApp.isPriority ? (
+                  <div className="space-y-4">
+                    <div className={cn(
+                      "p-3.5 rounded-2xl border text-xs",
+                      theme === 'light' ? "bg-amber-50/50 border-amber-100 text-amber-800" : "bg-amber-950/20 border-amber-900/30 text-amber-300"
+                    )}>
+                      <p className="font-bold mb-1">Trạng thái hiện tại: ƯU TIÊN</p>
+                      <p className="opacity-90"><span className="font-semibold">Lý do:</span> {priorityDialogApp.priorityReason || '(Không có lý do cụ thể)'}</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-bold uppercase mb-2 tracking-widest pl-1">
+                        Lý do gỡ ưu tiên (đối soát audit)
+                      </label>
+                      <textarea
+                        value={priorityReasonInput}
+                        onChange={(e) => setPriorityReasonInput(e.target.value)}
+                        placeholder="Nhập lý do gỡ bỏ trạng thái xử lý gấp..."
+                        className={cn(
+                          "w-full px-4 py-3 rounded-2xl border text-xs outline-none transition-all focus:ring-2 focus:ring-amber-500/20 min-h-[80px] resize-none",
+                          theme === 'light' 
+                            ? "bg-slate-50 border-slate-200 text-slate-800 focus:border-amber-500/50" 
+                            : "bg-slate-950 border-slate-800 text-slate-200 focus:border-amber-500/50"
+                        )}
+                      />
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        onClick={() => setPriorityDialogApp(null)}
+                        className={cn(
+                          "flex-1 py-3 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border",
+                          theme === 'light' 
+                            ? "text-slate-500 hover:bg-slate-100 border-slate-200" 
+                            : "text-slate-400 hover:bg-slate-800 border-slate-800"
+                        )}
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        onClick={async () => {
+                          await togglePriority(priorityDialogApp.id, false, priorityReasonInput || 'Gỡ ưu tiên');
+                          setPriorityDialogApp(null);
+                        }}
+                        className="flex-[2] py-3 px-4 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-rose-600/20"
+                      >
+                        Gỡ ưu tiên
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-[10px] text-slate-500 font-bold uppercase mb-2 tracking-widest pl-1">
+                        Lý do ưu tiên hồ sơ
+                      </label>
+                      <textarea
+                        value={priorityReasonInput}
+                        onChange={(e) => setPriorityReasonInput(e.target.value)}
+                        placeholder="Nhập lý do đánh dấu xử lý gấp hồ sơ này..."
+                        className={cn(
+                          "w-full px-4 py-3 rounded-2xl border text-xs outline-none transition-all focus:ring-2 focus:ring-amber-500/20 min-h-[80px] resize-none",
+                          theme === 'light' 
+                            ? "bg-slate-50 border-slate-200 text-slate-800 focus:border-amber-500/50" 
+                            : "bg-slate-950 border-slate-800 text-slate-200 focus:border-amber-500/50"
+                        )}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider pl-1">Gợi ý lý do:</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {["Hồ sơ xử lý gấp", "Khách hàng khiếu nại", "Sắp trễ hạn bộ phận", "Chủ đầu tư yêu cầu", "Sai sót kỹ thuật cần sửa ngay"].map((suggestion) => (
+                          <button
+                            key={suggestion}
+                            type="button"
+                            onClick={() => setPriorityReasonInput(suggestion)}
+                            className={cn(
+                              "text-[10px] px-2.5 py-1 rounded-full border transition-all",
+                              theme === 'light'
+                                ? "bg-slate-50 border-slate-200 hover:bg-slate-100 hover:border-slate-300 text-slate-600"
+                                : "bg-slate-800 border-slate-700/60 hover:bg-slate-700 hover:border-slate-600 text-slate-300"
+                            )}
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        onClick={() => setPriorityDialogApp(null)}
+                        className={cn(
+                          "flex-1 py-3 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border",
+                          theme === 'light' 
+                            ? "text-slate-500 hover:bg-slate-100 border-slate-200" 
+                            : "text-slate-400 hover:bg-slate-800 border-slate-800"
+                        )}
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        onClick={async () => {
+                          await togglePriority(priorityDialogApp.id, true, priorityReasonInput || 'Xử lý gấp');
+                          setPriorityDialogApp(null);
+                        }}
+                        className="flex-[2] py-3 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-amber-500/20"
+                      >
+                        Xác nhận ưu tiên
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {bulkPriorityDialog.isOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={cn(
+                "w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border",
+                theme === 'light' ? "bg-white border-slate-200" : "bg-slate-900 border-slate-800"
+              )}
+            >
+              <div className={cn(
+                "px-6 py-4 border-b flex justify-between items-center",
+                theme === 'light' ? "border-slate-100 bg-slate-50" : "border-slate-800 bg-slate-950/20"
+              )}>
+                <h3 className={cn(
+                  "text-sm font-black uppercase tracking-wider flex items-center gap-2",
+                  theme === 'light' ? "text-slate-800" : "text-slate-200"
+                )}>
+                  <Star className="text-amber-500 fill-amber-500 animate-pulse" size={16} />
+                  Ưu tiên hàng loạt ({selectedAppIds.length} hồ sơ)
+                </h3>
+                <button
+                  onClick={() => setBulkPriorityDialog({ isOpen: false, isPriority: true })}
+                  className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center transition-colors",
+                    theme === 'light' ? "text-slate-400 hover:bg-slate-100" : "text-slate-500 hover:bg-slate-800"
+                  )}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-[10px] text-slate-500 font-bold uppercase mb-2 tracking-widest pl-1">
+                    Thao tác
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBulkPriorityDialog(prev => ({ ...prev, isPriority: true }))}
+                      className={cn(
+                        "py-3 rounded-2xl border text-xs font-bold transition-all",
+                        bulkPriorityDialog.isPriority
+                          ? "bg-amber-500/10 border-amber-500 text-amber-500"
+                          : theme === 'light' ? "border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100" : "border-slate-800 text-slate-400 bg-slate-950 hover:bg-slate-800"
+                      )}
+                    >
+                      Bật Ưu tiên
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBulkPriorityDialog(prev => ({ ...prev, isPriority: false }))}
+                      className={cn(
+                        "py-3 rounded-2xl border text-xs font-bold transition-all",
+                        !bulkPriorityDialog.isPriority
+                          ? "bg-rose-500/10 border-rose-500 text-rose-500"
+                          : theme === 'light' ? "border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100" : "border-slate-800 text-slate-400 bg-slate-950 hover:bg-slate-800"
+                      )}
+                    >
+                      Gỡ Ưu tiên
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] text-slate-500 font-bold uppercase mb-2 tracking-widest pl-1">
+                    Lý do {bulkPriorityDialog.isPriority ? 'ưu tiên' : 'gỡ ưu tiên'}
+                  </label>
+                  <textarea
+                    value={bulkPriorityReasonInput}
+                    onChange={(e) => setBulkPriorityReasonInput(e.target.value)}
+                    placeholder={bulkPriorityDialog.isPriority ? "Nhập lý do đánh dấu xử lý gấp hàng loạt..." : "Nhập lý do gỡ bỏ trạng thái xử lý gấp hàng loạt..."}
+                    className={cn(
+                      "w-full px-4 py-3 rounded-2xl border text-xs outline-none transition-all focus:ring-2 focus:ring-amber-500/20 min-h-[80px] resize-none",
+                      theme === 'light' 
+                        ? "bg-slate-50 border-slate-200 text-slate-800 focus:border-amber-500/50" 
+                        : "bg-slate-950 border-slate-800 text-slate-200 focus:border-amber-500/50"
+                    )}
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setBulkPriorityDialog({ isOpen: false, isPriority: true })}
+                    className={cn(
+                      "flex-1 py-3 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border",
+                      theme === 'light' 
+                        ? "text-slate-500 hover:bg-slate-100 border-slate-200" 
+                        : "text-slate-400 hover:bg-slate-800 border-slate-800"
+                    )}
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await bulkTogglePriority(selectedAppIds, bulkPriorityDialog.isPriority, bulkPriorityReasonInput || (bulkPriorityDialog.isPriority ? 'Ưu tiên hàng loạt' : 'Gỡ ưu tiên hàng loạt'));
+                      setBulkPriorityDialog({ isOpen: false, isPriority: true });
+                      setSelectedAppIds([]);
+                    }}
+                    className={cn(
+                      "flex-[2] py-3 px-4 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg",
+                      bulkPriorityDialog.isPriority
+                        ? "bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/20 font-black"
+                        : "bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/20"
+                    )}
+                  >
+                    Xác nhận
                   </button>
                 </div>
               </div>

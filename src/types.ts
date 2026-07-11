@@ -186,6 +186,8 @@ export type Application = {
   auditTrail?: AuditTrailEntry[];
   flags?: string[];
   hasError?: boolean;
+  isPriority?: boolean;
+  priorityReason?: string;
   errors?: any[];
   _sla?: any;
   assignedToId?: string;   // ID nhân viên phụ trách

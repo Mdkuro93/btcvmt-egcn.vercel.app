@@ -104,7 +104,7 @@ export const ResourcesTab = ({
                         )}
                         {userRole === 'ADMIN' && (
                           <button 
-                            onClick={handleDownloadTemplate}
+                            onClick={() => handleDownloadTemplate('all_filtered')}
                             className="px-4 py-4 bg-white border border-slate-200 text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 hover:bg-slate-50 transition-all font-bold"
                             title="Tải toàn bộ dữ liệu hồ sơ"
                           >

@@ -44,6 +44,7 @@ export interface ProgressChartDataItem {
   name: string;
   value: number;
   normal: number;
+  priority: number;
   error: number;
   color: string;
   isSub?: boolean;
@@ -502,8 +503,10 @@ export const DashboardTab = React.memo(({
                                axisLine={false} 
                                tickLine={false} 
                                width={180}
-                               tick={({ x, y, payload }: any) => {
+                               tick={({ x, y, payload, index }: any) => {
                                  const isSub = payload.value.includes('↳');
+                                 const item = safeProgressChartData[index];
+                                 const hasPriority = item && item.priority > 0;
                                  
                                  // Fix text contrast
                                  const fill = theme === 'light' 
@@ -521,7 +524,7 @@ export const DashboardTab = React.memo(({
                                      textAnchor="start"
                                      xmlSpace="preserve"
                                    >
-                                     {payload.value}
+                                     {payload.value}{hasPriority ? ' ⭐' : ''}
                                    </text>
                                  );
                                }}
@@ -550,6 +553,10 @@ export const DashboardTab = React.memo(({
                                         <div className="flex justify-between gap-8 items-center">
                                           <span className="text-slate-500 font-bold uppercase text-[9px]">Bình thường:</span>
                                           <span className="font-bold text-emerald-500 text-xs">{data.normal.toLocaleString()}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-8 items-center">
+                                          <span className="text-slate-500 font-bold uppercase text-[9px]">Ưu tiên:</span>
+                                          <span className="font-bold text-amber-500 text-xs">{(data.priority || 0).toLocaleString()}</span>
                                         </div>
                                         <div className="flex justify-between gap-8 items-center">
                                           <span className="text-slate-500 font-bold uppercase text-[9px]">Sai sót:</span>
@@ -582,6 +589,22 @@ export const DashboardTab = React.memo(({
                                 <Cell key={`dashboard-progress-normal-cell-${entry.name || 'unnamed'}-${index}`} fill={entry.color} />
                               ))}
                             </Bar>
+                            <Bar 
+                              dataKey="priority" 
+                              stackId="a"
+                              fill="#f59e0b"
+                              barSize={24} 
+                              shape={(props: any) => {
+                                const { fill, x, y, width, height, payload } = props;
+                                const isSub = payload && payload.isSub;
+                                if (!height || width === 0) return null;
+                                const h = isSub ? 10 : height;
+                                
+                                const cy = isSub ? y + (height - h) / 2 : y;
+                                const opacity = isSub ? 0.7 : 1;
+                                return <Rectangle {...props} x={x} y={cy} width={width} height={h} fill={fill} fillOpacity={opacity} radius={[0, 0, 0, 0]} className="transition-all duration-300" />;
+                              }}
+                            />
                             <Bar 
                               dataKey="error" 
                               stackId="a"

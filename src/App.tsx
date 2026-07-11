@@ -76,6 +76,7 @@ import {
   MapPin,
   Calendar,
   FileSpreadsheet,
+  Star,
   FileJson,
   Bell,
   BellOff,
@@ -1685,8 +1686,8 @@ export default function App() {
     });
 
     try {
-      // Fetch columns using RECORD_LIGHT_SELECT to optimize bandwidth and maintain consistency
-      let query = supabase.from('records').select(RECORD_LIGHT_SELECT);
+      // Fetch lightweight columns to optimize bandwidth and network performance for dashboard
+      let query = supabase.from('records').select('id, status, is_rejected, is_priority, project_name, current_step, workflow_type, kt_handover_to_ptda_date, accounting_handover_date, loan_status, is_self_service, submission_date, tax_notification_date, tax_receipt_date, gcn_signed_date, gcn_received_date, ptda_handover_date, customer_handover_date, tax_notification_received_date, issue_type, received_date, created_at, handover_apartment_date, property_type');
       
       const currentUserRole = currentUser?.dept || 'PTT';
       
@@ -3157,81 +3158,64 @@ export default function App() {
     return undefined;
   };
 
-  const handleDownloadTemplate = () => {
-    let headers: string[] = [];
-    let data: any[][] = [];
-    const sourceApps = selectedProjectId ? dashboardApps : applications;
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isExcelDropdownOpen, setIsExcelDropdownOpen] = useState(false);
 
-    const getColumnLetter = (index: number): string => {
-      let temp = index;
-      let letter = '';
-      while (temp >= 0) {
-        letter = String.fromCharCode((temp % 26) + 65) + letter;
-        temp = Math.floor(temp / 26) - 1;
+  useEffect(() => {
+    setIsExcelDropdownOpen(false);
+  }, [searchQuery, selectedProjectId, filterStatus, filterLoanStatus, filterSelfService, filterIssue, filterSLAStatus, filterDept]);
+
+  const handleDownloadTemplate = async (mode: 'all_filtered' | 'current_page' | 'empty_template' = 'all_filtered') => {
+    setIsExportingExcel(true);
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    try {
+      let headers: string[] = [];
+      let data: any[][] = [];
+      
+      let sourceApps: Application[] = [];
+      if (mode === 'empty_template') {
+        sourceApps = [];
+      } else if (mode === 'current_page') {
+        sourceApps = visibleApps;
+      } else {
+        sourceApps = displayedApps;
       }
-      return letter;
-    };
 
-    const normalizeStr = (str: any) => {
-      if (!str) return '';
-      return str.toString()
-        .trim()
-        .toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        .replace(/đ/g, "d")
-        .replace(/[^a-z0-9/()_-\s]/g, "");
-    };
+      const getColumnLetter = (index: number): string => {
+        let temp = index;
+        let letter = '';
+        while (temp >= 0) {
+          letter = String.fromCharCode((temp % 26) + 65) + letter;
+          temp = Math.floor(temp / 26) - 1;
+        }
+        return letter;
+      };
 
-    const getHeaderColLetter = (headerName: string): string => {
-      const normTarget = normalizeStr(headerName);
-      const idx = headers.findIndex(h => normalizeStr(h).includes(normTarget));
-      return idx !== -1 ? getColumnLetter(idx) : '';
-    };
+      const normalizeStr = (str: any) => {
+        if (!str) return '';
+        return str.toString()
+          .trim()
+          .toLowerCase()
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+          .replace(/đ/g, "d")
+          .replace(/[^a-z0-9/()_-\s]/g, "");
+      };
 
-    if (isManagementEdit) {
-      headers = [
-        "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Số GCNQSDĐ", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)", 
-        "Hạn GCN cam kết", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT",
-        "Nơi nộp", "Mã VPĐK", "Ngày nộp hồ sơ", "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", 
-        "Ngày GCN đã ký", "Ngày GCN đã nhận", "Ngày KT bàn giao PTDA", "Ngày nộp hồ sơ NVTC vào VPĐK", "Ngày cấp TB Thuế", "Ngày BG KT", "Ngày BG GCN Khách"
-      ];
-      data = sourceApps.map(app => [
-        app.projectName,
-        app.unitCode,
-        app.customerName,
-        app.contractSignerType || '',
-        app.phoneNumber || '',
-        app.gcnNumber || '',
-        app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
-        app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
-        formatExcelDate(app.commitmentDate),
-        formatExcelDate(app.receivedDate),
-        formatExcelDate(app.contractSigningDate),
-        formatExcelDate(app.handoverApartmentDate),
-        app.isSelfService ? 'Có' : 'Không',
-        formatExcelDate(app.accountingHandoverDate),
-        app.submissionLocation || '',
-        app.vpdkCode || '',
-        formatExcelDate(app.submissionDate),
-        formatExcelDate(app.taxNotificationDate),
-        formatExcelDate(app.taxNotificationReceivedDate),
-        formatExcelDate(app.taxReceiptDate),
-        formatExcelDate(app.gcnSignedDate),
-        formatExcelDate(app.gcnReceivedDate),
-        formatExcelDate(app.ktHandoverToPtdaDate),
-        formatExcelDate(app.taxVpdkSubmissionDate),
-        formatExcelDate(app.taxNoticeProvisionDate),
-        formatExcelDate(app.ptdaHandoverDate),
-        formatExcelDate(app.customerHandoverDate)
-      ]);
-    } else if (userRole === 'PTT' || userRole === 'MANAGER_PTT') {
-      headers = [
-        "Dự án", "Mã lô/căn", "Tên khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Số GCNQSDĐ", "Vay ngân hàng (Có/Không)", "Loại tài sản", 
-        "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Hạn cam kết Ngân hàng", "Ngày bàn giao căn hộ", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT", "Ngày nhận GCN", "Ngày BG GCN Khách",
-        "Phân loại sai sót", "Mức độ sai sót", "Ghi chú sai sót"
-      ];
-      data = sourceApps.map(app => {
-        return [
+      const getHeaderColLetter = (headerName: string): string => {
+        const normTarget = normalizeStr(headerName);
+        const idx = headers.findIndex(h => normalizeStr(h).includes(normTarget));
+        return idx !== -1 ? getColumnLetter(idx) : '';
+      };
+
+      if (isManagementEdit) {
+        headers = [
+          "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Số GCNQSDĐ", "Vay ngân hàng (Có/Không)", "Loại tài sản (Căn hộ/Đất nền)", 
+          "Hạn GCN cam kết", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT",
+          "Nơi nộp", "Mã VPĐK", "Ngày nộp hồ sơ", "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", 
+          "Ngày GCN đã ký", "Ngày GCN đã nhận", "Ngày KT bàn giao PTDA", "Ngày nộp hồ sơ NVTC vào VPĐK", "Ngày cấp TB Thuế", "Ngày BG KT", "Ngày BG GCN Khách"
+        ];
+        data = sourceApps.map(app => [
           app.projectName,
           app.unitCode,
           app.customerName,
@@ -3240,134 +3224,187 @@ export default function App() {
           app.gcnNumber || '',
           app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
           app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
+          formatExcelDate(app.commitmentDate),
           formatExcelDate(app.receivedDate),
           formatExcelDate(app.contractSigningDate),
-          formatExcelDate(app.bankCommitmentDeadline),
           formatExcelDate(app.handoverApartmentDate),
           app.isSelfService ? 'Có' : 'Không',
           formatExcelDate(app.accountingHandoverDate),
+          app.submissionLocation || '',
+          app.vpdkCode || '',
+          formatExcelDate(app.submissionDate),
+          formatExcelDate(app.taxNotificationDate),
+          formatExcelDate(app.taxNotificationReceivedDate),
+          formatExcelDate(app.taxReceiptDate),
+          formatExcelDate(app.gcnSignedDate),
           formatExcelDate(app.gcnReceivedDate),
-          formatExcelDate(app.customerHandoverDate),
+          formatExcelDate(app.ktHandoverToPtdaDate),
+          formatExcelDate(app.taxVpdkSubmissionDate),
+          formatExcelDate(app.taxNoticeProvisionDate),
+          formatExcelDate(app.ptdaHandoverDate),
+          formatExcelDate(app.customerHandoverDate)
+        ]);
+      } else if (userRole === 'PTT' || userRole === 'MANAGER_PTT') {
+        headers = [
+          "Dự án", "Mã lô/căn", "Tên khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Số GCNQSDĐ", "Vay ngân hàng (Có/Không)", "Loại tài sản", 
+          "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Hạn cam kết Ngân hàng", "Ngày bàn giao căn hộ", "Tự làm sổ (Có/Không)", "Ngày bàn giao sang KT", "Ngày nhận GCN", "Ngày BG GCN Khách",
+          "Phân loại sai sót", "Mức độ sai sót", "Ghi chú sai sót"
+        ];
+        data = sourceApps.map(app => {
+          return [
+            app.projectName,
+            app.unitCode,
+            app.customerName,
+            app.contractSignerType || '',
+            app.phoneNumber || '',
+            app.gcnNumber || '',
+            app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
+            app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
+            formatExcelDate(app.receivedDate),
+            formatExcelDate(app.contractSigningDate),
+            formatExcelDate(app.bankCommitmentDeadline),
+            formatExcelDate(app.handoverApartmentDate),
+            app.isSelfService ? 'Có' : 'Không',
+            formatExcelDate(app.accountingHandoverDate),
+            formatExcelDate(app.gcnReceivedDate),
+            formatExcelDate(app.customerHandoverDate),
+            app.issueType || '',
+            app.issueSeverity || '',
+            app.issueNotes || ''
+          ];
+        });
+      } else if (userRole === 'KT' || userRole === 'MANAGER_KT') {
+        headers = [
+          "Dự án", "Mã lô/căn", "Khách hàng", "Nơi nộp (Phường/TP)", "Mã HS/Số phiếu hẹn VPĐK", "Ngày nộp VPĐK", 
+          "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", "Ngày nhận GCN", "Ngày BG P.TDA", "Ngày KT bàn giao PTDA", "Ngày nộp hồ sơ NVTC vào VPĐK", "Ngày cấp TB Thuế", 
+          "Phân loại sai sót", "Mức độ sai sót", "Ghi chú sai sót"
+        ];
+        data = sourceApps.map(app => [
+          app.projectName,
+          app.unitCode,
+          app.customerName,
+          app.submissionLocation === 'PHUONG' ? 'Phường/Xã' : 'TP Đà Nẵng',
+          app.vpdkCode || '',
+          formatExcelDate(app.submissionDate),
+          formatExcelDate(app.taxNotificationDate),
+          formatExcelDate(app.taxNotificationReceivedDate),
+          formatExcelDate(app.taxReceiptDate),
+          formatExcelDate(app.gcnReceivedDate),
+          formatExcelDate(app.ptdaHandoverDate),
+          formatExcelDate(app.ktHandoverToPtdaDate),
+          formatExcelDate(app.taxVpdkSubmissionDate),
+          formatExcelDate(app.taxNoticeProvisionDate),
           app.issueType || '',
           app.issueSeverity || '',
           app.issueNotes || ''
+        ]);
+      } else if (userRole === 'PTDA' || userRole === 'MANAGER_PTDA') {
+        headers = [
+          "Dự án", "Mã lô/căn",
+          "Ngày TB Thuế",
+          "Ngày cấp TB Thuế", 
+          "Ngày đóng thuế",
+          "Ngày KT bàn giao PTDA",
+          "Ngày nộp hồ sơ NVTC vào VPĐK",
+          "Ngày trình ký GCN",
+          "Ngày nhận GCN thực tế",
+          "Phân loại sai sót",
+          "Mức độ sai sót",
+          "Ghi chú sai sót"
         ];
-      });
-    } else if (userRole === 'KT' || userRole === 'MANAGER_KT') {
-      headers = [
-        "Dự án", "Mã lô/căn", "Khách hàng", "Nơi nộp (Phường/TP)", "Mã HS/Số phiếu hẹn VPĐK", "Ngày nộp VPĐK", 
-        "Ngày TB Thuế", "Ngày nhận TB Thuế", "Ngày đóng thuế", "Ngày nhận GCN", "Ngày BG P.TDA", "Ngày KT bàn giao PTDA", "Ngày nộp hồ sơ NVTC vào VPĐK", "Ngày cấp TB Thuế", 
-        "Phân loại sai sót", "Mức độ sai sót", "Ghi chú sai sót"
-      ];
-      data = sourceApps.map(app => [
-        app.projectName,
-        app.unitCode,
-        app.customerName,
-        app.submissionLocation === 'PHUONG' ? 'Phường/Xã' : 'TP Đà Nẵng',
-        app.vpdkCode || '',
-        formatExcelDate(app.submissionDate),
-        formatExcelDate(app.taxNotificationDate),
-        formatExcelDate(app.taxNotificationReceivedDate),
-        formatExcelDate(app.taxReceiptDate),
-        formatExcelDate(app.gcnReceivedDate),
-        formatExcelDate(app.ptdaHandoverDate),
-        formatExcelDate(app.ktHandoverToPtdaDate),
-        formatExcelDate(app.taxVpdkSubmissionDate),
-        formatExcelDate(app.taxNoticeProvisionDate),
-        app.issueType || '',
-        app.issueSeverity || '',
-        app.issueNotes || ''
-      ]);
-    } else if (userRole === 'PTDA' || userRole === 'MANAGER_PTDA') {
-      headers = [
-        "Dự án", "Mã lô/căn",
-        "Ngày TB Thuế",
-        "Ngày cấp TB Thuế", 
-        "Ngày đóng thuế",
-        "Ngày KT bàn giao PTDA",
-        "Ngày nộp hồ sơ NVTC vào VPĐK",
-        "Ngày trình ký GCN",
-        "Ngày nhận GCN thực tế",
-        "Phân loại sai sót",
-        "Mức độ sai sót",
-        "Ghi chú sai sót"
-      ];
-      data = sourceApps.map(app => [
-        app.projectName,
-        app.unitCode,
-        formatExcelDate(app.taxNotificationDate),
-        formatExcelDate(app.taxNoticeProvisionDate),
-        formatExcelDate(app.taxReceiptDate),
-        formatExcelDate(app.ktHandoverToPtdaDate),
-        formatExcelDate(app.taxVpdkSubmissionDate),
-        formatExcelDate(app.gcnSignedDate),
-        formatExcelDate(app.gcnReceivedDate),
-        app.issueType && app.issueType !== 'None' ? app.issueType : '',
-        app.issueSeverity || '',
-        app.issueNotes || ''
-      ]);
-    } else {
-      // Default / Admin: Full Template for complete control
-      headers = [
-        "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Số GCNQSDĐ", "Vay ngân hàng", "Loại tài sản", 
-        "Hạn cam kết vay", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Tự làm sổ", "Ngày bàn giao sang KT",
-        "Nơi nộp", "Mã HS VPĐK", "Ngày nộp VPĐK", "Ngày TB Thuế", "Ngày nhận TB Thuế", 
-        "Ngày nhận NVTC", "Ngày KT bàn giao PTDA", "Ngày nộp hồ sơ NVTC vào VPĐK", "Ngày cấp TB Thuế", "Ngày trình ký GCN", "Ngày nhận GCN thực tế", "Ngày BG Pkt", "Ngày BG Khách"
-      ];
-      data = sourceApps.map(app => [
-        app.projectName,
-        app.unitCode,
-        app.customerName,
-        app.contractSignerType || '',
-        app.phoneNumber || '',
-        app.gcnNumber || '',
-        app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
-        app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
-        formatExcelDate(app.bankCommitmentDeadline),
-        formatExcelDate(app.receivedDate),
-        formatExcelDate(app.contractSigningDate),
-        formatExcelDate(app.handoverApartmentDate),
-        app.isSelfService ? 'Có' : 'Không',
-        formatExcelDate(app.accountingHandoverDate),
-        app.submissionLocation === 'PHUONG' ? 'Phường/Xã' : app.submissionLocation === 'TP_DANANG' ? 'Tỉnh/Thành phố' : '',
-        app.vpdkCode || '',
-        formatExcelDate(app.submissionDate),
-        formatExcelDate(app.taxNotificationDate),
-        formatExcelDate(app.taxNotificationReceivedDate),
-        formatExcelDate(app.taxReceiptDate),
-        formatExcelDate(app.ktHandoverToPtdaDate),
-        formatExcelDate(app.taxVpdkSubmissionDate),
-        formatExcelDate(app.taxNoticeProvisionDate),
-        formatExcelDate(app.gcnSignedDate),
-        formatExcelDate(app.gcnReceivedDate),
-        formatExcelDate(app.ptdaHandoverDate),
-        formatExcelDate(app.customerHandoverDate)
-      ]);
-    }
-
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data]);
-    const dataEndRow = data.length + 1;
-
-    const addDropdownByHeaderName = (headerName: string, allowedValues: string[]) => {
-      const colLetter = getHeaderColLetter(headerName);
-      if (colLetter) {
-        addDropdownValidation(worksheet, colLetter, 2, dataEndRow, allowedValues);
+        data = sourceApps.map(app => [
+          app.projectName,
+          app.unitCode,
+          formatExcelDate(app.taxNotificationDate),
+          formatExcelDate(app.taxNoticeProvisionDate),
+          formatExcelDate(app.taxReceiptDate),
+          formatExcelDate(app.ktHandoverToPtdaDate),
+          formatExcelDate(app.taxVpdkSubmissionDate),
+          formatExcelDate(app.gcnSignedDate),
+          formatExcelDate(app.gcnReceivedDate),
+          app.issueType && app.issueType !== 'None' ? app.issueType : '',
+          app.issueSeverity || '',
+          app.issueNotes || ''
+        ]);
+      } else {
+        // Default / Admin: Full Template for complete control
+        headers = [
+          "Dự án", "Mã lô/căn", "Khách hàng", "Đối tượng ký HĐCN", "Số điện thoại", "Số GCNQSDĐ", "Vay ngân hàng", "Loại tài sản", 
+          "Hạn cam kết vay", "Ngày nhận hồ sơ", "Ngày ký HĐCN", "Ngày bàn giao căn hộ", "Tự làm sổ", "Ngày bàn giao sang KT",
+          "Nơi nộp", "Mã HS VPĐK", "Ngày nộp VPĐK", "Ngày TB Thuế", "Ngày nhận TB Thuế", 
+          "Ngày nhận NVTC", "Ngày KT bàn giao PTDA", "Ngày nộp hồ sơ NVTC vào VPĐK", "Ngày cấp TB Thuế", "Ngày trình ký GCN", "Ngày nhận GCN thực tế", "Ngày BG Pkt", "Ngày BG Khách"
+        ];
+        data = sourceApps.map(app => [
+          app.projectName,
+          app.unitCode,
+          app.customerName,
+          app.contractSignerType || '',
+          app.phoneNumber || '',
+          app.gcnNumber || '',
+          app.loanStatus === 'Co_Vay' ? 'Có' : 'Không',
+          app.propertyType === 'Can_Ho' ? 'Căn hộ' : 'Đất nền',
+          formatExcelDate(app.bankCommitmentDeadline),
+          formatExcelDate(app.receivedDate),
+          formatExcelDate(app.contractSigningDate),
+          formatExcelDate(app.handoverApartmentDate),
+          app.isSelfService ? 'Có' : 'Không',
+          formatExcelDate(app.accountingHandoverDate),
+          app.submissionLocation === 'PHUONG' ? 'Phường/Xã' : app.submissionLocation === 'TP_DANANG' ? 'Tỉnh/Thành phố' : '',
+          app.vpdkCode || '',
+          formatExcelDate(app.submissionDate),
+          formatExcelDate(app.taxNotificationDate),
+          formatExcelDate(app.taxNotificationReceivedDate),
+          formatExcelDate(app.taxReceiptDate),
+          formatExcelDate(app.ktHandoverToPtdaDate),
+          formatExcelDate(app.taxVpdkSubmissionDate),
+          formatExcelDate(app.taxNoticeProvisionDate),
+          formatExcelDate(app.gcnSignedDate),
+          formatExcelDate(app.gcnReceivedDate),
+          formatExcelDate(app.ptdaHandoverDate),
+          formatExcelDate(app.customerHandoverDate)
+        ]);
       }
-    };
 
-    addDropdownByHeaderName('Vay ngân hàng', ['Có', 'Không']);
-    addDropdownByHeaderName('Loại tài sản', ['Căn hộ', 'Đất nền']);
-    addDropdownByHeaderName('Tự làm sổ', ['Có', 'Không']);
-    addDropdownByHeaderName('Nơi nộp', ['Phường/Xã', 'TP Đà Nẵng']);
-    addDropdownByHeaderName('Phân loại sai sót', [...VALID_ISSUE_TYPES]);
-    addDropdownByHeaderName('Mức độ sai sót', [...VALID_SEVERITIES]);
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data]);
+      const dataEndRow = data.length + 1;
 
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "HoSo");
-    
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
-    saveAs(blob, `Template_GCN_${userRole}_${new Date().toISOString().split('T')[0]}.xlsx`);
+      const addDropdownByHeaderName = (headerName: string, allowedValues: string[]) => {
+        const colLetter = getHeaderColLetter(headerName);
+        if (colLetter) {
+          addDropdownValidation(worksheet, colLetter, 2, dataEndRow, allowedValues);
+        }
+      };
+
+      addDropdownByHeaderName('Vay ngân hàng', ['Có', 'Không']);
+      addDropdownByHeaderName('Loại tài sản', ['Căn hộ', 'Đất nền']);
+      addDropdownByHeaderName('Tự làm sổ', ['Có', 'Không']);
+      addDropdownByHeaderName('Nơi nộp', ['Phường/Xã', 'TP Đà Nẵng']);
+      addDropdownByHeaderName('Phân loại sai sót', [...VALID_ISSUE_TYPES]);
+      addDropdownByHeaderName('Mức độ sai sót', [...VALID_SEVERITIES]);
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "HoSo");
+      
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+      
+      let filename = '';
+      if (mode === 'empty_template') {
+        filename = `Mau_nhap_lieu_GCN_${userRole}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      } else if (mode === 'current_page') {
+        filename = `Danh_sach_Trang_Hien_Tai_${userRole}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      } else {
+        filename = `Danh_sach_Loc_GCN_${userRole}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      }
+      
+      saveAs(blob, filename);
+      showToast('Xuất file Excel thành công!', 'success');
+    } catch (err) {
+      console.error('Error exporting excel:', err);
+      showToast('Có lỗi xảy ra khi xuất file Excel', 'error');
+    } finally {
+      setIsExportingExcel(false);
+    }
   };
 
   const handleBulkPrint = () => {
@@ -4872,16 +4909,109 @@ useEffect(() => {
 
           <div className="flex items-center gap-2 sm:gap-6">
             <div className="flex items-center gap-1.5 sm:gap-2 border-r border-[var(--color-border-subtle)] dark:border-slate-800/40 pr-2 sm:pr-4">
-              <button 
-                onClick={handleDownloadTemplate}
-                className={cn(
-                  "p-2 sm:p-2.5 rounded-full border transition-all shadow-sm group relative",
-                  theme === 'light' ? "bg-[var(--color-bg-secondary)] border-[var(--color-border-subtle)] text-slate-400 hover:text-indigo-600 hover:border-indigo-200" : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-festive-gold hover:border-festive-gold/30"
+              <div className="relative" id="excel-download-dropdown-container">
+                <button 
+                  onClick={() => setIsExcelDropdownOpen(prev => !prev)}
+                  disabled={isExportingExcel}
+                  className={cn(
+                    "p-2 sm:p-2.5 rounded-full border transition-all shadow-sm group flex items-center justify-center relative",
+                    theme === 'light' 
+                      ? "bg-[var(--color-bg-secondary)] border-[var(--color-border-subtle)] text-slate-400 hover:text-indigo-600 hover:border-indigo-200" 
+                      : "bg-slate-800/50 border-slate-700/50 text-slate-400 hover:text-festive-gold hover:border-festive-gold/30",
+                    isExportingExcel && "opacity-60 cursor-not-allowed"
+                  )}
+                  title="Tải Excel / Biểu mẫu"
+                >
+                  {isExportingExcel ? (
+                    <RefreshCcw size={16} className="animate-spin text-indigo-500" />
+                  ) : (
+                    <Download size={16} className="sm:w-[18px] sm:h-[18px]" />
+                  )}
+                </button>
+
+                {isExcelDropdownOpen && (
+                  <>
+                    {/* Backdrop to close on click outside */}
+                    <div 
+                      className="fixed inset-0 z-40 bg-black/10 dark:bg-black/30 backdrop-blur-xs md:hidden" 
+                      onClick={() => setIsExcelDropdownOpen(false)}
+                    />
+                    <div 
+                      className="fixed inset-0 z-40 hidden md:block" 
+                      onClick={() => setIsExcelDropdownOpen(false)}
+                    />
+                    
+                    {/* Dropdown Menu Container */}
+                    <div className={cn(
+                      "fixed inset-x-4 bottom-4 md:bottom-auto md:inset-x-auto md:absolute md:right-0 md:top-full md:mt-2 z-50",
+                      "w-auto md:w-72 p-2.5 rounded-2xl md:rounded-xl shadow-2xl border transition-all animate-in fade-in-50 slide-in-from-bottom-5 md:slide-in-from-top-2",
+                      theme === 'light' 
+                        ? "bg-white border-slate-100 text-slate-700" 
+                        : "bg-slate-900 border-slate-800 text-slate-200"
+                    )}>
+                      {/* Mobile Indicator bar */}
+                      <div className="w-12 h-1 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mb-3 md:hidden" />
+                      
+                      <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800/50">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Tùy chọn tải Excel</p>
+                      </div>
+
+                      <div className="mt-2 space-y-1">
+                        <button
+                          onClick={async () => {
+                            setIsExcelDropdownOpen(false);
+                            await handleDownloadTemplate('all_filtered');
+                          }}
+                          className={cn(
+                            "w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2.5 transition-all",
+                            theme === 'light' ? "hover:bg-indigo-50/50 hover:text-indigo-600" : "hover:bg-slate-800 hover:text-festive-gold"
+                          )}
+                        >
+                          <Star size={14} className="text-amber-500 fill-amber-500 shrink-0" />
+                          <div className="flex-1">
+                            <p className="font-bold">Tải toàn bộ danh sách đang lọc</p>
+                            <p className="text-[10px] text-slate-400 font-normal">Tải tất cả {displayedApps.length} căn khớp điều kiện lọc</p>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={async () => {
+                            setIsExcelDropdownOpen(false);
+                            await handleDownloadTemplate('current_page');
+                          }}
+                          className={cn(
+                            "w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2.5 transition-all",
+                            theme === 'light' ? "hover:bg-indigo-50/50 hover:text-indigo-600" : "hover:bg-slate-800 hover:text-festive-gold"
+                          )}
+                        >
+                          <Download size={14} className="text-indigo-500 shrink-0" />
+                          <div className="flex-1">
+                            <p className="font-bold">Tải danh sách trang hiện tại</p>
+                            <p className="text-[10px] text-slate-400 font-normal">Chỉ tải {visibleApps.length} căn đang hiển thị</p>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={async () => {
+                            setIsExcelDropdownOpen(false);
+                            await handleDownloadTemplate('empty_template');
+                          }}
+                          className={cn(
+                            "w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2.5 transition-all border-t border-slate-100 dark:border-slate-800/50 pt-2",
+                            theme === 'light' ? "hover:bg-indigo-50/50 hover:text-indigo-600" : "hover:bg-slate-800 hover:text-festive-gold"
+                          )}
+                        >
+                          <FileSpreadsheet size={14} className="text-emerald-500 shrink-0" />
+                          <div className="flex-1">
+                            <p className="font-bold">Tải File mẫu trống</p>
+                            <p className="text-[10px] text-slate-400 font-normal">Tải file mẫu trắng để chuẩn bị dữ liệu mới</p>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  </>
                 )}
-                title="Tải mẫu Excel"
-              >
-                <Download size={16} className="sm:w-[18px] sm:h-[18px]" />
-              </button>
+              </div>
 
               <div className="relative">
                 <input 

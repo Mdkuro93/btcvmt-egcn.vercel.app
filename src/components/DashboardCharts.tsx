@@ -47,6 +47,10 @@ export default function DashboardCharts({
              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Phân bổ theo giai đoạn thực tế</p>
              <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5">
+                   <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]" />
+                   <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Ưu tiên</span>
+                </div>
+                <div className="flex items-center gap-1.5">
                    <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]" />
                    <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Sai sót</span>
                 </div>
@@ -76,20 +80,42 @@ export default function DashboardCharts({
                 <YAxis 
                   dataKey="name" 
                   type="category" 
-                  width={140}
+                  width={150}
                   axisLine={false}
                   tickLine={false}
-                  tick={{ 
-                      fill: theme === 'dark' ? '#94a3b8' : '#334155', 
-                      fontSize: 10, 
-                      fontWeight: 800,
-                      letterSpacing: '0.025em'
+                  tick={(props: any) => {
+                    const { x, y, payload } = props;
+                    const item = chartData?.find(d => d.name === payload.value);
+                    const hasPriority = item && item.priority > 0;
+                    return (
+                      <text 
+                        x={x} 
+                        y={y} 
+                        dy={4} 
+                        fill={theme === 'dark' ? '#94a3b8' : '#334155'} 
+                        fontSize={10} 
+                        fontWeight={800} 
+                        letterSpacing="0.025em"
+                        textAnchor="end"
+                      >
+                        {payload.value}{hasPriority ? ' ⭐' : ''}
+                      </text>
+                    );
                   }}
                 />
                 <Tooltip 
                   cursor={{ fill: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}
                   content={({ active, payload, label }) => {
                     if (active && payload && payload.length) {
+                      const normalItem = payload.find(p => p.dataKey === 'normal');
+                      const priorityItem = payload.find(p => p.dataKey === 'priority');
+                      const errorItem = payload.find(p => p.dataKey === 'error');
+                      
+                      const normalVal = normalItem?.value || 0;
+                      const priorityVal = priorityItem?.value || 0;
+                      const errorVal = errorItem?.value || 0;
+                      const totalVal = (normalVal as number) + (priorityVal as number) + (errorVal as number);
+
                       return (
                         <div className={cn(
                           "p-3 rounded-2xl border shadow-xl backdrop-blur-md",
@@ -99,17 +125,19 @@ export default function DashboardCharts({
                           <div className="space-y-1">
                             <div className="flex justify-between gap-4">
                               <span className="text-[10px] text-slate-500 font-bold">Bình thường:</span>
-                              <span className="text-[10px] font-black">{(payload[0].value || 0)}</span>
+                              <span className="text-[10px] font-black">{normalVal}</span>
                             </div>
-                            {payload[1] && (
-                              <div className="flex justify-between gap-4">
-                                <span className="text-[10px] text-rose-500 font-bold">Sai sót:</span>
-                                <span className="text-[10px] font-black text-rose-500">{(payload[1].value || 0)}</span>
-                              </div>
-                            )}
+                            <div className="flex justify-between gap-4">
+                              <span className="text-[10px] text-amber-500 font-bold">Ưu tiên:</span>
+                              <span className="text-[10px] font-black text-amber-500">{priorityVal}</span>
+                            </div>
+                            <div className="flex justify-between gap-4">
+                              <span className="text-[10px] text-rose-500 font-bold">Sai sót:</span>
+                              <span className="text-[10px] font-black text-rose-500">{errorVal}</span>
+                            </div>
                             <div className="flex justify-between gap-4 pt-1 border-t border-white/5 mt-1">
                               <span className="text-[10px] font-black uppercase">Tổng:</span>
-                              <span className="text-[11px] font-black">{((payload[0].value as number) + (payload[1]?.value as number || 0))}</span>
+                              <span className="text-[11px] font-black">{totalVal}</span>
                             </div>
                           </div>
                         </div>
@@ -128,6 +156,13 @@ export default function DashboardCharts({
                     <Cell key={`cell-normal-${index}`} fill={entry.color} />
                   ))}
                 </Bar>
+                <Bar 
+                  dataKey="priority" 
+                  stackId="a" 
+                  barSize={24} 
+                  fill="#f59e0b"
+                  radius={[0, 0, 0, 0]}
+                />
                 <Bar 
                   dataKey="error" 
                   stackId="a" 

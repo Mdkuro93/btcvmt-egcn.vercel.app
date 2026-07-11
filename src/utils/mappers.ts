@@ -151,7 +151,9 @@ export const mapFromSnakeCase = (item: Record<string, any>, oldApp?: any): Appli
       if (oldApp && typeof oldApp === 'object' && oldApp.auditTrail && oldApp.auditTrail.length > 0) return oldApp.auditTrail;
       return [];
     })(),
-    hasError: bool(val('has_error', 'hasError')) || bool(val('hasError', 'hasError'))
+    hasError: bool(val('has_error', 'hasError')) || bool(val('hasError', 'hasError')),
+    isPriority: bool(val('is_priority', 'isPriority')),
+    priorityReason: str(val('priority_reason', 'priorityReason'))
   };
   mappedApp.flags = buildFlags(mappedApp);
   return mappedApp;
@@ -239,6 +241,8 @@ export const mapToSnakeCase = (app: Application): Record<string, any> => {
     rejection_reason: app.rejectionReason,
     commitment_date: app.commitmentDate,
     has_error: app.hasError,
+    is_priority: app.isPriority,
+    priority_reason: app.priorityReason,
     tax_payment_status: app.taxPaymentStatus,
     assigned_to_id: app.assignedToId,
     assigned_to_name: app.assignedToName,
