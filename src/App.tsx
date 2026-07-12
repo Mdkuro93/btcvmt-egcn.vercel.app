@@ -1317,6 +1317,8 @@ export default function App() {
         const normalized = filterStatus.toLowerCase();
         if (normalized === 'đang chuẩn bị' || normalized === 'processing') dbStatus = 'Processing';
         else if (normalized === 'chờ nộp vpđk' || normalized === 'waitingvpdk') dbStatus = 'WaitingVPDK';
+        else if (normalized === 'waitingvpdk_kt') dbStatus = 'WaitingVPDK_KT';
+        else if (normalized === 'waitingvpdk_ptda') dbStatus = 'WaitingVPDK_PTDA';
         else if (normalized === 'đã nộp vpđk' || normalized === 'submitted') dbStatus = 'Submitted';
         else if (normalized === 'chờ thông báo thuế' || normalized === 'taxnoticepending') dbStatus = 'TaxNoticePending';
         else if (normalized === 'chờ nộp thuế' || normalized === 'chờ hoàn thành nvtc' || normalized === 'taxpending') dbStatus = 'TaxPending';
@@ -1331,7 +1333,7 @@ export default function App() {
             .eq('status', 'Processing')
             .not('current_step', 'in', '("GD2_Cho_Nop_VPDK","S2_KT_Ban_giao","S2_KT_Tiep_Nhan","GD1_Cho_KT_TiepNhan")')
             .is('accounting_handover_date', null);
-        } else if (dbStatus === 'WaitingVPDK') {
+        } else if (dbStatus === 'WaitingVPDK' || dbStatus === 'WaitingVPDK_KT' || dbStatus === 'WaitingVPDK_PTDA') {
           query = query.or(
             'status.eq.WaitingVPDK,' +
             'current_step.eq.GD1_Cho_KT_TiepNhan,' +
@@ -1686,41 +1688,51 @@ export default function App() {
     });
 
     try {
-      // Fetch lightweight columns to optimize bandwidth and network performance for dashboard
-      let query = supabase.from('records').select('id, status, is_rejected, is_priority, project_name, current_step, workflow_type, kt_handover_to_ptda_date, accounting_handover_date, loan_status, is_self_service, submission_date, tax_notification_date, tax_receipt_date, gcn_signed_date, gcn_received_date, ptda_handover_date, customer_handover_date, tax_notification_received_date, issue_type, received_date, created_at, handover_apartment_date, property_type');
-      
+      let allRows: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
       const currentUserRole = currentUser?.dept || 'PTT';
       
-      // We still respect project filtering if set, but we fetch ALL records within that scope
-      if (selectedProjectId) {
-        const currentSelectedProject = projects.find(p => p.id === selectedProjectId);
-        if (currentSelectedProject) {
-          query = query.eq('project_name', currentSelectedProject.name);
-        }
-      } else if (currentUserRole !== 'ADMIN') {
-        const hasProjectAssignments = currentUser?.assignedProjectIds && currentUser.assignedProjectIds.length > 0;
-        if (hasProjectAssignments) {
-          const assignedNames = projects.filter(p => currentUser.assignedProjectIds.includes(p.id)).map(p => p.name);
-          if (assignedNames.length > 0) {
-            query = query.in('project_name', assignedNames);
+      while (true) {
+        // Fetch lightweight columns to optimize bandwidth and network performance for dashboard
+        let query = supabase.from('records').select(RECORD_LIGHT_SELECT)
+          .range(from, from + batchSize - 1);
+        
+        // We still respect project filtering if set, but we fetch ALL records within that scope
+        if (selectedProjectId) {
+          const currentSelectedProject = projects.find(p => p.id === selectedProjectId);
+          if (currentSelectedProject) {
+            query = query.eq('project_name', currentSelectedProject.name);
+          }
+        } else if (currentUserRole !== 'ADMIN') {
+          const hasProjectAssignments = currentUser?.assignedProjectIds && currentUser.assignedProjectIds.length > 0;
+          if (hasProjectAssignments) {
+            const assignedNames = projects.filter(p => currentUser.assignedProjectIds.includes(p.id)).map(p => p.name);
+            if (assignedNames.length > 0) {
+              query = query.in('project_name', assignedNames);
+            } else {
+              query = query.in('project_name', ['_NO_ACCESS_']);
+            }
           } else {
             query = query.in('project_name', ['_NO_ACCESS_']);
           }
-        } else {
-          query = query.in('project_name', ['_NO_ACCESS_']);
         }
+
+        const queryPromise = query.abortSignal(controller.signal);
+        const res = await Promise.race([queryPromise, timeoutPromise]);
+        const { data, error } = res as any;
+        if (error) throw error;
+        
+        if (currentRequestId !== fetchRequestIds.current.dashboard) return;
+        
+        if (!data || data.length === 0) break;
+        allRows = allRows.concat(data);
+        if (data.length < batchSize) break;
+        from += batchSize;
       }
-
-      const queryPromise = query.abortSignal(controller.signal);
-
-      const res = await Promise.race([queryPromise, timeoutPromise]);
+      
       clearTimeout(timeoutId);
-      const { data, error } = res as any;
-      if (error) throw error;
-      
-      if (currentRequestId !== fetchRequestIds.current.dashboard) return;
-      
-      const fetched = (data || []).map(mapFromSnakeCase);
+      const fetched = allRows.map(mapFromSnakeCase);
       handleSetDashboardApps(fetched);
     } catch (error: any) {
       clearTimeout(timeoutId);
@@ -5850,14 +5862,16 @@ useEffect(() => {
                         onChange={(e) => { setFilterStatus(e.target.value as any); setCurrentPage(0); }}
                       >
                         <option key="all-status-filter" value="ALL">Tất cả trạng thái</option>
-                        <option value="Processing">ĐANG CHUẨN BỊ</option>
-                        <option value="WaitingVPDK">CHỜ NỘP VPĐK</option>
-                        <option value="Submitted">ĐÃ NỘP VPĐK</option>
-                        <option value="TaxNoticePending">CHỜ THÔNG BÁO THUẾ</option>
-                        <option value="TaxPending">CHỜ HOÀN THÀNH NVTC</option>
-                        <option value="TaxPaid">ĐÃ NỘP THUẾ</option>
-                        <option value="WaitingHandover">CHỜ BÀN GIAO</option>
-                        <option value="Completed">HOÀN TẤT</option>
+                        <option value="Processing">1. ĐANG CHUẨN BỊ</option>
+                        <option value="WaitingVPDK">2. CHỜ NỘP VPĐK</option>
+                        <option value="WaitingVPDK_KT">&nbsp;&nbsp;&nbsp;↳ 2A. HỒ SƠ TẠI KẾ TOÁN</option>
+                        <option value="WaitingVPDK_PTDA">&nbsp;&nbsp;&nbsp;↳ 2B. HỒ SƠ TẠI PTDA</option>
+                        <option value="Submitted">3. ĐÃ NỘP VPĐK</option>
+                        <option value="TaxNoticePending">4. CHỜ THÔNG BÁO THUẾ</option>
+                        <option value="TaxPending">5. CHỜ HOÀN THÀNH NVTC</option>
+                        <option value="TaxPaid">6. ĐÃ NỘP THUẾ</option>
+                        <option value="WaitingHandover">8. CHỜ BÀN GIAO</option>
+                        <option value="Completed">9. HOÀN TẤT</option>
                       </select>
                     </div>
 

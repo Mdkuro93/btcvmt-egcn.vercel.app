@@ -351,14 +351,16 @@ export const ApplicationsTab = ({
                         
                         if (filterStatus !== 'ALL') {
                           const statusLabels: Record<string, string> = {
-                            Processing: 'ĐANG CHUẨN BỊ',
-                            WaitingVPDK: 'CHỜ NỘP VPĐK',
-                            Submitted: 'ĐÃ NỘP VPĐK',
-                            TaxNoticePending: 'CHỜ THÔNG BÁO THUẾ',
-                            TaxPending: 'CHỜ HOÀN THÀNH NVTC',
-                            TaxPaid: 'ĐÃ NỘP THUẾ',
-                            WaitingHandover: 'CHỜ BÀN GIAO',
-                            Completed: 'HOÀN TẤT'
+                            Processing: '1. ĐANG CHUẨN BỊ',
+                            WaitingVPDK: '2. CHỜ NỘP VPĐK',
+                            WaitingVPDK_KT: '2A. HỒ SƠ TẠI KẾ TOÁN',
+                            WaitingVPDK_PTDA: '2B. HỒ SƠ TẠI PTDA',
+                            Submitted: '3. ĐÃ NỘP VPĐK',
+                            TaxNoticePending: '4. CHỜ THÔNG BÁO THUẾ',
+                            TaxPending: '5. CHỜ HOÀN THÀNH NVTC',
+                            TaxPaid: '6. ĐÃ NỘP THUẾ',
+                            WaitingHandover: '8. CHỜ BÀN GIAO',
+                            Completed: '9. HOÀN TẤT'
                           };
                           activeFilters.push({
                             label: `Trạng thái: ${statusLabels[filterStatus] || filterStatus}`,

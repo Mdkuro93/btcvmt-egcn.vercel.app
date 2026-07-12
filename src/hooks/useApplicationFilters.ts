@@ -199,13 +199,15 @@ export function useApplicationFilters(
         const computedStage = getComputedStageName(a);
         if (activeStatus === 'Processing' && computedStage !== '1. ĐANG CHUẨN BỊ') return false;
         if (activeStatus === 'WaitingVPDK' && computedStage !== '2. CHỜ NỘP VPĐK') return false;
+        if (activeStatus === 'WaitingVPDK_KT' && (computedStage !== '2. CHỜ NỘP VPĐK' || getRecordDept(a, stepConfig) !== 'KT')) return false;
+        if (activeStatus === 'WaitingVPDK_PTDA' && (computedStage !== '2. CHỜ NỘP VPĐK' || getRecordDept(a, stepConfig) !== 'PTDA')) return false;
         if (activeStatus === 'TaxNoticePending' && computedStage !== '4. CHỜ THÔNG BÁO THUẾ') return false;
         if (activeStatus === 'TaxPending' && computedStage !== '5. CHỜ HOÀN THÀNH NVTC') return false;
         if (activeStatus === 'WaitingHandover' && computedStage !== '8. CHỜ BÀN GIAO') return false;
         if (activeStatus === 'TaxPaid' && computedStage !== '6. ĐÃ NỘP THUẾ') return false;
         if (activeStatus === 'Submitted' && computedStage !== '3. ĐÃ NỘP VPĐK') return false;
         if (activeStatus === 'Completed' && computedStage !== '9. HOÀN TẤT') return false;
-        if (!['Processing', 'WaitingVPDK', 'TaxPending', 'TaxNoticePending', 'WaitingHandover', 'TaxPaid', 'Submitted', 'Completed'].includes(activeStatus) && a.status !== activeStatus) return false;
+        if (!['Processing', 'WaitingVPDK', 'WaitingVPDK_KT', 'WaitingVPDK_PTDA', 'TaxPending', 'TaxNoticePending', 'WaitingHandover', 'TaxPaid', 'Submitted', 'Completed'].includes(activeStatus) && a.status !== activeStatus) return false;
       }
 
       // ================= 3. LOAN =================
@@ -254,6 +256,8 @@ export function useApplicationFilters(
           // ===== DASHBOARD TIMELINE STAGES FILTER =====
           case '1. ĐANG CHUẨN BỊ':
           case '2. CHỜ NỘP VPĐK':
+          case '   ↳ 2A. HỒ SƠ TẠI KẾ TOÁN':
+          case '   ↳ 2B. HỒ SƠ TẠI PTDA':
           case '3. ĐÃ NỘP VPĐK':
           case '4. CHỜ THÔNG BÁO THUẾ':
           case '5. CHỜ HOÀN THÀNH NVTC':
@@ -261,7 +265,17 @@ export function useApplicationFilters(
           case '7. ĐÃ CÓ GCN':
           case '8. CHỜ BÀN GIAO':
           case '9. HOÀN TẤT':
-            if (computedStage !== activeDashboardFilter) return false;
+            if (activeDashboardFilter === '   ↳ 2A. HỒ SƠ TẠI KẾ TOÁN') {
+              if (computedStage !== '2. CHỜ NỘP VPĐK' || getRecordDept(a, stepConfig) !== 'KT') {
+                return false;
+              }
+            } else if (activeDashboardFilter === '   ↳ 2B. HỒ SƠ TẠI PTDA') {
+              if (computedStage !== '2. CHỜ NỘP VPĐK' || getRecordDept(a, stepConfig) !== 'PTDA') {
+                return false;
+              }
+            } else if (computedStage !== activeDashboardFilter) {
+              return false;
+            }
             break;
 
           // ===== KTT =====
