@@ -119,6 +119,7 @@ export type ScannedFile = {
 
 export type Application = {
   id?: string | number;
+  createdAt?: string;
   updatedAt?: string;
   unitCode: string; // Mã lô/căn
   projectName: string;

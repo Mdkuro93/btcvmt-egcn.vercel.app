@@ -207,17 +207,27 @@ async function fetchCurrentPeriodLive(
     .gte('created_at', startDate).lte('created_at', now.toISOString())
     .eq('loan_status', 'Co_Vay');
 
+  let completedQ = supabase
+    .from('records')
+    .select('id', { count: 'exact', head: false })
+    .gte('customer_handover_date', startDate)
+    .lte('customer_handover_date', now.toISOString())
+    .in('status', ['Completed', 'Hoan_Tat']);
+
   if (projectName) {
     q = q.eq('project_name', projectName);
     loanQ = loanQ.eq('project_name', projectName);
+    completedQ = completedQ.eq('project_name', projectName);
   } else if (allowedProjectNames && allowedProjectNames.length > 0) {
     q = q.in('project_name', allowedProjectNames);
     loanQ = loanQ.in('project_name', allowedProjectNames);
+    completedQ = completedQ.in('project_name', allowedProjectNames);
   }
 
-  const [allRes, loanRes, errorRes] = await Promise.all([
+  const [allRes, loanRes, completedRes, errorRes] = await Promise.all([
     q,
     loanQ,
+    completedQ,
     supabase.from('record_history').select('record_id', { count: 'exact', head: false })
       .ilike('note', '[BÁO SAI SÓT%')
       .gte('received_date', startDate).lte('received_date', now.toISOString()),
@@ -227,7 +237,7 @@ async function fetchCurrentPeriodLive(
 
   return {
     newIn: allRes.data?.length || 0,
-    completed: 0,
+    completed: completedRes.data?.length || 0,
     newInOverdue: 0,
     newInError: uniqueErrorIds.size,
     newInLoan: loanRes.data?.length || 0,

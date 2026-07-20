@@ -1290,7 +1290,8 @@ export default function App() {
       let query = supabase.from('records').select(RECORD_LIGHT_SELECT, { count: 'estimated' });
       
       if (search) {
-        query = query.or(`unit_code.ilike.%${search}%,customer_name.ilike.%${search}%,project_name.ilike.%${search}%,phone_number.ilike.%${search}%`);
+        const safeSearch = search.replace(/"/g, '');
+        query = query.or(`unit_code.ilike."%${safeSearch}%",customer_name.ilike."%${safeSearch}%",project_name.ilike."%${safeSearch}%",phone_number.ilike."%${safeSearch}%"`);
       }
 
       const hasProjectAssignments = currentUser?.assignedProjectIds && currentUser.assignedProjectIds.length > 0;

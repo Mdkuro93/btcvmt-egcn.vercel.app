@@ -75,6 +75,7 @@ export const mapFromSnakeCase = (item: Record<string, any>, oldApp?: any): Appli
 
   const mappedApp: Application = {
     id: val('id', 'id') !== undefined && val('id', 'id') !== null && val('id', 'id') !== '' ? val('id', 'id') : undefined,
+    createdAt: str(val('created_at', 'createdAt')),
     updatedAt: str(val('updated_at', 'updatedAt')),
     unitCode: str(val('unit_code', 'unitCode')),
     projectName: str(val('project_name', 'projectName')),

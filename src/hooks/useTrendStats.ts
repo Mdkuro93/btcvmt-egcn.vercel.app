@@ -45,11 +45,11 @@ export function buildTrendStats(
   const loanCur    = apps.filter(a => a.loanStatus === 'Co_Vay').length;
 
   // Số liệu kỳ trước từ snapshot DB (chính xác)
-  // Nếu chưa có snapshot → dùng current (delta = 0, không gây hiểu nhầm)
-  const totalPrev   = hasSnapshot ? prev.totalActive  : totalCur;
-  const overduePrev = hasSnapshot ? prev.totalOverdue : overdueCur;
-  const errorPrev   = hasSnapshot ? prev.totalError   : errorCur;
-  const loanPrev    = hasSnapshot ? prev.totalLoan    : loanCur;
+  // Nếu chưa có snapshot → tính nhẩm từ current, newIn, completed để ra số tương đối
+  const totalPrev   = hasSnapshot ? prev.totalActive  : Math.max(0, totalCur - cur.newIn + cur.completed);
+  const overduePrev = hasSnapshot ? prev.totalOverdue : Math.max(0, overdueCur - cur.newInOverdue);
+  const errorPrev   = hasSnapshot ? prev.totalError   : Math.max(0, errorCur - cur.newInError);
+  const loanPrev    = hasSnapshot ? prev.totalLoan    : Math.max(0, loanCur - cur.newInLoan);
 
   return {
     total:   makeTrendValue(totalCur,   totalPrev,   cur.newIn,       cur.completed),
