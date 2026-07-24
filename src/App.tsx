@@ -3920,8 +3920,8 @@ export default function App() {
           auditTrail: [{
             id: generateUUID(),
             timestamp: new Date().toISOString(),
-            userId: currentUser?.dept || 'System',
-            userName: currentUser?.dept || 'Hệ thống',
+            userId: currentUser?.id || 'System',
+            userName: currentUser?.name || 'Hệ thống',
             action: 'Gắn tài liệu chung hàng loạt'
           }, ...(app.auditTrail || [])]
         }));
@@ -4300,10 +4300,10 @@ export default function App() {
     const makeDateHistoryItem = (label: string, val: string | null, unitCode: string) => ({
       id: generateUUID(),
       stepName: label,
-      dept: 'PTT' as const,
+      dept: currentUser?.dept || ('PTT' as const),
       receivedDate: new Date().toISOString(),
-      performedBy: userRole || 'SYSTEM_AUTO',
-      performedByName: userRole || 'Hệ thống tự động',
+      performedBy: currentUser?.id || 'SYSTEM_AUTO',
+      performedByName: currentUser?.name || 'Hệ thống tự động',
       note: val ? `Điền ${label}: ${val}` : `Xóa trống ${label}`,
     });
 
@@ -4324,8 +4324,8 @@ export default function App() {
           stepName: inferredStep,
           dept: stepConfig[inferredStep]?.dept || 'PTT',
           receivedDate: new Date().toISOString(),
-          performedBy: userRole || 'SYSTEM_AUTO',
-          performedByName: userRole || 'Hệ thống tự động',
+          performedBy: currentUser?.id || 'SYSTEM_AUTO',
+          performedByName: currentUser?.name || 'Hệ thống tự động',
           note: `Tự động chuyển bước từ ${currentStep} → ${inferredStep} do cập nhật ngày`,
         };
         nextApp.history     = [stepHistoryItem, ...sourceHistory];
@@ -4397,9 +4397,11 @@ export default function App() {
       if (field === 'currentStep') {
         const historyItem: any = {
           id: generateUUID(),
-          timestamp: new Date().toISOString(),
-          user: userRole,
-          action: `Chuyển trạng thái sang: ${value}`,
+          stepName: `Chuyển trạng thái sang: ${value}`,
+          dept: currentUser?.dept || 'PTT', // default fallback
+          receivedDate: new Date().toISOString(),
+          performedBy: currentUser?.id,
+          performedByName: currentUser?.name
         };
         nextApp.history = [historyItem, ...(editApp.history || [])];
       } else if (DATE_FIELDS.includes(field as string)) {

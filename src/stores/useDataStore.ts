@@ -99,15 +99,8 @@ export async function fetchRecordDetail(recordId: string | number, unitCode?: st
   try {
     let query = supabase
       .from('record_history')
-      .select('*');
-      
-    if (unitCode && isNumeric(unitCode) && isNumeric(targetId)) {
-      query = query.or(`record_id.eq.${targetId},record_id.eq.${unitCode}`);
-    } else if (isNumeric(targetId)) {
-      query = query.eq('record_id', parseInt(targetId, 10));
-    } else {
-      query = query.eq('record_id', -1);
-    }
+      .select('*')
+      .eq('record_id', targetId);
     
     const { data: historyData, error: historyError } = await query
       .order('received_date', { ascending: false })
@@ -136,15 +129,8 @@ export async function fetchRecordDetail(recordId: string | number, unitCode?: st
   try {
     let auditQuery = supabase
       .from('record_audit_trail')
-      .select('*');
-      
-    if (unitCode && isNumeric(unitCode) && isNumeric(targetId)) {
-      auditQuery = auditQuery.or(`record_id.eq.${targetId},record_id.eq.${unitCode}`);
-    } else if (isNumeric(targetId)) {
-      auditQuery = auditQuery.eq('record_id', parseInt(targetId, 10));
-    } else {
-      auditQuery = auditQuery.eq('record_id', -1);
-    }
+      .select('*')
+      .eq('record_id', targetId);
     
     const { data: auditData, error: auditError } = await auditQuery
       .order('timestamp', { ascending: false });
@@ -192,45 +178,37 @@ export async function syncRecordToSupabase(app: Application) {
   }
 
   if (app.history && app.history.length > 0) {
-    const historyPromises = app.history.map(h => {
-      if (!h.id) return Promise.resolve();
-      return supabase.from('record_history').upsert({
-        id: h.id,
-        record_id: savedApp.id,
-        step_name: h.stepName,
-        dept: h.dept,
-        received_date: h.receivedDate,
-        completed_date: h.completedDate || null,
-        note: h.note || '',
-        performed_by: h.performedBy || null,
-        performed_by_name: h.performedByName || null,
-      }, { onConflict: 'id' });
-    });
-const hResults = await Promise.allSettled(historyPromises);
-    hResults.forEach(r => {
-      if (r.status === 'rejected') console.warn('[syncRecord] Lỗi ghi history:', r.reason);
-      if (r.status === 'fulfilled' && (r.value as any)?.error) console.warn('[syncRecord] Lỗi upsert history:', (r.value as any).error);
-    });
+    const historyPayload = app.history.filter(h => h.id).map(h => ({
+      id: h.id,
+      record_id: savedApp.id,
+      step_name: h.stepName,
+      dept: h.dept,
+      received_date: h.receivedDate,
+      completed_date: h.completedDate || null,
+      note: h.note || '',
+      performed_by: h.performedBy || null,
+      performed_by_name: h.performedByName || null,
+    }));
+    if (historyPayload.length > 0) {
+      const { error } = await supabase.from('record_history').upsert(historyPayload, { onConflict: 'id' });
+      if (error) console.warn('[syncRecord] Lỗi upsert history:', error);
+    }
   }
 
   if (app.auditTrail && app.auditTrail.length > 0) {
-    const auditPromises = app.auditTrail.map(a => {
-      if (!a.id) return Promise.resolve(null);
-      return supabase.from('record_audit_trail').upsert({
-        id: a.id,
-        record_id: savedApp.id,
-        user_id: a.userId,
-        user_name: a.userName,
-        action: a.action,
-        changes: a.changes || '',
-        timestamp: a.timestamp,
-      }, { onConflict: 'id' });
-    });
-    const aResults = await Promise.allSettled(auditPromises);
-    aResults.forEach(r => {
-      if (r.status === 'rejected') console.warn('[syncRecord] Lỗi ghi auditTrail:', r.reason);
-      if (r.status === 'fulfilled' && (r.value as any)?.error) console.warn('[syncRecord] Lỗi upsert auditTrail:', (r.value as any).error);
-    });
+    const auditPayload = app.auditTrail.filter(a => a.id).map(a => ({
+      id: a.id,
+      record_id: savedApp.id,
+      user_id: a.userId,
+      user_name: a.userName,
+      action: a.action,
+      changes: a.changes || '',
+      timestamp: a.timestamp,
+    }));
+    if (auditPayload.length > 0) {
+      const { error } = await supabase.from('record_audit_trail').upsert(auditPayload, { onConflict: 'id' });
+      if (error) console.warn('[syncRecord] Lỗi upsert auditTrail:', error);
+    }
   }
 
   if (savedApp.id) {
@@ -281,8 +259,28 @@ export const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allAp
         if (matchingDb) {
           const mappedDb = mapFromSnakeCase(matchingDb);
           app.id = mappedDb.id;
-          app.history = mappedDb.history || [];
-          app.auditTrail = mappedDb.auditTrail || [];
+          
+          // Merge history, keeping unique entries by ID
+          const existingHistory = mappedDb.history || [];
+          const newHistory = app.history || [];
+          const mergedHistory = [...newHistory];
+          existingHistory.forEach((eh: any) => {
+            if (!mergedHistory.find((nh: any) => nh.id === eh.id)) {
+              mergedHistory.push(eh);
+            }
+          });
+          app.history = mergedHistory;
+          
+          // Merge auditTrail similarly
+          const existingAudit = mappedDb.auditTrail || [];
+          const newAudit = app.auditTrail || [];
+          const mergedAudit = [...newAudit];
+          existingAudit.forEach((ea: any) => {
+            if (!mergedAudit.find((na: any) => na.id === ea.id)) {
+              mergedAudit.push(ea);
+            }
+          });
+          app.auditTrail = mergedAudit;
         }
       });
     }
@@ -348,8 +346,8 @@ export const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allAp
           if (originalInput.history && originalInput.history.length > 0) {
             originalInput.history.forEach(h => {
               if (h.id) {
-                historyPromises.push(
-                  supabase.from('record_history').upsert({
+                historyPayloads.push({
+
                     id: h.id,
                     record_id: returnedApp.id,
                     step_name: h.stepName,
@@ -359,8 +357,7 @@ export const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allAp
                     note: h.note || '',
                     performed_by: h.performedBy || null,
                     performed_by_name: h.performedByName || null,
-                  }, { onConflict: 'id' })
-                );
+                  });
               }
             });
           }
@@ -368,8 +365,8 @@ export const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allAp
           if (originalInput.auditTrail && originalInput.auditTrail.length > 0) {
             originalInput.auditTrail.forEach(a => {
               if (a.id) {
-                auditPromises.push(
-                  supabase.from('record_audit_trail').upsert({
+                auditPayloads.push({
+
                     id: a.id,
                     record_id: returnedApp.id,
                     user_id: a.userId,
@@ -377,8 +374,7 @@ export const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allAp
                     action: a.action,
                     changes: a.changes || '',
                     timestamp: a.timestamp,
-                  }, { onConflict: 'id' })
-                );
+                  });
               }
             });
           }
@@ -398,22 +394,18 @@ export const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allAp
 
       // Write in parallel with soft catching of errors via console.warn
       try {
-        if (historyPromises.length > 0) {
-          const res = await Promise.all(historyPromises);
-          res.forEach(r => {
-            if (r.error) console.warn('Lỗi phụ khi ghi history trong bulk sync:', r.error);
-          });
+        if (historyPayloads.length > 0) {
+          const { error } = await supabase.from('record_history').upsert(historyPayloads, { onConflict: 'id' });
+          if (error) console.warn('Lỗi khi ghi history trong bulk sync:', error);
         }
       } catch (err) {
         console.warn('Lỗi ngoại lệ khi ghi history trong bulk sync:', err);
       }
 
       try {
-        if (auditPromises.length > 0) {
-          const res = await Promise.all(auditPromises);
-          res.forEach(r => {
-            if (r.error) console.warn('Lỗi phụ khi ghi audit trail trong bulk sync:', r.error);
-          });
+        if (auditPayloads.length > 0) {
+          const { error } = await supabase.from('record_audit_trail').upsert(auditPayloads, { onConflict: 'id' });
+          if (error) console.warn('Lỗi khi ghi audit trail trong bulk sync:', error);
         }
       } catch (err) {
         console.warn('Lỗi ngoại lệ khi ghi audit trail trong bulk sync:', err);
