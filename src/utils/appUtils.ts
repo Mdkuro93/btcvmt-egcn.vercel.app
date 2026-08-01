@@ -20,8 +20,13 @@ export const getRecordDept = (app: any, stepConfig?: any): string => {
     const hasHandoverDate = handoverDate && String(handoverDate).trim() !== '' && String(handoverDate).trim() !== '---';
     return hasHandoverDate ? 'PTDA' : 'KT';
   }
+  
+  // 3. Tax / Financial step (GD4/S5): KT handles 'Can_Ho', PTT handles others
+  if (currentStep === 'S5_Tai_Chinh_Khach_Hang' || currentStep === 'GD4_Cho_Nop_NVTC') {
+    return app.propertyType === 'Can_Ho' ? 'KT' : 'PTT';
+  }
 
-  // 3. Default from step configuration
+  // 4. Default from step configuration
   const config = finalStepConfig[currentStep];
   return config?.dept || '---';
 };

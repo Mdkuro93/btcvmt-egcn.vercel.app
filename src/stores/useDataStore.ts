@@ -6,7 +6,7 @@ import { STEP_CONFIG as INITIAL_STEP_CONFIG, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS 
 import { useAuthStore } from './useAuthStore';
 import { useModalStore } from './useModalStore';
 import { WorkflowEngine } from '../utils/workflowEngine';
-import { validateDateSequence, generateUUID } from '../utils/appUtils';
+import { validateDateSequence, generateUUID, getRecordDept } from '../utils/appUtils';
 
 export const createAuditEntry = (action: string, isBulk: boolean, count: number, unitCode: string, detail?: string): AuditTrailEntry => {
   const { currentUser } = useAuthStore.getState();
@@ -321,8 +321,8 @@ export const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allAp
     const updatedAppsLocal = [...allApplications];
 
     // ✅ FIX: Lỗi 1 - Ghi nhận history và audit trail cho tất cả bản ghi trong bulk sync
-    const historyPromises: any[] = [];
-    const auditPromises: any[] = [];
+    const historyPayloads: any[] = [];
+    const auditPayloads: any[] = [];
 
     if (allReturnedData.length > 0) {
       allReturnedData.forEach(item => {
@@ -928,7 +928,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       const updatedApps = appsToResolve.map(app => {
         let targetStepId = app.currentStep;
         let targetStatus = stepConfig[app.currentStep]?.status || INITIAL_STEP_CONFIG[app.currentStep]?.status || 'Processing';
-        let targetDept = stepConfig[app.currentStep]?.dept || INITIAL_STEP_CONFIG[app.currentStep]?.dept;
+        let targetDept = getRecordDept(app, stepConfig);
 
         if (app.rejectedFromStepId) {
           const fallbackConfig = stepConfig[app.rejectedFromStepId] || INITIAL_STEP_CONFIG[app.rejectedFromStepId];
@@ -1168,7 +1168,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
     const currentStepLabel = (stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep]).label;
     const targetStepLabel = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label;
-    const nextDeptLabel = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).dept;
+    const nextDeptLabel = getRecordDept({ ...app, currentStep: targetStep }, stepConfig);
     const transitionDirection = isMovingForward ? 'Chuyển' : 'Trả hồ sơ';
     const handoverNote = note || `${transitionDirection} từ bước [${currentStepLabel}] sang [${targetStepLabel}] (Bộ phận xử lý tiếp theo: ${nextDeptLabel})`;
 
@@ -1665,7 +1665,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
         const note = `Chuyển hàng loạt ${dateValue ? `(Cập nhật ${bulkTransitionField?.label}: ${dateValue})` : ''}`;
 
-        const nextDeptLabel = (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).dept;
+        const nextDeptLabel = getRecordDept({ ...appWithDate, currentStep: targetStep }, stepConfig);
         const handoverNote = `Hồ sơ đã hoàn tất và tự động bàn giao sang bộ phận ${nextDeptLabel}`;
 
         const newHistory = [

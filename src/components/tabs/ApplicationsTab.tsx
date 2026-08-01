@@ -522,9 +522,7 @@ export const ApplicationsTab = ({
                             if (allSameStepAndWorkflow) {
                               const workflowType = firstApp.workflowType || 'Quy_trinh_1';
                               const nextStep = getNextStep(firstApp.currentStep, workflowType);
-                              const roleDept = (stepConfig[firstApp.currentStep] || INITIAL_STEP_CONFIG[firstApp.currentStep])?.dept;
-                              const isSupportSpecial = (firstApp.projectName?.includes('hỗ trợ')) && (firstApp.currentStep === 'GD2_Cho_Nop_VPDK' || firstApp.currentStep === 'S3_Nop_VPDK');
-                              const effectiveDept = isSupportSpecial ? 'KT' : roleDept;
+                              const effectiveDept = getRecordDept(firstApp, stepConfig);
                               
                               const canHandleStep = 
                                 userRole === 'ADMIN' || 

@@ -1,6 +1,6 @@
 import { Application, StepName } from '../types';
 import { STEP_CONFIG as INITIAL_STEP_CONFIG, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS } from '../constants';
-import { validateDateSequence } from './appUtils';
+import { validateDateSequence, getRecordDept } from './appUtils';
 
 // Ngày áp dụng quy tắc bắt buộc nhập liệu khắt khe (chặn từ đầu).
 // Các hồ sơ tạo trước ngày này sẽ được "nợ" ngày cho đến bước cuối cùng (Hoàn Tất).
@@ -24,7 +24,7 @@ export const WorkflowEngine = {
     let finalStep = requestedNextStep;
     let isJump = false;
     
-    const currentStepDept = INITIAL_STEP_CONFIG[app.currentStep]?.dept;
+    const currentStepDept = getRecordDept(app, INITIAL_STEP_CONFIG);
     const workflowType = app.workflowType || 'Quy_trinh_1';
     const steps = workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
     

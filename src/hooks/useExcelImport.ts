@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { Application, StepName, UnitStatus, IssueSeverity } from '../types';
 import { formatDate } from '../utils/dateUtils';
 import { mapFromSnakeCase } from '../utils/mappers';
+import { RECORD_LIGHT_SELECT } from '../stores/useDataStore';
 import { calculateDaysDiff, calculateDaysBetweenDates, getPhaseIndex, getTaxStatus, getOverdueInfo, inferStepFromDates, determineStatusFromStep, validateSkippedSteps, generateUUID } from '../utils/appUtils';
 import { STEP_CONFIG as INITIAL_STEP_CONFIG, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS } from '../constants';
 
@@ -281,16 +282,33 @@ export function useExcelImport({
         // TẢI TẤT CẢ HỒ SƠ TỪ DATABASE ĐỂ KIỂM TRA TRÙNG LẶP (Tránh ảnh hưởng của phân trang Pagination)
         let allDbRecords: Application[] = [];
         try {
-          const { data: dbData, error: dbErr } = await supabase
-            .from('records')
-            .select('*');
-          if (dbErr) {
-            console.error('Lỗi khi tải dữ liệu đối chiếu trùng lặp:', dbErr);
-          } else if (dbData) {
-            allDbRecords = dbData.map(mapFromSnakeCase);
+          let hasMore = true;
+          let from = 0;
+          const pageSize = 1000;
+          while (hasMore) {
+            const { data: dbData, error: dbErr } = await supabase
+              .from('records')
+              .select(RECORD_LIGHT_SELECT)
+              .range(from, from + pageSize - 1);
+
+            if (dbErr) {
+              console.error('Lỗi khi tải dữ liệu đối chiếu trùng lặp:', dbErr);
+              showToast('Lỗi khi tải dữ liệu từ máy chủ. Vui lòng thử lại.', 'error');
+              break;
+            } 
+            
+            if (dbData && dbData.length > 0) {
+              allDbRecords.push(...dbData.map(a => mapFromSnakeCase(a)));
+              from += pageSize;
+            }
+
+            if (!dbData || dbData.length < pageSize) {
+              hasMore = false;
+            }
           }
         } catch (err) {
           console.error('Error fetching baseline records for import:', err);
+          showToast('Lỗi khi tải dữ liệu từ máy chủ (Network). Vui lòng thử lại.', 'error');
         }
 
         const duplicateCheckSource = allDbRecords.length > 0 ? allDbRecords : applications;
@@ -445,9 +463,11 @@ export function useExcelImport({
           }
           seenInFile.set(key, idx);
 
+          const normalizeForMatch = (s: string | undefined) => s ? s.trim().toLowerCase().replace(/\s+/g, ' ') : '';
+
           const existingApp = duplicateCheckSource.find(
-            a => a.unitCode === unitCode && 
-                (!officialProjectName || a.projectName?.toLowerCase() === officialProjectName.toLowerCase())
+            a => normalizeForMatch(a.unitCode) === normalizeForMatch(unitCode) && 
+                (!officialProjectName || normalizeForMatch(a.projectName) === normalizeForMatch(officialProjectName))
           );
           
           const parsedProjectName = officialProjectName || (visibleProjects.length > 0 ? visibleProjects[0].name : projects[0].name);

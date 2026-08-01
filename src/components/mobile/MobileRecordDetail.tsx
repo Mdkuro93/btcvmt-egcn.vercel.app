@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/utils';
+import { getRecordDept } from '../../utils/appUtils';
 
 interface MobileRecordDetailProps {
   editAppInstance: Application;
@@ -61,9 +62,7 @@ export default function MobileRecordDetail({
   const isUserAuthorizedToTransition = useMemo(() => {
     if (!editAppInstance || !currentUser) return false;
     
-    const roleDept = STEP_CONFIG[editAppInstance.currentStep]?.dept;
-    const isSupportSpecial = (editAppInstance.projectName?.includes('hỗ trợ')) && (editAppInstance.currentStep === 'GD2_Cho_Nop_VPDK' || editAppInstance.currentStep === 'S3_Nop_VPDK');
-    const effectiveDept = isSupportSpecial ? 'KT' : roleDept;
+    const effectiveDept = getRecordDept(editAppInstance, STEP_CONFIG);
 
     if (
       currentUser.dept === 'ADMIN' || 
@@ -454,7 +453,7 @@ export default function MobileRecordDetail({
                   ) : (
                     <div className="p-3.5 bg-slate-950/80 rounded-2xl border border-slate-850 flex items-start gap-2 text-slate-500">
                         <Info size={14} className="shrink-0 mt-0.5" />
-                        <p className="text-[10px] font-semibold">Tài khoản hiện trường {currentUser.name} thuộc phòng ban {currentUser.dept}. Trạng thái hiện tại do bộ phận {STEP_CONFIG[editAppInstance.currentStep]?.dept || 'Hệ thống'} xử lý, do đó quyền hạn chuyển tiếp tạm khóa.</p>
+                        <p className="text-[10px] font-semibold">Tài khoản hiện trường {currentUser.name} thuộc phòng ban {currentUser.dept}. Trạng thái hiện tại do bộ phận {getRecordDept(editAppInstance, STEP_CONFIG) || 'Hệ thống'} xử lý, do đó quyền hạn chuyển tiếp tạm khóa.</p>
                     </div>
                   )}
                 </div>

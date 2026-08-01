@@ -11,6 +11,7 @@ import {
   UnitStatus,
 } from "../../types";
 import { cn } from "../../lib/utils";
+import { getRecordDept } from "../../utils/appUtils";
 import { fetchRecordDetail } from "../../stores/useDataStore";
 import {
   X,
@@ -317,17 +318,7 @@ export const ApplicationDetailModal = ({
     currentApp.projectName?.includes("hỗ trợ") &&
     (currentApp.currentStep === "GD2_Cho_Nop_VPDK" ||
       currentApp.currentStep === "S3_Nop_VPDK");
-  const currentStepDept =
-    currentApp &&
-    (
-      stepConfig[currentApp.currentStep] ||
-      INITIAL_STEP_CONFIG[currentApp.currentStep]
-    )?.dept;
-  const effectiveDept = currentApp
-    ? isSupportSpecial
-      ? "KT"
-      : currentStepDept
-    : "";
+  const effectiveDept = currentApp ? getRecordDept(currentApp, stepConfig) : "";
 
   const isRoleDeptMatch = (() => {
     if (!currentUser || !currentApp) return false;
@@ -2468,17 +2459,7 @@ export const ApplicationDetailModal = ({
                         const app = editApp || selectedApp;
                         const role = userRole;
                         if (app.status === "Error") {
-                          const isSupportSpecial =
-                            app.projectName?.includes("hỗ trợ") &&
-                            (app.currentStep === "GD2_Cho_Nop_VPDK" ||
-                              app.currentStep === "S3_Nop_VPDK");
-                          const currentStepDept = (
-                            stepConfig[app.currentStep] ||
-                            INITIAL_STEP_CONFIG[app.currentStep]
-                          )?.dept;
-                          const effectiveDept = isSupportSpecial
-                            ? "KT"
-                            : currentStepDept;
+                          const effectiveDept = getRecordDept(app, stepConfig);
 
                           let canAction =
                             role === "ADMIN" ||
@@ -2517,17 +2498,7 @@ export const ApplicationDetailModal = ({
                           );
                         }
 
-                        const isSupportSpecial =
-                          app.projectName?.includes("hỗ trợ") &&
-                          (app.currentStep === "GD2_Cho_Nop_VPDK" ||
-                            app.currentStep === "S3_Nop_VPDK");
-                        const currentStepDept = (
-                          stepConfig[app.currentStep] ||
-                          INITIAL_STEP_CONFIG[app.currentStep]
-                        )?.dept;
-                        const effectiveDept = isSupportSpecial
-                          ? "KT"
-                          : currentStepDept;
+                        const effectiveDept = getRecordDept(app, stepConfig);
 
                         let canAction =
                           role === "ADMIN" ||
