@@ -17,6 +17,9 @@ export interface TransitionResult {
   type?: 'error' | 'warning' | 'info';
   nextStep?: StepName;
   hasWarning?: boolean;
+  requiresJustification?: boolean;
+  requiresHandoverDate?: boolean;
+  missingFields?: string[];
 }
 
 export const WorkflowEngine = {

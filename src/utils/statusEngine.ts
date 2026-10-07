@@ -115,25 +115,26 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
       activeSla = sla || 3;
       let targetStartDateStr: string | undefined;
 
+      const accountingHandoverDate = app.accountingHandoverDate || app.accounting_handover_date;
+
       if (isDateValid(ktPtdaDate)) {
         // Giai đoạn 2: Đã bàn giao sang PTDA cho giai đoạn nộp hồ sơ
         targetStartDateStr = ktPtdaDate;
+      } else if (isDateValid(accountingHandoverDate)) {
+        // Đã có ngày bàn giao kế toán, kích hoạt đồng hồ đếm SLA cho Kế toán (chuẩn theo cấu hình bước, mặc định 3 ngày)
+        activeSla = sla || 3;
+        targetStartDateStr = accountingHandoverDate;
       } else {
         // Giai đoạn 1: Chưa bàn giao, tính theo loại hình sản phẩm
         const propType = app.propertyType || app.property_type;
         const loaiCH = app.productType || app.loaiCanHo || app.product_type;
         const isCanHo = propType === 'Can_Ho' || loaiCH === 'Căn hộ' || loaiCH === 'Can_Ho';
-        const accountingHandoverDate = app.accountingHandoverDate || app.accounting_handover_date;
 
         if (isCanHo) {
           const handoverAptDate = app.handoverApartmentDate || app.handover_apartment_date;
           if (isDateValid(handoverAptDate)) {
             activeSla = 45;
             targetStartDateStr = handoverAptDate;
-          } else if (isDateValid(accountingHandoverDate)) {
-            // Có ngày bàn giao kế toán, kích hoạt đồng hồ đếm SLA (3 ngày hoặc 5 ngày)
-            activeSla = sla || 3;
-            targetStartDateStr = accountingHandoverDate;
           } else {
             // Không trễ nếu chưa có ngày nghiệm thu & chưa bàn giao KT
             return { isOverdue: false, daysLate: 0, daysLeft: 45, urgency: 'normal' as const };
@@ -144,10 +145,6 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
           if (isDateValid(signingDate)) {
             activeSla = 25;
             targetStartDateStr = signingDate;
-          } else if (isDateValid(accountingHandoverDate)) {
-            // Có ngày bàn giao kế toán, kích hoạt đồng hồ đếm SLA (3/5 ngày)
-            activeSla = sla || 3;
-            targetStartDateStr = accountingHandoverDate;
           } else {
             // Không trễ nếu chưa có ngày HĐMB & chưa bàn giao KT
             return { isOverdue: false, daysLate: 0, daysLeft: 25, urgency: 'normal' as const };

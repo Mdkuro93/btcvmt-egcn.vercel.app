@@ -1176,7 +1176,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       {
         id: generateUUID(),
         stepName: targetStepLabel,
-        dept: nextDeptLabel,
+        dept: nextDeptLabel as any,
         receivedDate: fullNow,
         note: handoverNote,
         performedBy: currentUser?.id,
@@ -1201,6 +1201,15 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
 
     const finalStatus = !isMovingForward ? 'Error' : (targetStep === 'S1_ChuanBi' ? 'Error' : targetStatus);
+
+    // Auto-fill accountingHandoverDate khi PTT chuyển sang bước KT tiếp nhận
+    if (
+      isMovingForward &&
+      (targetStep === 'S2_KT_Tiep_Nhan' || targetStep === 'GD1_Cho_KT_TiepNhan') &&
+      !app.accountingHandoverDate
+    ) {
+      autoDates.accountingHandoverDate = fullNow.split('T')[0];
+    }
 
     // Auto-fill ktHandoverToPtdaDate khi KT rời bước S2_KT_Ban_giao
     if (
@@ -1672,7 +1681,7 @@ export const useDataStore = create<DataState>((set, get) => ({
           {
             id: generateUUID(),
             stepName: (stepConfig[targetStep] || INITIAL_STEP_CONFIG[targetStep]).label,
-            dept: nextDeptLabel,
+            dept: nextDeptLabel as any,
             receivedDate: new Date().toISOString(),
             note: `${note}. ${handoverNote}`,
             performedBy: currentUser?.id,

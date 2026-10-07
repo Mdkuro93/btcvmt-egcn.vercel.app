@@ -734,6 +734,39 @@ export function useExcelImport({
                       changes.push(`Trạng thái tự động cập nhật: ${inferred.status}, Bước: ${inferred.currentStep}`);
                       updatedApp.status = inferred.status;
                       updatedApp.currentStep = inferred.currentStep;
+
+                      if (inferredIdx > currentIdxInDB) {
+                        const targetConfig = (INITIAL_STEP_CONFIG as any)[inferred.currentStep];
+                        const targetLabel = targetConfig?.label || inferred.currentStep;
+                        const targetDept = targetConfig?.dept || 'KT';
+                        const stepDate = updatedApp.accountingHandoverDate || 
+                                         updatedApp.ktHandoverToPtdaDate || 
+                                         updatedApp.submissionDate || 
+                                         updatedApp.taxReceiptDate || 
+                                         updatedApp.gcnReceivedDate || 
+                                         new Date().toISOString();
+
+                        let prevHistory = [...(updatedApp.history || [])];
+                        if (prevHistory.length > 0) {
+                          prevHistory[0] = {
+                            ...prevHistory[0],
+                            completedDate: stepDate
+                          };
+                        }
+
+                        updatedApp.history = [
+                          {
+                            id: generateUUID(),
+                            stepName: targetLabel,
+                            dept: targetDept,
+                            receivedDate: stepDate,
+                            note: `Cập nhật tiến độ từ Import Excel (${targetLabel})`,
+                            performedBy: currentUser?.id,
+                            performedByName: currentUser?.name || 'Hệ thống (Import)'
+                          },
+                          ...prevHistory
+                        ];
+                      }
                     }
                   }
                 }
@@ -903,6 +936,38 @@ export function useExcelImport({
              
              newApp.status = inferred.status;
              newApp.currentStep = inferred.currentStep;
+
+             if (inferred.currentStep !== initialStep) {
+               const targetConfig = (INITIAL_STEP_CONFIG as any)[inferred.currentStep];
+               const targetLabel = targetConfig?.label || inferred.currentStep;
+               const targetDept = targetConfig?.dept || 'KT';
+               const stepDate = newApp.accountingHandoverDate || 
+                                newApp.ktHandoverToPtdaDate || 
+                                newApp.submissionDate || 
+                                newApp.taxReceiptDate || 
+                                newApp.gcnReceivedDate || 
+                                new Date().toISOString();
+
+               if (newApp.history && newApp.history.length > 0) {
+                 newApp.history[0] = {
+                   ...newApp.history[0],
+                   completedDate: stepDate
+                 };
+               }
+
+               newApp.history = [
+                 {
+                   id: generateUUID(),
+                   stepName: targetLabel,
+                   dept: targetDept,
+                   receivedDate: stepDate,
+                   note: `Tiến độ xác định từ dữ liệu Import Excel (${targetLabel})`,
+                   performedBy: currentUser?.id,
+                   performedByName: currentUser?.name || 'Hệ thống (Import)'
+                 },
+                 ...(newApp.history || [])
+               ];
+             }
 
              if (newApp.issueType && newApp.issueType !== 'None' && String(newApp.issueType).trim() !== '') {
                newApp.status = 'Error';
