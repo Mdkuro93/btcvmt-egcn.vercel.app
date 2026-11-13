@@ -2731,38 +2731,92 @@ export default function App() {
       .reverse();
   }, [applications, selectedAppIds, stepConfig]);
 
-  const bulkTransitionChronoError = useMemo(() => {
-    if (!bulkTransitionField || !bulkTransitionValue || selectedAppIds.length === 0) return null;
-    
-    let firstError: string | null = null;
-    let firstWarning: string | null = null;
-    
+  const bulkTransitionValidation = useMemo(() => {
+    if (selectedAppIds.length === 0 || !bulkTransitionTarget) {
+      return {
+        errors: [] as string[],
+        warnings: [] as string[],
+        eligibleCount: 0,
+        firstErrorOrWarning: null as string | null
+      };
+    }
+
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const canSkipSequential = ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole);
+    const nowDateStr = new Date().toISOString().split('T')[0];
+
     for (const id of selectedAppIds) {
       const app = applications.find(a => a.id === id);
       if (!app) continue;
-      
-      const appWithDate = { ...app, [bulkTransitionField.key]: bulkTransitionValue };
-      if (bulkTransitionTarget === 'S3_Nop_VPDK' && app.workflowType === 'Quy_trinh_2') {
+
+      const appWithDate = { ...app };
+      if (bulkTransitionField && bulkTransitionValue) {
+        const existingValue = (app as any)[bulkTransitionField.key];
+        const hasExistingValue = existingValue !== null && existingValue !== undefined && existingValue !== '' && existingValue !== '---' && existingValue !== 'undefined' && existingValue !== 'null';
+        (appWithDate as any)[bulkTransitionField.key] = hasExistingValue ? existingValue : bulkTransitionValue;
+      }
+
+      const { finalStep, isJump } = WorkflowEngine.determineTargetStep(appWithDate, bulkTransitionTarget);
+      const recordNextStep = finalStep || bulkTransitionTarget;
+
+      if (bulkTransitionTarget === 'S2_KT_Ban_giao' && bulkTransitionKtHandover) {
         appWithDate.ktHandoverToPtdaDate = bulkTransitionKtHandover;
       }
+      if (app.currentStep === 'S2_KT_Ban_giao' && recordNextStep === 'S3_Nop_VPDK' && !appWithDate.ktHandoverToPtdaDate) {
+        appWithDate.ktHandoverToPtdaDate = bulkTransitionKtHandover || nowDateStr;
+      }
+
       const vpdKSteps = ['S3_Nop_VPDK', 'GD3_Nop_VPDK'];
-      if (vpdKSteps.includes(bulkTransitionTarget || '')) {
+      if (vpdKSteps.includes(recordNextStep || '')) {
         if (bulkTransitionLocation !== undefined) appWithDate.submissionLocation = bulkTransitionLocation as any;
         if (bulkTransitionRefCode !== undefined) appWithDate.vpdkCode = bulkTransitionRefCode;
       }
-      
-      const err = validateDateSequence(appWithDate);
+
+      const workflowSteps = (app.workflowType === 'Quy_trinh_2' || (app.projectName && app.projectName.includes('Quy trình 2'))) ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+      const currentIdx = workflowSteps.indexOf(app.currentStep as StepName);
+      const nextIdx = workflowSteps.indexOf(recordNextStep);
+
+      if (!canSkipSequential && nextIdx !== currentIdx + 1 && !isJump) {
+        const expectedStep = workflowSteps[currentIdx + 1] || 'Kết thúc';
+        errors.push(`Căn ${app.unitCode}: Sai tuần tự (Yêu cầu bước: ${(stepConfig[expectedStep] || INITIAL_STEP_CONFIG[expectedStep])?.label || expectedStep})`);
+        continue;
+      }
+
+      const shouldCheckFullWorkflow = !bulkTransitionField || bulkTransitionField.isRequired === false || Boolean(bulkTransitionValue);
+      if (shouldCheckFullWorkflow) {
+        const transitionCheck = WorkflowEngine.validateTransition(appWithDate, bulkTransitionTarget, userRole);
+        if (!transitionCheck.success) {
+          errors.push(`Căn ${app.unitCode}: ${transitionCheck.message || 'Không đủ điều kiện chuyển bước'}`);
+          continue;
+        }
+        if (transitionCheck.hasWarning && transitionCheck.message) {
+          warnings.push(`Căn ${app.unitCode}: ${transitionCheck.message}`);
+        }
+      }
+
+      const err = validateDateSequence(appWithDate, {
+        targetStep: recordNextStep,
+        activeDateField: bulkTransitionField?.key
+      });
       if (err) {
         if (err.startsWith('⚠️')) {
-          if (!firstWarning) firstWarning = err;
+          const formatted = `Căn ${app.unitCode}: ${err}`;
+          if (!warnings.includes(formatted)) warnings.push(formatted);
         } else {
-          if (!firstError) firstError = `Căn ${app.unitCode}: ${err}`;
+          errors.push(`Căn ${app.unitCode}: ${err}`);
         }
       }
     }
-    
-    return firstError || firstWarning;
-  }, [applications, selectedAppIds, bulkTransitionField, bulkTransitionValue, bulkTransitionTarget, bulkTransitionLocation, bulkTransitionRefCode, bulkTransitionKtHandover]);
+
+    const eligibleCount = Math.max(0, selectedAppIds.length - errors.length);
+    return {
+      errors,
+      warnings,
+      eligibleCount,
+      firstErrorOrWarning: errors[0] || warnings[0] || null
+    };
+  }, [applications, selectedAppIds, bulkTransitionField, bulkTransitionValue, bulkTransitionTarget, bulkTransitionLocation, bulkTransitionRefCode, bulkTransitionKtHandover, userRole, stepConfig]);
 
   // SPREADSHEET MODE STATES
   const [isSpreadsheetMode, setIsSpreadsheetMode] = useState(false);
@@ -3685,7 +3739,7 @@ export default function App() {
 
     if (result.chronoWarnings && result.chronoWarnings.length > 0) {
       showToast(
-        `Các lưu ý ngày tương lai: ${result.chronoWarnings.slice(0, 3).join(', ')}${result.chronoWarnings.length > 3 ? '...' : ''}`,
+        `Lưu ý trình tự ngày lịch sử: ${result.chronoWarnings.slice(0, 3).join(', ')}${result.chronoWarnings.length > 3 ? '...' : ''}`,
         'warning'
       );
     }
@@ -5716,7 +5770,8 @@ useEffect(() => {
         onChangeKtHandover={setBulkTransitionKtHandover}
         theme={theme}
         showToast={showToast}
-        dateError={bulkTransitionChronoError}
+        dateError={bulkTransitionValidation.firstErrorOrWarning}
+        validationSummary={bulkTransitionValidation}
         isSelfService={applications.filter(a => selectedAppIds.includes(a.id)).some(a => a.isSelfService)}
       />
 

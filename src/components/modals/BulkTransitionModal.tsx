@@ -23,6 +23,11 @@ export interface BulkTransitionModalProps {
   theme: 'light' | 'dark';
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
   dateError?: string | null;
+  validationSummary?: {
+    errors: string[];
+    warnings: string[];
+    eligibleCount: number;
+  } | null;
   isSelfService?: boolean;
 }
 
@@ -46,6 +51,7 @@ export default function BulkTransitionModal({
   theme,
   showToast,
   dateError,
+  validationSummary,
   isSelfService,
 }: BulkTransitionModalProps) {
   if (!isOpen) return null;
@@ -54,6 +60,15 @@ export default function BulkTransitionModal({
   const mousedownOnBackdrop = React.useRef(false);
 
   const isDateWarning = dateError?.startsWith('⚠️');
+  const warningsList = validationSummary?.warnings || (dateError && isDateWarning ? [dateError] : []);
+  const errorsList = validationSummary?.errors || (dateError && !isDateWarning ? [dateError] : []);
+  const eligibleCount = validationSummary ? validationSummary.eligibleCount : (errorsList.length > 0 ? 0 : selectedCount);
+
+  const isConfirmDisabled = Boolean(
+    (updateField?.isRequired !== false && updateField && !value) ||
+    (targetStep === 'S2_KT_Ban_giao' && !ktHandover) ||
+    (validationSummary ? eligibleCount === 0 : (dateError && !isDateWarning))
+  );
 
   const isSubmittingVPDK = targetStep === 'S3_Nop_VPDK' || targetStep === 'GD3_Nop_VPDK';
 
@@ -153,15 +168,37 @@ export default function BulkTransitionModal({
               </div>
             )}
 
-            {dateError && (
-              <div className={cn(
-                "p-4 rounded-3xl border text-xs flex items-start gap-2.5 font-bold leading-relaxed",
-                isDateWarning 
-                  ? "bg-amber-500/10 border-amber-500/20 text-amber-500" 
-                  : "bg-rose-500/10 border-rose-500/20 text-rose-500"
-              )}>
-                {isDateWarning ? <AlertTriangle size={16} className="mt-0.5 shrink-0" /> : <AlertCircle size={16} className="mt-0.5 shrink-0" />}
-                <span className="flex-1">{dateError}</span>
+            {warningsList.length > 0 && (
+              <div className="p-4 rounded-3xl border bg-amber-500/10 border-amber-500/20 text-amber-500 text-xs space-y-2 leading-relaxed">
+                <div className="flex items-start gap-2.5 font-bold">
+                  <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                  <span>
+                    Cảnh báo dữ liệu lịch sử ({warningsList.length} căn) — các hồ sơ này vẫn được chuyển bước bình thường:
+                  </span>
+                </div>
+                <ul className="list-disc pl-8 space-y-1 max-h-28 overflow-y-auto custom-scrollbar font-medium">
+                  {warningsList.map((w, idx) => (
+                    <li key={`warn-${idx}`}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {errorsList.length > 0 && (
+              <div className="p-4 rounded-3xl border bg-rose-500/10 border-rose-500/20 text-rose-500 text-xs space-y-2 leading-relaxed">
+                <div className="flex items-start gap-2.5 font-bold">
+                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                  <span>
+                    {eligibleCount > 0
+                      ? `Có ${errorsList.length} căn không đủ điều kiện (hệ thống sẽ tự động bỏ qua và chuyển ${eligibleCount}/${selectedCount} căn hợp lệ):`
+                      : `Tất cả ${errorsList.length} căn đã chọn đều không đủ điều kiện chuyển bước:`}
+                  </span>
+                </div>
+                <ul className="list-disc pl-8 space-y-1 max-h-28 overflow-y-auto custom-scrollbar font-medium">
+                  {errorsList.map((err, idx) => (
+                    <li key={`err-${idx}`}>{err}</li>
+                  ))}
+                </ul>
               </div>
             )}
 
@@ -260,23 +297,21 @@ export default function BulkTransitionModal({
             Hủy bỏ
           </button>
           <button
-            disabled={
-              (updateField?.isRequired !== false && updateField && !value) || 
-              (targetStep === 'S2_KT_Ban_giao' && !ktHandover) ||
-              (dateError && !isDateWarning) || false
-            }
+            disabled={isConfirmDisabled}
             onClick={() => {
               onConfirm();
             }}
             className={cn(
               "flex-1 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
-              ((updateField && !value) || (targetStep === 'S2_KT_Ban_giao' && !ktHandover) || (dateError && !isDateWarning))
+              isConfirmDisabled
                 ? "bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700"
                 : "bg-indigo-600 text-white hover:bg-indigo-500 shadow-xl shadow-indigo-900/40"
             )}
           >
             {isSelfService ? (
               <>Chuyển thẳng đến Chờ bàn giao <ArrowRight size={14} /></>
+            ) : errorsList.length > 0 && eligibleCount > 0 ? (
+              <>Xác nhận & Chuyển ({eligibleCount}/{selectedCount} căn) <ArrowRight size={14} /></>
             ) : (
               <>Xác nhận & Chuyển <ArrowRight size={14} /></>
             )}

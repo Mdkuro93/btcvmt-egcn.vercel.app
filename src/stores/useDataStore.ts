@@ -1613,6 +1613,9 @@ export const useDataStore = create<DataState>((set, get) => ({
           }
           return app;
         }
+        if (transitionCheck.hasWarning && transitionCheck.message) {
+          chronoWarnings.push(`Căn ${unitLabel}: ${transitionCheck.message}`);
+        }
         if (transitionCheck.nextStep) {
           recordNextStep = transitionCheck.nextStep;
         }
@@ -1626,10 +1629,15 @@ export const useDataStore = create<DataState>((set, get) => ({
           return app;
         }
 
-        const chronoError = validateDateSequence(appWithDate);
+        const chronoError = validateDateSequence(appWithDate, {
+          targetStep: recordNextStep,
+          activeDateField: bulkTransitionField?.key
+        });
         if (chronoError) {
           if (chronoError.startsWith('⚠️')) {
-            chronoWarnings.push(`Căn ${unitLabel}: ${chronoError}`);
+            if (!transitionCheck.hasWarning || transitionCheck.message !== chronoError) {
+              chronoWarnings.push(`Căn ${unitLabel}: ${chronoError}`);
+            }
           } else {
             transitionErrors.push(`Căn ${unitLabel}: ${chronoError}`);
             return app; // Bỏ qua cập nhật cho hồ sơ này

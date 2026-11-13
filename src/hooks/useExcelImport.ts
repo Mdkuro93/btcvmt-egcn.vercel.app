@@ -4,7 +4,7 @@ import { Application, StepName, UnitStatus, IssueSeverity } from '../types';
 import { formatDate } from '../utils/dateUtils';
 import { mapFromSnakeCase } from '../utils/mappers';
 import { RECORD_LIGHT_SELECT } from '../stores/useDataStore';
-import { calculateDaysDiff, calculateDaysBetweenDates, getPhaseIndex, getTaxStatus, getOverdueInfo, inferStepFromDates, determineStatusFromStep, validateSkippedSteps, generateUUID } from '../utils/appUtils';
+import { calculateDaysDiff, calculateDaysBetweenDates, getPhaseIndex, getTaxStatus, getOverdueInfo, inferStepFromDates, determineStatusFromStep, validateSkippedSteps, validateDateSequence, generateUUID } from '../utils/appUtils';
 import { STEP_CONFIG as INITIAL_STEP_CONFIG, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS } from '../constants';
 
 export function useExcelImport({
@@ -390,7 +390,21 @@ export function useExcelImport({
           issueSeverity: findCol(['muc do sai sot'], ['muc do sai sot']),
           issueNotes: findCol(['ghi chu sai sot'], ['ghi chu sai sot']),
           gcnNumber: findCol(['so gcnqsdd', 'so gcn', 'gcnqsdd'], ['so gcn', 'gcnqsdd']),
+          overrideMilestones: findCol(['ghi de cot moc', 'override cot moc', 'force override'], [], true),
         };
+
+        const normYMD = (val: any): string => {
+          if (val === undefined || val === null) return '';
+          const str = String(val).trim();
+          if (!str || str === '---' || str.toLowerCase() === 'none' || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') {
+            return '';
+          }
+          return str.split('T')[0];
+        };
+
+        const hasAdminImportPrivilege =
+          ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole) ||
+          isManagementEdit === true;
 
         const getRowVal = (row: any[], field: keyof typeof colMap) => {
           const idx = colMap[field];
@@ -515,33 +529,74 @@ export function useExcelImport({
                }
              }
 
+             const overrideCellVal = (getRowStr(row, 'overrideMilestones') || '').toLowerCase();
+             const hasRowOverrideFlag =
+               Boolean((row as any)?.__forceOverride) ||
+               ['có', 'co', 'yes', '1', 'true', 'x', 'override'].includes(overrideCellVal);
+             const canOverrideMilestones = hasAdminImportPrivilege || hasRowOverrideFlag;
+
+             const stepSequence = updatedApp.workflowType === 'Quy_trinh_2' ? WORKFLOW_2_STEPS : WORKFLOW_1_STEPS;
+             const existingStepIdx = stepSequence.indexOf(existingApp.currentStep);
+             const ktReceiveStepIdx = stepSequence.indexOf(
+               updatedApp.workflowType === 'Quy_trinh_2' ? 'S2_KT_Tiep_Nhan' : 'GD1_Cho_KT_TiepNhan'
+             );
+
+             const hasPassedStep1 =
+               existingStepIdx > 0 ||
+               Boolean(normYMD(existingApp.accountingHandoverDate)) ||
+               Boolean(normYMD(existingApp.ktHandoverToPtdaDate)) ||
+               Boolean(normYMD(existingApp.submissionDate)) ||
+               Boolean(normYMD(existingApp.taxNotificationDate)) ||
+               Boolean(normYMD(existingApp.taxReceiptDate)) ||
+               Boolean(normYMD(existingApp.gcnSignedDate)) ||
+               Boolean(normYMD(existingApp.gcnReceivedDate)) ||
+               Boolean(normYMD(existingApp.ptdaHandoverDate)) ||
+               Boolean(normYMD(existingApp.customerHandoverDate));
+
+             const hasPassedAccountingStep =
+               (ktReceiveStepIdx !== -1 && existingStepIdx > ktReceiveStepIdx) ||
+               Boolean(normYMD(existingApp.ktHandoverToPtdaDate)) ||
+               Boolean(normYMD(existingApp.submissionDate)) ||
+               Boolean(normYMD(existingApp.taxNotificationDate)) ||
+               Boolean(normYMD(existingApp.taxReceiptDate)) ||
+               Boolean(normYMD(existingApp.gcnSignedDate)) ||
+               Boolean(normYMD(existingApp.gcnReceivedDate)) ||
+               Boolean(normYMD(existingApp.ptdaHandoverDate)) ||
+               Boolean(normYMD(existingApp.customerHandoverDate));
+
              const commDate = getRowDate(row, 'commitmentDate');
-             if (commDate !== undefined && commDate !== existingApp.commitmentDate) {
+             if (commDate !== undefined && normYMD(commDate) !== normYMD(existingApp.commitmentDate)) {
                 updatedApp.commitmentDate = commDate;
-                changes.push(`Hạn GCN: ${existingApp.commitmentDate || 'Trống'} -> ${commDate || 'Trống'}`);
+                changes.push(`Hạn GCN: ${normYMD(existingApp.commitmentDate) || 'Trống'} -> ${normYMD(commDate) || 'Trống'}`);
              }
 
              const bankCommitment = getRowDate(row, 'bankCommitmentDeadline');
-             if (bankCommitment !== undefined && bankCommitment !== existingApp.bankCommitmentDeadline) {
+             if (bankCommitment !== undefined && normYMD(bankCommitment) !== normYMD(existingApp.bankCommitmentDeadline)) {
                 updatedApp.bankCommitmentDeadline = bankCommitment;
-                changes.push(`Hạn cam kết vay: ${existingApp.bankCommitmentDeadline || 'Trống'} -> ${bankCommitment || 'Trống'}`);
+                changes.push(`Hạn cam kết vay: ${normYMD(existingApp.bankCommitmentDeadline) || 'Trống'} -> ${normYMD(bankCommitment) || 'Trống'}`);
              }
 
              const recDate = getRowDate(row, 'receivedDate');
              const contractSignDate = getRowDate(row, 'contractSigningDate');
-             if (contractSignDate !== undefined && contractSignDate !== existingApp.contractSigningDate) {
+             if (contractSignDate !== undefined && normYMD(contractSignDate) !== normYMD(existingApp.contractSigningDate)) {
                 updatedApp.contractSigningDate = contractSignDate;
-                changes.push(`Ngày ký HĐCN: ${existingApp.contractSigningDate || 'Trống'} -> ${contractSignDate || 'Trống'}`);
+                changes.push(`Ngày ký HĐCN: ${normYMD(existingApp.contractSigningDate) || 'Trống'} -> ${normYMD(contractSignDate) || 'Trống'}`);
              }
               const handoverApDate = getRowDate(row, 'handoverApartmentDate');
-              if (handoverApDate !== undefined && handoverApDate !== existingApp.handoverApartmentDate) {
+              if (handoverApDate !== undefined && normYMD(handoverApDate) !== normYMD(existingApp.handoverApartmentDate)) {
                  updatedApp.handoverApartmentDate = handoverApDate;
-                 changes.push(`Bàn giao căn hộ: ${existingApp.handoverApartmentDate || 'Trống'} -> ${handoverApDate || 'Trống'}`);
+                 changes.push(`Bàn giao căn hộ: ${normYMD(existingApp.handoverApartmentDate) || 'Trống'} -> ${normYMD(handoverApDate) || 'Trống'}`);
               }
-             if (recDate !== undefined && recDate !== existingApp.receivedDate) {
-                updatedApp.receivedDate = recDate;
-                changes.push(`Ngày nhận HS: ${existingApp.receivedDate || 'Trống'} -> ${recDate || 'Trống'}`);
-              }
+             if (recDate !== undefined && normYMD(recDate) !== normYMD(existingApp.receivedDate)) {
+                if (hasPassedStep1 && normYMD(existingApp.receivedDate) !== '' && !canOverrideMilestones) {
+                  warnings.push(
+                    `Căn ${updatedApp.unitCode}: Đã bảo vệ "Ngày nhận HS" (${normYMD(existingApp.receivedDate)}), bỏ qua ghi đè thành "${normYMD(recDate) || 'Trống'}" vì hồ sơ đã qua bước 1.`
+                  );
+                } else {
+                  updatedApp.receivedDate = recDate;
+                  changes.push(`Ngày nhận HS: ${normYMD(existingApp.receivedDate) || 'Trống'} -> ${normYMD(recDate) || 'Trống'}`);
+                }
+             }
 
               const selfServiceVal = getRowStr(row, 'isSelfService');
              if (selfServiceVal !== undefined && selfServiceVal !== '') {
@@ -566,9 +621,15 @@ export function useExcelImport({
                   parsedAccountingDate = parseDateFromExcel(bgKtStr) || existingApp.accountingHandoverDate;
                 }
                 
-                if (parsedAccountingDate !== existingApp.accountingHandoverDate) {
-                  updatedApp.accountingHandoverDate = parsedAccountingDate;
-                  changes.push(`Bàn giao KT: ${existingApp.accountingHandoverDate || 'Chưa gửi'} -> ${parsedAccountingDate || 'Chưa gửi'}`);
+                if (normYMD(parsedAccountingDate) !== normYMD(existingApp.accountingHandoverDate)) {
+                  if (hasPassedAccountingStep && normYMD(existingApp.accountingHandoverDate) !== '' && !canOverrideMilestones) {
+                    warnings.push(
+                      `Căn ${updatedApp.unitCode}: Đã bảo vệ "Ngày bàn giao sang KT" (${normYMD(existingApp.accountingHandoverDate)}), bỏ qua ghi đè thành "${normYMD(parsedAccountingDate) || 'Chưa gửi'}" vì hồ sơ đã qua bước Kế toán tiếp nhận.`
+                    );
+                  } else {
+                    updatedApp.accountingHandoverDate = parsedAccountingDate;
+                    changes.push(`Bàn giao KT: ${normYMD(existingApp.accountingHandoverDate) || 'Chưa gửi'} -> ${normYMD(parsedAccountingDate) || 'Chưa gửi'}`);
+                  }
                 }
              }
 
@@ -588,51 +649,51 @@ export function useExcelImport({
              }
 
              const subDate = getRowDate(row, 'submissionDate');
-             if (subDate !== undefined && subDate !== existingApp.submissionDate) {
+             if (subDate !== undefined && normYMD(subDate) !== normYMD(existingApp.submissionDate)) {
                 updatedApp.submissionDate = subDate;
-                changes.push(`Ngày nộp VPĐK: ${existingApp.submissionDate || 'Trống'} -> ${subDate || 'Trống'}`);
+                changes.push(`Ngày nộp VPĐK: ${normYMD(existingApp.submissionDate) || 'Trống'} -> ${normYMD(subDate) || 'Trống'}`);
              }
 
              const taxVpdkDate = getRowDate(row, 'taxVpdkSubmissionDate');
-             if (taxVpdkDate !== undefined && taxVpdkDate !== existingApp.taxVpdkSubmissionDate) {
+             if (taxVpdkDate !== undefined && normYMD(taxVpdkDate) !== normYMD(existingApp.taxVpdkSubmissionDate)) {
                 updatedApp.taxVpdkSubmissionDate = taxVpdkDate;
-                changes.push(`Ngày nộp hồ sơ NVTC vào VPĐK: ${existingApp.taxVpdkSubmissionDate || 'Trống'} -> ${taxVpdkDate || 'Trống'}`);
+                changes.push(`Ngày nộp hồ sơ NVTC vào VPĐK: ${normYMD(existingApp.taxVpdkSubmissionDate) || 'Trống'} -> ${normYMD(taxVpdkDate) || 'Trống'}`);
              }
 
              const taxNotifDate = getRowDate(row, 'taxNotificationDate');
-             if (taxNotifDate !== undefined && taxNotifDate !== existingApp.taxNotificationDate) {
+             if (taxNotifDate !== undefined && normYMD(taxNotifDate) !== normYMD(existingApp.taxNotificationDate)) {
                 updatedApp.taxNotificationDate = taxNotifDate;
-                changes.push(`Ngày TB Thuế: ${existingApp.taxNotificationDate || 'Trống'} -> ${taxNotifDate || 'Trống'}`);
+                changes.push(`Ngày TB Thuế: ${normYMD(existingApp.taxNotificationDate) || 'Trống'} -> ${normYMD(taxNotifDate) || 'Trống'}`);
              }
 
              const taxNotifRecDate = getRowDate(row, 'taxNotificationReceivedDate');
-             if (taxNotifRecDate !== undefined && taxNotifRecDate !== existingApp.taxNotificationReceivedDate) {
+             if (taxNotifRecDate !== undefined && normYMD(taxNotifRecDate) !== normYMD(existingApp.taxNotificationReceivedDate)) {
                 updatedApp.taxNotificationReceivedDate = taxNotifRecDate;
-                changes.push(`Ngày nhận TB Thuế: ${existingApp.taxNotificationReceivedDate || 'Trống'} -> ${taxNotifRecDate || 'Trống'}`);
+                changes.push(`Ngày nhận TB Thuế: ${normYMD(existingApp.taxNotificationReceivedDate) || 'Trống'} -> ${normYMD(taxNotifRecDate) || 'Trống'}`);
              }
 
              const taxNoticeProv = getRowDate(row, 'taxNoticeProvisionDate');
-             if (taxNoticeProv !== undefined && taxNoticeProv !== existingApp.taxNoticeProvisionDate) {
+             if (taxNoticeProv !== undefined && normYMD(taxNoticeProv) !== normYMD(existingApp.taxNoticeProvisionDate)) {
                 updatedApp.taxNoticeProvisionDate = taxNoticeProv;
-                changes.push(`Ngày cung cấp TB Thuế: ${existingApp.taxNoticeProvisionDate || 'Trống'} -> ${taxNoticeProv || 'Trống'}`);
+                changes.push(`Ngày cung cấp TB Thuế: ${normYMD(existingApp.taxNoticeProvisionDate) || 'Trống'} -> ${normYMD(taxNoticeProv) || 'Trống'}`);
              }
 
              const taxReceipt = getRowDate(row, 'taxReceiptDate');
-             if (taxReceipt !== undefined && taxReceipt !== existingApp.taxReceiptDate) {
+             if (taxReceipt !== undefined && normYMD(taxReceipt) !== normYMD(existingApp.taxReceiptDate)) {
                 updatedApp.taxReceiptDate = taxReceipt;
-                changes.push(`Ngày đóng thuế: ${existingApp.taxReceiptDate || 'Trống'} -> ${taxReceipt || 'Trống'}`);
+                changes.push(`Ngày đóng thuế: ${normYMD(existingApp.taxReceiptDate) || 'Trống'} -> ${normYMD(taxReceipt) || 'Trống'}`);
              }
 
              const gSignedDate = getRowDate(row, 'gcnSignedDate');
-             if (gSignedDate !== undefined && gSignedDate !== existingApp.gcnSignedDate) {
+             if (gSignedDate !== undefined && normYMD(gSignedDate) !== normYMD(existingApp.gcnSignedDate)) {
                 updatedApp.gcnSignedDate = gSignedDate;
-                changes.push(`Ngày trình ký/ký GCN: ${existingApp.gcnSignedDate || 'Trống'} -> ${gSignedDate || 'Trống'}`);
+                changes.push(`Ngày trình ký/ký GCN: ${normYMD(existingApp.gcnSignedDate) || 'Trống'} -> ${normYMD(gSignedDate) || 'Trống'}`);
              }
 
              const gReceivedDate = getRowDate(row, 'gcnReceivedDate');
-             if (gReceivedDate !== undefined && gReceivedDate !== existingApp.gcnReceivedDate) {
+             if (gReceivedDate !== undefined && normYMD(gReceivedDate) !== normYMD(existingApp.gcnReceivedDate)) {
                 updatedApp.gcnReceivedDate = gReceivedDate;
-                changes.push(`Ngày nhận GCN thực tế: ${existingApp.gcnReceivedDate || 'Trống'} -> ${gReceivedDate || 'Trống'}`);
+                changes.push(`Ngày nhận GCN thực tế: ${normYMD(existingApp.gcnReceivedDate) || 'Trống'} -> ${normYMD(gReceivedDate) || 'Trống'}`);
 
                 const isBypassed = updatedApp.checklist?.['bypass_gcn'] === true;
                 const isEarly = !isBypassed && ['GD1','GD2','GD3','GD4','S1','S2','S3','S4','S5'].some(prefix => updatedApp.currentStep.startsWith(prefix));
@@ -646,15 +707,15 @@ export function useExcelImport({
              }
 
              const ktHandoverPtda = getRowDate(row, 'ktHandoverToPtdaDate');
-             if (ktHandoverPtda !== undefined && ktHandoverPtda !== existingApp.ktHandoverToPtdaDate) {
+             if (ktHandoverPtda !== undefined && normYMD(ktHandoverPtda) !== normYMD(existingApp.ktHandoverToPtdaDate)) {
                 updatedApp.ktHandoverToPtdaDate = ktHandoverPtda;
-                changes.push(`Ngày KT bàn giao PTDA: ${existingApp.ktHandoverToPtdaDate || 'Trống'} -> ${ktHandoverPtda || 'Trống'}`);
+                changes.push(`Ngày KT bàn giao PTDA: ${normYMD(existingApp.ktHandoverToPtdaDate) || 'Trống'} -> ${normYMD(ktHandoverPtda) || 'Trống'}`);
              }
 
              const ptdaHandover = getRowDate(row, 'ptdaHandoverDate');
-             if (ptdaHandover !== undefined && ptdaHandover !== existingApp.ptdaHandoverDate) {
+             if (ptdaHandover !== undefined && normYMD(ptdaHandover) !== normYMD(existingApp.ptdaHandoverDate)) {
                 updatedApp.ptdaHandoverDate = ptdaHandover;
-                changes.push(`Ngày BG P.TDA: ${existingApp.ptdaHandoverDate || 'Trống'} -> ${ptdaHandover || 'Trống'}`);
+                changes.push(`Ngày BG P.TDA: ${normYMD(existingApp.ptdaHandoverDate) || 'Trống'} -> ${normYMD(ptdaHandover) || 'Trống'}`);
              }
 
              let custHandoverDate = getRowDate(row, 'customerHandoverDate');
@@ -671,9 +732,9 @@ export function useExcelImport({
                   }
                 }
              }
-             if (custHandoverDate !== undefined && custHandoverDate !== existingApp.customerHandoverDate) {
+             if (custHandoverDate !== undefined && normYMD(custHandoverDate) !== normYMD(existingApp.customerHandoverDate)) {
                 updatedApp.customerHandoverDate = custHandoverDate;
-                changes.push(`Ngày BG Khách: ${existingApp.customerHandoverDate || 'Trống'} -> ${custHandoverDate || 'Trống'}`);
+                changes.push(`Ngày BG Khách: ${normYMD(existingApp.customerHandoverDate) || 'Trống'} -> ${normYMD(custHandoverDate) || 'Trống'}`);
              }
 
              const isType = getRowStr(row, 'issueType');
@@ -771,6 +832,15 @@ export function useExcelImport({
                   }
                 }
                 
+                const dateSeqErr = validateDateSequence(updatedApp, { strictAll: true });
+                if (dateSeqErr) {
+                  warnings.push(
+                    dateSeqErr.startsWith('⚠️')
+                      ? dateSeqErr
+                      : `⚠️ Căn ${updatedApp.unitCode}: Lệch trình tự ngày (${dateSeqErr}).`
+                  );
+                }
+
                 const auditEntry = {
                   id: generateUUID(),
                   action: 'Import Excel',
@@ -971,6 +1041,15 @@ export function useExcelImport({
 
              if (newApp.issueType && newApp.issueType !== 'None' && String(newApp.issueType).trim() !== '') {
                newApp.status = 'Error';
+             }
+
+             const dateSeqErr = validateDateSequence(newApp as Application, { strictAll: true });
+             if (dateSeqErr) {
+               warnings.push(
+                 dateSeqErr.startsWith('⚠️')
+                   ? dateSeqErr
+                   : `⚠️ Căn ${newApp.unitCode}: Lệch trình tự ngày (${dateSeqErr}).`
+               );
              }
 
              const auditEntry = {

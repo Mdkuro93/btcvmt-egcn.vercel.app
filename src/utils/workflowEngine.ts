@@ -80,21 +80,18 @@ export const WorkflowEngine = {
         }
       }
 
-      const chronoError = validateDateSequence(app);
+      let chronoWarningMessage: string | undefined;
+      const chronoError = validateDateSequence(app, { targetStep: finalStep });
       if (chronoError) {
         if (chronoError.startsWith('⚠️')) {
+          chronoWarningMessage = chronoError;
+        } else {
           return {
-            success: true,
+            success: false,
             type: 'warning',
-            message: chronoError,
-            hasWarning: true
+            message: `Lỗi trình tự ngày: ${chronoError}`
           };
         }
-        return {
-          success: false,
-          type: 'warning',
-          message: `Lỗi trình tự ngày: ${chronoError}`
-        };
       }
 
       const isLegacy = isLegacyRecord(app);
@@ -195,6 +192,15 @@ export const WorkflowEngine = {
              if (!app.ptdaHandoverDate) return { success: false, type: 'warning', message: 'Bổ sung thiếu: Bắt buộc nhập Ngày bàn giao GCN cho PTT để Hoàn Tất.' };
           }
         }
+      }
+      if (chronoWarningMessage) {
+        return {
+          success: true,
+          nextStep: finalStep,
+          type: 'warning',
+          message: chronoWarningMessage,
+          hasWarning: true
+        };
       }
     }
 

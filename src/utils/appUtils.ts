@@ -221,7 +221,43 @@ export const inferStepFromDates = (
   return inferred;
 };
 
-export function validateDateSequence(app: Partial<Application>): string | null {
+export interface DateValidationOptions {
+  targetStep?: StepName | string;
+  activeDateField?: keyof Application | string;
+  strictAll?: boolean;
+}
+
+const STEP_TO_DATE_FIELDS: Record<string, string[]> = {
+  // Quy trình 2
+  S1_ChuanBi: ['receivedDate'],
+  S2_KT_Tiep_Nhan: ['accountingHandoverDate'],
+  S2_KT_Ban_giao: ['ktHandoverToPtdaDate'],
+  S3_Nop_VPDK: ['submissionDate'],
+  S4_Cho_Thong_Bao_Thue: ['taxNotificationDate'],
+  S5_Tai_Chinh_Khach_Hang: ['taxNotificationDate'],
+  S5_1_PTDA_TiepNhan: ['taxReceiptDate'],
+  S6_Nhan_So_GCN: ['gcnSignedDate'],
+  S7_PTDA_Ban_Giao: ['gcnSignedDate'],
+  S7_1_PTT_Tiep_Nhan: ['ptdaHandoverDate'],
+  S7_2_Ban_Giao_Khach: ['gcnReceivedDate'],
+  Hoan_Tat: ['customerHandoverDate'],
+  // Quy trình 1
+  GD1_ChuanBi: ['receivedDate'],
+  GD1_Cho_KT_TiepNhan: ['accountingHandoverDate'],
+  GD2_Cho_Nop_VPDK: ['ktHandoverToPtdaDate', 'accountingHandoverDate'],
+  GD3_Nop_VPDK: ['submissionDate'],
+  GD4_Cho_Nop_NVTC: ['taxNotificationDate'],
+  GD4_Cho_KT_TiepNhan_LaySo: ['taxReceiptDate'],
+  GD5_Cho_Ky_In_GCN: ['gcnSignedDate'],
+  GD5_Cho_GCN: ['gcnSignedDate'],
+  GD5_Cho_PTT_TiepNhan_BG: ['gcnReceivedDate'],
+  GD6_Cho_BG_Khach: ['ptdaHandoverDate'],
+};
+
+export function validateDateSequence(
+  app: Partial<Application>,
+  options?: DateValidationOptions
+): string | null {
   const chronoDates = [
     { key: 'receivedDate', label: 'Ngày nhận HS' },
     { key: 'accountingHandoverDate', label: 'Ngày KT tiếp nhận' },
@@ -272,6 +308,18 @@ export function validateDateSequence(app: Partial<Application>): string | null {
     }
   }
 
+  const useContextualMode = Boolean(
+    options &&
+    !options.strictAll &&
+    (options.targetStep || options.activeDateField)
+  );
+  const activeStepFields = new Set<string>([
+    ...(options?.targetStep ? (STEP_TO_DATE_FIELDS[String(options.targetStep)] || []) : []),
+    ...(options?.activeDateField ? [String(options.activeDateField)] : [])
+  ]);
+
+  let firstHistoricalWarning: string | null = null;
+
   for (let i = 0; i < activeDates.length - 1; i++) {
     const d1 = activeDates[i];
     const d2 = activeDates[i+1];
@@ -285,7 +333,19 @@ export function validateDateSequence(app: Partial<Application>): string | null {
       if (d1.key === 'receivedDate' && app.workflowType !== undefined) {
         continue;
       }
-      return `${d2.label} không được nhỏ hơn ${d1.label}`;
+
+      const isCurrentStepPair =
+        !useContextualMode ||
+        activeStepFields.has(d2.key) ||
+        activeStepFields.has(d1.key);
+
+      if (isCurrentStepPair) {
+        return `${d2.label} không được nhỏ hơn ${d1.label}`;
+      }
+
+      if (!firstHistoricalWarning) {
+        firstHistoricalWarning = `⚠️ ${d2.label} không được nhỏ hơn ${d1.label} (lỗi dữ liệu lịch sử bước trước)`;
+      }
     }
   }
 
@@ -295,10 +355,12 @@ export function validateDateSequence(app: Partial<Application>): string | null {
     ktDate.setHours(0,0,0,0);
     hdDate.setHours(0,0,0,0);
     if (hdDate > ktDate) {
-      return `⚠️ Căn ${app.unitCode}: Ngày ký HĐCN (${app.contractSigningDate?.substring(0,10)}) đang lớn hơn ngày KT tiếp nhận (${app.accountingHandoverDate?.substring(0,10)}). Vui lòng kiểm tra lại — ngày ký HĐ là ngày ký thực tế với khách, không phải ngày nhập liệu hôm nay.`;
+      if (!firstHistoricalWarning) {
+        firstHistoricalWarning = `⚠️ Căn ${app.unitCode}: Ngày ký HĐCN (${app.contractSigningDate?.substring(0,10)}) đang lớn hơn ngày KT tiếp nhận (${app.accountingHandoverDate?.substring(0,10)}). Vui lòng kiểm tra lại — ngày ký HĐ là ngày ký thực tế với khách, không phải ngày nhập liệu hôm nay.`;
+      }
     }
   }
 
-  return null;
+  return firstHistoricalWarning;
 }
 
