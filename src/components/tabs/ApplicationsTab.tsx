@@ -920,30 +920,57 @@ export const ApplicationsTab = ({
                                   {(() => {
                                     const slaResult = calculateSLA(app, stepConfig);
                                     if (app.currentStep === 'Hoan_Tat' || app.status === 'Completed') return null;
+
+                                    const slaTitle = [
+                                      slaResult.slaAnchorDate ? `Mốc lượt: ${slaResult.slaAnchorDate}` : '',
+                                      slaResult.currentTurnDays !== undefined ? `Lượt hiện tại: ${slaResult.currentTurnDays}d LV` : '',
+                                      (slaResult.pauseDays || 0) > 0 ? `Tạm dừng chờ sửa: ${slaResult.pauseDays}d LV` : '',
+                                      (slaResult.cumulativeStepDays || 0) > 0 ? `Tích lũy bước: ${slaResult.cumulativeStepDays}d LV` : ''
+                                    ].filter(Boolean).join(' • ');
+
+                                    if (slaResult.isPaused) {
+                                      return (
+                                        <span
+                                          title={slaTitle || 'Đồng hồ SLA bước đang tạm dừng để chờ khắc phục'}
+                                          className="text-[9px] font-medium inline-flex items-center gap-0.5 text-amber-500 uppercase tracking-tighter mt-1"
+                                        >
+                                          <Clock size={9} /> Tạm dừng ({slaResult.pauseDays || 0}d)
+                                        </span>
+                                      );
+                                    }
                                     
                                     if (slaResult.urgency === 'overdue') {
                                       return (
-                                        <span className="text-[9px] font-medium inline-flex items-center gap-0.5 text-red-500 uppercase tracking-tighter mt-1">
+                                        <span
+                                          title={slaTitle}
+                                          className="text-[9px] font-medium inline-flex items-center gap-0.5 text-red-500 uppercase tracking-tighter mt-1"
+                                        >
                                           <AlertTriangle size={9} /> Trễ {slaResult.daysLate} ngày
                                         </span>
                                       );
                                     }
                                     if (slaResult.urgency === 'urgent') {
                                       return (
-                                        <span className="text-[9px] font-medium inline-flex items-center gap-0.5 text-amber-500 uppercase tracking-tighter mt-1 animate-pulse">
+                                        <span
+                                          title={slaTitle}
+                                          className="text-[9px] font-medium inline-flex items-center gap-0.5 text-amber-500 uppercase tracking-tighter mt-1 animate-pulse"
+                                        >
                                           <Clock size={9} className="animate-spin" style={{ animationDuration: '3s' }} /> Còn {slaResult.daysLeft} ngày
                                         </span>
                                       );
                                     }
                                     if (slaResult.urgency === 'warning') {
                                       return (
-                                        <span className="text-[9px] font-medium inline-flex items-center gap-0.5 text-yellow-500 uppercase tracking-tighter mt-1">
+                                        <span
+                                          title={slaTitle}
+                                          className="text-[9px] font-medium inline-flex items-center gap-0.5 text-yellow-500 uppercase tracking-tighter mt-1"
+                                        >
                                           <Clock size={9} /> Còn {slaResult.daysLeft} ngày
                                         </span>
                                       );
                                     }
                                     return (
-                                      <span className="text-[9px] text-slate-500 font-medium uppercase mt-0.5">
+                                      <span title={slaTitle} className="text-[9px] text-slate-500 font-medium uppercase mt-0.5">
                                         SLA: {(stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep])?.slaDays || 0}d
                                       </span>
                                     );

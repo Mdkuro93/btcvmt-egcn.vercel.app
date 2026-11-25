@@ -27,10 +27,161 @@ export function calculateDaysDiff(dateStr: string) {
 // không cần cache. Nếu cần tối ưu hiệu năng trong tương lai, dùng useMemo ở tầng
 // component với dependency rõ ràng thay vì cache tại engine layer.
 
-export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
+export interface SLAResult {
+  isOverdue: boolean;
+  daysLate: number;
+  daysLeft: number;
+  urgency: 'overdue' | 'urgent' | 'warning' | 'normal';
+  label?: string;
+  isStepCompleted?: boolean;
+  status?: string;
+  isPaused?: boolean;
+  pauseDays?: number;
+  currentTurnDays?: number;
+  cumulativeStepDays?: number;
+  slaAnchorDate?: string;
+  slaAnchorSource?: 'STEP_ENTRY_DATE' | 'HISTORY' | 'MILESTONE' | 'PAUSED' | 'COMPLETED';
+}
+
+const isDateValid = (d: any) => d && d !== '---' && d !== 'None' && String(d).trim() !== '';
+
+const toYmd = (d: any): string | undefined => {
+  if (!isDateValid(d)) return undefined;
+  const s = String(d).trim();
+  const parsed = new Date(s);
+  if (!isNaN(parsed.getTime())) return parsed.toISOString().split('T')[0];
+  return s.split('T')[0].split(' ')[0];
+};
+
+const normalizeStepString = (s: string) =>
+  s
+    ? s
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+/g, '')
+    : '';
+
+function getHistoryTimestamp(h: any): number {
+  if (!h) return 0;
+  const idMatch = String(h.id || '').match(/^hist-(\d+)-/);
+  if (idMatch) return parseInt(idMatch[1], 10);
+  const rDate = h.receivedDate || h.received_date;
+  if (isDateValid(rDate)) {
+    const t = new Date(rDate).getTime();
+    if (!isNaN(t)) return t;
+  }
+  return 0;
+}
+
+function getPauseMetadata(app: any, now: Date) {
+  const isRejectedFlag = Boolean(app.isRejected || app.is_rejected);
+  const isErrorStatus = app.status === 'Error';
+  const isPaused = isRejectedFlag || isErrorStatus;
+
+  const issueCreatedAt = app.issueCreatedAt || app.issue_created_at;
+  const issueResolvedAt = app.issueResolvedAt || app.issue_resolved_at;
+  const stepEntryDate = app.stepEntryDate || app.step_entry_date;
+  const updatedAt = app.updatedAt || app.updated_at || app.createdAt || app.created_at;
+
+  let pauseDays = 0;
+  if (isPaused) {
+    const pauseAnchor = isDateValid(issueCreatedAt)
+      ? issueCreatedAt
+      : isDateValid(stepEntryDate)
+        ? stepEntryDate
+        : updatedAt;
+    if (isDateValid(pauseAnchor)) {
+      pauseDays = Math.max(0, calculateWorkingDays(pauseAnchor, now));
+    }
+  } else if (isDateValid(issueCreatedAt) && isDateValid(issueResolvedAt)) {
+    const cTs = new Date(issueCreatedAt).getTime();
+    const rTs = new Date(issueResolvedAt).getTime();
+    if (!isNaN(cTs) && !isNaN(rTs) && rTs >= cTs) {
+      pauseDays = Math.max(0, calculateWorkingDays(issueCreatedAt, issueResolvedAt));
+    }
+  }
+
+  return { isPaused, pauseDays };
+}
+
+function computeCumulativeStepDays(app: any, currentStep: string, history: any[], stepLabel: string, now: Date): number {
+  // Ưu tiên mốc nghiệp vụ gốc của bước để tham khảo tổng ngày tích lũy trên toàn bước
+  const isKTHandoverStep =
+    currentStep === 'S2_KT_Tiep_Nhan' ||
+    currentStep === 'S2_KT_Ban_giao' ||
+    currentStep === 'GD2_Cho_Nop_VPDK' ||
+    currentStep === 'GD1_Cho_KT_TiepNhan';
+  const isGD1ChuanBi = currentStep === 'GD1_ChuanBi' || currentStep === 'GĐ1_ChuanBi' || currentStep === 'S1_ChuanBi';
+
+  const propType = app.propertyType || app.property_type;
+  const loaiCH = app.productType || app.loaiCanHo || app.product_type;
+  const isCanHo = propType === 'Can_Ho' || loaiCH === 'Căn hộ' || loaiCH === 'Can_Ho';
+
+  let anchor: any = null;
+  if (isKTHandoverStep) {
+    anchor =
+      app.ktHandoverToPtdaDate ||
+      app.kt_handover_to_ptda_date ||
+      app.accountingHandoverDate ||
+      app.accounting_handover_date ||
+      (isCanHo ? app.handoverApartmentDate || app.handover_apartment_date : app.contractSigningDate || app.contract_signing_date);
+  } else if (isGD1ChuanBi) {
+    anchor = isCanHo
+      ? app.handoverApartmentDate || app.handover_apartment_date || app.receivedDate || app.received_date
+      : app.contractSigningDate || app.contract_signing_date || app.receivedDate || app.received_date;
+  } else {
+    const normTarget = normalizeStepString(stepLabel);
+    let earliestHistTs = Infinity;
+    for (const h of history) {
+      const match =
+        h.stepKey === currentStep ||
+        h.currentStep === currentStep ||
+        normalizeStepString(h.stepName || h.step_name || '') === normTarget;
+      if (match) {
+        const ts = getHistoryTimestamp(h);
+        if (ts > 0 && ts < earliestHistTs) earliestHistTs = ts;
+      }
+    }
+    if (earliestHistTs < Infinity) {
+      anchor = new Date(earliestHistTs);
+    } else {
+      anchor =
+        app.gcnReceivedDate ||
+        app.gcn_received_date ||
+        app.gcnSignedDate ||
+        app.gcn_signed_date ||
+        app.taxReceiptDate ||
+        app.tax_receipt_date ||
+        app.taxNotificationDate ||
+        app.tax_notification_date ||
+        app.submissionDate ||
+        app.submission_date ||
+        app.ktHandoverToPtdaDate ||
+        app.kt_handover_to_ptda_date ||
+        app.accountingHandoverDate ||
+        app.accounting_handover_date ||
+        app.receivedDate ||
+        app.received_date ||
+        app.createdAt ||
+        app.created_at;
+    }
+  }
+
+  if (isDateValid(anchor)) {
+    return Math.max(0, calculateWorkingDays(anchor, now));
+  }
+  const stepEntryDate = app.stepEntryDate || app.step_entry_date;
+  return isDateValid(stepEntryDate) ? Math.max(0, calculateWorkingDays(stepEntryDate, now)) : 0;
+}
+
+export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any): SLAResult {
   if (!app) return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
 
   try {
+    const now = new Date();
     const currentStep = app.currentStep || app.current_step;
     if (!currentStep) return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
 
@@ -38,48 +189,78 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
     const finalSlaConfig = slaConfig || (typeof window !== 'undefined' && (window as any).__SLA_CONFIG__) || DEFAULT_SLA_CONFIG;
 
     const config = finalStepConfig[currentStep];
-    if (!config || !config.label || currentStep === 'Hoan_Tat' || currentStep === 'HOAN_TAT') {
-      return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
+    const { isPaused, pauseDays } = getPauseMetadata(app, now);
+
+    if (
+      !config ||
+      !config.label ||
+      currentStep === 'Hoan_Tat' ||
+      currentStep === 'HOAN_TAT' ||
+      app.status === 'Completed' ||
+      isDateValid(app.customerHandoverDate || app.customer_handover_date)
+    ) {
+      return {
+        isOverdue: false,
+        daysLate: 0,
+        daysLeft: 0,
+        urgency: 'normal' as const,
+        isPaused: false,
+        pauseDays,
+        currentTurnDays: 0,
+        cumulativeStepDays: 0,
+        slaAnchorSource: 'COMPLETED',
+      };
     }
 
     const sla = finalSlaConfig[config.label] || config.slaDays || 10;
     let activeSla = sla;
 
-    let stepStartTime: number = 0;
-    const history = app.history || [];
+    const history = Array.isArray(app.history) ? app.history : [];
+    const stepEntryDate = app.stepEntryDate || app.step_entry_date;
+    const hasStepEntry = isDateValid(stepEntryDate);
+    const cumulativeStepDays = computeCumulativeStepDays(app, currentStep, history, config.label, now);
 
-    const normalizeString = (s: string) => s ? s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, '') : '';
-    // Find the latest history entry for the current step config label
-    const matchedHistory = history.find((h: any) => 
-      h.stepKey === currentStep || 
-      h.currentStep === currentStep || 
-      normalizeString(h.stepName) === normalizeString(config.label)
-    );
+    const isGD1ChuanBi = currentStep === 'GD1_ChuanBi' || currentStep === 'GĐ1_ChuanBi' || currentStep === 'S1_ChuanBi';
+    const isKTHandoverStep =
+      currentStep === 'S2_KT_Tiep_Nhan' ||
+      currentStep === 'S2_KT_Ban_giao' ||
+      currentStep === 'GD2_Cho_Nop_VPDK' ||
+      currentStep === 'GD1_Cho_KT_TiepNhan';
+    const isSubmissionStep = currentStep === 'S3_Nop_VPDK' || currentStep === 'GD3_Nop_VPDK';
+    const isTaxStep =
+      currentStep === 'S5_Tai_Chinh_Khach_Hang' ||
+      currentStep === 'GD4_Cho_Nop_NVTC' ||
+      currentStep === 'GD4_Cho_KT_TiepNhan_LaySo';
+    const isGCNIssuanceStep =
+      currentStep === 'S6_Nhan_So_GCN' ||
+      currentStep === 'GD5_Cho_Ky_In_GCN' ||
+      currentStep === 'GD5_Cho_GCN' ||
+      currentStep === 'GD5_Cho_PTT_TiepNhan_BG';
 
-    // Check if the current step is completed in system logs
-    if (matchedHistory && matchedHistory.completedDate) {
-      let sTime = 0;
-      const idMatch = String(matchedHistory.id).match(/^hist-(\d+)-/);
-      if (idMatch) {
-        sTime = parseInt(idMatch[1], 10);
-      } else if (matchedHistory.receivedDate) {
-        sTime = new Date(matchedHistory.receivedDate).getTime();
-      }
-
-      if (sTime > 0) {
-        const workingDays = calculateWorkingDays(new Date(sTime), new Date(matchedHistory.completedDate));
-        if (workingDays > activeSla) {
-          const daysLate = parseFloat((workingDays - activeSla).toFixed(1));
-          return { isOverdue: true, daysLate, daysLeft: 0, urgency: 'overdue' as const, isStepCompleted: true };
-        }
-      }
-      return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const, isStepCompleted: true };
+    // PHƯƠNG ÁN C — TẦNG 1: TẠM DỪNG ĐỒNG HỒ KHI HỒ SƠ ĐANG TRẢ VỀ / VƯỚNG MẮC
+    if (isPaused) {
+      const propType = app.propertyType || app.property_type;
+      const isCanHo = propType === 'Can_Ho';
+      const pausedSlaLimit = isGD1ChuanBi ? (isCanHo ? 45 : 25) : activeSla;
+      const pauseAnchor = isDateValid(app.issueCreatedAt || app.issue_created_at)
+        ? (app.issueCreatedAt || app.issue_created_at)
+        : stepEntryDate;
+      return {
+        isOverdue: false,
+        daysLate: 0,
+        daysLeft: pausedSlaLimit,
+        urgency: 'normal' as const,
+        label: `Tạm dừng (${config.label})`,
+        isPaused: true,
+        pauseDays,
+        currentTurnDays: 0,
+        cumulativeStepDays,
+        slaAnchorDate: toYmd(pauseAnchor),
+        slaAnchorSource: 'PAUSED',
+      };
     }
 
-    const isDateValid = (d: any) => d && d !== '---' && d !== 'None' && String(d).trim() !== '';
-
     // STEP COMPLETION GUARDS: Stop the clock if a destination milestone for the current step is already reached
-    const handoverDate = app.ktHandoverToPtdaDate || app.kt_handover_to_ptda_date;
     const gcnReceived = app.gcnReceivedDate || app.gcn_received_date;
     const gcnSigned = app.gcnSignedDate || app.gcn_signed_date;
     const submissionDate = app.submissionDate || app.submission_date;
@@ -87,29 +268,202 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
     const taxReceiptDate = app.taxNoticeProvisionDate || app.tax_notice_provision_date || app.taxReceiptDate || app.tax_receipt_date;
 
     if (isDateValid(gcnSigned) || isDateValid(gcnReceived)) {
-      // Danh sách các bước thuộc giai đoạn sau GCN (Bàn giao & Hoàn tất)
       const postGCNSteps = [
-        'S7_1_PTT_Tiep_Nhan', 'S7_PTDA_Ban_Giao', 'S7_2_Ban_Giao_Khach',
-        'GD5_Cho_PTT_TiepNhan_BG', 'GD6_Cho_BG_Khach', 'Hoan_Tat'
+        'S7_1_PTT_Tiep_Nhan',
+        'S7_PTDA_Ban_Giao',
+        'S7_2_Ban_Giao_Khach',
+        'GD5_Cho_PTT_TiepNhan_BG',
+        'GD6_Cho_BG_Khach',
+        'Hoan_Tat',
       ];
-      // Nếu currentStep hiện tại của hồ sơ chưa lọt vào các bước hậu GCN, trả về không trễ hạn
       if (!postGCNSteps.includes(currentStep)) {
         return {
           isOverdue: false,
           daysLate: 0,
           daysLeft: 0,
           urgency: 'normal' as const,
-          status: 'In-Progress'
-        }; // Đảm bảo cấu trúc trả về khớp với SLAResult của hệ thống
+          status: 'In-Progress',
+          isStepCompleted: true,
+          isPaused: false,
+          pauseDays,
+          currentTurnDays: hasStepEntry ? Math.max(0, calculateWorkingDays(stepEntryDate, now)) : 0,
+          cumulativeStepDays,
+          slaAnchorDate: toYmd(stepEntryDate),
+          slaAnchorSource: 'COMPLETED',
+        };
       }
     }
 
-    const isKTHandoverStep = currentStep === 'S2_KT_Tiep_Nhan' || currentStep === 'S2_KT_Ban_giao' || currentStep === 'GD2_Cho_Nop_VPDK' || currentStep === 'GD1_Cho_KT_TiepNhan';
-    const isSubmissionStep = currentStep === 'S3_Nop_VPDK' || currentStep === 'GD3_Nop_VPDK';
-    const isTaxStep = currentStep === 'S5_Tai_Chinh_Khach_Hang' || currentStep === 'GD4_Cho_Nop_NVTC' || currentStep === 'GD4_Cho_KT_TiepNhan_LaySo';
-    const isGCNIssuanceStep = currentStep === 'S6_Nhan_So_GCN' || currentStep === 'GD5_Cho_Ky_In_GCN' || currentStep === 'GD5_Cho_GCN' || currentStep === 'GD5_Cho_PTT_TiepNhan_BG';
+    if (isSubmissionStep && isDateValid(submissionDate)) {
+      return {
+        isOverdue: false,
+        daysLate: 0,
+        daysLeft: 0,
+        urgency: 'normal' as const,
+        isStepCompleted: true,
+        isPaused: false,
+        pauseDays,
+        currentTurnDays: hasStepEntry ? Math.max(0, calculateWorkingDays(stepEntryDate, now)) : 0,
+        cumulativeStepDays,
+        slaAnchorDate: toYmd(stepEntryDate || submissionDate),
+        slaAnchorSource: 'COMPLETED',
+      };
+    }
 
-    // SPECIAL LOGIC FOR STEP 2 (CHỜ NỘP VPĐK) - AS REQUESTED BY USER
+    if (isTaxStep) {
+      if (isDateValid(taxReceiptDate)) {
+        return {
+          isOverdue: false,
+          daysLate: 0,
+          daysLeft: 0,
+          urgency: 'normal' as const,
+          isStepCompleted: true,
+          isPaused: false,
+          pauseDays,
+          currentTurnDays: hasStepEntry ? Math.max(0, calculateWorkingDays(stepEntryDate, now)) : 0,
+          cumulativeStepDays,
+          slaAnchorDate: toYmd(stepEntryDate || taxReceiptDate),
+          slaAnchorSource: 'COMPLETED',
+        };
+      }
+      if (!isDateValid(taxNotiDate)) {
+        return {
+          isOverdue: false,
+          daysLate: 0,
+          daysLeft: activeSla,
+          urgency: 'normal' as const,
+          isPaused: false,
+          pauseDays,
+          currentTurnDays: hasStepEntry ? Math.max(0, calculateWorkingDays(stepEntryDate, now)) : 0,
+          cumulativeStepDays,
+          slaAnchorDate: toYmd(stepEntryDate),
+          slaAnchorSource: hasStepEntry ? 'STEP_ENTRY_DATE' : 'MILESTONE',
+        };
+      }
+    }
+
+    if (isGCNIssuanceStep && (isDateValid(gcnReceived) || isDateValid(gcnSigned))) {
+      return {
+        isOverdue: false,
+        daysLate: 0,
+        daysLeft: 0,
+        urgency: 'normal' as const,
+        isStepCompleted: true,
+        isPaused: false,
+        pauseDays,
+        currentTurnDays: hasStepEntry ? Math.max(0, calculateWorkingDays(stepEntryDate, now)) : 0,
+        cumulativeStepDays,
+        slaAnchorDate: toYmd(stepEntryDate || gcnReceived || gcnSigned),
+        slaAnchorSource: 'COMPLETED',
+      };
+    }
+
+    // PHƯƠNG ÁN C — TẦNG 2: ƯU TIÊN MỐC stepEntryDate NẾU ĐÃ ĐƯỢC GHI NHẬN
+    // (Hồ sơ từng trả về / khắc phục / chuyển bước mới theo Phương án C)
+    if (hasStepEntry) {
+      const propType = app.propertyType || app.property_type;
+      const loaiCH = app.productType || app.loaiCanHo || app.product_type;
+      const isCanHo = propType === 'Can_Ho' || loaiCH === 'Căn hộ' || loaiCH === 'Can_Ho';
+      if (isGD1ChuanBi) {
+        activeSla = isCanHo ? 45 : 25;
+      } else if (isKTHandoverStep) {
+        activeSla = sla || 3;
+      }
+
+      const elapsedDays = Math.max(0, calculateWorkingDays(stepEntryDate, now));
+      const daysLeft = Math.max(0, parseFloat((activeSla - elapsedDays).toFixed(1)));
+      const urgency: 'overdue' | 'urgent' | 'warning' | 'normal' =
+        elapsedDays > activeSla ? 'overdue' : daysLeft <= 1 ? 'urgent' : daysLeft <= 3 ? 'warning' : 'normal';
+
+      if (elapsedDays > activeSla) {
+        const daysLate = parseFloat((elapsedDays - activeSla).toFixed(1));
+        return {
+          isOverdue: true,
+          daysLate,
+          label: `Trễ ${config.label}`,
+          daysLeft: 0,
+          urgency: 'overdue' as const,
+          isPaused: false,
+          pauseDays,
+          currentTurnDays: elapsedDays,
+          cumulativeStepDays,
+          slaAnchorDate: toYmd(stepEntryDate),
+          slaAnchorSource: 'STEP_ENTRY_DATE',
+        };
+      }
+
+      return {
+        isOverdue: false,
+        daysLate: 0,
+        daysLeft,
+        urgency,
+        isPaused: false,
+        pauseDays,
+        currentTurnDays: elapsedDays,
+        cumulativeStepDays,
+        slaAnchorDate: toYmd(stepEntryDate),
+        slaAnchorSource: 'STEP_ENTRY_DATE',
+      };
+    }
+
+    // TẦNG 3 (FALLBACK NGUYÊN BẢN): Dành cho 1.583 hồ sơ sạch chưa từng trả về (stepEntryDate = NULL)
+    let stepStartTime: number = 0;
+
+    // Chọn bản ghi lịch sử mới nhất khớp với bước hiện tại
+    const normTarget = normalizeStepString(config.label);
+    let matchedHistory: any = null;
+    let matchedTs = -1;
+    for (const h of history) {
+      const isMatch =
+        h.stepKey === currentStep ||
+        h.currentStep === currentStep ||
+        normalizeStepString(h.stepName || '') === normTarget;
+      if (isMatch) {
+        const ts = getHistoryTimestamp(h);
+        if (!matchedHistory || ts > matchedTs) {
+          matchedHistory = h;
+          matchedTs = ts;
+        }
+      }
+    }
+
+    // Check if the current step is completed in system logs
+    if (matchedHistory && matchedHistory.completedDate) {
+      const sTime = getHistoryTimestamp(matchedHistory);
+      if (sTime > 0) {
+        const workingDays = calculateWorkingDays(new Date(sTime), new Date(matchedHistory.completedDate));
+        if (workingDays > activeSla) {
+          const daysLate = parseFloat((workingDays - activeSla).toFixed(1));
+          return {
+            isOverdue: true,
+            daysLate,
+            daysLeft: 0,
+            urgency: 'overdue' as const,
+            isStepCompleted: true,
+            isPaused: false,
+            pauseDays,
+            currentTurnDays: workingDays,
+            cumulativeStepDays: workingDays,
+            slaAnchorDate: toYmd(new Date(sTime)),
+            slaAnchorSource: 'HISTORY',
+          };
+        }
+      }
+      return {
+        isOverdue: false,
+        daysLate: 0,
+        daysLeft: 0,
+        urgency: 'normal' as const,
+        isStepCompleted: true,
+        isPaused: false,
+        pauseDays,
+        currentTurnDays: 0,
+        cumulativeStepDays,
+        slaAnchorSource: 'COMPLETED',
+      };
+    }
+
+    // SPECIAL LOGIC FOR STEP 2 (CHỜ NỘP VPĐK) - LEGACY / UNTOUCHED RECORDS
     if (isKTHandoverStep) {
       const ktPtdaDate = app.ktHandoverToPtdaDate || app.kt_handover_to_ptda_date;
       activeSla = sla || 3;
@@ -118,14 +472,11 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
       const accountingHandoverDate = app.accountingHandoverDate || app.accounting_handover_date;
 
       if (isDateValid(ktPtdaDate)) {
-        // Giai đoạn 2: Đã bàn giao sang PTDA cho giai đoạn nộp hồ sơ
         targetStartDateStr = ktPtdaDate;
       } else if (isDateValid(accountingHandoverDate)) {
-        // Đã có ngày bàn giao kế toán, kích hoạt đồng hồ đếm SLA cho Kế toán (chuẩn theo cấu hình bước, mặc định 3 ngày)
         activeSla = sla || 3;
         targetStartDateStr = accountingHandoverDate;
       } else {
-        // Giai đoạn 1: Chưa bàn giao, tính theo loại hình sản phẩm
         const propType = app.propertyType || app.property_type;
         const loaiCH = app.productType || app.loaiCanHo || app.product_type;
         const isCanHo = propType === 'Can_Ho' || loaiCH === 'Căn hộ' || loaiCH === 'Can_Ho';
@@ -136,63 +487,65 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
             activeSla = 45;
             targetStartDateStr = handoverAptDate;
           } else {
-            // Không trễ nếu chưa có ngày nghiệm thu & chưa bàn giao KT
-            return { isOverdue: false, daysLate: 0, daysLeft: 45, urgency: 'normal' as const };
+            return { isOverdue: false, daysLate: 0, daysLeft: 45, urgency: 'normal' as const, isPaused: false, pauseDays, currentTurnDays: 0, cumulativeStepDays: 0, slaAnchorSource: 'MILESTONE' };
           }
         } else {
-          // Đất nền
           const signingDate = app.contractSigningDate || app.contract_signing_date;
           if (isDateValid(signingDate)) {
             activeSla = 25;
             targetStartDateStr = signingDate;
           } else {
-            // Không trễ nếu chưa có ngày HĐMB & chưa bàn giao KT
-            return { isOverdue: false, daysLate: 0, daysLeft: 25, urgency: 'normal' as const };
+            return { isOverdue: false, daysLate: 0, daysLeft: 25, urgency: 'normal' as const, isPaused: false, pauseDays, currentTurnDays: 0, cumulativeStepDays: 0, slaAnchorSource: 'MILESTONE' };
           }
         }
       }
 
       if (targetStartDateStr) {
-        const elapsedDays = calculateWorkingDays(targetStartDateStr, new Date());
+        const elapsedDays = calculateWorkingDays(targetStartDateStr, now);
         const daysLeft = Math.max(0, parseFloat((activeSla - Math.max(0, elapsedDays)).toFixed(1)));
-        
+
         const urgency: 'overdue' | 'urgent' | 'warning' | 'normal' =
-          elapsedDays > activeSla ? 'overdue' :
-          daysLeft <= 1 ? 'urgent' :
-          daysLeft <= 3 ? 'warning' : 'normal';
+          elapsedDays > activeSla ? 'overdue' : daysLeft <= 1 ? 'urgent' : daysLeft <= 3 ? 'warning' : 'normal';
 
         if (elapsedDays > activeSla) {
           const daysLate = parseFloat((elapsedDays - activeSla).toFixed(1));
-          return { isOverdue: true, daysLate, label: `Trễ ${config.label}`, daysLeft: 0, urgency: 'overdue' as const };
+          return {
+            isOverdue: true,
+            daysLate,
+            label: `Trễ ${config.label}`,
+            daysLeft: 0,
+            urgency: 'overdue' as const,
+            isPaused: false,
+            pauseDays,
+            currentTurnDays: Math.max(0, elapsedDays),
+            cumulativeStepDays: Math.max(0, elapsedDays),
+            slaAnchorDate: toYmd(targetStartDateStr),
+            slaAnchorSource: 'MILESTONE',
+          };
         }
-        return { isOverdue: false, daysLate: 0, daysLeft, urgency };
+        return {
+          isOverdue: false,
+          daysLate: 0,
+          daysLeft,
+          urgency,
+          isPaused: false,
+          pauseDays,
+          currentTurnDays: Math.max(0, elapsedDays),
+          cumulativeStepDays: Math.max(0, elapsedDays),
+          slaAnchorDate: toYmd(targetStartDateStr),
+          slaAnchorSource: 'MILESTONE',
+        };
       }
     }
-
-    if (isSubmissionStep && isDateValid(submissionDate)) return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
-    
-    if (isTaxStep) {
-      if (isDateValid(taxReceiptDate)) {
-        return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
-      }
-      if (!isDateValid(taxNotiDate)) {
-        return { isOverdue: false, daysLate: 0, daysLeft: activeSla, urgency: 'normal' as const };
-      }
-    }
-    
-    if (isGCNIssuanceStep && (isDateValid(gcnReceived) || isDateValid(gcnSigned))) return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
 
     // Step-specific custom SLA logic (GD1_ChuanBi / S1_ChuanBi)
-    const isGD1ChuanBi = currentStep === 'GD1_ChuanBi' || currentStep === 'GĐ1_ChuanBi' || currentStep === 'S1_ChuanBi';
-    
     if (isGD1ChuanBi) {
       activeSla = sla;
       let targetStartDateStr: string | undefined;
 
       const propType = app.propertyType || app.property_type;
       const isCanHo = propType === 'Can_Ho';
-      
-      const rDate = (matchedHistory && matchedHistory.receivedDate) ? matchedHistory.receivedDate : (app.receivedDate || app.received_date);
+      const rDate = matchedHistory && matchedHistory.receivedDate ? matchedHistory.receivedDate : app.receivedDate || app.received_date;
 
       if (isCanHo) {
         activeSla = 45;
@@ -202,11 +555,9 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
         } else if (isDateValid(rDate)) {
           targetStartDateStr = rDate;
         } else {
-          // No handover date and no received date -> Do not compute SLA, return normal
-          return { isOverdue: false, daysLate: 0, daysLeft: 45, urgency: 'normal' as const };
+          return { isOverdue: false, daysLate: 0, daysLeft: 45, urgency: 'normal' as const, isPaused: false, pauseDays, currentTurnDays: 0, cumulativeStepDays: 0, slaAnchorSource: 'MILESTONE' };
         }
       } else {
-        // Dat_Nen
         activeSla = 25;
         const signingDate = app.contract_signing_date || app.contractSigningDate;
         if (isDateValid(signingDate)) {
@@ -214,74 +565,81 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
         } else if (isDateValid(rDate)) {
           targetStartDateStr = rDate;
         } else {
-          // No signing date and no received date -> Do not compute SLA, return normal
-          return { isOverdue: false, daysLate: 0, daysLeft: 25, urgency: 'normal' as const };
+          return { isOverdue: false, daysLate: 0, daysLeft: 25, urgency: 'normal' as const, isPaused: false, pauseDays, currentTurnDays: 0, cumulativeStepDays: 0, slaAnchorSource: 'MILESTONE' };
         }
       }
 
       if (targetStartDateStr) {
-        // Early exit for completion milestones: If user provided a completion date for current step, stop the clock.
-        const isS6NhanSo = app.currentStep === 'S6_Nhan_So_GCN' || app.currentStep === 'GD5_Cho_GCN' || app.currentStep === 'GD5_Cho_PTT_TiepNhan_BG';
-        if (isS6NhanSo) {
-          if (isDateValid(app.gcnReceivedDate) || isDateValid(app.gcnSignedDate)) {
-             return { isOverdue: false, daysLate: 0, urgency: 'normal' as const };
-          }
-        }
-
-        stepStartTime = new Date(targetStartDateStr).getTime();
-
-        const elapsedDays = calculateWorkingDays(targetStartDateStr, new Date());
+        const elapsedDays = calculateWorkingDays(targetStartDateStr, now);
         const daysLeft = Math.max(0, parseFloat((activeSla - Math.max(0, elapsedDays)).toFixed(1)));
-        
+
         const urgency: 'overdue' | 'urgent' | 'warning' | 'normal' =
-          elapsedDays > activeSla ? 'overdue' :
-          daysLeft <= 1 ? 'urgent' :
-          daysLeft <= 3 ? 'warning' : 'normal';
+          elapsedDays > activeSla ? 'overdue' : daysLeft <= 1 ? 'urgent' : daysLeft <= 3 ? 'warning' : 'normal';
 
         if (elapsedDays > activeSla) {
           const daysLate = parseFloat((elapsedDays - activeSla).toFixed(1));
-          return { isOverdue: true, daysLate, label: `Trễ ${config.label}`, daysLeft: 0, urgency: 'overdue' as const };
+          return {
+            isOverdue: true,
+            daysLate,
+            label: `Trễ ${config.label}`,
+            daysLeft: 0,
+            urgency: 'overdue' as const,
+            isPaused: false,
+            pauseDays,
+            currentTurnDays: Math.max(0, elapsedDays),
+            cumulativeStepDays: Math.max(0, elapsedDays),
+            slaAnchorDate: toYmd(targetStartDateStr),
+            slaAnchorSource: 'MILESTONE',
+          };
         }
 
-        return { isOverdue: false, daysLate: 0, daysLeft, urgency };
+        return {
+          isOverdue: false,
+          daysLate: 0,
+          daysLeft,
+          urgency,
+          isPaused: false,
+          pauseDays,
+          currentTurnDays: Math.max(0, elapsedDays),
+          cumulativeStepDays: Math.max(0, elapsedDays),
+          slaAnchorDate: toYmd(targetStartDateStr),
+          slaAnchorSource: 'MILESTONE',
+        };
       }
     }
 
+    let anchorSource: SLAResult['slaAnchorSource'] = 'MILESTONE';
     if (matchedHistory) {
-      // Attempt to extract the absolute precise timestamp from record log ID to support minute-precise calculations
-      const idMatch = String(matchedHistory.id).match(/^hist-(\d+)-/);
-      if (idMatch) {
-        stepStartTime = parseInt(idMatch[1], 10);
-      } else if (matchedHistory.receivedDate) {
-        // Fallback to received date string
-        stepStartTime = new Date(matchedHistory.receivedDate).getTime();
-      }
+      stepStartTime = getHistoryTimestamp(matchedHistory);
+      if (stepStartTime > 0) anchorSource = 'HISTORY';
     }
 
-    // Custom SLA logic for S3_Nop_VPDK in Quy trình 2 (always prioritize ktHandoverToPtdaDate if provided)
     if (currentStep === 'S3_Nop_VPDK' && (app.workflowType === 'Quy_trinh_2' || app.workflow_type === 'Quy_trinh_2')) {
       const ktPtdaDate = app.ktHandoverToPtdaDate || app.kt_handover_to_ptda_date;
       if (isDateValid(ktPtdaDate)) {
         stepStartTime = new Date(ktPtdaDate).getTime();
+        anchorSource = 'MILESTONE';
       }
     }
 
-    // Fallback date-mapping logic if no specific entry is found in history (e.g. legacy/imported records)
     if (!stepStartTime) {
       const mapping: Record<string, string> = {
-        // Workflow 2
         S1_ChuanBi: 'contract_signing_date',
         S2_KT_Tiep_Nhan: 'accounting_handover_date',
         S2_KT_Ban_giao: 'accounting_handover_date',
-        S3_Nop_VPDK: (app.workflowType === 'Quy_trinh_2' || app.workflow_type === 'Quy_trinh_2') ? 'kt_handover_to_ptda_date' : 'accounting_handover_date',
+        S3_Nop_VPDK: app.workflowType === 'Quy_trinh_2' || app.workflow_type === 'Quy_trinh_2' ? 'kt_handover_to_ptda_date' : 'accounting_handover_date',
         S5_Tai_Chinh_Khach_Hang: 'tax_notification_date',
         S5_1_PTDA_TiepNhan: 'tax_receipt_date',
-        S6_Nhan_So_GCN: (app.gcnReceivedDate || app.gcn_received_date) ? 'gcn_received_date' : ((app.gcnSignedDate || app.gcn_signed_date) ? 'gcn_signed_date' : 'tax_receipt_date'),
+        S6_Nhan_So_GCN:
+          app.gcnReceivedDate || app.gcn_received_date
+            ? 'gcn_received_date'
+            : app.gcnSignedDate || app.gcn_signed_date
+              ? 'gcn_signed_date'
+              : 'tax_receipt_date',
         S7_PTDA_Ban_Giao: 'gcn_received_date',
         S7_1_PTT_Tiep_Nhan: 'gcn_received_date',
         S7_2_Ban_Giao_Khach: 'customer_handover_date',
 
-        // Workflow 1
         GD1_ChuanBi: 'contract_signing_date',
         GD1_Cho_KT_TiepNhan: 'accounting_handover_date',
         GD2_Cho_Nop_VPDK: 'accounting_handover_date',
@@ -289,10 +647,10 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
         GD4_Cho_Nop_NVTC: 'submission_date',
         GD4_Cho_KT_TiepNhan_LaySo: 'tax_notification_date',
         GD5_Cho_Ky_In_GCN: 'tax_receipt_date',
-        GD5_Cho_GCN: (app.gcnSignedDate || app.gcn_signed_date) ? 'gcn_signed_date' : 'tax_receipt_date',
-        GD5_Cho_PTT_TiepNhan_BG: (app.gcnReceivedDate || app.gcn_received_date) ? 'gcn_received_date' : 'gcn_signed_date',
+        GD5_Cho_GCN: app.gcnSignedDate || app.gcn_signed_date ? 'gcn_signed_date' : 'tax_receipt_date',
+        GD5_Cho_PTT_TiepNhan_BG: app.gcnReceivedDate || app.gcn_received_date ? 'gcn_received_date' : 'gcn_signed_date',
         GD6_Cho_BG_Khach: 'ptda_handover_date',
-        Hoan_Tat: 'customer_handover_date'
+        Hoan_Tat: 'customer_handover_date',
       };
 
       const milestoneOrder = [
@@ -306,20 +664,15 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
         'gcn_signed_date',
         'gcn_received_date',
         'ptda_handover_date',
-        'customer_handover_date'
+        'customer_handover_date',
       ];
 
       const fieldKey = mapping[currentStep] || 'received_date';
-      
-      // FIX: Improved Waterfall Logic
-      // If we are past Step 1 but have no milestone date, DO NOT jump back to received_date.
-      // This jump is what causes the "415 days late" error.
       let comparisonDate: string | undefined;
       const startIdx = milestoneOrder.indexOf(fieldKey);
-      
+
       if (startIdx !== -1) {
         const toCamelCase = (str: string) => str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-        // Search backwards from the current step's milestone
         for (let i = startIdx; i >= 0; i--) {
           const k = milestoneOrder[i];
           const camelK = toCamelCase(k);
@@ -331,17 +684,24 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
         }
       }
 
-      // Final Guard: If Step is > Step 1, and we only found contract_signing_date or received_date, 
-      // but the step requires a later milestone that is missing, treat as normal (not overdue).
-      const isEarlyMilestone = !!comparisonDate && (
-        comparisonDate === (app.contractSigningDate || app.contract_signing_date) ||
-        comparisonDate === (app.receivedDate || app.received_date)
-      );
+      const isEarlyMilestone =
+        !!comparisonDate &&
+        (comparisonDate === (app.contractSigningDate || app.contract_signing_date) ||
+          comparisonDate === (app.receivedDate || app.received_date));
       if (isEarlyMilestone && startIdx >= 1) {
-        return { isOverdue: false, daysLate: 0, daysLeft: activeSla, urgency: 'normal' as const };
+        return {
+          isOverdue: false,
+          daysLate: 0,
+          daysLeft: activeSla,
+          urgency: 'normal' as const,
+          isPaused: false,
+          pauseDays,
+          currentTurnDays: 0,
+          cumulativeStepDays,
+          slaAnchorSource: 'MILESTONE',
+        };
       }
 
-      // If still no date found, use received_date as last resort
       if (!comparisonDate) {
         comparisonDate = app.received_date || app.receivedDate;
       }
@@ -350,30 +710,45 @@ export function calculateSLA(app: any, stepConfig?: any, slaConfig?: any) {
         stepStartTime = new Date(comparisonDate).getTime();
       } else {
         const createdTime = app.createdAt || app.created_at;
-        if (createdTime) {
-          stepStartTime = new Date(createdTime).getTime();
-        } else {
-          stepStartTime = new Date().getTime();
-        }
+        stepStartTime = createdTime ? new Date(createdTime).getTime() : now.getTime();
       }
+      anchorSource = 'MILESTONE';
     }
 
-    // Minute-precise duration elapsed
-    const elapsedDays = calculateWorkingDays(new Date(stepStartTime), new Date());
-
+    const elapsedDays = calculateWorkingDays(new Date(stepStartTime), now);
     const daysLeft = Math.max(0, parseFloat((activeSla - Math.max(0, elapsedDays)).toFixed(1)));
     const urgency: 'overdue' | 'urgent' | 'warning' | 'normal' =
-      elapsedDays > activeSla ? 'overdue' :
-      daysLeft <= 1 ? 'urgent' :
-      daysLeft <= 3 ? 'warning' : 'normal';
+      elapsedDays > activeSla ? 'overdue' : daysLeft <= 1 ? 'urgent' : daysLeft <= 3 ? 'warning' : 'normal';
 
     if (elapsedDays > activeSla) {
-      // Calculate float days late precisely
       const daysLate = parseFloat((elapsedDays - activeSla).toFixed(1));
-      return { isOverdue: true, daysLate, label: `Trễ ${config.label}`, daysLeft: 0, urgency: 'overdue' as const };
+      return {
+        isOverdue: true,
+        daysLate,
+        label: `Trễ ${config.label}`,
+        daysLeft: 0,
+        urgency: 'overdue' as const,
+        isPaused: false,
+        pauseDays,
+        currentTurnDays: Math.max(0, elapsedDays),
+        cumulativeStepDays: Math.max(cumulativeStepDays, Math.max(0, elapsedDays)),
+        slaAnchorDate: toYmd(new Date(stepStartTime)),
+        slaAnchorSource: anchorSource,
+      };
     }
 
-    return { isOverdue: false, daysLate: 0, daysLeft, urgency };
+    return {
+      isOverdue: false,
+      daysLate: 0,
+      daysLeft,
+      urgency,
+      isPaused: false,
+      pauseDays,
+      currentTurnDays: Math.max(0, elapsedDays),
+      cumulativeStepDays: Math.max(cumulativeStepDays, Math.max(0, elapsedDays)),
+      slaAnchorDate: toYmd(new Date(stepStartTime)),
+      slaAnchorSource: anchorSource,
+    };
   } catch (error) {
     return { isOverdue: false, daysLate: 0, daysLeft: 0, urgency: 'normal' as const };
   }

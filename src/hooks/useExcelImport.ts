@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { Application, StepName, UnitStatus, IssueSeverity } from '../types';
 import { formatDate } from '../utils/dateUtils';
 import { mapFromSnakeCase } from '../utils/mappers';
-import { RECORD_LIGHT_SELECT } from '../stores/useDataStore';
+import { getActiveRecordSelect, isMissingSlaSchemaColumnError, markSlaColumnsUnavailable } from '../stores/useDataStore';
 import { calculateDaysDiff, calculateDaysBetweenDates, getPhaseIndex, getTaxStatus, getOverdueInfo, inferStepFromDates, determineStatusFromStep, validateSkippedSteps, validateDateSequence, generateUUID } from '../utils/appUtils';
 import { STEP_CONFIG as INITIAL_STEP_CONFIG, WORKFLOW_1_STEPS, WORKFLOW_2_STEPS } from '../constants';
 
@@ -286,10 +286,20 @@ export function useExcelImport({
           let from = 0;
           const pageSize = 1000;
           while (hasMore) {
-            const { data: dbData, error: dbErr } = await supabase
+            let { data: dbData, error: dbErr } = await supabase
               .from('records')
-              .select(RECORD_LIGHT_SELECT)
+              .select(getActiveRecordSelect())
               .range(from, from + pageSize - 1);
+
+            if (dbErr && isMissingSlaSchemaColumnError(dbErr)) {
+              markSlaColumnsUnavailable();
+              const retryDb = await supabase
+                .from('records')
+                .select(getActiveRecordSelect())
+                .range(from, from + pageSize - 1);
+              dbData = retryDb.data;
+              dbErr = retryDb.error;
+            }
 
             if (dbErr) {
               console.error('Lỗi khi tải dữ liệu đối chiếu trùng lặp:', dbErr);
@@ -701,6 +711,9 @@ export function useExcelImport({
                   const waitingStep = updatedApp.workflowType === 'Quy_trinh_2' ? 'S7_1_PTT_Tiep_Nhan' : 'GD5_Cho_PTT_TiepNhan_BG';
                   updatedApp.currentStep = waitingStep;
                   updatedApp.status = 'WaitingHandover';
+                  if (!existingApp.stepEntryDate && !(existingApp.rejectionCount && existingApp.rejectionCount > 0) && !existingApp.isRejected) {
+                    updatedApp.stepEntryDate = gReceivedDate;
+                  }
                   updatedApp.issueNotes = (updatedApp.issueNotes ? updatedApp.issueNotes + '\n' : '') + 'Cảnh báo: Lệch tiến độ thực tế (Có ngày nhận GCN nhưng chưa tới bước bàn giao)';
                   changes.push(`>> Tự động chuyển sang Chờ bàn giao do có ngày nhận GCN (bước gốc: ${existingApp.currentStep})`);
                 }
@@ -806,6 +819,18 @@ export function useExcelImport({
                                          updatedApp.taxReceiptDate || 
                                          updatedApp.gcnReceivedDate || 
                                          new Date().toISOString();
+
+                        // Bảo vệ stepEntryDate: không cho Excel import ghi đè nếu hồ sơ đã có mốc lượt mới,
+                        // đang/từng bị trả về, hoặc đã đi qua bước sau (trừ khi chưa có và có cờ override).
+                        const shouldProtectStepEntryDate =
+                          Boolean(normYMD(existingApp.stepEntryDate)) ||
+                          Boolean(existingApp.isRejected) ||
+                          (existingApp.rejectionCount || 0) > 0 ||
+                          (hasPassedAccountingStep && !canOverrideMilestones);
+
+                        if (!shouldProtectStepEntryDate) {
+                          updatedApp.stepEntryDate = stepDate;
+                        }
 
                         let prevHistory = [...(updatedApp.history || [])];
                         if (prevHistory.length > 0) {
@@ -1018,6 +1043,8 @@ export function useExcelImport({
                                 newApp.gcnReceivedDate || 
                                 new Date().toISOString();
 
+               newApp.stepEntryDate = stepDate;
+
                if (newApp.history && newApp.history.length > 0) {
                  newApp.history[0] = {
                    ...newApp.history[0],
@@ -1037,6 +1064,8 @@ export function useExcelImport({
                  },
                  ...(newApp.history || [])
                ];
+             } else {
+               newApp.stepEntryDate = newApp.receivedDate || new Date().toISOString();
              }
 
              if (newApp.issueType && newApp.issueType !== 'None' && String(newApp.issueType).trim() !== '') {

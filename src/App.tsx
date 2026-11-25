@@ -118,7 +118,7 @@ import ImportPreviewModal from './components/modals/ImportPreviewModal';
 import { ApplicationDetailModal } from './components/modals/ApplicationDetailModal';
 import { CreateApplicationModal } from './components/modals/CreateApplicationModal';
 import { useModalStore } from './stores/useModalStore';
-import { useDataStore, bulkSyncRecordsToSupabase, createAuditEntry, updateAppIssue, isSelfUpdate, registerSelfUpdate, fetchRecordDetail } from './stores/useDataStore';
+import { useDataStore, bulkSyncRecordsToSupabase, createAuditEntry, updateAppIssue, isSelfUpdate, registerSelfUpdate, fetchRecordDetail, getActiveRecordSelect, isMissingSlaSchemaColumnError, markSlaColumnsUnavailable } from './stores/useDataStore';
 import { UserManagementModal } from './components/modals/UserManagementModal';
 import { Sidebar } from './components/Sidebar';
 import { DashboardTab } from './components/tabs/DashboardTab';
@@ -131,8 +131,6 @@ import { cn } from './lib/utils';
 import { formatDate } from './utils/dateUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { createClient, RealtimeChannel } from '@supabase/supabase-js';
-
-const RECORD_LIGHT_SELECT = 'id, unit_code, project_name, customer_name, contract_signer_type, phone_number, property_type, loan_status, is_self_service, current_step, status, received_date, contract_signing_date, submission_date, tax_notification_date, tax_receipt_date, gcn_signed_date, gcn_received_date, customer_handover_date, accounting_handover_date, ptda_handover_date, bank_commitment_deadline, submission_location, vpdk_code, issue_type, issue_severity, issue_notes, is_rejected, workflow_type, created_at, assigned_to, tax_payment_status, scanned_files, rejection_count, rejection_reason, commitment_date, assigned_to_id, assigned_to_name, tax_vpdk_submission_date, gcn_number, kt_handover_to_ptda_date, tax_notification_received_date, tax_notice_provision_date, handover_apartment_date';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import * as XLSX from 'xlsx';
@@ -1287,7 +1285,8 @@ export default function App() {
     });
 
     try {
-      let query = supabase.from('records').select(RECORD_LIGHT_SELECT, { count: 'estimated' });
+      const buildAppsQuery = () => {
+        let query = supabase.from('records').select(getActiveRecordSelect(), { count: 'estimated' });
       
       if (search) {
         const safeSearch = search.replace(/"/g, '');
@@ -1597,14 +1596,24 @@ export default function App() {
         }
       }
       
-      const queryPromise = query
-        .order('created_at', { ascending: false })
-        .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1)
-        .abortSignal(controller.signal);
-        
-      const res = await Promise.race([queryPromise, timeoutPromise]);
+        return query
+          .order('created_at', { ascending: false })
+          .range(currentPage * pageSize, (currentPage + 1) * pageSize - 1)
+          .abortSignal(controller.signal);
+      };
+
+      const res = await Promise.race([buildAppsQuery(), timeoutPromise]);
+      let { data, count, error } = res as any;
+
+      if (error && isMissingSlaSchemaColumnError(error)) {
+        markSlaColumnsUnavailable();
+        const retryRes = await Promise.race([buildAppsQuery(), timeoutPromise]);
+        data = (retryRes as any).data;
+        count = (retryRes as any).count;
+        error = (retryRes as any).error;
+      }
+
       clearTimeout(timeoutId);
-      const { data, count, error } = res as any;
          
       if (error) throw error;
       
@@ -1695,33 +1704,41 @@ export default function App() {
       const currentUserRole = currentUser?.dept || 'PTT';
       
       while (true) {
-        // Fetch lightweight columns to optimize bandwidth and network performance for dashboard
-        let query = supabase.from('records').select(RECORD_LIGHT_SELECT)
-          .range(from, from + batchSize - 1);
-        
-        // We still respect project filtering if set, but we fetch ALL records within that scope
-        if (selectedProjectId) {
-          const currentSelectedProject = projects.find(p => p.id === selectedProjectId);
-          if (currentSelectedProject) {
-            query = query.eq('project_name', currentSelectedProject.name);
-          }
-        } else if (currentUserRole !== 'ADMIN') {
-          const hasProjectAssignments = currentUser?.assignedProjectIds && currentUser.assignedProjectIds.length > 0;
-          if (hasProjectAssignments) {
-            const assignedNames = projects.filter(p => currentUser.assignedProjectIds.includes(p.id)).map(p => p.name);
-            if (assignedNames.length > 0) {
-              query = query.in('project_name', assignedNames);
+        const buildDashboardQuery = () => {
+          // Fetch lightweight columns to optimize bandwidth and network performance for dashboard
+          let query = supabase.from('records').select(getActiveRecordSelect())
+            .range(from, from + batchSize - 1);
+          
+          // We still respect project filtering if set, but we fetch ALL records within that scope
+          if (selectedProjectId) {
+            const currentSelectedProject = projects.find(p => p.id === selectedProjectId);
+            if (currentSelectedProject) {
+              query = query.eq('project_name', currentSelectedProject.name);
+            }
+          } else if (currentUserRole !== 'ADMIN') {
+            const hasProjectAssignments = currentUser?.assignedProjectIds && currentUser.assignedProjectIds.length > 0;
+            if (hasProjectAssignments) {
+              const assignedNames = projects.filter(p => currentUser.assignedProjectIds.includes(p.id)).map(p => p.name);
+              if (assignedNames.length > 0) {
+                query = query.in('project_name', assignedNames);
+              } else {
+                query = query.in('project_name', ['_NO_ACCESS_']);
+              }
             } else {
               query = query.in('project_name', ['_NO_ACCESS_']);
             }
-          } else {
-            query = query.in('project_name', ['_NO_ACCESS_']);
           }
-        }
+          return query.abortSignal(controller.signal);
+        };
 
-        const queryPromise = query.abortSignal(controller.signal);
-        const res = await Promise.race([queryPromise, timeoutPromise]);
-        const { data, error } = res as any;
+        const res = await Promise.race([buildDashboardQuery(), timeoutPromise]);
+        let { data, error } = res as any;
+        if (error && isMissingSlaSchemaColumnError(error)) {
+          markSlaColumnsUnavailable();
+          const retryRes = await Promise.race([buildDashboardQuery(), timeoutPromise]);
+          data = (retryRes as any).data;
+          error = (retryRes as any).error;
+        }
         if (error) throw error;
         
         if (currentRequestId !== fetchRequestIds.current.dashboard) return;
@@ -1771,28 +1788,37 @@ export default function App() {
     let from = 0;
     const batchSize = 500;
     while (true) {
-      let query = supabase.from('records').select(RECORD_LIGHT_SELECT)
-        .range(from, from + batchSize - 1);
-      
-      const currentUserRole = currentUser?.dept || 'PTT';
-      const hasProjectAssignments = currentUser?.assignedProjectIds && currentUser.assignedProjectIds.length > 0;
+      const buildExportQuery = () => {
+        let query = supabase.from('records').select(getActiveRecordSelect())
+          .range(from, from + batchSize - 1);
+        
+        const currentUserRole = currentUser?.dept || 'PTT';
+        const hasProjectAssignments = currentUser?.assignedProjectIds && currentUser.assignedProjectIds.length > 0;
 
-      if (selectedProjectId && selectedProject) {
-        query = query.eq('project_name', selectedProject.name);
-      } else if (currentUserRole !== 'ADMIN') {
-        if (hasProjectAssignments) {
-          const assignedNames = projects.filter(p => currentUser.assignedProjectIds?.includes(p.id)).map(p => p.name);
-          if (assignedNames.length > 0) {
-            query = query.in('project_name', assignedNames);
+        if (selectedProjectId && selectedProject) {
+          query = query.eq('project_name', selectedProject.name);
+        } else if (currentUserRole !== 'ADMIN') {
+          if (hasProjectAssignments) {
+            const assignedNames = projects.filter(p => currentUser.assignedProjectIds?.includes(p.id)).map(p => p.name);
+            if (assignedNames.length > 0) {
+              query = query.in('project_name', assignedNames);
+            } else {
+              query = query.in('project_name', ['_NO_ACCESS_']);
+            }
           } else {
             query = query.in('project_name', ['_NO_ACCESS_']);
           }
-        } else {
-          query = query.in('project_name', ['_NO_ACCESS_']);
         }
-      }
+        return query;
+      };
 
-      const { data, error } = await query;
+      let { data, error } = await buildExportQuery();
+      if (error && isMissingSlaSchemaColumnError(error)) {
+        markSlaColumnsUnavailable();
+        const retryExport = await buildExportQuery();
+        data = retryExport.data;
+        error = retryExport.error;
+      }
       if (error) {
         console.error('[fetchAllApplicationsForExport] Lỗi:', error);
         break;
@@ -4373,11 +4399,12 @@ export default function App() {
         (isGD && GD_ORDER.indexOf(inferredStep) > GD_ORDER.indexOf(currentStep)) ||
         (isS  && S_ORDER.indexOf(inferredStep)  > S_ORDER.indexOf(currentStep));
       if (shouldUpdate) {
+        const nowIso = new Date().toISOString();
         const stepHistoryItem: any = {
           id: generateUUID(),
           stepName: inferredStep,
           dept: stepConfig[inferredStep]?.dept || 'PTT',
-          receivedDate: new Date().toISOString(),
+          receivedDate: nowIso,
           performedBy: currentUser?.id || 'SYSTEM_AUTO',
           performedByName: currentUser?.name || 'Hệ thống tự động',
           note: `Tự động chuyển bước từ ${currentStep} → ${inferredStep} do cập nhật ngày`,
@@ -4385,6 +4412,7 @@ export default function App() {
         nextApp.history     = [stepHistoryItem, ...sourceHistory];
         nextApp.currentStep = inferredStep;
         nextApp.status      = inferred.status;
+        nextApp.stepEntryDate = nowIso;
       }
     };
 
@@ -4449,15 +4477,19 @@ export default function App() {
       }
 
       if (field === 'currentStep') {
+        const nowIso = new Date().toISOString();
         const historyItem: any = {
           id: generateUUID(),
           stepName: `Chuyển trạng thái sang: ${value}`,
           dept: currentUser?.dept || 'PTT', // default fallback
-          receivedDate: new Date().toISOString(),
+          receivedDate: nowIso,
           performedBy: currentUser?.id,
           performedByName: currentUser?.name
         };
         nextApp.history = [historyItem, ...(editApp.history || [])];
+        if (value !== editApp.currentStep) {
+          nextApp.stepEntryDate = nowIso;
+        }
       } else if (DATE_FIELDS.includes(field as string)) {
         const label = DATE_LABELS[field as string];
         // Ghi auditTrail dù có nhảy bước hay không

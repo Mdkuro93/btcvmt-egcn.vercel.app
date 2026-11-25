@@ -146,6 +146,7 @@ export type Application = {
   currentStep: StepName;
   status: UnitStatus;
   receivedDate: string; // Ngày tiếp nhận hồ sơ từ khách
+  stepEntryDate?: string; // Mốc vào bước hiện tại cho lượt xử lý SLA mới
   handoverApartmentDate?: string; // Ngày bàn giao căn hộ thực tế
   taxNotificationDate?: string; // Ngày ban hành thông báo thuế
   taxNotificationReceivedDate?: string; // Ngày nhận thông báo thuế
@@ -174,7 +175,7 @@ export type Application = {
   estimatedCompletionDate?: string;
   rejectionCount?: number; // Số lần hồ sơ bị trả về
   isRejected?: boolean; // Trạng thái đang bị trả về chờ sửa
-  rejectedFromStepId?: StepName; // Vết quay lại khi khắc phục xong
+  rejectedFromStepId?: StepName | null; // Vết quay lại khi khắc phục xong
   rejectionReason?: string; // Lý do trả hồ sơ
   commitmentDate?: string;
   scannedFiles?: ScannedFile[];

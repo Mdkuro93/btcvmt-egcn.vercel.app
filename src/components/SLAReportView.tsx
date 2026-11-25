@@ -260,31 +260,39 @@ export default function SLAReportView({
         </div>
 
         {/* Bảng hồ sơ */}
-        <div className={card}>
-          <div className="grid grid-cols-[1fr_1fr_90px_70px_90px] gap-3 pb-3 border-b border-slate-800 mb-1">
-            {['Mã hồ sơ', 'Dự án', 'Vào bước', 'Trễ', 'Trạng thái'].map(h => (
-              <span key={h} className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{h}</span>
-            ))}
+        <div className={cn(card, 'overflow-x-auto')}>
+          <div className="min-w-[760px]">
+            <div className="grid grid-cols-[1fr_1fr_95px_75px_100px_85px_85px_85px] gap-3 pb-3 border-b border-slate-800 mb-1">
+              {['Mã hồ sơ', 'Dự án', 'Vào bước', 'Trễ', 'Trạng thái', 'Lượt HT (LV)', 'Tạm dừng (LV)', 'Tích lũy bước'].map(h => (
+                <span key={h} className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{h}</span>
+              ))}
+            </div>
+            {pagedApps.length === 0 && (
+              <p className={cn('text-xs italic py-4 text-center', muted)}>Không có hồ sơ nào ở giai đoạn này.</p>
+            )}
+            {pagedApps.map((app, index) => {
+              const isPaused = Boolean(app._slaInfo.isPaused);
+              const late = isPaused ? 0 : (app._slaInfo.daysLate || 0);
+              const anchorStr = app.stepEntryDate || app._slaInfo.slaAnchorDate;
+              const formattedAnchor = anchorStr ? new Date(anchorStr).toLocaleDateString('vi-VN') : '—';
+              return (
+                <div key={`sla-app-${app.id || 'none'}-${index}`} className="grid grid-cols-[1fr_1fr_95px_75px_100px_85px_85px_85px] gap-3 py-3 border-b border-slate-800/50 last:border-0 items-center">
+                  <span className={cn('text-xs font-black', strong)}>{app.unitCode || app.id}</span>
+                  <span className={cn('text-xs truncate', muted)}>{app.projectName}</span>
+                  <span className={cn('text-xs', muted)}>{formattedAnchor}</span>
+                  <span className={cn('text-xs font-black', isPaused ? 'text-amber-500' : late > 0 ? (late > 15 ? 'text-rose-500' : 'text-amber-500') : 'text-emerald-500')}>
+                    {isPaused ? 'Tạm dừng' : late > 0 ? `+${late} ngày` : 'Đúng hạn'}
+                  </span>
+                  <span className={cn('px-2 py-0.5 rounded-lg text-[10px] font-black border text-center', isPaused ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : urgencyBadge(late))}>
+                    {isPaused ? 'Chờ sửa' : late > 15 ? 'Cần xử lý' : late > 0 ? 'Theo dõi' : 'Bình thường'}
+                  </span>
+                  <span className={cn('text-xs font-bold text-center', strong)}>{app._slaInfo.currentTurnDays ?? 0}d</span>
+                  <span className={cn('text-xs font-bold text-center', (app._slaInfo.pauseDays || 0) > 0 ? 'text-amber-500' : muted)}>{app._slaInfo.pauseDays ?? 0}d</span>
+                  <span className={cn('text-xs font-medium text-center', muted)}>{app._slaInfo.cumulativeStepDays ?? 0}d</span>
+                </div>
+              );
+            })}
           </div>
-          {pagedApps.length === 0 && (
-            <p className={cn('text-xs italic py-4 text-center', muted)}>Không có hồ sơ nào ở giai đoạn này.</p>
-          )}
-          {pagedApps.map((app, index) => {
-            const late = app._slaInfo.daysLate || 0;
-            return (
-              <div key={`sla-app-${app.id || 'none'}-${index}`} className="grid grid-cols-[1fr_1fr_90px_70px_90px] gap-3 py-3 border-b border-slate-800/50 last:border-0 items-center">
-                <span className={cn('text-xs font-black', strong)}>{app.unitCode || app.id}</span>
-                <span className={cn('text-xs truncate', muted)}>{app.projectName}</span>
-                <span className={cn('text-xs', muted)}>{(app as any).stepEntryDate || '—'}</span>
-                <span className={cn('text-xs font-black', late > 0 ? (late > 15 ? 'text-rose-500' : 'text-amber-500') : 'text-emerald-500')}>
-                  {late > 0 ? `+${late} ngày` : 'Đúng hạn'}
-                </span>
-                <span className={cn('px-2 py-0.5 rounded-lg text-[10px] font-black border text-center', urgencyBadge(late))}>
-                  {late > 15 ? 'Cần xử lý' : late > 0 ? 'Theo dõi' : 'Bình thường'}
-                </span>
-              </div>
-            );
-          })}
         </div>
 
         {/* Phân trang */}

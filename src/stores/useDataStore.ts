@@ -50,13 +50,42 @@ export const updateAppIssue = (
     issueType: type,
     issueSeverity: severity,
     issueStatus: 'OPEN',
-    issueCreatedAt: nowStr,
+    issueCreatedAt: (app.issueStatus === 'OPEN' && app.issueCreatedAt) ? app.issueCreatedAt : nowStr,
+    issueResolvedAt: null,
     history: [historyEntry, ...(app.history || [])],
     auditTrail: [auditEntry, ...(app.auditTrail || [])]
   };
 };
 
-export const RECORD_LIGHT_SELECT = 'id, unit_code, project_name, customer_name, contract_signer_type, phone_number, property_type, loan_status, is_self_service, current_step, status, received_date, contract_signing_date, submission_date, tax_notification_date, tax_receipt_date, gcn_signed_date, gcn_received_date, customer_handover_date, accounting_handover_date, ptda_handover_date, bank_commitment_deadline, submission_location, vpdk_code, issue_type, issue_severity, issue_notes, is_rejected, workflow_type, created_at, assigned_to, tax_payment_status, scanned_files, rejection_count, rejection_reason, commitment_date, assigned_to_id, assigned_to_name, tax_vpdk_submission_date, gcn_number, kt_handover_to_ptda_date, tax_notification_received_date, tax_notice_provision_date, handover_apartment_date, is_priority, priority_reason';
+const RECORD_BASE_LIGHT_SELECT = 'id, unit_code, project_name, customer_name, contract_signer_type, phone_number, property_type, loan_status, is_self_service, current_step, status, received_date, contract_signing_date, submission_date, tax_notification_date, tax_receipt_date, gcn_signed_date, gcn_received_date, customer_handover_date, accounting_handover_date, ptda_handover_date, bank_commitment_deadline, submission_location, vpdk_code, issue_type, issue_severity, issue_notes, issue_status, issue_created_at, issue_resolved_at, is_rejected, workflow_type, created_at, assigned_to, tax_payment_status, scanned_files, rejection_count, rejection_reason, commitment_date, assigned_to_id, assigned_to_name, tax_vpdk_submission_date, gcn_number, kt_handover_to_ptda_date, tax_notification_received_date, tax_notice_provision_date, handover_apartment_date, is_priority, priority_reason';
+
+export const RECORD_LIGHT_SELECT = `${RECORD_BASE_LIGHT_SELECT}, step_entry_date, rejected_from_step_id`;
+export const RECORD_LIGHT_SELECT_FALLBACK = RECORD_BASE_LIGHT_SELECT;
+
+let slaAnchorColumnsAvailable = true;
+
+export const getActiveRecordSelect = () =>
+  slaAnchorColumnsAvailable ? RECORD_LIGHT_SELECT : RECORD_LIGHT_SELECT_FALLBACK;
+
+export const markSlaColumnsUnavailable = () => {
+  slaAnchorColumnsAvailable = false;
+};
+
+export const isMissingSlaSchemaColumnError = (err: any): boolean => {
+  if (!err) return false;
+  const code = String(err.code || '');
+  const msg = `${err.message || ''} ${err.details || ''} ${err.hint || ''}`.toLowerCase();
+  const mentionsNewCol = msg.includes('step_entry_date') || msg.includes('rejected_from_step_id');
+  return mentionsNewCol && (code === '42703' || code === 'PGRST204' || msg.includes('does not exist') || msg.includes('could not find'));
+};
+
+export const sanitizeRecordPayload = (snakeObj: Record<string, any>): Record<string, any> => {
+  if (slaAnchorColumnsAvailable) return snakeObj;
+  const clone = { ...snakeObj };
+  delete clone.step_entry_date;
+  delete clone.rejected_from_step_id;
+  return clone;
+};
 
 // Module-level thay vì useRef — Zustand không phải React component nên không dùng hook.
 // selfUpdateIds lưu các id vừa được chính client này cập nhật để Realtime listener
@@ -169,12 +198,24 @@ export async function fetchRecordDetail(recordId: string | number, unitCode?: st
 }
 
 export async function syncRecordToSupabase(app: Application) {
-  const snakeData = mapToSnakeCase(app);
-  const { data, error } = await supabase.from('records').upsert(snakeData).select(RECORD_LIGHT_SELECT);
+  const rawSnakeData = mapToSnakeCase(app);
+  let { data, error } = await supabase
+    .from('records')
+    .upsert(sanitizeRecordPayload(rawSnakeData))
+    .select(getActiveRecordSelect());
+  if (error && isMissingSlaSchemaColumnError(error)) {
+    markSlaColumnsUnavailable();
+    const retryRes = await supabase
+      .from('records')
+      .upsert(sanitizeRecordPayload(rawSnakeData))
+      .select(getActiveRecordSelect());
+    data = retryRes.data;
+    error = retryRes.error;
+  }
   if (error) throw error;
   let savedApp = app;
   if (data && data.length > 0) {
-    savedApp = mapFromSnakeCase(data[0]);
+    savedApp = mapFromSnakeCase(data[0], app);
   }
 
   if (app.history && app.history.length > 0) {
@@ -299,20 +340,38 @@ export const bulkSyncRecordsToSupabase = async (appsToSync: Application[], allAp
 
     let insertedData: any[] = [];
     if (recordsToInsert.length > 0) {
-      const { data: insertResult, error: insertError } = await supabase
+      let { data: insertResult, error: insertError } = await supabase
         .from('records')
-        .insert(recordsToInsert)
-        .select(RECORD_LIGHT_SELECT);
+        .insert(recordsToInsert.map(sanitizeRecordPayload))
+        .select(getActiveRecordSelect());
+      if (insertError && isMissingSlaSchemaColumnError(insertError)) {
+        markSlaColumnsUnavailable();
+        const retryInsert = await supabase
+          .from('records')
+          .insert(recordsToInsert.map(sanitizeRecordPayload))
+          .select(getActiveRecordSelect());
+        insertResult = retryInsert.data;
+        insertError = retryInsert.error;
+      }
       if (insertError) throw insertError;
       insertedData = insertResult || [];
     }
 
     let updatedData: any[] = [];
     if (recordsToUpdate.length > 0) {
-      const { data: upsertResult, error: updateError } = await supabase
+      let { data: upsertResult, error: updateError } = await supabase
         .from('records')
-        .upsert(recordsToUpdate, { onConflict: 'id' })
-        .select(RECORD_LIGHT_SELECT);
+        .upsert(recordsToUpdate.map(sanitizeRecordPayload), { onConflict: 'id' })
+        .select(getActiveRecordSelect());
+      if (updateError && isMissingSlaSchemaColumnError(updateError)) {
+        markSlaColumnsUnavailable();
+        const retryUpsert = await supabase
+          .from('records')
+          .upsert(recordsToUpdate.map(sanitizeRecordPayload), { onConflict: 'id' })
+          .select(getActiveRecordSelect());
+        upsertResult = retryUpsert.data;
+        updateError = retryUpsert.error;
+      }
       if (updateError) throw updateError;
       updatedData = upsertResult || recordsToUpdate; // fallback về local nếu select không trả data
     }
@@ -751,6 +810,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     const { applications, setApplications, setDashboardApps } = get();
 
     try {
+      const nowStr = new Date().toISOString();
       const updatedApps = apps.map(app => {
         const logEntry: ApplicationStepHistory = {
           id: generateUUID(),
@@ -764,7 +824,7 @@ export const useDataStore = create<DataState>((set, get) => ({
             userRole === 'MANAGER_ALL' ? 'ADMIN' :
             (userRole as Dept)
           ),
-          receivedDate: new Date().toISOString(),
+          receivedDate: nowStr,
           note: `[BÁO SAI SÓT - ${issueSeverity}] ${issueNote}`,
           performedBy: currentUser?.id,
           performedByName: currentUser?.name || 'Hệ thống',
@@ -775,6 +835,9 @@ export const useDataStore = create<DataState>((set, get) => ({
           issueType: issueType as any,
           issueSeverity: issueSeverity as any,
           issueNotes: issueNote,
+          issueStatus: 'OPEN' as const,
+          issueCreatedAt: (app.issueStatus === 'OPEN' && app.issueCreatedAt) ? app.issueCreatedAt : nowStr,
+          issueResolvedAt: null,
           history: [logEntry, ...(app.history || [])],
           auditTrail: [
             createAuditEntry(
@@ -816,13 +879,14 @@ export const useDataStore = create<DataState>((set, get) => ({
 
       const { currentUser, userRole } = useAuthStore.getState();
       const stepCfg = stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep];
+      const nowStr = new Date().toISOString();
 
       const newHistory = [
         {
           id: generateUUID(),
           stepName: stepCfg.label,
           dept: userRole as Dept,
-          receivedDate: new Date().toISOString(),
+          receivedDate: nowStr,
           note: 'Đã khắc phục xong sai sót/vướng mắc. Sẵn sàng chuyển bước tiếp theo.',
           performedBy: currentUser?.id,
           performedByName: currentUser?.name
@@ -838,6 +902,7 @@ export const useDataStore = create<DataState>((set, get) => ({
         issueSeverity: 'Minor' as const,
         issueNotes: '',
         issueStatus: 'RESOLVED' as const,
+        issueResolvedAt: nowStr,
         history: newHistory
       };
 
@@ -861,8 +926,9 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   resolveError: async (app) => {
     try {
-      const { setApplications, stepConfig } = get();
+      const { setApplications, setDashboardApps, stepConfig } = get();
       const { currentUser, userRole } = useAuthStore.getState();
+      const nowStr = new Date().toISOString();
 
       const newHistory = [
         {
@@ -870,7 +936,7 @@ export const useDataStore = create<DataState>((set, get) => ({
           stepName: 'Khắc phục lỗi',
           stepKey: 'RESOLVED',
           dept: userRole as Dept,
-          receivedDate: new Date().toISOString(),
+          receivedDate: nowStr,
           note: 'Đã khắc phục xong và trả lại luồng xử lý',
           performedBy: currentUser?.id,
           performedByName: currentUser?.name
@@ -889,6 +955,8 @@ export const useDataStore = create<DataState>((set, get) => ({
         }
       }
 
+      const returnedToPreviousStep = targetStepId !== app.currentStep;
+
       const updatedApp: Application = {
         ...app,
         currentStep: targetStepId,
@@ -897,13 +965,16 @@ export const useDataStore = create<DataState>((set, get) => ({
         issueSeverity: 'Minor' as const,
         issueNotes: '',
         issueStatus: 'RESOLVED' as const,
+        issueResolvedAt: nowStr,
         isRejected: false,
-        rejectedFromStepId: undefined, // Xoá vết quay lại
+        rejectedFromStepId: null, // Xoá vết quay lại
+        stepEntryDate: returnedToPreviousStep ? nowStr : app.stepEntryDate,
         history: newHistory
       };
 
       const finalApp = await get().syncRecord(updatedApp);
       setApplications(prev => prev.map(a => a.id === app.id ? finalApp : a));
+      setDashboardApps(prev => prev.map(a => a.id === app.id ? finalApp : a));
 
       return { success: true, message: 'Đã phục hồi trạng thái và đồng bộ Supabase thành công.', finalApp };
     } catch (error) {
@@ -925,6 +996,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     }
 
     try {
+      const nowStr = new Date().toISOString();
       const updatedApps = appsToResolve.map(app => {
         let targetStepId = app.currentStep;
         let targetStatus = stepConfig[app.currentStep]?.status || INITIAL_STEP_CONFIG[app.currentStep]?.status || 'Processing';
@@ -939,7 +1011,7 @@ export const useDataStore = create<DataState>((set, get) => ({
           }
         }
 
-        const stepCfg = stepConfig[targetStepId] || INITIAL_STEP_CONFIG[targetStepId];
+        const returnedToPreviousStep = targetStepId !== app.currentStep;
 
         const newHistory = [
           {
@@ -947,7 +1019,7 @@ export const useDataStore = create<DataState>((set, get) => ({
             stepName: 'Khắc phục lỗi',
             stepKey: 'RESOLVED',
             dept: userRole as Dept,
-            receivedDate: new Date().toISOString(),
+            receivedDate: nowStr,
             note: 'Đã khắc phục xong và trả lại luồng xử lý',
             performedBy: currentUser?.id,
             performedByName: currentUser?.name
@@ -966,7 +1038,9 @@ export const useDataStore = create<DataState>((set, get) => ({
           issueSeverity: 'Minor' as const,
           issueNotes: '',
           issueStatus: 'RESOLVED' as const,
-          rejectedFromStepId: undefined, // Xoá vết quay lại
+          issueResolvedAt: nowStr,
+          rejectedFromStepId: null, // Xoá vết quay lại
+          stepEntryDate: returnedToPreviousStep ? nowStr : app.stepEntryDate,
           history: newHistory,
           auditTrail: [auditEntry, ...(app.auditTrail || [])]
         };
@@ -993,12 +1067,13 @@ export const useDataStore = create<DataState>((set, get) => ({
       const app = applications.find(a => a.id === appId);
       if (!app) return { success: false, message: 'Không tìm thấy hồ sơ.' };
 
+      const nowStr = new Date().toISOString();
       const newHistory = [
         {
           id: `propose-${Date.now()}`,
           stepName: stepConfig[app.currentStep]?.label || app.currentStep,
           dept: userRole as Dept,
-          receivedDate: new Date().toISOString(),
+          receivedDate: nowStr,
           note: `Đề xuất xử lý ngoại lệ: ${reason}`,
           performedBy: currentUser?.id,
           performedByName: currentUser?.name
@@ -1013,6 +1088,8 @@ export const useDataStore = create<DataState>((set, get) => ({
         issueNotes: `Đang chờ duyệt ngoại lệ: ${reason}`,
         issueSeverity: 'Critical' as const,
         issueStatus: 'OPEN' as const,
+        issueCreatedAt: (app.issueStatus === 'OPEN' && app.issueCreatedAt) ? app.issueCreatedAt : nowStr,
+        issueResolvedAt: null,
         status: 'Error' as const,
         checklist: {
           ...check,
@@ -1053,13 +1130,14 @@ export const useDataStore = create<DataState>((set, get) => ({
       if (!app) return { success: false, message: 'Không tìm thấy hồ sơ.' };
 
       const stepCfg = stepConfig[app.currentStep] || INITIAL_STEP_CONFIG[app.currentStep];
+      const nowStr = new Date().toISOString();
 
       const newHistory = [
         {
           id: generateUUID(),
           stepName: stepCfg.label,
           dept: userRole as Dept,
-          receivedDate: new Date().toISOString(),
+          receivedDate: nowStr,
           note: `Đã phê duyệt ngoại lệ: ${notes}`,
           performedBy: currentUser?.id,
           performedByName: currentUser?.name
@@ -1076,6 +1154,7 @@ export const useDataStore = create<DataState>((set, get) => ({
         issueSeverity: 'Minor' as const,
         issueNotes: '',
         issueStatus: 'RESOLVED' as const,
+        issueResolvedAt: nowStr,
         checklist: {
           ...check,
           bypass_proposed: false,
@@ -1234,7 +1313,9 @@ export const useDataStore = create<DataState>((set, get) => ({
       currentStep: targetStep,
       status: finalStatus,
       isRejected: !isMovingForward,
+      rejectedFromStepId: isMovingForward ? null : app.currentStep,
       rejectionReason: !isMovingForward ? note : (targetStep === 'S1_ChuanBi' ? app.rejectionReason : ''),
+      stepEntryDate: targetStep !== app.currentStep ? fullNow : app.stepEntryDate,
       history: newHistory,
       auditTrail: [
         createAuditEntry(
@@ -1416,6 +1497,7 @@ export const useDataStore = create<DataState>((set, get) => ({
           ...updateAppIssue(app, reason, 'Sai sót Khác'),
           currentStep: prevStep,
           status: targetStepConfig.status,
+          rejectedFromStepId: app.currentStep,
           rejectionCount: (app.rejectionCount || 0) + 1,
           isRejected: true,
           rejectionReason: reason,
@@ -1720,7 +1802,9 @@ export const useDataStore = create<DataState>((set, get) => ({
           currentStep: targetStep,
           status: targetStep === 'S1_ChuanBi' ? 'Error' : targetStatus,
           isRejected: !isMovingForward,
+          rejectedFromStepId: isMovingForward ? null : app.currentStep,
           rejectionReason: targetStep === 'S1_ChuanBi' ? appWithDate.rejectionReason : '',
+          stepEntryDate: targetStep !== app.currentStep ? nowStr : appWithDate.stepEntryDate,
           history: newHistory,
           auditTrail: [
             createAuditEntry(
@@ -1832,6 +1916,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       const histId = generateUUID();
       const auditId = generateUUID();
 
+      const nowStr = new Date().toISOString();
       const appToAddTemp: any = {
         unitCode: newApp.unitCode,
         customerName: newApp.customerName,
@@ -1847,13 +1932,14 @@ export const useDataStore = create<DataState>((set, get) => ({
         currentStep: initialStep,
         status: initialStatus,
         receivedDate: newApp.receivedDate,
+        stepEntryDate: nowStr,
         taxPaymentStatus: 'Unpaid',
         checklist: {},
         history: [{
           id: histId,
           stepName: (stepConfig[initialStep] || INITIAL_STEP_CONFIG[initialStep]).label,
           dept: 'PTT',
-          receivedDate: new Date().toISOString(),
+          receivedDate: nowStr,
           note: 'Khởi tạo hồ sơ mới',
           performedBy: currentUser?.id,
           performedByName: currentUser?.name
@@ -1863,7 +1949,7 @@ export const useDataStore = create<DataState>((set, get) => ({
           userId: currentUser?.id || 'system',
           userName: currentUser?.name || 'Hệ thống',
           action: 'Tạo hồ sơ mới',
-          timestamp: new Date().toISOString(),
+          timestamp: nowStr,
           changes: ''
         }]
       };
@@ -1871,10 +1957,20 @@ export const useDataStore = create<DataState>((set, get) => ({
       const dataToInsert = mapToSnakeCase(appToAddTemp);
       delete dataToInsert.id;
 
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('records')
-        .insert(dataToInsert)
-        .select(RECORD_LIGHT_SELECT);
+        .insert(sanitizeRecordPayload(dataToInsert))
+        .select(getActiveRecordSelect());
+
+      if (error && isMissingSlaSchemaColumnError(error)) {
+        markSlaColumnsUnavailable();
+        const retryCreate = await supabase
+          .from('records')
+          .insert(sanitizeRecordPayload(dataToInsert))
+          .select(getActiveRecordSelect());
+        data = retryCreate.data;
+        error = retryCreate.error;
+      }
 
       if (error) throw error;
 

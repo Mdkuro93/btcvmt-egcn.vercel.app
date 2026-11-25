@@ -780,11 +780,38 @@ export const ApplicationDetailModal = ({
                 )}
 
                 {(() => {
+                  const activeApp = editApp || selectedApp;
                   const overdueInfo = getOverdueInfo(
-                    editApp || selectedApp,
+                    activeApp,
                     stepConfig,
                     slaConfig,
                   );
+                  if (overdueInfo.isPaused) {
+                    return (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-4 bg-slate-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-4 mb-6"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
+                          <Clock size={20} className="text-amber-500" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest">
+                              Đồng hồ SLA bước đang tạm dừng
+                            </p>
+                          </div>
+                          <p className="text-sm font-bold text-amber-400">
+                            {overdueInfo.label} — Đã chờ khắc phục {overdueInfo.pauseDays || 0} ngày làm việc
+                          </p>
+                          <p className="text-[10px] text-slate-500 mt-1.5 font-medium">
+                            Tổng tích lũy bước (tham khảo): {overdueInfo.cumulativeStepDays || 0} ngày làm việc. Đồng hồ SLA bước sẽ chạy lại khi hoàn tất khắc phục / chuyển bước.
+                          </p>
+                        </div>
+                      </motion.div>
+                    );
+                  }
                   if (!overdueInfo.isOverdue) return null;
                   return (
                     <motion.div
@@ -806,8 +833,9 @@ export const ApplicationDetailModal = ({
                           {overdueInfo.daysLate} ngày quá hạn)
                         </p>
                         <p className="text-[10px] text-slate-500 mt-2 italic font-medium">
-                          Cảnh báo chậm trễ hiệu suất hệ thống. Vui lòng kiểm
-                          tra tiến độ giải quyết hồ sơ.
+                          {overdueInfo.slaAnchorDate ? `Mốc lượt hiện tại: ${overdueInfo.slaAnchorDate} • Lượt HT: ${overdueInfo.currentTurnDays ?? 0}d LV` : 'Cảnh báo chậm trễ hiệu suất hệ thống.'}
+                          {(overdueInfo.pauseDays || 0) > 0 ? ` • Tạm dừng/chờ sửa: ${overdueInfo.pauseDays}d LV` : ''}
+                          {(overdueInfo.cumulativeStepDays || 0) > 0 ? ` • Tích lũy bước: ${overdueInfo.cumulativeStepDays}d LV` : ''}
                         </p>
                       </div>
                     </motion.div>

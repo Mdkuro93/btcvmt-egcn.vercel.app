@@ -128,8 +128,14 @@ export const mapFromSnakeCase = (item: Record<string, any>, oldApp?: any): Appli
     issueResolvedAt: str(val('issue_resolved_at', 'issueResolvedAt')),
     
     estimatedCompletionDate: str(val('estimated_completion_date', 'estimatedCompletionDate')),
+    stepEntryDate: val('step_entry_date', 'stepEntryDate') !== undefined
+      ? (str(val('step_entry_date', 'stepEntryDate')) || undefined)
+      : oldApp?.stepEntryDate,
     rejectionCount: num(val('rejection_count', 'rejectionCount')) ?? 0,
     isRejected: bool(val('is_rejected', 'isRejected')),
+    rejectedFromStepId: val('rejected_from_step_id', 'rejectedFromStepId') !== undefined
+      ? ((str(val('rejected_from_step_id', 'rejectedFromStepId')) || undefined) as StepName | undefined)
+      : oldApp?.rejectedFromStepId,
     rejectionReason: str(val('rejection_reason', 'rejectionReason')),
     commitmentDate: str(val('commitment_date', 'commitmentDate')),
     taxPaymentStatus: normalizeTaxPaymentStatus(val('tax_payment_status', 'taxPaymentStatus')),
@@ -250,6 +256,13 @@ export const mapToSnakeCase = (app: Application): Record<string, any> => {
     tax_vpdk_submission_date: app.taxVpdkSubmissionDate,
     updated_at: new Date().toISOString()
   };
+
+  if (app.stepEntryDate !== undefined) {
+    data.step_entry_date = app.stepEntryDate || null;
+  }
+  if (app.rejectedFromStepId !== undefined) {
+    data.rejected_from_step_id = app.rejectedFromStepId || null;
+  }
 
   // Only include heavy/JSON fields if they are explicitly present to avoid overwriting rich data with empty snapshots during lazy loading updates
   if (app.history !== undefined) data.history = app.history;

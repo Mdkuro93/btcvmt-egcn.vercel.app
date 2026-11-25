@@ -289,7 +289,9 @@ export default function ReportsView({
         ['Mã lô', 'Dự án', 'Khách hàng', 'Trạng thái',
          'Bước hiện tại',
          'Ngày ký HĐ', 'Ngày nộp VPĐK', 'Ngày hoàn tất',
-         'Số ngày XL', 'SLA (ngày)', 'Tình trạng SLA', 'Số ngày trễ'],
+         'Số ngày XL', 'SLA (ngày)', 'Tình trạng SLA', 'Số ngày trễ',
+         'Mốc bắt đầu lượt hiện tại', 'Số ngày LV lượt hiện tại',
+         'Số ngày tạm dừng / chờ sửa', 'Tổng ngày LV tích lũy bước'],
         ...filteredApps.map(app => {
           const start = app.contractSigningDate
             ? new Date(app.contractSigningDate) : null;
@@ -302,8 +304,8 @@ export default function ReportsView({
               ) : '';
           const sla = slaConfig?.totalSLA || 90;
 
-          // Lấy thông tin SLA real-time từ hệ thống
-          const slaInfo = app._sla || calculateSLA(app, stepConfig, slaConfig);
+          // Lấy thông tin SLA real-time từ hệ thống (ưu tiên tính mới để đảm bảo đủ trường Phương án C)
+          const slaInfo = calculateSLA(app, stepConfig, slaConfig);
           const currentStepLabel = (stepConfig?.[app.currentStep] || INITIAL_STEP_CONFIG?.[app.currentStep])?.label || app.currentStep || '';
 
           // Phân loại tình trạng SLA rõ ràng hơn
@@ -313,6 +315,8 @@ export default function ReportsView({
           if (app.status === 'Completed' || app.customerHandoverDate) {
             // Hồ sơ đã hoàn tất: so sánh tổng số ngày xử lý vs SLA cam kết
             slaStatus = days !== '' && Number(days) <= sla ? '✓ Đúng hạn' : '✗ Trễ hạn';
+          } else if (slaInfo?.isPaused) {
+            slaStatus = '⏸ Tạm dừng (Chờ khắc phục)';
           } else if (slaInfo?.isOverdue) {
             // Hồ sơ đang xử lý và đã trễ hạn tại bước hiện tại
             slaStatus = '⚠ Đang trễ hạn';
@@ -337,7 +341,11 @@ export default function ReportsView({
             days !== '' ? days : '',
             sla,
             slaStatus,
-            daysLate
+            daysLate,
+            formatDate(app.stepEntryDate || slaInfo?.slaAnchorDate),
+            slaInfo?.currentTurnDays ?? '',
+            slaInfo?.pauseDays ?? 0,
+            slaInfo?.cumulativeStepDays ?? ''
           ];
         })
       ];
@@ -414,9 +422,11 @@ export default function ReportsView({
          'Ngày TB Thuế', 'Ngày nhận TB Thuế', 'Ngày cấp TB Thuế', 'Ngày đóng thuế',
          'Ngày trình ký/in GCN', 'Ngày nhận GCN', 'Ngày PTDA bàn giao PTT',
          'Giai đoạn', 'Trạng thái', 'Ngày bàn giao KH',
-         'Bước hiện tại', 'Tình trạng SLA', 'Số ngày trễ', 'Sai sót'],
+         'Bước hiện tại', 'Tình trạng SLA', 'Số ngày trễ', 'Sai sót',
+         'Mốc bắt đầu lượt hiện tại', 'Số ngày LV lượt hiện tại',
+         'Số ngày tạm dừng / chờ sửa', 'Tổng ngày LV tích lũy bước'],
         ...filteredApps.map((app, i) => {
-          const slaInfo = app._sla || calculateSLA(app, stepConfig, slaConfig);
+          const slaInfo = calculateSLA(app, stepConfig, slaConfig);
           const currentStepLabel = (stepConfig?.[app.currentStep] 
             || INITIAL_STEP_CONFIG?.[app.currentStep])?.label 
             || app.currentStep || '';
@@ -425,6 +435,8 @@ export default function ReportsView({
           let daysLate: number | string = '';
           if (app.status === 'Completed' || app.customerHandoverDate) {
             slaStatus = '✓ Hoàn tất';
+          } else if (slaInfo?.isPaused) {
+            slaStatus = '⏸ Tạm dừng (Chờ khắc phục)';
           } else if (slaInfo?.isOverdue) {
             slaStatus = '⚠ Đang trễ hạn';
             daysLate = slaInfo.daysLate || '';
@@ -469,7 +481,11 @@ export default function ReportsView({
             currentStepLabel,
             slaStatus,
             daysLate,
-            issueText
+            issueText,
+            formatDate(app.stepEntryDate || slaInfo?.slaAnchorDate),
+            slaInfo?.currentTurnDays ?? '',
+            slaInfo?.pauseDays ?? 0,
+            slaInfo?.cumulativeStepDays ?? ''
           ];
         })
       ];
@@ -1294,9 +1310,10 @@ export default function ReportsView({
                       {loanApps.map((app, index) => {
                         const overdueInfo = getOverdueInfo(app, stepConfig, slaConfig);
                         const isCompleted = app.status === 'Completed' || app.currentStep === 'Hoan_Tat' || !!app.customerHandoverDate;
-                        const daysLate = isCompleted ? 0 : overdueInfo.daysLate;
-                        const isHighRisk = !isCompleted && overdueInfo.isOverdue;
-                        const isMediumRisk = !isCompleted && !overdueInfo.isOverdue && overdueInfo.urgency === 'urgent';
+                        const isPaused = !isCompleted && Boolean(overdueInfo.isPaused);
+                        const daysLate = isCompleted || isPaused ? 0 : overdueInfo.daysLate;
+                        const isHighRisk = !isCompleted && !isPaused && overdueInfo.isOverdue;
+                        const isMediumRisk = !isCompleted && !isPaused && !overdueInfo.isOverdue && overdueInfo.urgency === 'urgent';
 
                         return (
                           <tr 
@@ -1324,9 +1341,10 @@ export default function ReportsView({
                                <span className={cn(
                                  "text-xs font-black p-2 rounded-xl transition-all",
                                  isCompleted ? "text-slate-400" :
+                                 isPaused ? "bg-slate-500/10 text-amber-500" :
                                  isHighRisk ? "bg-rose-500/10 text-rose-500 shadow-[inset_0_0_10px_rgba(244,63,94,0.1)]" : isMediumRisk ? "bg-amber-500/10 text-amber-500" : theme === 'light' ? "bg-slate-100 text-slate-500" : "bg-slate-900 text-slate-600"
                                )}>
-                                 {isCompleted ? "-" : `${daysLate} Ngày ${isHighRisk ? "!!" : ""}`}
+                                 {isCompleted ? "-" : isPaused ? `Tạm dừng (${overdueInfo.pauseDays || 0}d)` : `${daysLate} Ngày ${isHighRisk ? "!!" : ""}`}
                                </span>
                             </td>
                             <td className="px-6 py-5">
@@ -1334,6 +1352,10 @@ export default function ReportsView({
                                  {isCompleted ? (
                                    <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-full text-[9px] font-black uppercase tracking-tighter">
                                      <CheckCircle2 size={10} /> An Toàn
+                                   </div>
+                                 ) : isPaused ? (
+                                   <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-full text-[9px] font-black uppercase tracking-tighter">
+                                     Tạm dừng SLA
                                    </div>
                                  ) : isHighRisk ? (
                                    <div className="flex items-center gap-1.5 px-3 py-1 bg-rose-500 text-white rounded-full text-[9px] font-black uppercase tracking-tighter animate-pulse">
