@@ -181,20 +181,7 @@ const SUPABASE_KEY = (supabaseAnonKey || 'placeholder-key').trim();
 if (!SUPABASE_KEY) {
   console.error('[Config] VITE_SUPABASE_KEY chưa được cấu hình!');
 }
-
-if (!import.meta.env.VITE_ADMIN_SECRET) {
-  console.warn('[Config] VITE_ADMIN_SECRET chưa cấu hình');
-}
-const ADMIN_SECRET = (
-  import.meta.env.VITE_ADMIN_SECRET || ''
-).trim();
-
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  global: {
-    headers: {
-      'x-admin-key': ADMIN_SECRET
-    }
-  },
   realtime: {
     params: { 
       eventsPerSecond: 10 
