@@ -5,15 +5,15 @@
 :root {
   --primary-amber: #f59e0b;
   --secondary-indigo: #6366f1;
-  --bg-deep-navy: #1E2022;
+  --bg-deep-navy: #292D31;
   --card-glass: rgba(255, 255, 255, 0.05);
   --border-glass: rgba(255, 255, 255, 0.1);
   
   /* Đồng bộ với các biến cũ của bạn */
-  --color-bg-primary: #1E2022;
-  --color-bg-secondary: #23272A;
-  --color-text-primary: #E8E4DC;
-  --color-text-secondary: #B8B2A7;
+  --color-bg-primary: #292D31;
+  --color-bg-secondary: #32373C;
+  --color-text-primary: #ECE8E0;
+  --color-text-secondary: #BDB8AD;
 }
 
 @theme {
@@ -23,7 +23,7 @@
   
   --color-festive-red: #E11D48;
   --color-festive-gold: #F59E0B;
-  --color-festive-dark: #1E2022;
+  --color-festive-dark: #292D31;
   --color-accent-emerald: #10B981;
 
   --color-brand: #4F46E5;
@@ -33,13 +33,29 @@
   --color-info: #6366f1;
 
   /* Overriding default slate colors to match our theme */
-  --color-slate-950: #1E2022;
-  --color-slate-900: #23272A;
-  --color-slate-800: #2D3235;
-  --color-slate-700: #3E4448;
+  --color-slate-950: #292D31;
+  --color-slate-900: #32373C;
+  --color-slate-800: #3D4348;
+  --color-slate-700: #4C535A;
   --color-slate-100: #E8E4DC;
 
   --font-unit: "Montserrat", "Poppins", sans-serif;
+
+  /* Bảng màu dịu hơn: giảm độ bão hòa các màu nhấn, giữ nhận diện cam của GCN Tracker */
+  --color-amber-400: #E9B04F;
+  --color-amber-500: #D9962B;
+  --color-amber-600: #BE7E1A;
+  --color-indigo-400: #8E96E8;
+  --color-indigo-500: #6E76D6;
+  --color-indigo-600: #5A62C0;
+  --color-blue-500: #4F8BD4;
+  --color-blue-600: #3F76BC;
+  --color-rose-500: #DE5B72;
+  --color-orange-500: #D9773A;
+  --color-emerald-500: #3FAE8C;
+  --color-cyan-500: #2FA3B8;
+  --color-violet-500: #8A7FD1;
+  --color-purple-500: #8A7FD1;
 }
 
 @layer utilities {
@@ -62,7 +78,7 @@
     --color-bg-secondary: #FFFFFF;
     --color-text-primary: #1E293B; /* Xám đá đậm, không dùng màu đen thuần */
     --color-text-secondary: #475569;
-    --color-border-subtle: #F1F5F9;
+    --color-border-subtle: #E2E8F0;
 
     --color-success: #059669;
     --color-error: #E11D48;

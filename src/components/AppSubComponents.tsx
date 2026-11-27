@@ -230,6 +230,9 @@ export const DetailCard = ({ label, value, field, valueColor = 'text-[var(--colo
   );
 };
 
+// Đặt true vào dịp Tết nếu muốn bật lại lớp phủ đỏ/tối
+const SHOW_FESTIVE_TINT = false;
+
 export const FestiveBranding = () => (
   <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
     {/* Animated Fireworks */}
@@ -261,9 +264,11 @@ export const FestiveBranding = () => (
     ))}
 
     {/* Background Overlay Tints */}
+    {SHOW_FESTIVE_TINT && (<>
     <div className="absolute inset-0 bg-festive-dark/20 backdrop-blur-[1px]"></div>
     <div className="absolute top-0 left-0 right-0 h-[40%] bg-gradient-to-b from-festive-red/20 via-transparent to-transparent"></div>
     <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-festive-dark/60 to-transparent"></div>
+    </>)}
   </div>
 );
 

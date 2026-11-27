@@ -160,7 +160,7 @@ export default function DashboardCharts({
                   dataKey="priority" 
                   stackId="a" 
                   barSize={24} 
-                  fill="#f59e0b"
+                  fill="#D9962B"
                   radius={[0, 0, 0, 0]}
                 />
                 <Bar 
@@ -170,7 +170,7 @@ export default function DashboardCharts({
                   radius={[0, 0, 0, 0]}
                 >
                   {chartData.map((entry, index) => (
-                    <Cell key={`cell-error-${index}`} fill="#ef4444" />
+                    <Cell key={`cell-error-${index}`} fill="#DE5B72" />
                   ))}
                 </Bar>
                 <Bar 

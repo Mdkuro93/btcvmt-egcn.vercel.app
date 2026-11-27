@@ -592,7 +592,7 @@ export const DashboardTab = React.memo(({
                             <Bar 
                               dataKey="priority" 
                               stackId="a"
-                              fill="#f59e0b"
+                              fill="#D9962B"
                               barSize={24} 
                               shape={(props: any) => {
                                 const { fill, x, y, width, height, payload } = props;
@@ -608,7 +608,7 @@ export const DashboardTab = React.memo(({
                             <Bar 
                               dataKey="error" 
                               stackId="a"
-                              fill="#f43f5e"
+                              fill="#DE5B72"
                               barSize={24} 
                               className="shadow-[0_0_15px_rgba(244,63,94,0.3)]"
                               shape={(props: any) => {

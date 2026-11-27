@@ -1,4 +1,3 @@
-
 import { useMemo } from 'react';
 import { useDataStore } from '../stores/useDataStore';
 import { getOverdueInfo, calculateDaysDiff, getRecordDept } from '../utils/appUtils';
@@ -279,36 +278,36 @@ export function useDashboardStats(
     const loanApps = dashboardApps.filter(a => a.loanStatus === 'Co_Vay');
     const loanStatusStats = [
       { name: 'Chuẩn bị', value: loanApps.filter(a => a.status === 'Processing').length, color: '#94a3b8' },
-      { name: 'Chờ nộp VPĐK', value: loanApps.filter(a => a.status === 'WaitingVPDK').length, color: '#f59e0b' },
-      { name: 'Đã nộp VPĐK', value: loanApps.filter(a => a.status === 'Submitted').length, color: '#3b82f6' },
-      { name: 'Chờ TB Thuế', value: loanApps.filter(a => a.status === 'TaxPending').length, color: '#f97316' },
-      { name: 'Đã nộp thuế', value: loanApps.filter(a => a.status === 'TaxPaid' || a.status === 'TaxCompleted').length, color: '#10b981' },
-      { name: 'Đã có GCN', value: loanApps.filter(a => a.status === 'GCN_Issued' || a.status === 'WaitingHandover').length, color: '#06b6d4' },
-      { name: 'Hoàn tất', value: loanApps.filter(a => a.status === 'Completed').length, color: '#22c55e' },
-      { name: 'Vướng mắc', value: loanApps.filter(a => a.status === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None')).length, color: '#f43f5e' }
+      { name: 'Chờ nộp VPĐK', value: loanApps.filter(a => a.status === 'WaitingVPDK').length, color: '#D9962B' },
+      { name: 'Đã nộp VPĐK', value: loanApps.filter(a => a.status === 'Submitted').length, color: '#4F8BD4' },
+      { name: 'Chờ TB Thuế', value: loanApps.filter(a => a.status === 'TaxPending').length, color: '#D9773A' },
+      { name: 'Đã nộp thuế', value: loanApps.filter(a => a.status === 'TaxPaid' || a.status === 'TaxCompleted').length, color: '#3FAE8C' },
+      { name: 'Đã có GCN', value: loanApps.filter(a => a.status === 'GCN_Issued' || a.status === 'WaitingHandover').length, color: '#2FA3B8' },
+      { name: 'Hoàn tất', value: loanApps.filter(a => a.status === 'Completed').length, color: '#52B26B' },
+      { name: 'Vướng mắc', value: loanApps.filter(a => a.status === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None')).length, color: '#DE5B72' }
     ].filter(s => s.value > 0);
 
     const loanRatioStats = [
-      { name: 'Có vay', value: dashboardApps.filter(a => a.loanStatus === 'Co_Vay').length, color: '#6366f1' },
-      { name: 'Không vay', value: dashboardApps.filter(a => a.loanStatus === 'Khong_Vay').length, color: '#10b981' },
+      { name: 'Có vay', value: dashboardApps.filter(a => a.loanStatus === 'Co_Vay').length, color: '#6E76D6' },
+      { name: 'Không vay', value: dashboardApps.filter(a => a.loanStatus === 'Khong_Vay').length, color: '#3FAE8C' },
       { name: 'Chưa có', value: dashboardApps.filter(a => a.loanStatus !== 'Co_Vay' && a.loanStatus !== 'Khong_Vay').length, color: '#94a3b8' }
     ].filter(s => s.value > 0);
 
     const selfServiceApps = dashboardApps.filter(a => a.isSelfService);
     const selfServiceStatusStats = [
       { name: 'Chuẩn bị', value: selfServiceApps.filter(a => a.status === 'Processing').length, color: '#94a3b8' },
-      { name: 'Chờ nộp VPĐK', value: selfServiceApps.filter(a => a.status === 'WaitingVPDK').length, color: '#f59e0b' },
-      { name: 'Đã nộp VPĐK', value: selfServiceApps.filter(a => a.status === 'Submitted').length, color: '#3b82f6' },
-      { name: 'Chờ TB Thuế', value: selfServiceApps.filter(a => a.status === 'TaxPending').length, color: '#f97316' },
-      { name: 'Đã nộp thuế', value: selfServiceApps.filter(a => a.status === 'TaxPaid' || a.status === 'TaxCompleted').length, color: '#10b981' },
-      { name: 'Đã có GCN', value: selfServiceApps.filter(a => a.status === 'GCN_Issued' || a.status === 'WaitingHandover').length, color: '#06b6d4' },
-      { name: 'Hoàn tất', value: selfServiceApps.filter(a => a.status === 'Completed').length, color: '#22c55e' },
-      { name: 'Vướng mắc', value: selfServiceApps.filter(a => a.status === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None')).length, color: '#f43f5e' }
+      { name: 'Chờ nộp VPĐK', value: selfServiceApps.filter(a => a.status === 'WaitingVPDK').length, color: '#D9962B' },
+      { name: 'Đã nộp VPĐK', value: selfServiceApps.filter(a => a.status === 'Submitted').length, color: '#4F8BD4' },
+      { name: 'Chờ TB Thuế', value: selfServiceApps.filter(a => a.status === 'TaxPending').length, color: '#D9773A' },
+      { name: 'Đã nộp thuế', value: selfServiceApps.filter(a => a.status === 'TaxPaid' || a.status === 'TaxCompleted').length, color: '#3FAE8C' },
+      { name: 'Đã có GCN', value: selfServiceApps.filter(a => a.status === 'GCN_Issued' || a.status === 'WaitingHandover').length, color: '#2FA3B8' },
+      { name: 'Hoàn tất', value: selfServiceApps.filter(a => a.status === 'Completed').length, color: '#52B26B' },
+      { name: 'Vướng mắc', value: selfServiceApps.filter(a => a.status === 'Error' || a.isRejected || (a.issueType && a.issueType !== 'None')).length, color: '#DE5B72' }
     ].filter(s => s.value > 0);
 
     const selfServiceRatioStats = [
-      { name: 'Khách tự làm', value: selfServiceApps.length, color: '#f59e0b' },
-      { name: 'CĐT làm thay', value: (dashboardApps.length - selfServiceApps.length), color: '#3b82f6' }
+      { name: 'Khách tự làm', value: selfServiceApps.length, color: '#D9962B' },
+      { name: 'CĐT làm thay', value: (dashboardApps.length - selfServiceApps.length), color: '#4F8BD4' }
     ].filter(s => s.value > 0);
 
     return {
@@ -402,23 +401,23 @@ export function useDashboardStats(
 
     const result = [
       createStageItem('1. ĐANG CHUẨN BỊ', groups['1. ĐANG CHUẨN BỊ'] || [], '#94a3b8', 'Processing'),
-      createStageItem('2. CHỜ NỘP VPĐK', waitVPDK, '#f59e0b', 'WaitingVPDK')
+      createStageItem('2. CHỜ NỘP VPĐK', waitVPDK, '#D9962B', 'WaitingVPDK')
     ];
 
-    result.push(createStageItem('   ↳ 2A. HỒ SƠ TẠI KẾ TOÁN', waitVPDK_KT, '#fbbf24', 'WaitingVPDK', true)); // Lighter amber
+    result.push(createStageItem('   ↳ 2A. HỒ SƠ TẠI KẾ TOÁN', waitVPDK_KT, '#E6B666', 'WaitingVPDK', true)); // Lighter amber
 
     if (hasQT2) {
-      result.push(createStageItem('   ↳ 2B. HỒ SƠ TẠI PTDA', waitVPDK_PTDA, '#fcd34d', 'WaitingVPDK', true)); // Even lighter amber
+      result.push(createStageItem('   ↳ 2B. HỒ SƠ TẠI PTDA', waitVPDK_PTDA, '#EBCB92', 'WaitingVPDK', true)); // Even lighter amber
     }
 
     result.push(
-      createStageItem('3. ĐÃ NỘP VPĐK', groups['3. ĐÃ NỘP VPĐK'] || [], '#3b82f6', 'Submitted'),
-      createStageItem('4. CHỜ THÔNG BÁO THUẾ', groups['4. CHỜ THÔNG BÁO THUẾ'] || [], '#f97316', 'TaxPending'),
-      createStageItem('5. CHỜ HOÀN THÀNH NVTC', groups['5. CHỜ HOÀN THÀNH NVTC'] || [], '#8b5cf6', 'TaxPending'),
-      createStageItem('6. ĐÃ NỘP THUẾ', groups['6. ĐÃ NỘP THUẾ'] || [], '#10b981', 'TaxCompleted'),
-      createStageItem('7. ĐÃ CÓ GCN', groups['7. ĐÃ CÓ GCN'] || [], '#06b6d4', 'GCN_Issued'),
-      createStageItem('8. CHỜ BÀN GIAO', groups['8. CHỜ BÀN GIAO'] || [], '#6366f1', 'WaitingHandover'),
-      createStageItem('9. HOÀN TẤT', groups['9. HOÀN TẤT'] || [], '#22c55e', 'Completed')
+      createStageItem('3. ĐÃ NỘP VPĐK', groups['3. ĐÃ NỘP VPĐK'] || [], '#4F8BD4', 'Submitted'),
+      createStageItem('4. CHỜ THÔNG BÁO THUẾ', groups['4. CHỜ THÔNG BÁO THUẾ'] || [], '#D9773A', 'TaxPending'),
+      createStageItem('5. CHỜ HOÀN THÀNH NVTC', groups['5. CHỜ HOÀN THÀNH NVTC'] || [], '#8A7FD1', 'TaxPending'),
+      createStageItem('6. ĐÃ NỘP THUẾ', groups['6. ĐÃ NỘP THUẾ'] || [], '#3FAE8C', 'TaxCompleted'),
+      createStageItem('7. ĐÃ CÓ GCN', groups['7. ĐÃ CÓ GCN'] || [], '#2FA3B8', 'GCN_Issued'),
+      createStageItem('8. CHỜ BÀN GIAO', groups['8. CHỜ BÀN GIAO'] || [], '#6E76D6', 'WaitingHandover'),
+      createStageItem('9. HOÀN TẤT', groups['9. HOÀN TẤT'] || [], '#52B26B', 'Completed')
     );
 
     return result;
