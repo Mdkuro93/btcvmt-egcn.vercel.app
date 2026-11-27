@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { endSession } from './lib/session';
 import { useAuthStore } from './stores/useAuthStore';
 import { useToast } from './hooks/useToast';
 import { useBulkActions } from './hooks/useBulkActions';
@@ -181,6 +182,7 @@ const SUPABASE_KEY = (supabaseAnonKey || 'placeholder-key').trim();
 if (!SUPABASE_KEY) {
   console.error('[Config] VITE_SUPABASE_KEY chưa được cấu hình!');
 }
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   realtime: {
     params: { 
@@ -457,7 +459,7 @@ export default function App() {
         const { data } = await supabase.auth.getSession();
         if (data?.session?.user) {
           const { data: profile } = await supabase
-            .from('users')
+            .from('users_public')
             .select('*')
             .eq('id', data.session.user.id)
             .maybeSingle();
@@ -504,7 +506,7 @@ export default function App() {
       
       if (user) {
         const { data: profile } = await supabase
-          .from('users')
+          .from('users_public')
           .select('*')
           .eq('id', user.id)
           .maybeSingle();
@@ -564,7 +566,7 @@ export default function App() {
   }, [userRole]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await endSession(supabase);
   };
   // const [applications, setApplications] = useState<Application[]>([]);
   // const [dashboardApps, setDashboardApps] = useState<Application[]>([]);
@@ -777,10 +779,7 @@ export default function App() {
         });
       }
       try {
-        await supabase
-          .from('users')
-          .update({ is_first_login: false })
-          .eq('id', currentUser.id);
+        // is_first_login đã được tắt trong hàm đổi mật khẩu phía DB
       } catch (dbErr) {
         console.warn('Could not persist is_first_login updates: ', dbErr);
       }
@@ -875,7 +874,7 @@ export default function App() {
       try {
         // 1. Fetch data in parallel
         const responses = await Promise.allSettled([
-          supabase.from('users').select('*'),
+          supabase.from('users_public').select('*'),
           supabase.from('system_configs').select('*')
         ]);
 
@@ -1954,7 +1953,7 @@ export default function App() {
     try {
       // Validate recipient exists
       const { data: existingUsers, error: checkError } = await supabase
-        .from('users')
+        .from('users_public')
         .select('id')
         .eq('id', noti.recipientId);
         
@@ -2035,7 +2034,7 @@ export default function App() {
     if (candidateUserIds.size > 0) {
       try {
         const { data: existingUsers, error: userCheckError } = await supabase
-          .from('users')
+          .from('users_public')
           .select('id')
           .in('id', Array.from(candidateUserIds));
         if (userCheckError) {
@@ -5278,7 +5277,7 @@ useEffect(() => {
               <button 
                 onClick={async () => {
                    setCurrentUser(null);
-                   await supabase.auth.signOut();
+                   await endSession(supabase);
                 }}
                 className={cn(
                   "p-2.5 rounded-xl transition-all border",

@@ -1,3 +1,4 @@
+import { setSessionToken } from '../lib/session';
 import React, { useState, useEffect } from 'react';
 import { 
   ShieldCheck, 
@@ -89,15 +90,14 @@ export default function LoginScreen({
     setIsLoading(true);
     
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .or(`username.eq.${username},email.eq.${username}`)
-        .eq('password', password)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc('app_login', {
+        p_username: username,
+        p_password: password
+      });
 
-      if (data) {
-        onLogin(mapUserFromSnakeCase(data));
+      if (!error && data && data.user) {
+        setSessionToken(data.token);
+        onLogin(mapUserFromSnakeCase(data.user));
         return;
       }
 

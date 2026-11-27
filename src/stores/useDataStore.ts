@@ -1,3 +1,4 @@
+import { getSessionToken } from '../lib/session';
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { Application, Project, UserProfile, AppNotification, Dept, ApplicationStepHistory, AuditTrailEntry, IssueType, IssueSeverity, StepName } from '../types';
@@ -718,7 +719,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     
     try {
       const fetchPromise = Promise.allSettled([
-        supabase.from('users').select('*'),
+        supabase.from('users_public').select('*'),
         supabase.from('system_configs').select('*')
       ]);
 
@@ -1532,7 +1533,7 @@ export const useDataStore = create<DataState>((set, get) => ({
       if (candidateUserIds.size > 0) {
         try {
           const { data: existingUsers, error: userCheckError } = await supabase
-            .from('users')
+            .from('users_public')
             .select('id')
             .in('id', Array.from(candidateUserIds));
           if (!userCheckError) {
@@ -2267,7 +2268,10 @@ export const useDataStore = create<DataState>((set, get) => ({
     try {
       const snakeUser = mapUserToSnakeCase(userData as UserProfile);
       delete (snakeUser as any).id;
-      const { data, error } = await supabase.from('users').insert(snakeUser).select('*').single();
+      const { data, error } = await supabase.rpc('app_admin_create_user', {
+        p_token: getSessionToken(),
+        p_user: snakeUser
+      });
       if (error) throw error;
       const newUser = mapUserFromSnakeCase(data);
       const { setUsers } = get();
@@ -2281,10 +2285,14 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   updateUser: async (user) => {
     try {
-      const { error } = await supabase.from('users').update(mapUserToSnakeCase(user)).eq('id', user.id);
+      const { error } = await supabase.rpc('app_admin_update_user', {
+        p_token: getSessionToken(),
+        p_user_id: user.id,
+        p_user: mapUserToSnakeCase(user)
+      });
       if (error) throw error;
       const { setUsers } = get();
-      setUsers(prev => prev.map(u => u.id === user.id ? user : u));
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...user, password: undefined } : u));
       return { success: true, message: 'Đã cập nhật tài khoản thành công!' };
     } catch (error: any) {
       console.error('Update user error:', error);
@@ -2294,7 +2302,10 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   deleteUser: async (id) => {
     try {
-      const { error } = await supabase.from('users').delete().eq('id', id);
+      const { error } = await supabase.rpc('app_admin_delete_user', {
+        p_token: getSessionToken(),
+        p_user_id: id
+      });
       if (error) throw error;
       const { setUsers } = get();
       setUsers(prev => prev.filter(u => u.id !== id));
@@ -2307,7 +2318,10 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   resetUserPassword: async (userId, username) => {
     try {
-      const { error } = await supabase.from('users').update({ password: '123456' }).eq('id', userId);
+      const { error } = await supabase.rpc('app_admin_reset_password', {
+        p_token: getSessionToken(),
+        p_user_id: userId
+      });
       if (error) throw error;
       return { success: true, message: `Đã reset mật khẩu tài khoản ${username} về 123456` };
     } catch (error: any) {
@@ -2318,15 +2332,15 @@ export const useDataStore = create<DataState>((set, get) => ({
 
   updatePassword: async (userId, currentPassword, newPassword) => {
     try {
-      const { data: userData, error: fetchError } = await supabase
-        .from('users').select('password').eq('id', userId).single();
-      if (fetchError) throw fetchError;
-      if (userData?.password !== currentPassword) {
-        return { success: false, message: 'Mật khẩu hiện tại không đúng!' };
+      const { data, error } = await supabase.rpc('app_change_password', {
+        p_user_id: userId,
+        p_current: currentPassword,
+        p_new: newPassword
+      });
+      if (error) throw error;
+      if (!data?.ok) {
+        return { success: false, message: data?.message || 'Mật khẩu hiện tại không đúng!' };
       }
-      const { error: updateError } = await supabase
-        .from('users').update({ password: newPassword }).eq('id', userId);
-      if (updateError) throw updateError;
       return { success: true, message: 'Đã cập nhật mật khẩu thành công!' };
     } catch (error: any) {
       console.error('Update password error:', error);
