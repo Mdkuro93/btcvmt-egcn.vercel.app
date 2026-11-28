@@ -5,14 +5,14 @@
 :root {
   --primary-amber: #f59e0b;
   --secondary-indigo: #6366f1;
-  --bg-deep-navy: #292D31;
+  --bg-deep-navy: #323840;
   --card-glass: rgba(255, 255, 255, 0.05);
   --border-glass: rgba(255, 255, 255, 0.1);
   
   /* Đồng bộ với các biến cũ của bạn */
-  --color-bg-primary: #292D31;
-  --color-bg-secondary: #32373C;
-  --color-text-primary: #ECE8E0;
+  --color-bg-primary: #323840;
+  --color-bg-secondary: #3C434B;
+  --color-text-primary: #F0ECE4;
   --color-text-secondary: #BDB8AD;
 }
 
@@ -23,7 +23,7 @@
   
   --color-festive-red: #E11D48;
   --color-festive-gold: #F59E0B;
-  --color-festive-dark: #292D31;
+  --color-festive-dark: #323840;
   --color-accent-emerald: #10B981;
 
   --color-brand: #4F46E5;
@@ -33,10 +33,10 @@
   --color-info: #6366f1;
 
   /* Overriding default slate colors to match our theme */
-  --color-slate-950: #292D31;
-  --color-slate-900: #32373C;
-  --color-slate-800: #3D4348;
-  --color-slate-700: #4C535A;
+  --color-slate-950: #323840;
+  --color-slate-900: #3C434B;
+  --color-slate-800: #485059;
+  --color-slate-700: #59626B;
   --color-slate-100: #E8E4DC;
 
   --font-unit: "Montserrat", "Poppins", sans-serif;
@@ -201,3 +201,121 @@
 .light .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(99, 102, 241, 0.5);
 }
+/* ===== CHẾ ĐỘ SÁNG "SẠCH" (nền xám xanh nhạt, thẻ trắng góc bo vừa, sidebar than đậm) =====
+   Muốn bỏ: xóa toàn bộ khối này, giao diện sáng trở về như cũ. */
+.light {
+  --color-bg-primary: #E9EDF3;
+  --color-bg-secondary: #FFFFFF;
+  --color-border-subtle: #D9E0EA;
+  --card-glass: #FFFFFF;
+  --border-glass: #D9E0EA;
+}
+body.light { background-image: none; }
+.light .glass-card {
+  background: #FFFFFF;
+  border-color: #D9E0EA;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+.light .glass-card:hover {
+  box-shadow: 0 4px 14px -4px rgba(16, 24, 40, 0.10);
+}
+/* Giảm bo góc quá lớn trong chế độ sáng */
+.light [class*="rounded-[3rem]"] { border-radius: 1.5rem !important; }
+.light [class*="rounded-[2.5rem]"] { border-radius: 1.25rem !important; }
+.light [class*="rounded-[2rem]"] { border-radius: 1rem !important; }
+/* Bóng đổ nhẹ hơn */
+.light .shadow-2xl, .light .shadow-xl { box-shadow: 0 6px 18px -8px rgba(16, 24, 40, 0.14) !important; }
+.light .shadow-lg { box-shadow: 0 3px 10px -4px rgba(16, 24, 40, 0.14) !important; }
+/* Sidebar than đậm đồng bộ với chế độ tối */
+.light aside {
+  background: #262C34 !important;
+  border-color: #1B2027 !important;
+  box-shadow: none !important;
+}
+.light aside h1 { color: #FFFFFF !important; }
+.light aside .text-slate-400,
+.light aside .text-slate-500 { color: #AEB6C2 !important; }
+.light aside button:not([class*="from-amber"]):hover {
+  background: rgba(255, 255, 255, 0.07) !important;
+  color: #FFFFFF !important;
+}
+.light aside input {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #FFFFFF !important;
+}
+.light aside [class*="border-slate-"] { border-color: rgba(255, 255, 255, 0.10) !important; }
+.light aside [class~="bg-amber-50"],
+.light aside [class~="bg-amber-100"] { background: rgba(233, 176, 79, 0.16) !important; }
+.light aside [class~="text-amber-700"],
+.light aside [class~="text-amber-600"] { color: #F2C36B !important; }
+/* Bỏ lớp phủ trắng và ảnh nền để thấy màu nền thật của chế độ sáng */
+.light div.absolute.inset-0.z-0.overflow-hidden > img { display: none; }
+.light div.absolute.inset-0.z-0.overflow-hidden > div.absolute.inset-0 { background: none !important; }
+.light .rounded-3xl { border-radius: 1.125rem !important; }
+.light .rounded-2xl { border-radius: 0.875rem !important; }
+.light [class*="rounded-[24px]"],
+.light [class*="rounded-[28px]"],
+.light [class*="rounded-[32px]"] { border-radius: 1rem !important; }
+
+/* ===== CHẾ ĐỘ SÁNG: CHỮ MÀU ĐẬM HƠN (tương phản ≥ 4.5:1 trên nền trắng/pastel) ===== */
+.light .text-slate-300 { color: #7B889C !important; }
+.light .text-slate-400 { color: #5F6E84 !important; }
+.light .text-slate-500 { color: #4A586E !important; }
+.light .text-amber-400,
+.light .text-amber-500,
+.light .text-festive-gold,
+.light .text-yellow-500,
+.light .text-yellow-600 { color: #946006 !important; }
+.light .text-amber-600 { color: #8A5805 !important; }
+.light .text-orange-400,
+.light .text-orange-500 { color: #B04E14 !important; }
+.light .text-emerald-400,
+.light .text-emerald-500,
+.light .text-green-500 { color: #0B7A5C !important; }
+.light .text-teal-500,
+.light .text-cyan-500 { color: #0E7C8C !important; }
+.light .text-rose-400,
+.light .text-rose-500,
+.light .text-red-500 { color: #BE2F4A !important; }
+.light .text-indigo-400,
+.light .text-indigo-500 { color: #4A52B5 !important; }
+.light .text-blue-400,
+.light .text-blue-500 { color: #2A62AD !important; }
+.light .text-violet-500,
+.light .text-purple-500 { color: #6A5CB8 !important; }
+/* Chữ trên nền xanh/đỏ/vàng đặc giữ nguyên màu trắng */
+.light [class*="bg-gradient"] .text-white,
+.light .bg-rose-500.text-white,
+.light .bg-indigo-500.text-white { color: #FFFFFF !important; }
+/* Chú thích biểu đồ (recharts) */
+.light .recharts-legend-item-text { color: #334155 !important; }
+/* Sidebar tối: giữ chữ sáng, không bị luật chữ đậm ở trên đè */
+.light aside .text-slate-300,
+.light aside .text-slate-400,
+.light aside .text-slate-500 { color: #CDB9A6 !important; }
+.light aside .text-amber-400,
+.light aside .text-amber-500,
+.light aside .text-festive-gold { color: #F2C36B !important; }
+.light .text-emerald-600,
+.light .text-green-600 { color: #08684E !important; }
+.light .text-rose-600,
+.light .text-red-600 { color: #A82440 !important; }
+.light .text-indigo-600 { color: #3F46A3 !important; }
+.light .text-blue-600 { color: #1F559B !important; }
+.light .bg-rose-500 { background-color: #CB3A56 !important; }
+.light .bg-indigo-500.text-white { background-color: #5A62C0 !important; }
+
+/* ===== CHẾ ĐỘ SÁNG: BỎ HIỆU ỨNG LÀM MỜ GÂY HOA MẮT ===== */
+/* Đốm sáng blur trang trí (không có chức năng) */
+.light [class~="blur-2xl"],
+.light [class~="blur-3xl"],
+.light [class*="blur-[100px]"],
+.light [class*="blur-[120px]"],
+.light [class*="blur-[140px]"] { display: none !important; }
+/* Thẻ không cần làm mờ nền phía sau (thẻ đã là màu trắng đặc) */
+.light .glass-card { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+/* Hạt chuyển động và lưới ở màn hình đăng nhập */
+.light canvas { display: none !important; }
+.light [class*="blur-[2px]"],
+.light [class*="blur-[1px]"] { display: none !important; }

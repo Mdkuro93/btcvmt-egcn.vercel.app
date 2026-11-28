@@ -6,7 +6,7 @@ import { useBulkActions } from './hooks/useBulkActions';
 import { useApplicationFilters } from './hooks/useApplicationFilters';
 import { useDashboardStats } from './hooks/useDashboardStats';
 import { calculateSLA } from './utils/statusEngine';
-import { diffDays } from './utils/dateUtils';
+import { diffDays, todayYmd, toLocalYmd } from './utils/dateUtils';
 import { buildFlags } from './utils/flagUtils';
 import { mapFromSnakeCase, mapToSnakeCase, mapUserFromSnakeCase, mapUserToSnakeCase, safeParse, mapNotificationToSnakeCase } from './utils/mappers';
 import { calculateDaysDiff, calculateDaysBetweenDates, getPhaseIndex, getTaxStatus, getOverdueInfo, inferStepFromDates, validateDateSequence, validateSkippedSteps, generateUUID } from './utils/appUtils';
@@ -279,7 +279,7 @@ const parseExcelDate = (value: any): string | undefined => {
       excelEpoch.getTime() + value * 24 * 60 * 60 * 1000
     );
     if (!isNaN(date.getTime())) {
-      return date.toISOString().split('T')[0];
+      return toLocalYmd(date);
     }
     return undefined;
   }
@@ -297,7 +297,7 @@ const parseExcelDate = (value: any): string | undefined => {
         parseInt(day)
       );
       if (!isNaN(date.getTime())) {
-        return date.toISOString().split('T')[0];
+        return toLocalYmd(date);
       }
     }
 
@@ -384,7 +384,7 @@ export default function App() {
   const { toast, showToast } = useToast();
   
   const [search, setSearch] = useState('');
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   const handleThemeToggle = useCallback((e: React.MouseEvent) => {
     const isDark = theme === 'dark';
@@ -2728,10 +2728,10 @@ export default function App() {
 
   const [bulkTransitionTarget, setBulkTransitionTarget] = useState<StepName | null>(null);
   const [bulkTransitionField, setBulkTransitionField] = useState<{key: keyof Application, label: string, isRequired?: boolean} | null>(null);
-  const [bulkTransitionValue, setBulkTransitionValue] = useState(new Date().toISOString().split('T')[0]);
+  const [bulkTransitionValue, setBulkTransitionValue] = useState(todayYmd());
   const [bulkTransitionLocation, setBulkTransitionLocation] = useState<'PHUONG' | 'TP_DANANG'>('PHUONG');
   const [bulkTransitionRefCode, setBulkTransitionRefCode] = useState('');
-  const [bulkTransitionKtHandover, setBulkTransitionKtHandover] = useState(new Date().toISOString().split('T')[0]);
+  const [bulkTransitionKtHandover, setBulkTransitionKtHandover] = useState(todayYmd());
 
   const availableStepsForBulkReject = useMemo(() => {
     const firstApp = applications.find(a => selectedAppIds.includes(a.id));
@@ -2756,7 +2756,7 @@ export default function App() {
     const errors: string[] = [];
     const warnings: string[] = [];
     const canSkipSequential = ['ADMIN', 'DIRECTOR', 'MANAGER_ALL'].includes(userRole);
-    const nowDateStr = new Date().toISOString().split('T')[0];
+    const nowDateStr = todayYmd();
 
     for (const id of selectedAppIds) {
       const app = applications.find(a => a.id === id);
@@ -2969,7 +2969,7 @@ export default function App() {
       console.log('Building spreadsheet update payloads for:', spreadsheetChanges);
 
       const updatePayloads: any[] = [];
-      const nowStr = new Date().toISOString().split('T')[0];
+      const nowStr = todayYmd();
       const updatedAppsLocal = [...applications];
       
       const results = {
@@ -3469,11 +3469,11 @@ export default function App() {
       
       let filename = '';
       if (mode === 'empty_template') {
-        filename = `Mau_nhap_lieu_GCN_${userRole}_${new Date().toISOString().split('T')[0]}.xlsx`;
+        filename = `Mau_nhap_lieu_GCN_${userRole}_${todayYmd()}.xlsx`;
       } else if (mode === 'current_page') {
-        filename = `Danh_sach_Trang_Hien_Tai_${userRole}_${new Date().toISOString().split('T')[0]}.xlsx`;
+        filename = `Danh_sach_Trang_Hien_Tai_${userRole}_${todayYmd()}.xlsx`;
       } else {
-        filename = `Danh_sach_Loc_GCN_${userRole}_${new Date().toISOString().split('T')[0]}.xlsx`;
+        filename = `Danh_sach_Loc_GCN_${userRole}_${todayYmd()}.xlsx`;
       }
       
       saveAs(blob, filename);
@@ -3659,7 +3659,7 @@ export default function App() {
 
     // If there is no specific field to update, we can either skip the modal and transition directly 
     // or keep the modal just for confirmation. Here we just show the modal without a required date.
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayYmd();
     let initialValue = '';
     let initLocation: 'PHUONG' | 'TP_DANANG' = 'PHUONG';
     let initRefCode = '';
@@ -3857,7 +3857,7 @@ export default function App() {
         type: file.type,
         url: publicUrl,
         path: filePath,
-        uploadDate: new Date().toISOString().split('T')[0]
+        uploadDate: todayYmd()
       };
 
       const updatedApp = {
@@ -3973,7 +3973,7 @@ export default function App() {
         type: file.type,
         url: publicUrl,
         path: filePath,
-        uploadDate: new Date().toISOString().split('T')[0],
+        uploadDate: todayYmd(),
         isShared: true
       };
 

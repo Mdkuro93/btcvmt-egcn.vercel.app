@@ -1,3 +1,4 @@
+import { todayYmd } from '../utils/dateUtils';
 import React, { useState, useMemo, useRef } from 'react';
 import { useModalStore } from '../stores/useModalStore';
 import MobileLayout from './mobile/MobileLayout';
@@ -230,7 +231,7 @@ export default function FieldModeView({
           type: file.type,
           url: publicUrl,
           path: filePath,
-          uploadDate: new Date().toISOString().split('T')[0]
+          uploadDate: todayYmd()
         };
         
         uploadedList.push(newFile);

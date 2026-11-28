@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { ArrowRight, ChevronDown, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Application, UnitStatus } from '../types';
-import { formatDate } from '../utils/dateUtils';
+import { formatDate, todayYmd } from '../utils/dateUtils';
 import { calculateSLA, computeUltimateStatus } from '../utils/statusEngine';
 import { determineStatusFromStep } from '../utils/appUtils';
 import { STEP_CONFIG as INITIAL_STEP_CONFIG } from '../constants';
@@ -148,7 +148,7 @@ export const DetailCard = ({ label, value, field, valueColor = 'text-[var(--colo
   const darkValueColor = valueColor === 'text-[var(--color-text-primary)]' ? 'text-[var(--color-text-primary)]' : valueColor;
   const lightValueColor = valueColor === 'text-[var(--color-text-primary)]' ? 'text-slate-900' : valueColor;
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = todayYmd();
   const isDeadlineStr = label.toLowerCase().includes('cam kết') || label.toLowerCase().includes('commitment');
   
   return (

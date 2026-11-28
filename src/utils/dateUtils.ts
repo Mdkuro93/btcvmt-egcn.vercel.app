@@ -83,3 +83,17 @@ export const formatDate = (val: string | Date | undefined) => {
   const y = date.getFullYear();
   return `${d}/${m}/${y}`;
 };
+
+/**
+ * Đổi Date sang chuỗi YYYY-MM-DD theo GIỜ ĐỊA PHƯƠNG (không dùng toISOString vì đó là giờ UTC,
+ * làm lùi 1 ngày với người dùng ở UTC+7 khi thao tác trước 7h sáng hoặc khi nhập ngày từ Excel).
+ */
+export const toLocalYmd = (d: Date = new Date()): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+/** Ngày hôm nay (giờ địa phương) dạng YYYY-MM-DD */
+export const todayYmd = (): string => toLocalYmd(new Date());

@@ -1,3 +1,4 @@
+import { todayYmd, toLocalYmd } from '../../utils/dateUtils';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Calendar, Check } from 'lucide-react';
@@ -21,7 +22,7 @@ export default function SelfServiceHandoverModal({
   // Set default value as today when modal opens
   useEffect(() => {
     if (isOpen) {
-      setHandoverDate(new Date().toISOString().split('T')[0]);
+      setHandoverDate(todayYmd());
     }
   }, [isOpen]);
 
@@ -30,7 +31,7 @@ export default function SelfServiceHandoverModal({
   const today = new Date();
   const maxDateObj = new Date();
   maxDateObj.setDate(today.getDate() + 30);
-  const maxDateStr = maxDateObj.toISOString().split('T')[0];
+  const maxDateStr = toLocalYmd(maxDateObj);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
